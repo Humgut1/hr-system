@@ -397,7 +397,7 @@ tbody tr:hover { background: #fafbfd; }
 .login-page { min-height: 100vh; display: flex; }
 .login-left {
   flex: 1;
-  background: linear-gradient(160deg, #0a1628 0%, #0f2544 50%, #1e3a8a 100%);
+  background: linear-gradient(160deg, #0d0f14 0%, #141824 55%, #1c2235 100%);
   display: flex; align-items: center; justify-content: center;
   padding: 60px; position: relative; overflow: hidden;
 }
