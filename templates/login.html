@@ -15,7 +15,7 @@
     <div style="z-index:1; text-align:center;">
       <div class="login-brand">
         <div class="brand-icon-wrap"><i class="fas fa-briefcase" style="color:#60a5fa;"></i></div>
-        <div class="brand-name">TalentCore</div>
+        <div class="login-brand-name">TalentCore</div>
         <div class="brand-tagline">Your all-in-one HR platform<br>for smarter people management</div>
       </div>
 
@@ -49,14 +49,14 @@
       {% endif %}
 
       <form method="POST" action="{{ url_for('login') }}">
-        <div class="form-group">
-          <label class="form-label" for="email">Email</label>
-          <input type="email" id="email" name="email" class="form-control"
+        <div class="login-fg">
+          <label class="login-label" for="email">Email</label>
+          <input type="email" id="email" name="email" class="login-input"
                  placeholder="you@company.com" required autocomplete="username">
         </div>
-        <div class="form-group">
-          <label class="form-label" for="password">Password</label>
-          <input type="password" id="password" name="password" class="form-control"
+        <div class="login-fg">
+          <label class="login-label" for="password">Password</label>
+          <input type="password" id="password" name="password" class="login-input"
                  placeholder="Enter your password" required autocomplete="current-password">
         </div>
         <button type="submit" class="btn-login">
