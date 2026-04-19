@@ -10,12 +10,14 @@ A full-featured HR platform built with Flask, designed for startups and small-to
 
 **[hr-system-production-5c51.up.railway.app](https://hr-system-production-5c51.up.railway.app)**
 
-| Role | Email | Password |
-|------|-------|----------|
-| HR Admin | admin@company.com | changeme! |
-| Manager | manager@company.com | changeme! |
-| Employee | employee@company.com | changeme! |
-| Recruiter | recruiter@company.com | changeme! |
+| Role | Email |
+|------|-------|
+| HR Admin | admin@company.com |
+| Manager | manager@company.com |
+| Employee | employee@company.com |
+| Recruiter | recruiter@company.com |
+
+> 비밀번호는 `HR_DEV_PASSWORD` 환경변수로 설정합니다. (기본값은 별도 문의)
 
 ---
 
