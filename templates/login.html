@@ -4,8 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign In — TalentCore</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
 <div class="login-page">
@@ -14,22 +19,24 @@
   <div class="login-left">
     <div style="z-index:1; text-align:center;">
       <div class="login-brand">
-        <div class="brand-icon-wrap"><i class="fas fa-briefcase" style="color:#60a5fa;"></i></div>
+        <div class="brand-icon-wrap">
+          <div class="brand-mark" style="width:64px;height:64px;border-radius:20px;font-size:28px;">T</div>
+        </div>
         <div class="login-brand-name">TalentCore</div>
         <div class="brand-tagline">Your all-in-one HR platform<br>for smarter people management</div>
       </div>
 
       <div class="login-features">
         <div class="login-feature">
-          <i class="fas fa-users"></i>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           <span class="login-feature-text">People, org & attendance in one place</span>
         </div>
         <div class="login-feature">
-          <i class="fas fa-chart-line"></i>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
           <span class="login-feature-text">Real-time performance & payroll data</span>
         </div>
         <div class="login-feature">
-          <i class="fas fa-user-tie"></i>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
           <span class="login-feature-text">Integrated recruiting pipeline</span>
         </div>
       </div>
@@ -44,23 +51,24 @@
 
       {% if error %}
       <div class="login-error">
-        <i class="fas fa-exclamation-circle"></i> {{ error }}
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        {{ error }}
       </div>
       {% endif %}
 
       <form method="POST" action="{{ url_for('login') }}">
-        <div class="login-fg">
-          <label class="login-label" for="email">Email</label>
-          <input type="email" id="email" name="email" class="login-input"
+        <div class="field" style="margin-bottom:16px;">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" class="input"
                  placeholder="you@company.com" required autocomplete="username">
         </div>
-        <div class="login-fg">
-          <label class="login-label" for="password">Password</label>
-          <input type="password" id="password" name="password" class="login-input"
+        <div class="field" style="margin-bottom:24px;">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" class="input"
                  placeholder="Enter your password" required autocomplete="current-password">
         </div>
-        <button type="submit" class="btn-login">
-          <i class="fas fa-sign-in-alt"></i> Sign In
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
+          Sign In
         </button>
       </form>
     </div>
