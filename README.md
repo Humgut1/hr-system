@@ -2,7 +2,7 @@
 
 A full-featured HR platform built with Flask, designed for startups and small-to-mid sized companies. Built as a portfolio project by a non-CS-major using Claude Code.
 
-> 비전공자가 Claude Code로 만든 HR 통합 시스템 제작기 → [블로그 보러가기](https://blog.naver.com/humgut1)
+> 비전공자가 Claude Code로 만든 HR 통합 시스템 제작기
 
 ---
 
@@ -79,7 +79,7 @@ A full-featured HR platform built with Flask, designed for startups and small-to
 ## Local Setup
 
 ```bash
-git clone https://github.com/Humgut1/hr-system.git
+git clone https://github.com/your-username/hr-system.git
 cd hr-system
 
 pip install -r requirements.txt
