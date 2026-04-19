@@ -84,24 +84,14 @@
       </div>
       {% endif %}
 
-      {% if not user_features or 'payroll' in user_features or 'certificates' in user_features %}
+      {% if not user_features or 'payroll' in user_features %}
       <div class="nav-section">
         <span class="nav-section-label">Payroll</span>
-        {% if not user_features or 'payroll' in user_features %}
         <a href="{{ url_for('payroll_list') }}"
            class="nav-item{% if active_page == 'payroll' %} active{% endif %}">
           <i class="fas fa-won-sign"></i><span>Payslips</span>
         </a>
-        {% endif %}
-        {% if not user_features or 'certificates' in user_features %}
-        <a href="{{ url_for('cert_employment') }}" target="_blank" class="nav-item">
-          <i class="fas fa-id-card"></i><span>Employment Cert.</span>
-        </a>
-        <a href="{{ url_for('cert_career') }}" target="_blank" class="nav-item">
-          <i class="fas fa-file-alt"></i><span>Career Cert.</span>
-        </a>
-        {% endif %}
-        {% if session.user_role == 'admin' and ('payroll' in user_features or not user_features) %}
+        {% if session.user_role == 'admin' %}
         <a href="{{ url_for('admin_payroll') }}"
            class="nav-item{% if active_page == 'admin_payroll' %} active{% endif %}">
           <i class="fas fa-cog"></i><span>Payroll Admin</span>
@@ -111,6 +101,16 @@
           <i class="fas fa-table"></i><span>Salary Table</span>
         </a>
         {% endif %}
+      </div>
+      {% endif %}
+
+      {% if not user_features or 'certificates' in user_features %}
+      <div class="nav-section">
+        <span class="nav-section-label">Documents</span>
+        <a href="{{ url_for('certificates_hub') }}"
+           class="nav-item{% if active_page == 'certificates' %} active{% endif %}">
+          <i class="fas fa-folder-open"></i><span>증명서 발급</span>
+        </a>
       </div>
       {% endif %}
 

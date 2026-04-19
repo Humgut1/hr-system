@@ -17,6 +17,18 @@ DATABASE = 'hr_system.db'
 from database import init_db
 init_db()
 
+# 연봉 기준표·부서 확장 시드 (job_families가 비어 있을 때만 자동 실행)
+def _ensure_extended_seed():
+    _c = sqlite3.connect(DATABASE)
+    try:
+        empty = _c.execute('SELECT COUNT(*) FROM job_families').fetchone()[0] == 0
+    finally:
+        _c.close()
+    if empty:
+        from migrate_db import run as _run
+        _run()
+_ensure_extended_seed()
+
 # ── 회사 정보 기본값 (환경변수 → DB 순으로 오버라이드) ────────
 _COMPANY_DEFAULTS = {
     'name':    os.environ.get('COMPANY_NAME',    '주식회사 탤런트코어'),
@@ -1142,24 +1154,65 @@ def salary_table():
                            active_page='salary_table')
 
 
-# ── Certificate ──────────────────────────────────────────────
-@app.route('/certificate/employment')
-@login_required
-def cert_employment():
-    from datetime import date
-    db  = get_db()
-    uid = session['user_id']
+# ── Certificate helpers ───────────────────────────────────────
+def _cert_user(db):
+    """admin은 ?user_id=X 로 대상 지정 가능, 나머지는 본인"""
+    role = session.get('user_role')
+    uid  = int(request.args.get('user_id', session['user_id']))
+    if role not in ('admin',) and uid != session['user_id']:
+        abort(403)
     user = db.execute(
         'SELECT u.*, d.name AS dept_name, p.name AS pos_name, '
         '       jf.name AS jf_name '
         'FROM users u '
-        'LEFT JOIN departments d  ON u.department_id  = d.id '
-        'LEFT JOIN positions   p  ON u.position_id    = p.id '
-        'LEFT JOIN job_families jf ON u.job_family_id = jf.id '
+        'LEFT JOIN departments d   ON u.department_id  = d.id '
+        'LEFT JOIN positions   p   ON u.position_id    = p.id '
+        'LEFT JOIN job_families jf ON u.job_family_id  = jf.id '
         'WHERE u.id=?', (uid,)
     ).fetchone()
-    today = date.today()
-    cert_no = f"EMP-{today.strftime('%Y%m')}-{uid:04d}"
+    if not user:
+        abort(404)
+    return user
+
+
+# ── Certificate hub ───────────────────────────────────────────
+@app.route('/certificates')
+@login_required
+def certificates_hub():
+    db   = get_db()
+    role = session.get('user_role')
+    uid  = int(request.args.get('user_id', session['user_id']))
+    if role not in ('admin',) and uid != session['user_id']:
+        uid = session['user_id']
+    employees = []
+    if role == 'admin':
+        employees = db.execute(
+            "SELECT id, name, department_id FROM users "
+            "WHERE status IN ('active','resigned') AND role != 'guest' ORDER BY name"
+        ).fetchall()
+    target = db.execute(
+        'SELECT u.*, d.name AS dept_name, p.name AS pos_name '
+        'FROM users u LEFT JOIN departments d ON u.department_id=d.id '
+        'LEFT JOIN positions p ON u.position_id=p.id WHERE u.id=?', (uid,)
+    ).fetchone()
+    cur_year = date.today().year
+    years = list(range(cur_year, cur_year - 5, -1))
+    return render_template('certificate/hub.html',
+                           employees=employees,
+                           target=target,
+                           selected_uid=uid,
+                           years=years,
+                           active_page='certificates')
+
+
+# ── Certificate ──────────────────────────────────────────────
+@app.route('/certificate/employment')
+@login_required
+def cert_employment():
+    db      = get_db()
+    user    = _cert_user(db)
+    today   = date.today()
+    cert_no = f"EMP-{today.strftime('%Y%m')}-{user['id']:04d}"
     return render_template('certificate/employment.html',
                            user=user,
                            today=today.strftime('%Y년 %m월 %d일'),
@@ -1169,25 +1222,67 @@ def cert_employment():
 @app.route('/certificate/career')
 @login_required
 def cert_career():
-    from datetime import date
-    db  = get_db()
-    uid = session['user_id']
-    user = db.execute(
-        'SELECT u.*, d.name AS dept_name, p.name AS pos_name, '
-        '       jf.name AS jf_name '
-        'FROM users u '
-        'LEFT JOIN departments d  ON u.department_id  = d.id '
-        'LEFT JOIN positions   p  ON u.position_id    = p.id '
-        'LEFT JOIN job_families jf ON u.job_family_id = jf.id '
-        'WHERE u.id=?', (uid,)
-    ).fetchone()
-    today = date.today()
-    cert_no = f"CAR-{today.strftime('%Y%m')}-{uid:04d}"
+    db      = get_db()
+    user    = _cert_user(db)
+    today   = date.today()
+    cert_no = f"CAR-{today.strftime('%Y%m')}-{user['id']:04d}"
     return render_template('certificate/career.html',
                            user=user,
                            today=today.strftime('%Y년 %m월 %d일'),
                            cert_no=cert_no,
                            company=get_company_info())
+
+
+@app.route('/certificate/resignation')
+@login_required
+def cert_resignation():
+    db      = get_db()
+    user    = _cert_user(db)
+    today   = date.today()
+    cert_no = f"RES-{today.strftime('%Y%m')}-{user['id']:04d}"
+    return render_template('certificate/resignation.html',
+                           user=user,
+                           today=today.strftime('%Y년 %m월 %d일'),
+                           cert_no=cert_no,
+                           company=get_company_info())
+
+
+@app.route('/certificate/income')
+@login_required
+def cert_income():
+    db      = get_db()
+    user    = _cert_user(db)
+    year    = int(request.args.get('year', date.today().year))
+    slips   = db.execute(
+        'SELECT * FROM payslips WHERE user_id=? AND year=? ORDER BY month',
+        (user['id'], year)
+    ).fetchall()
+    annual_gross     = sum(s['gross_pay']        for s in slips)
+    annual_tax       = sum(s['income_tax']       for s in slips)
+    annual_local_tax = sum(s['local_income_tax'] for s in slips)
+    annual_pension   = sum(s['national_pension'] for s in slips)
+    annual_health    = sum(s['health_insurance'] for s in slips)
+    annual_ltcare    = sum(s['long_term_care']   for s in slips)
+    annual_emp_ins   = sum(s['employment_insurance'] for s in slips)
+    annual_net       = sum(s['net_pay']          for s in slips)
+    today   = date.today()
+    cert_no = f"INC-{year}-{user['id']:04d}"
+    return render_template('certificate/income.html',
+                           user=user,
+                           year=year,
+                           slips=slips,
+                           annual_gross=annual_gross,
+                           annual_tax=annual_tax,
+                           annual_local_tax=annual_local_tax,
+                           annual_pension=annual_pension,
+                           annual_health=annual_health,
+                           annual_ltcare=annual_ltcare,
+                           annual_emp_ins=annual_emp_ins,
+                           annual_net=annual_net,
+                           today=today.strftime('%Y년 %m월 %d일'),
+                           cert_no=cert_no,
+                           company=get_company_info(),
+                           fmt_krw=fmt_krw)
 
 
 # ── Performance ──────────────────────────────────────────────

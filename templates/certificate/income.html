@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>근로소득 원천징수영수증</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; background: #f1f5f9; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 40px 20px 80px; }
+    .toolbar { width: 760px; max-width: 100%; display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .toolbar-left { font-size: 13px; color: #64748b; }
+    .toolbar-right { display: flex; gap: 8px; }
+    .btn { padding: 8px 18px; border-radius: 7px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .btn-primary { background: #1e40af; color: #fff; }
+    .btn-ghost   { background: #fff; color: #475569; border: 1px solid #cbd5e1; }
+    .cert { width: 760px; max-width: 100%; background: #fff; padding: 48px 56px 48px; box-shadow: 0 8px 32px rgba(0,0,0,.10); }
+    .cert-no { text-align: right; font-size: 12px; color: #94a3b8; margin-bottom: 28px; }
+    .cert-title { text-align: center; font-size: 22px; font-weight: 900; letter-spacing: 6px; color: #0f172a; margin-bottom: 6px; }
+    .cert-subtitle { text-align: center; font-size: 13px; color: #64748b; margin-bottom: 32px; }
+    .cert-title::after { content:''; display: block; width: 48px; height: 3px; background: #1e40af; margin: 10px auto 0; border-radius: 2px; }
+
+    .section-label { font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .08em; margin: 24px 0 8px; }
+    .info-table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
+    .info-table th, .info-table td { padding: 9px 12px; border: 1px solid #e2e8f0; font-size: 13px; vertical-align: middle; }
+    .info-table th { background: #f8fafc; font-weight: 700; color: #475569; text-align: center; white-space: nowrap; width: 120px; }
+    .info-table td { color: #0f172a; font-weight: 600; }
+    .info-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .info-table td.total { background: #f0f9ff; font-weight: 800; color: #1e40af; font-size: 14px; text-align: right; }
+    .info-table th.total-lbl { background: #dbeafe; color: #1e40af; font-weight: 800; }
+    .info-table tr.deduct td { color: #dc2626; }
+    .info-table tr.net td.total { color: #16a34a; background: #f0fdf4; }
+    .info-table th.net-lbl { background: #dcfce7; color: #15803d; font-weight: 800; }
+
+    .monthly-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 0; }
+    .monthly-table th, .monthly-table td { padding: 7px 10px; border: 1px solid #e2e8f0; text-align: right; }
+    .monthly-table th { background: #f8fafc; font-weight: 700; color: #475569; text-align: center; }
+    .monthly-table th:first-child { text-align: center; width: 40px; }
+    .monthly-table td:first-child { text-align: center; font-weight: 700; color: #475569; }
+    .monthly-table tr.sum-row td { background: #f0f9ff; font-weight: 800; color: #1e40af; }
+
+    .no-data { text-align: center; padding: 40px; color: #94a3b8; font-size: 14px; }
+    .cert-footer { margin-top: 32px; }
+    .issue-date { text-align: center; font-size: 14px; color: #334155; font-weight: 600; margin-bottom: 28px; }
+    .company-block { display: flex; justify-content: flex-end; }
+    .company-inner { display: flex; align-items: flex-end; gap: 24px; }
+    .company-info-table { border-collapse: collapse; font-size: 13px; }
+    .company-info-table th { text-align: right; font-weight: 700; color: #475569; padding: 4px 10px 4px 0; white-space: nowrap; }
+    .company-info-table td { font-weight: 600; color: #0f172a; padding: 4px 0; }
+    .seal { width: 76px; height: 76px; border-radius: 50%; border: 3px solid #1e40af; display: flex; align-items: center; justify-content: center; color: #1e40af; font-size: 12px; font-weight: 900; flex-shrink: 0; }
+    .notice { font-size: 11.5px; color: #64748b; line-height: 1.8; margin-top: 20px; padding: 12px 14px; background: #f8fafc; border-left: 3px solid #e2e8f0; }
+    @media print { body { background: #fff; padding: 0; } .cert { box-shadow: none; padding: 32px 44px; } .toolbar { display: none; } }
+  </style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="toolbar-left">발급번호: <strong>{{ cert_no }}</strong> · {{ year }}년 귀속</span>
+  <div class="toolbar-right">
+    <a href="{{ url_for('certificates_hub') }}" class="btn btn-ghost">← 목록으로</a>
+    <button class="btn btn-primary" onclick="window.print()">인쇄 / PDF 저장</button>
+  </div>
+</div>
+
+<div class="cert">
+  <div class="cert-no">발급번호 : {{ cert_no }}</div>
+  <div class="cert-title">근로소득 원천징수영수증</div>
+  <div class="cert-subtitle">{{ year }}년 1월 1일 ~ {{ year }}년 12월 31일 귀속분</div>
+
+  <!-- 근로자 정보 -->
+  <div class="section-label">근로자 정보</div>
+  <table class="info-table">
+    <tr><th>성 명</th><td>{{ user.name }}</td><th>부 서</th><td>{{ user.dept_name or '—' }}</td></tr>
+    <tr><th>직 위</th><td>{{ user.pos_name or '—' }}</td><th>입 사 일</th><td>{{ user.hire_date or '—' }}</td></tr>
+  </table>
+
+  {% if slips %}
+  <!-- 연간 합계 -->
+  <div class="section-label">연간 소득 요약</div>
+  <table class="info-table">
+    <tr>
+      <th>총 급여액 (과세)</th>
+      <td class="num">{{ fmt_krw(annual_gross) }}</td>
+      <th>총 지급 월수</th>
+      <td>{{ slips|length }}개월</td>
+    </tr>
+    <tr class="deduct">
+      <th>근로소득세 (원천징수)</th>
+      <td class="num">△ {{ fmt_krw(annual_tax) }}</td>
+      <th>지방소득세</th>
+      <td class="num">△ {{ fmt_krw(annual_local_tax) }}</td>
+    </tr>
+    <tr class="deduct">
+      <th>국민연금 (본인부담)</th>
+      <td class="num">△ {{ fmt_krw(annual_pension) }}</td>
+      <th>건강보험 + 장기요양</th>
+      <td class="num">△ {{ fmt_krw(annual_health + annual_ltcare) }}</td>
+    </tr>
+    <tr class="deduct">
+      <th>고용보험 (본인부담)</th>
+      <td class="num">△ {{ fmt_krw(annual_emp_ins) }}</td>
+      <th>총 공제액</th>
+      <td class="num">△ {{ fmt_krw(annual_gross - annual_net) }}</td>
+    </tr>
+    <tr>
+      <th class="net-lbl">연간 실수령액 합계</th>
+      <td class="total net" colspan="3">{{ fmt_krw(annual_net) }}</td>
+    </tr>
+  </table>
+
+  <!-- 월별 명세 -->
+  <div class="section-label" style="margin-top:24px;">월별 급여 내역</div>
+  <table class="monthly-table">
+    <thead>
+      <tr>
+        <th>월</th>
+        <th>총 지급액</th>
+        <th>소득세</th>
+        <th>지방세</th>
+        <th>국민연금</th>
+        <th>건강보험</th>
+        <th>고용보험</th>
+        <th>실수령액</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in slips %}
+      <tr>
+        <td>{{ s.month }}월</td>
+        <td>{{ fmt_krw(s.gross_pay) }}</td>
+        <td>{{ fmt_krw(s.income_tax) }}</td>
+        <td>{{ fmt_krw(s.local_income_tax) }}</td>
+        <td>{{ fmt_krw(s.national_pension) }}</td>
+        <td>{{ fmt_krw(s.health_insurance) }}</td>
+        <td>{{ fmt_krw(s.employment_insurance) }}</td>
+        <td>{{ fmt_krw(s.net_pay) }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="sum-row">
+        <td>합계</td>
+        <td>{{ fmt_krw(annual_gross) }}</td>
+        <td>{{ fmt_krw(annual_tax) }}</td>
+        <td>{{ fmt_krw(annual_local_tax) }}</td>
+        <td>{{ fmt_krw(annual_pension) }}</td>
+        <td>{{ fmt_krw(annual_health) }}</td>
+        <td>{{ fmt_krw(annual_emp_ins) }}</td>
+        <td>{{ fmt_krw(annual_net) }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  {% else %}
+  <div class="no-data">{{ year }}년 급여 데이터가 없습니다.</div>
+  {% endif %}
+
+  <div class="notice">
+    ※ 본 영수증은 TalentCore HR 시스템에서 생성된 참고용 서류입니다.<br>
+    ※ 비과세 항목(식대·교통비)은 총 지급액에서 제외되었습니다.<br>
+    ※ 세무·금융기관 공식 제출용은 국세청 홈택스(hometax.go.kr)에서 발급하시기 바랍니다.
+  </div>
+
+  <div class="cert-footer">
+    <div class="issue-date">{{ today }}</div>
+    <div class="company-block">
+      <div class="company-inner">
+        <table class="company-info-table">
+          <tr><th>회 사 명</th><td>{{ company.name }}</td></tr>
+          <tr><th>사업자번호</th><td>{{ company.reg_no }}</td></tr>
+          <tr><th>대 표 이 사</th><td>{{ company.ceo }} (인)</td></tr>
+          <tr><th>전 화</th><td>{{ company.tel }}</td></tr>
+        </table>
+        <div class="seal">직인</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

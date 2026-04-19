@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>퇴직확인서</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; background: #f1f5f9; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 40px 20px 80px; }
+    .toolbar { width: 720px; max-width: 100%; display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .toolbar-left { font-size: 13px; color: #64748b; }
+    .toolbar-right { display: flex; gap: 8px; align-items: center; }
+    .btn { padding: 8px 18px; border-radius: 7px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .btn-primary { background: #1e40af; color: #fff; }
+    .btn-ghost   { background: #fff; color: #475569; border: 1px solid #cbd5e1; }
+    .cert { width: 720px; max-width: 100%; background: #fff; padding: 56px 64px 52px; box-shadow: 0 8px 32px rgba(0,0,0,.10); position: relative; }
+    .cert-no { text-align: right; font-size: 12px; color: #94a3b8; margin-bottom: 36px; letter-spacing: .5px; }
+    .cert-title { text-align: center; font-size: 28px; font-weight: 900; letter-spacing: 10px; color: #0f172a; margin-bottom: 48px; }
+    .cert-title::after { content:''; display: block; width: 48px; height: 3px; background: #1e40af; margin: 12px auto 0; border-radius: 2px; }
+    .info-table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+    .info-table th, .info-table td { padding: 11px 14px; border: 1px solid #e2e8f0; font-size: 13.5px; vertical-align: middle; }
+    .info-table th { background: #f8fafc; font-weight: 700; color: #475569; width: 110px; text-align: center; white-space: nowrap; }
+    .info-table td { color: #0f172a; font-weight: 600; }
+    .cert-body { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; padding: 20px 22px; font-size: 14.5px; line-height: 2.0; color: #0f172a; margin-bottom: 28px; }
+    .cert-body strong { color: #1e40af; }
+    .purpose-row { display: flex; align-items: center; gap: 16px; margin-bottom: 36px; font-size: 13.5px; }
+    .purpose-label { font-weight: 700; color: #475569; white-space: nowrap; width: 60px; text-align: right; }
+    .purpose-value { font-weight: 600; color: #0f172a; border-bottom: 1px solid #334155; min-width: 200px; padding-bottom: 2px; }
+    .issue-date { text-align: center; font-size: 15px; color: #334155; font-weight: 600; margin-bottom: 36px; }
+    .company-block { display: flex; justify-content: flex-end; }
+    .company-inner { display: flex; align-items: flex-end; gap: 28px; }
+    .company-info-table { border-collapse: collapse; font-size: 13.5px; }
+    .company-info-table th { text-align: right; font-weight: 700; color: #475569; padding: 5px 12px 5px 0; white-space: nowrap; }
+    .company-info-table td { font-weight: 600; color: #0f172a; padding: 5px 0; }
+    .seal { width: 84px; height: 84px; border-radius: 50%; border: 3px solid #1e40af; display: flex; align-items: center; justify-content: center; color: #1e40af; font-size: 13px; font-weight: 900; letter-spacing: 1px; flex-shrink: 0; }
+    @media print { body { background: #fff; padding: 0; } .cert { box-shadow: none; padding: 40px 52px; } .toolbar { display: none; } }
+  </style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="toolbar-left">증명서 번호: <strong>{{ cert_no }}</strong></span>
+  <div class="toolbar-right">
+    <a href="{{ url_for('certificates_hub') }}" class="btn btn-ghost">← 목록으로</a>
+    <button class="btn btn-primary" onclick="window.print()">인쇄 / PDF 저장</button>
+  </div>
+</div>
+
+<div class="cert">
+  <div class="cert-no">발급번호 : {{ cert_no }}</div>
+  <div class="cert-title">퇴 직 확 인 서</div>
+
+  <table class="info-table">
+    <tr><th>성 명</th><td>{{ user.name }}</td></tr>
+    <tr><th>부 서</th><td>{{ user.dept_name or '—' }}</td></tr>
+    <tr><th>직 위</th><td>{{ user.pos_name or '—' }}</td></tr>
+    <tr><th>입 사 일</th><td>{{ user.hire_date or '—' }}</td></tr>
+    <tr>
+      <th>퇴 직 일</th>
+      <td>
+        {% if user.status == 'resigned' or user.status == 'inactive' %}
+          (퇴직일 기록 없음 — HR에 확인 요망)
+        {% else %}
+          재직 중
+        {% endif %}
+      </td>
+    </tr>
+    <tr><th>재직 기간</th>
+      <td>
+        {% if user.hire_date %}
+          {{ user.hire_date }} ~ 현재
+        {% else %}—{% endif %}
+      </td>
+    </tr>
+  </table>
+
+  <div class="cert-body">
+    위 사람은 <strong>{{ company.name }}</strong>에 재직하였음을 확인합니다.
+  </div>
+
+  <div class="purpose-row">
+    <span class="purpose-label">용 도</span>
+    <span class="purpose-value" id="purpose-val">일반 제출용</span>
+  </div>
+
+  <div class="issue-date">{{ today }}</div>
+
+  <div class="company-block">
+    <div class="company-inner">
+      <table class="company-info-table">
+        <tr><th>회 사 명</th><td>{{ company.name }}</td></tr>
+        <tr><th>사업자번호</th><td>{{ company.reg_no }}</td></tr>
+        <tr><th>주 소</th><td>{{ company.address }}</td></tr>
+        <tr><th>대 표 이 사</th><td>{{ company.ceo }} (인)</td></tr>
+      </table>
+      <div class="seal">직인</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

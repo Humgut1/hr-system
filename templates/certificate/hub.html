@@ -1,0 +1,246 @@
+{% extends 'base.html' %}
+{% block title %}증명서 발급{% endblock %}
+
+{% block head %}
+<style>
+.hub-selector {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  background: var(--surface-container-low); border-radius: var(--radius-md);
+  padding: 1.25rem 1.5rem; margin-bottom: 2rem;
+}
+.hub-selector label { font-size: .85rem; font-weight: 700; color: var(--on-surface-muted); white-space: nowrap; }
+.hub-selector select {
+  padding: .5rem .9rem; font-size: .9rem; font-family: inherit;
+  background: var(--surface-container-lowest); border: none;
+  border-radius: var(--radius-sm); color: var(--on-surface); cursor: pointer;
+  min-width: 200px;
+}
+.hub-name { font-size: 1rem; font-weight: 700; color: var(--on-surface); }
+.hub-meta { font-size: .82rem; color: var(--on-surface-muted); margin-top: 2px; }
+
+.cert-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.25rem; margin-bottom: 2rem; }
+.cert-card {
+  background: var(--surface-container-low); border-radius: var(--radius-md);
+  padding: 1.5rem; display: flex; flex-direction: column; gap: .75rem;
+}
+.cert-card.external { opacity: .6; }
+.cert-card-top { display: flex; align-items: flex-start; gap: 1rem; }
+.cert-icon {
+  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+}
+.cert-icon.blue   { background: #dbeafe; color: #2563eb; }
+.cert-icon.green  { background: #dcfce7; color: #16a34a; }
+.cert-icon.purple { background: #ede9fe; color: #7c3aed; }
+.cert-icon.orange { background: #ffedd5; color: #ea580c; }
+.cert-icon.gray   { background: var(--surface-container-lowest); color: var(--on-surface-muted); }
+.cert-name { font-size: .95rem; font-weight: 700; color: var(--on-surface); }
+.cert-name-en { font-size: .75rem; color: var(--on-surface-muted); font-weight: 500; margin-top: 2px; }
+.cert-desc { font-size: .82rem; color: var(--on-surface-muted); line-height: 1.6; }
+.cert-badge {
+  display: inline-flex; align-items: center; gap: .3rem;
+  font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+}
+.cert-badge.available { background: #dcfce7; color: #15803d; }
+.cert-badge.external  { background: #f1f5f9; color: #64748b; }
+.cert-actions { margin-top: auto; display: flex; gap: .5rem; flex-wrap: wrap; }
+.cert-btn {
+  padding: .5rem 1rem; font-size: .83rem; font-weight: 600; border-radius: var(--radius-sm);
+  border: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: .4rem;
+  transition: opacity .15s;
+}
+.cert-btn:hover { opacity: .82; }
+.cert-btn.primary { background: linear-gradient(135deg, #2b5bff, #6b8eff); color: #fff; }
+.cert-btn.secondary { background: var(--surface-container-lowest); color: var(--on-surface); }
+.cert-btn.disabled { background: var(--surface-container-lowest); color: var(--on-surface-muted); cursor: not-allowed; opacity: .5; }
+
+.year-select {
+  padding: .45rem .8rem; font-size: .85rem; font-family: inherit;
+  background: var(--surface-container-lowest); border: none;
+  border-radius: var(--radius-sm); color: var(--on-surface); cursor: pointer;
+}
+
+.section-title { font-size: .75rem; font-weight: 700; color: var(--on-surface-muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 1rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- 대상 직원 선택 (admin only) -->
+{% if session.user_role == 'admin' %}
+<div class="hub-selector">
+  <label>발급 대상</label>
+  <form method="GET" action="{{ url_for('certificates_hub') }}" style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
+    <select name="user_id" onchange="this.form.submit()">
+      {% for emp in employees %}
+      <option value="{{ emp.id }}" {% if emp.id == selected_uid %}selected{% endif %}>
+        {{ emp.name }}
+      </option>
+      {% endfor %}
+    </select>
+    <noscript><button type="submit" class="cert-btn secondary">선택</button></noscript>
+  </form>
+  {% if target %}
+  <div style="margin-left:auto;">
+    <div class="hub-name">{{ target.name }}</div>
+    <div class="hub-meta">{{ target.dept_name or '—' }} · {{ target.pos_name or '—' }} · 입사 {{ target.hire_date or '—' }}</div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- TalentCore 발급 가능 -->
+<div class="section-title">TalentCore 발급 가능</div>
+<div class="cert-grid">
+
+  <!-- 재직증명서 -->
+  <div class="cert-card">
+    <div class="cert-card-top">
+      <div class="cert-icon blue"><i class="fas fa-id-badge"></i></div>
+      <div>
+        <div class="cert-name">재직증명서</div>
+        <div class="cert-name-en">Employment Certificate</div>
+      </div>
+    </div>
+    <div class="cert-desc">현재 재직 중임을 증명하는 서류. 금융기관 대출, 비자 신청, 각종 공공기관 제출용으로 사용됩니다.</div>
+    <span class="cert-badge available"><i class="fas fa-check-circle"></i> 즉시 발급</span>
+    <div class="cert-actions">
+      <a href="{{ url_for('cert_employment', user_id=selected_uid) }}" target="_blank" class="cert-btn primary">
+        <i class="fas fa-print"></i> 발급하기
+      </a>
+    </div>
+  </div>
+
+  <!-- 경력증명서 -->
+  <div class="cert-card">
+    <div class="cert-card-top">
+      <div class="cert-icon green"><i class="fas fa-file-alt"></i></div>
+      <div>
+        <div class="cert-name">경력증명서</div>
+        <div class="cert-name-en">Career Certificate</div>
+      </div>
+    </div>
+    <div class="cert-desc">입사일, 부서, 직위, 주요 업무를 기재한 서류. 이직 시 전 직장 경력을 증명하는 데 사용됩니다.</div>
+    <span class="cert-badge available"><i class="fas fa-check-circle"></i> 즉시 발급</span>
+    <div class="cert-actions">
+      <a href="{{ url_for('cert_career', user_id=selected_uid) }}" target="_blank" class="cert-btn primary">
+        <i class="fas fa-print"></i> 발급하기
+      </a>
+    </div>
+  </div>
+
+  <!-- 퇴직확인서 -->
+  <div class="cert-card">
+    <div class="cert-card-top">
+      <div class="cert-icon orange"><i class="fas fa-door-open"></i></div>
+      <div>
+        <div class="cert-name">퇴직확인서</div>
+        <div class="cert-name-en">Separation Certificate</div>
+      </div>
+    </div>
+    <div class="cert-desc">퇴직 사실과 근무 기간을 증명하는 서류. 실업급여 신청, 이직 경력 증빙 등에 사용됩니다.</div>
+    <span class="cert-badge available"><i class="fas fa-check-circle"></i> 즉시 발급</span>
+    <div class="cert-actions">
+      <a href="{{ url_for('cert_resignation', user_id=selected_uid) }}" target="_blank" class="cert-btn primary">
+        <i class="fas fa-print"></i> 발급하기
+      </a>
+    </div>
+  </div>
+
+  <!-- 급여명세서 -->
+  <div class="cert-card">
+    <div class="cert-card-top">
+      <div class="cert-icon purple"><i class="fas fa-won-sign"></i></div>
+      <div>
+        <div class="cert-name">급여명세서</div>
+        <div class="cert-name-en">Payslip</div>
+      </div>
+    </div>
+    <div class="cert-desc">월별 기본급, 수당, 4대보험·소득세 공제 내역이 담긴 서류. 근로기준법 §48 기준 적용.</div>
+    <span class="cert-badge available"><i class="fas fa-check-circle"></i> 즉시 발급</span>
+    <div class="cert-actions">
+      <a href="{{ url_for('payroll_list') }}" class="cert-btn primary">
+        <i class="fas fa-list"></i> 명세서 목록
+      </a>
+    </div>
+  </div>
+
+  <!-- 근로소득원천징수영수증 -->
+  <div class="cert-card">
+    <div class="cert-card-top">
+      <div class="cert-icon blue"><i class="fas fa-receipt"></i></div>
+      <div>
+        <div class="cert-name">근로소득 원천징수영수증</div>
+        <div class="cert-name-en">Withholding Tax Receipt</div>
+      </div>
+    </div>
+    <div class="cert-desc">연간 급여 총액 및 원천징수된 소득세를 요약한 서류. 연말정산, 금융 심사, 소득 증빙 등에 필요합니다.</div>
+    <span class="cert-badge available"><i class="fas fa-check-circle"></i> 급여 데이터 기반 발급</span>
+    <div class="cert-actions">
+      <form method="GET" action="{{ url_for('cert_income') }}" target="_blank"
+            style="display:flex;gap:.5rem;align-items:center;">
+        <input type="hidden" name="user_id" value="{{ selected_uid }}">
+        <select name="year" class="year-select">
+          {% for y in years %}<option value="{{ y }}">{{ y }}년</option>{% endfor %}
+        </select>
+        <button type="submit" class="cert-btn primary">
+          <i class="fas fa-print"></i> 발급하기
+        </button>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<!-- 외부 기관 발급 -->
+<div class="section-title" style="margin-top:.5rem;">외부 기관에서 발급 (참고)</div>
+<div class="cert-grid">
+
+  <div class="cert-card external">
+    <div class="cert-card-top">
+      <div class="cert-icon gray"><i class="fas fa-hospital"></i></div>
+      <div>
+        <div class="cert-name">건강보험료 납부확인서</div>
+        <div class="cert-name-en">Health Insurance Payment Cert.</div>
+      </div>
+    </div>
+    <div class="cert-desc">국민건강보험공단(nhis.or.kr)에서 발급. 보험료 납부 사실 증명, 금융 심사 등에 사용.</div>
+    <span class="cert-badge external"><i class="fas fa-external-link-alt"></i> 외부 기관</span>
+    <div class="cert-actions">
+      <span class="cert-btn disabled"><i class="fas fa-lock"></i> TalentCore 미지원</span>
+    </div>
+  </div>
+
+  <div class="cert-card external">
+    <div class="cert-card-top">
+      <div class="cert-icon gray"><i class="fas fa-umbrella"></i></div>
+      <div>
+        <div class="cert-name">국민연금 가입증명서</div>
+        <div class="cert-name-en">National Pension Enrollment Cert.</div>
+      </div>
+    </div>
+    <div class="cert-desc">국민연금공단(nps.or.kr)에서 발급. 연금 가입 및 납부 사실 증명.</div>
+    <span class="cert-badge external"><i class="fas fa-external-link-alt"></i> 외부 기관</span>
+    <div class="cert-actions">
+      <span class="cert-btn disabled"><i class="fas fa-lock"></i> TalentCore 미지원</span>
+    </div>
+  </div>
+
+  <div class="cert-card external">
+    <div class="cert-card-top">
+      <div class="cert-icon gray"><i class="fas fa-briefcase"></i></div>
+      <div>
+        <div class="cert-name">고용보험 피보험자격 확인서</div>
+        <div class="cert-name-en">Employment Insurance Cert.</div>
+      </div>
+    </div>
+    <div class="cert-desc">고용보험(ei.go.kr)에서 발급. 실업급여 신청, 육아휴직급여 신청 등에 필요.</div>
+    <span class="cert-badge external"><i class="fas fa-external-link-alt"></i> 외부 기관</span>
+    <div class="cert-actions">
+      <span class="cert-btn disabled"><i class="fas fa-lock"></i> TalentCore 미지원</span>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
