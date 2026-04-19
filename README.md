@@ -205,6 +205,83 @@ web: gunicorn app:app --bind 0.0.0.0:$PORT
 
 ---
 
+## Changelog
+
+### v0.16.0 — 2026-04-20
+**Data Export & Certificate Hub**
+
+#### Added
+- **Excel Export** (`/export`) — 7 download endpoints for HR data
+  - Employee directory (name, dept, position, job family, hire date, status)
+  - Monthly payroll detail (all deduction line items + totals row)
+  - Annual payroll summary (per-employee annual gross / net / tax totals)
+  - Attendance log (leave requests by year or month)
+  - Performance goals by review cycle (progress, self-score, comment)
+  - Applicant pipeline (all postings × all stages)
+- **Certificate Hub** (`/certificates`) — unified document issuance center
+  - Admin can issue certificates on behalf of any employee
+  - TalentCore-issued: 재직증명서, 경력증명서, 퇴직확인서, 급여명세서, 근로소득 원천징수영수증
+  - External-only notice: 건강보험, 국민연금, 고용보험 (links to issuing agencies)
+- **퇴직확인서** — corporate legal format with company seal block
+- **근로소득 원천징수영수증** — annual income summary + monthly breakdown table
+
+#### Changed
+- Sidebar: added **Reports** section (admin-only) with export link
+- Sidebar: Documents section consolidated to single Certificate Hub link
+
+---
+
+### v0.15.0 — 2026-04-19
+**Guest Account & Onboarding Tutorial**
+
+#### Added
+- **Guest account** (`guest@talentcore.com`) — read-only, all GET routes accessible, POST blocked with flash message
+- **2-step onboarding** for first admin login
+  - Step 1: Feature selection (9 toggleable modules — Attendance, Payroll, Performance, etc.)
+  - Step 2: Company info input (name, reg no., CEO, address, phone) — persisted to DB
+- `company_settings` table — DB-backed company info overrides env vars on certificates
+- Feature gating in sidebar — sections hide/show based on enabled features per tenant
+- `features_enabled` column on users — comma-separated feature keys
+
+---
+
+### v0.14.0 — 2026-04-18
+**360° Peer Review & Calibration**
+
+#### Added
+- Peer review assignments — HR assigns reviewer pairs per cycle
+- Peer review writing — Strengths + Areas for Growth (qualitative)
+- Upward review — 5 Google-style questions scored 1–5
+- **Calibration board** — per-employee score packet (self / manager / peer / upward)
+- Rule-based calibration summary — auto-generated narrative, no external API
+- HR sets final calibrated grade (S–D) with notes; results stored separately from raw scores
+
+---
+
+### v0.13.0 — 2026-04-17
+**Attendance Home & Performance UX**
+
+#### Added
+- Attendance home (`/attendance/home`) — daily check-in/out, leave balance bar, monthly grid
+- Self-review per goal — 1–5 score + written comment
+- Progress tracking per goal (0–100%) with visual bar
+- Weighted average → final grade (S / A / B / C / D) result card
+
+---
+
+### v0.12.0 — 2026-04-16
+**Payroll & Certificates**
+
+#### Added
+- Korean 4대보험 auto-calculation (2026 rates) — NPS, Health, LTC, Employment Insurance
+- Income tax + local income tax auto-calculation
+- Non-taxable allowances per 소득세법 시행령 §12 (meal ₩200k, transport ₩100k)
+- 재직증명서 & 경력증명서 — corporate legal format, print/PDF ready
+- Grade-based salary table (CL1–CL9 × 12 job families)
+- 100-employee seed data with realistic department/grade distribution
+
+---
+
 ## About
 
 This project was built as a portfolio piece documenting what a non-CS-major can build with AI-assisted development (Claude Code). The full build log is on my blog.
