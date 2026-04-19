@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% block title %}Peer Reviews{% endblock %}
+{% block page_title %}Peer Reviews{% endblock %}
+
+{% block head %}
+<style>
+.peer-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 20px 24px; margin-bottom: 10px; }
+.peer-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.todo-badge { display: inline-flex; align-items: center; gap: 6px; background: #fef3c7; color: #92400e; border-radius: 99px; padding: 4px 12px; font-size: 12px; font-weight: 700; }
+.done-badge { display: inline-flex; align-items: center; gap: 6px; background: #dcfce7; color: #15803d; border-radius: 99px; padding: 4px 12px; font-size: 12px; font-weight: 700; }
+.score-chip { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; font-size: 14px; font-weight: 900; }
+.chip-s { background:#dcfce7; color:#16a34a; }
+.chip-a { background:#dbeafe; color:#1e40af; }
+.chip-b { background:#e0f2fe; color:#0369a1; }
+.chip-c { background:#fef3c7; color:#92400e; }
+.chip-d { background:#fee2e2; color:#dc2626; }
+.q-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.q-bar-label { font-size: 12px; color: var(--tx-2); flex: 1; min-width: 0; }
+.q-bar-score { font-size: 13px; font-weight: 700; color: var(--primary); min-width: 30px; text-align: right; }
+.q-bar-fill-bg { width: 120px; height: 6px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+.q-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #1e40af, #0891b2); }
+.anon-notice { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--r-sm); padding: 10px 14px; font-size: 12px; color: #0369a1; margin-bottom: 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Cycle selector -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+  <div>
+    {% if cycles %}
+    <select class="input" style="width:220px;" onchange="location.href='?cycle='+this.value">
+      {% for c in cycles %}
+      <option value="{{ c.id }}" {% if selected_cycle and c.id == selected_cycle.id %}selected{% endif %}>
+        {{ c.name }} ({{ 'Active' if c.status == 'active' else 'Closed' }})
+      </option>
+      {% endfor %}
+    </select>
+    {% endif %}
+  </div>
+</div>
+
+{% if not selected_cycle %}
+<div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:var(--r); padding:16px 20px; color:var(--orange); font-weight:600;">
+  <i class="fas fa-exclamation-triangle"></i> No active review cycle.
+</div>
+{% else %}
+
+<!-- Employee: reviews I need to write -->
+{% if session.user_role == 'employee' %}
+<div style="margin-bottom:28px;">
+  <div style="font-size:15px; font-weight:800; color:var(--tx-1); margin-bottom:12px;">
+    <i class="fas fa-pen-to-square" style="color:var(--primary);"></i> Reviews to Complete
+  </div>
+
+  {% if not my_assignments and not upward_targets %}
+  <div class="peer-card" style="text-align:center; color:var(--tx-3); padding:40px;">
+    No peer reviews assigned to you.
+  </div>
+  {% endif %}
+
+  <!-- Peer reviews -->
+  {% for a in my_assignments %}
+  <div class="peer-card">
+    <div class="peer-card-head">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div class="avatar-xs">{{ a.reviewee_name[0] }}</div>
+        <div>
+          <div style="font-size:14px; font-weight:700;">{{ a.reviewee_name }}</div>
+          <div style="font-size:12px; color:var(--tx-3);">Peer Review</div>
+        </div>
+      </div>
+      {% if a.done_id %}
+      <span class="done-badge"><i class="fas fa-check"></i> Submitted</span>
+      {% else %}
+      <span class="todo-badge"><i class="fas fa-clock"></i> Pending</span>
+      {% endif %}
+    </div>
+    <a href="{{ url_for('peer_review_write', reviewee_id=a.reviewee_id, cycle=selected_cycle.id, type='peer') }}"
+       class="btn {% if a.done_id %}btn-ghost{% else %}btn-primary{% endif %} btn-sm">
+      {% if a.done_id %}<i class="fas fa-edit"></i> Edit{% else %}<i class="fas fa-pen"></i> Write Review{% endif %}
+    </a>
+  </div>
+  {% endfor %}
+
+  <!-- Manager upward review -->
+  {% for mgr in upward_targets %}
+  <div class="peer-card">
+    <div class="peer-card-head">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div class="avatar-xs" style="background: linear-gradient(135deg,#1e40af,#0891b2);">{{ mgr.name[0] }}</div>
+        <div>
+          <div style="font-size:14px; font-weight:700;">{{ mgr.name }}</div>
+          <div style="font-size:12px; color:var(--tx-3);">Manager Review <span style="background:#dbeafe;color:#1e40af;border-radius:4px;padding:1px 6px;font-size:11px;">Anonymous</span></div>
+        </div>
+      </div>
+      {% if mgr.done %}
+      <span class="done-badge"><i class="fas fa-check"></i> Submitted</span>
+      {% else %}
+      <span class="todo-badge"><i class="fas fa-clock"></i> Pending</span>
+      {% endif %}
+    </div>
+    <a href="{{ url_for('peer_review_write', reviewee_id=mgr.id, cycle=selected_cycle.id, type='upward') }}"
+       class="btn {% if mgr.done %}btn-ghost{% else %}btn-primary{% endif %} btn-sm">
+      {% if mgr.done %}<i class="fas fa-edit"></i> Edit{% else %}<i class="fas fa-pen"></i> Write Review{% endif %}
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Reviews I received -->
+<div style="margin-bottom:28px;">
+  <div style="font-size:15px; font-weight:800; color:var(--tx-1); margin-bottom:12px;">
+    <i class="fas fa-star" style="color:#f59e0b;"></i> Reviews I Received
+  </div>
+  {% if received_peer %}
+  {% for r in received_peer %}
+  <div class="peer-card">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <div class="avatar-xs">{{ r.reviewer_name[0] }}</div>
+      <div style="flex:1;">
+        <div style="font-size:13px; font-weight:700;">{{ r.reviewer_name }}</div>
+        <div style="font-size:11px; color:var(--tx-3);">{{ r.created_at[:10] }}</div>
+      </div>
+      {% set sc = r.score %}
+      {% if sc >= 5 %}{% set cls='chip-s' %}{% elif sc >= 4 %}{% set cls='chip-a' %}
+      {% elif sc >= 3 %}{% set cls='chip-b' %}{% elif sc >= 2 %}{% set cls='chip-c' %}
+      {% else %}{% set cls='chip-d' %}{% endif %}
+      <span class="score-chip {{ cls }}">{{ sc }}</span>
+    </div>
+    {% if r.strength %}
+    <div style="margin-top:12px; padding:10px 14px; background:#f0fdf4; border-radius:var(--r-sm);">
+      <div style="font-size:11px; font-weight:700; color:#16a34a; margin-bottom:3px;">Strengths</div>
+      <div style="font-size:13px; color:var(--tx-2);">{{ r.strength }}</div>
+    </div>
+    {% endif %}
+    {% if r.improvement %}
+    <div style="margin-top:8px; padding:10px 14px; background:#fff7ed; border-radius:var(--r-sm);">
+      <div style="font-size:11px; font-weight:700; color:#ea580c; margin-bottom:3px;">Areas for Growth</div>
+      <div style="font-size:13px; color:var(--tx-2);">{{ r.improvement }}</div>
+    </div>
+    {% endif %}
+    {% if r.comment %}
+    <div style="margin-top:8px; font-size:13px; color:var(--tx-3); padding:0 2px;">{{ r.comment }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="peer-card" style="text-align:center; color:var(--tx-3); padding:32px;">
+    No peer reviews received yet.
+  </div>
+  {% endif %}
+</div>
+
+<!-- Manager: upward feedback received -->
+{% if session.user_role in ('manager', 'admin') %}
+<div style="margin-bottom:28px;">
+  <div style="font-size:15px; font-weight:800; color:var(--tx-1); margin-bottom:12px;">
+    <i class="fas fa-users" style="color:#0891b2;"></i> Team Feedback (Upward)
+  </div>
+  {% if received_upward %}
+  <div class="anon-notice">
+    <i class="fas fa-lock"></i> This feedback is fully anonymous. Respondents cannot be identified.
+    {{ received_upward.count }} responses total.
+  </div>
+  <div class="peer-card">
+    {% for i in range(1, 6) %}
+    {% set avg = received_upward.avgs['q' ~ i] %}
+    <div class="q-bar">
+      <div class="q-bar-label">{{ upward_questions[i-1] }}</div>
+      <div class="q-bar-fill-bg">
+        <div class="q-bar-fill" style="width:{{ (avg / 5 * 100)|int if avg else 0 }}%;"></div>
+      </div>
+      <div class="q-bar-score">{{ '%.1f'|format(avg) if avg else '-' }}</div>
+    </div>
+    {% endfor %}
+    {% if received_upward.comments %}
+    <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:14px;">
+      <div style="font-size:12px; font-weight:700; color:var(--tx-3); margin-bottom:8px;">Comments</div>
+      {% for c in received_upward.comments %}
+      <div style="font-size:13px; color:var(--tx-2); padding:8px 12px; background:var(--bg); border-radius:var(--r-sm); margin-bottom:6px;">{{ c }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% elif upward_count > 0 %}
+  <div class="peer-card" style="text-align:center; color:var(--tx-3); padding:32px;">
+    <i class="fas fa-lock" style="font-size:24px; margin-bottom:8px; display:block;"></i>
+    {{ upward_count }} response(s) so far — results shown after 3+ responses to protect anonymity.
+  </div>
+  {% else %}
+  <div class="peer-card" style="text-align:center; color:var(--tx-3); padding:32px;">
+    No team feedback received yet.
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

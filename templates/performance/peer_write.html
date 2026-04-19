@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{% block title %}{% if review_type == 'upward' %}Manager Review{% else %}Peer Review{% endif %}{% endblock %}
+{% block page_title %}{% if review_type == 'upward' %}Manager Review{% else %}Peer Review{% endif %}{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:640px; margin:0 auto;">
+  <div class="card-head">
+    <span class="card-title">
+      {% if review_type == 'upward' %}
+        <i class="fas fa-users" style="color:#0891b2;"></i> Manager Review — {{ reviewee.name }}
+      {% else %}
+        <i class="fas fa-star" style="color:#f59e0b;"></i> Peer Review — {{ reviewee.name }}
+      {% endif %}
+    </span>
+    <span style="font-size:12px; color:var(--tx-3);">{{ cycle.name }}</span>
+  </div>
+  <div class="card-body">
+
+    {% if review_type == 'upward' %}
+    <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:var(--r-sm); padding:12px 16px; margin-bottom:20px; font-size:13px; color:#0369a1;">
+      <i class="fas fa-lock"></i> <strong>Fully anonymous</strong> — your identity will not be revealed. Results are only shown to the manager after 3+ responses. Please be honest.
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-error" style="margin-bottom:18px;">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST">
+
+      {% if review_type == 'peer' %}
+      <!-- Peer review form -->
+      <div class="field" style="margin-bottom:24px;">
+        <label class="form-label" style="font-size:14px; font-weight:700;">Overall Score</label>
+        <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+          {% for val, lbl, bg, tc in [
+            (5, 'S — Outstanding',       '#dcfce7', '#16a34a'),
+            (4, 'A — Excellent',         '#dbeafe', '#1e40af'),
+            (3, 'B — Good',              '#e0f2fe', '#0369a1'),
+            (2, 'C — Needs Improvement', '#fef3c7', '#92400e'),
+            (1, 'D — Unsatisfactory',    '#fee2e2', '#dc2626'),
+          ] %}
+          <label style="cursor:pointer;">
+            <input type="radio" name="score" value="{{ val }}"
+                   {% if existing and existing.score == val %}checked{% endif %}
+                   style="display:none;" class="score-radio">
+            <span class="score-opt" data-val="{{ val }}" data-color="{{ tc }}"
+                  style="display:inline-block; padding:10px 18px; border-radius:10px;
+                         border:2px solid {{ bg }}; background:{{ bg }}; color:{{ tc }};
+                         font-size:13px; font-weight:700; transition:all .15s;
+                         {% if existing and existing.score == val %}outline:3px solid {{ tc }};{% endif %}">
+              {{ lbl }}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:20px;">
+        <label class="form-label" style="font-size:14px; font-weight:700;">Strengths <span style="font-weight:400; color:var(--tx-3);">(what this colleague does well)</span></label>
+        <textarea name="strength" class="input" rows="3" style="margin-top:8px; resize:vertical;"
+                  placeholder="e.g. Excellent at breaking down complex problems and sharing insights with the team.">{{ existing.strength if existing and existing.strength else '' }}</textarea>
+      </div>
+
+      <div class="field" style="margin-bottom:20px;">
+        <label class="form-label" style="font-size:14px; font-weight:700;">Areas for Growth <span style="font-weight:400; color:var(--tx-3);">(to develop further)</span></label>
+        <textarea name="improvement" class="input" rows="3" style="margin-top:8px; resize:vertical;"
+                  placeholder="e.g. Sharing progress updates more frequently would help the team collaborate better.">{{ existing.improvement if existing and existing.improvement else '' }}</textarea>
+      </div>
+
+      <div class="field" style="margin-bottom:28px;">
+        <label class="form-label" style="font-size:14px; font-weight:700;">Additional Comments <span style="font-weight:400; color:var(--tx-3);">(optional)</span></label>
+        <textarea name="comment" class="input" rows="3" style="margin-top:8px; resize:vertical;"
+                  placeholder="Any other feedback you'd like to share.">{{ existing.comment if existing and existing.comment else '' }}</textarea>
+      </div>
+
+      {% else %}
+      <!-- Manager upward review — 5 questions -->
+      {% for i in range(1, 6) %}
+      {% set q = upward_questions[i-1] %}
+      {% set cur = existing['q' ~ i ~ '_score'] if existing else 0 %}
+      <div class="field" style="margin-bottom:22px;">
+        <label class="form-label" style="font-size:14px; font-weight:700;">Q{{ i }}. {{ q }}</label>
+        <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+          {% for val, lbl in [(5,'Strongly Agree'), (4,'Agree'), (3,'Neutral'), (2,'Disagree'), (1,'Strongly Disagree')] %}
+          <label style="cursor:pointer;">
+            <input type="radio" name="q{{ i }}" value="{{ val }}"
+                   {% if cur == val %}checked{% endif %}
+                   style="display:none;" class="q-radio-{{ i }}">
+            <span class="q-opt-{{ i }}"
+                  style="display:inline-block; padding:8px 14px; border-radius:8px; font-size:12px; font-weight:600;
+                         border:2px solid var(--border); background:var(--bg); color:var(--tx-2);
+                         transition:all .15s; white-space:nowrap;
+                         {% if cur == val %}border-color:#1e40af; background:#dbeafe; color:#1e40af;{% endif %}">
+              {{ val }}pt {{ lbl }}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+
+      <div class="field" style="margin-bottom:28px;">
+        <label class="form-label" style="font-size:14px; font-weight:700;">Additional Comments <span style="font-weight:400; color:var(--tx-3);">(optional)</span></label>
+        <textarea name="comment" class="input" rows="3" style="margin-top:8px; resize:vertical;"
+                  placeholder="Any anonymous feedback you'd like to share with your manager.">{{ existing.comment if existing and existing.comment else '' }}</textarea>
+      </div>
+      {% endif %}
+
+      <div style="display:flex; gap:10px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;">Save</button>
+        <a href="{{ url_for('peer_reviews_page', cycle=cycle.id) }}" class="btn btn-ghost" style="flex:1; text-align:center;">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.score-radio').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    document.querySelectorAll('.score-opt').forEach(function(opt) { opt.style.outline = ''; });
+    var opt = this.parentElement.querySelector('.score-opt');
+    opt.style.outline = '3px solid ' + opt.dataset.color;
+  });
+});
+{% for i in range(1, 6) %}
+document.querySelectorAll('.q-radio-{{ i }}').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    document.querySelectorAll('.q-opt-{{ i }}').forEach(function(opt) {
+      opt.style.borderColor = 'var(--border)';
+      opt.style.background = 'var(--bg)';
+      opt.style.color = 'var(--tx-2)';
+    });
+    var opt = this.parentElement.querySelector('.q-opt-{{ i }}');
+    opt.style.borderColor = '#1e40af';
+    opt.style.background = '#dbeafe';
+    opt.style.color = '#1e40af';
+  });
+});
+{% endfor %}
+</script>
+{% endblock %}

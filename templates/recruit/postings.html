@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}Job Postings{% endblock %}
+{% block page_title %}Job Postings{% endblock %}
+
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+  <div style="display:flex; gap:6px;">
+    <a href="{{ url_for('recruit_postings') }}"
+       class="btn btn-sm {% if not status %}btn-primary{% else %}btn-ghost{% endif %}">All</a>
+    <a href="{{ url_for('recruit_postings', status='open') }}"
+       class="btn btn-sm {% if status == 'open' %}btn-primary{% else %}btn-ghost{% endif %}">Open</a>
+    <a href="{{ url_for('recruit_postings', status='draft') }}"
+       class="btn btn-sm {% if status == 'draft' %}btn-primary{% else %}btn-ghost{% endif %}">Draft</a>
+    <a href="{{ url_for('recruit_postings', status='closed') }}"
+       class="btn btn-sm {% if status == 'closed' %}btn-primary{% else %}btn-ghost{% endif %}">Closed</a>
+  </div>
+  <div style="display:flex; gap:8px;">
+    <a href="{{ url_for('recruit_pipeline') }}" class="btn btn-ghost btn-sm">
+      <i class="fas fa-columns"></i> Pipeline View
+    </a>
+    <a href="{{ url_for('recruit_posting_new') }}" class="btn btn-primary btn-sm">
+      <i class="fas fa-plus"></i> New Posting
+    </a>
+  </div>
+</div>
+
+{% if postings %}
+<div style="display:flex; flex-direction:column; gap:10px;">
+  {% for p in postings %}
+  <div class="card">
+    <div style="padding:18px 22px; display:flex; align-items:center; gap:16px;">
+
+      <div style="flex-shrink:0;">
+        {% if p.status == 'open' %}
+        <span class="badge badge-active">Open</span>
+        {% elif p.status == 'draft' %}
+        <span class="badge badge-pending">Draft</span>
+        {% else %}
+        <span class="badge badge-inactive">Closed</span>
+        {% endif %}
+      </div>
+
+      <div style="flex:1; min-width:0;">
+        <div style="font-size:15px; font-weight:800; color:var(--tx-1); margin-bottom:4px;">
+          {{ p.title }}
+        </div>
+        <div style="font-size:12.5px; color:var(--tx-3); display:flex; gap:12px; flex-wrap:wrap;">
+          {% if p.dept_name %}
+          <span><i class="fas fa-layer-group" style="margin-right:4px;"></i>{{ p.dept_name }}</span>
+          {% endif %}
+          {% if p.pos_name %}
+          <span><i class="fas fa-briefcase" style="margin-right:4px;"></i>{{ p.pos_name }}</span>
+          {% endif %}
+          {% if p.deadline %}
+          <span><i class="fas fa-calendar" style="margin-right:4px;"></i>Deadline {{ p.deadline }}</span>
+          {% endif %}
+          <span style="color:var(--tx-4);">Posted {{ p.created_at[:10] }}</span>
+        </div>
+      </div>
+
+      <div style="text-align:center; flex-shrink:0; min-width:64px;">
+        <div style="font-size:10px; color:var(--tx-3); margin-bottom:2px;">Applicants</div>
+        <div style="font-size:22px; font-weight:900; color:var(--primary);">{{ p.applicant_count }}</div>
+      </div>
+
+      <div style="display:flex; gap:6px; flex-shrink:0;">
+        <a href="{{ url_for('recruit_pipeline', posting=p.id) }}" class="btn btn-ghost btn-sm">
+          <i class="fas fa-columns"></i>
+        </a>
+        <a href="{{ url_for('recruit_posting_detail', posting_id=p.id) }}" class="btn btn-ghost btn-sm">
+          <i class="fas fa-chevron-right"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body" style="text-align:center; color:var(--tx-3); padding:60px;">
+    <i class="fas fa-file-signature" style="font-size:36px; color:var(--border); margin-bottom:12px; display:block;"></i>
+    No job postings yet.<br>
+    <a href="{{ url_for('recruit_posting_new') }}" class="btn btn-primary" style="margin-top:14px;">
+      <i class="fas fa-plus"></i> Create First Posting
+    </a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

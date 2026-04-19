@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% block title %}{{ year }}/{{ '%02d'|format(month) }} Payslip{% endblock %}
+{% block page_title %}Payslips{% endblock %}
+
+{% block head %}
+<style>
+@media print {
+  .sidebar, .header, .no-print { display: none !important; }
+  .main-wrapper { margin-left: 0 !important; }
+  .page-content { padding: 0 !important; }
+  .slip-wrap { max-width: 100%; box-shadow: none; border: none; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="no-print" style="margin-bottom:18px; display:flex; gap:10px;">
+  <a href="{{ url_for('payroll_list') }}" class="btn btn-ghost btn-sm">
+    <i class="fas fa-arrow-left"></i> Back
+  </a>
+  <button onclick="window.print()" class="btn btn-primary btn-sm">
+    <i class="fas fa-print"></i> Print / PDF
+  </button>
+</div>
+
+<div class="slip-wrap" style="max-width:700px; background:#fff; border-radius:var(--r);
+     box-shadow:var(--sh-md); border:1px solid var(--border); overflow:hidden;">
+
+  <!-- Header -->
+  <div style="background:linear-gradient(135deg,#0f2544,#1e40af); color:#fff; padding:28px 32px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <div>
+        <div style="font-size:11px; opacity:.7; letter-spacing:1px; text-transform:uppercase; margin-bottom:6px;">
+          Pay Statement
+        </div>
+        <div style="font-size:24px; font-weight:900; letter-spacing:-.5px;">
+          {{ year }} / {{ '%02d'|format(month) }} Payslip
+        </div>
+      </div>
+      <div style="text-align:right; opacity:.8; font-size:13px;">
+        <div>TalentCore</div>
+        <div style="margin-top:4px;">Issued: {{ slip.created_at[:10] }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Employee info -->
+  <div style="padding:22px 32px; border-bottom:1px solid var(--border); background:#f8fafc;">
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+      {% for label, value in [('Name', slip.name), ('Department', slip.dept_name or '—'), ('Position', slip.pos_name or '—'), ('Hire Date', slip.hire_date or '—'), ('Email', slip.email), ('Pay Date', year|string + '-' + '%02d'|format(month) + '-25')] %}
+      <div>
+        <div style="font-size:10px; font-weight:700; color:var(--tx-3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">{{ label }}</div>
+        <div style="font-size:13.5px; font-weight:600; color:var(--tx-1);">{{ value }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div style="padding:24px 32px;">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+
+      <!-- Earnings -->
+      <div>
+        <div style="font-size:12px; font-weight:800; color:var(--tx-3); text-transform:uppercase;
+                    letter-spacing:.6px; margin-bottom:12px; padding-bottom:8px;
+                    border-bottom:2px solid var(--primary);">Earnings</div>
+        {% for label, amount, note in [
+            ('Base Salary', slip.base_salary, ''),
+            ('Meal Allowance', slip.meal_allowance, 'Tax-free up to ₩200k'),
+            ('Transport Allowance', slip.transport_allowance, 'Tax-free up to ₩200k'),
+            ('Overtime Pay', slip.overtime_pay, '1.5× hourly rate')
+        ] %}
+        {% if amount > 0 %}
+        <div style="display:flex; justify-content:space-between; align-items:center;
+                    padding:8px 0; border-bottom:1px solid #f1f5f9;">
+          <div>
+            <span style="font-size:13.5px; color:var(--tx-1);">{{ label }}</span>
+            {% if note %}
+            <span style="font-size:10.5px; color:var(--tx-3); margin-left:6px;">{{ note }}</span>
+            {% endif %}
+          </div>
+          <span style="font-size:13.5px; font-weight:600;">{{ fmt_krw(amount) }}₩</span>
+        </div>
+        {% endif %}
+        {% endfor %}
+        <div style="display:flex; justify-content:space-between; align-items:center;
+                    padding:12px 0; margin-top:4px; border-top:2px solid var(--tx-1);">
+          <span style="font-size:14px; font-weight:800;">Gross Pay</span>
+          <span style="font-size:16px; font-weight:900; color:var(--primary);">
+            {{ fmt_krw(slip.gross_pay) }}₩
+          </span>
+        </div>
+      </div>
+
+      <!-- Deductions -->
+      <div>
+        <div style="font-size:12px; font-weight:800; color:var(--tx-3); text-transform:uppercase;
+                    letter-spacing:.6px; margin-bottom:12px; padding-bottom:8px;
+                    border-bottom:2px solid var(--red);">Deductions</div>
+        {% for label, amount, law in [
+            ('National Pension', slip.national_pension, '4.5%'),
+            ('Health Insurance', slip.health_insurance, '3.545%'),
+            ('Long-term Care', slip.long_term_care, 'Health × 12.95%'),
+            ('Employment Insurance', slip.employment_insurance, '0.9%'),
+            ('Income Tax', slip.income_tax, 'Withholding table'),
+            ('Local Income Tax', slip.local_income_tax, 'Income tax × 10%')
+        ] %}
+        <div style="display:flex; justify-content:space-between; align-items:center;
+                    padding:8px 0; border-bottom:1px solid #f1f5f9;">
+          <div>
+            <span style="font-size:13.5px; color:var(--tx-1);">{{ label }}</span>
+            <span style="font-size:10.5px; color:var(--tx-3); margin-left:6px;">{{ law }}</span>
+          </div>
+          <span style="font-size:13.5px; font-weight:600; color:var(--red);">- {{ fmt_krw(amount) }}₩</span>
+        </div>
+        {% endfor %}
+        <div style="display:flex; justify-content:space-between; align-items:center;
+                    padding:12px 0; margin-top:4px; border-top:2px solid var(--tx-1);">
+          <span style="font-size:14px; font-weight:800;">Total Deductions</span>
+          <span style="font-size:16px; font-weight:900; color:var(--red);">
+            - {{ fmt_krw(slip.total_deduction) }}₩
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Net pay -->
+    <div style="margin-top:20px; padding:20px 24px;
+                background:linear-gradient(135deg,#eff6ff,#dbeafe);
+                border-radius:var(--r); border:1.5px solid #bfdbfe;
+                display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div style="font-size:13px; color:var(--primary); font-weight:700; margin-bottom:2px;">
+          Net Pay (Gross – Deductions)
+        </div>
+        <div style="font-size:11px; color:var(--tx-3);">
+          Paid on the 25th of each month
+        </div>
+      </div>
+      <div style="font-size:28px; font-weight:900; color:var(--primary); letter-spacing:-.5px;">
+        {{ fmt_krw(slip.net_pay) }}₩
+      </div>
+    </div>
+  </div>
+
+  <div style="padding:14px 32px; background:#f8fafc; border-top:1px solid var(--border);
+              font-size:11px; color:var(--tx-3); text-align:center;">
+    This document is issued in accordance with applicable labor law. | TalentCore HR System
+  </div>
+</div>
+{% endblock %}

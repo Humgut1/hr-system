@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — TalentCore</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+<div class="login-page">
+
+  <!-- Left brand panel -->
+  <div class="login-left">
+    <div style="z-index:1; text-align:center;">
+      <div class="login-brand">
+        <div class="brand-icon-wrap"><i class="fas fa-briefcase" style="color:#60a5fa;"></i></div>
+        <div class="brand-name">TalentCore</div>
+        <div class="brand-tagline">Your all-in-one HR platform<br>for smarter people management</div>
+      </div>
+
+      <div class="login-features">
+        <div class="login-feature">
+          <i class="fas fa-users"></i>
+          <span class="login-feature-text">People, org & attendance in one place</span>
+        </div>
+        <div class="login-feature">
+          <i class="fas fa-chart-line"></i>
+          <span class="login-feature-text">Real-time performance & payroll data</span>
+        </div>
+        <div class="login-feature">
+          <i class="fas fa-user-tie"></i>
+          <span class="login-feature-text">Integrated recruiting pipeline</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right login form -->
+  <div class="login-right">
+    <div class="login-form-box">
+      <h1 class="login-title">Welcome back</h1>
+      <p class="login-sub">Sign in to your account to continue</p>
+
+      {% if error %}
+      <div class="login-error">
+        <i class="fas fa-exclamation-circle"></i> {{ error }}
+      </div>
+      {% endif %}
+
+      <form method="POST" action="{{ url_for('login') }}">
+        <div class="form-group">
+          <label class="form-label" for="email">Email</label>
+          <input type="email" id="email" name="email" class="form-control"
+                 placeholder="you@company.com" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input type="password" id="password" name="password" class="form-control"
+                 placeholder="Enter your password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn-login">
+          <i class="fas fa-sign-in-alt"></i> Sign In
+        </button>
+      </form>
+    </div>
+  </div>
+
+</div>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

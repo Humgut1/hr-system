@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block title %}{% if mode == 'edit' %}Edit Posting{% else %}New Posting{% endif %}{% endblock %}
+{% block page_title %}Job Postings{% endblock %}
+
+{% block content %}
+<div style="max-width:680px;">
+  <a href="{{ url_for('recruit_postings') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
+    <i class="fas fa-arrow-left"></i> Back to Postings
+  </a>
+
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">{% if mode == 'edit' %}Edit Job Posting{% else %}New Job Posting{% endif %}</span>
+    </div>
+    <div class="card-body">
+      {% if error %}
+      <div class="login-error" style="margin-bottom:16px;">
+        <i class="fas fa-exclamation-circle"></i> {{ error }}
+      </div>
+      {% endif %}
+
+      <form method="POST"
+            action="{{ url_for('recruit_posting_edit', posting_id=posting.id) if mode == 'edit' else url_for('recruit_posting_new') }}">
+
+        <div class="field">
+          <label class="form-label">Job Title <span style="color:var(--red);">*</span></label>
+          <input type="text" name="title" class="input"
+                 value="{{ posting.title if posting else '' }}"
+                 placeholder="e.g. Backend Engineer (Python/Flask) 2+ years" required>
+        </div>
+
+        <div class="grid-2" style="gap:14px;">
+          <div class="field">
+            <label class="form-label">Department</label>
+            <select name="department_id" class="input">
+              <option value="">— TBD —</option>
+              {% for d in depts %}
+              <option value="{{ d.id }}"
+                      {% if posting and posting.department_id == d.id %}selected{% endif %}>
+                {{ d.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Position</label>
+            <select name="position_id" class="input">
+              <option value="">— TBD —</option>
+              {% for p in poses %}
+              <option value="{{ p.id }}"
+                      {% if posting and posting.position_id == p.id %}selected{% endif %}>
+                {{ p.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-2" style="gap:14px;">
+          <div class="field">
+            <label class="form-label">Status</label>
+            <select name="status" class="input">
+              <option value="open"   {% if not posting or posting.status == 'open'   %}selected{% endif %}>Open (Public)</option>
+              <option value="draft"  {% if posting and posting.status == 'draft'  %}selected{% endif %}>Draft (Hidden)</option>
+              <option value="closed" {% if posting and posting.status == 'closed' %}selected{% endif %}>Closed</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Application Deadline</label>
+            <input type="date" name="deadline" class="input"
+                   value="{{ posting.deadline if posting and posting.deadline else '' }}">
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="form-label">Job Description</label>
+          <textarea name="description" class="input" rows="5"
+                    placeholder="Key responsibilities, role overview, team introduction, etc.">{{ posting.description if posting and posting.description else '' }}</textarea>
+        </div>
+
+        <div class="field">
+          <label class="form-label">Requirements</label>
+          <textarea name="requirements" class="input" rows="5"
+                    placeholder="Required skills, preferred qualifications, experience requirements, etc.">{{ posting.requirements if posting and posting.requirements else '' }}</textarea>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-check"></i> {% if mode == 'edit' %}Save Changes{% else %}Create Posting{% endif %}
+          </button>
+          <a href="{{ url_for('recruit_postings') }}" class="btn btn-ghost">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

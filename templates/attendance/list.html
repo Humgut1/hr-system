@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block title %}Leave Approvals{% endblock %}
+{% block page_title %}Leave Approvals{% endblock %}
+
+{% block content %}
+
+<!-- Status tabs -->
+<div style="display:flex; gap:6px; margin-bottom:18px;">
+  {% for val, label in [('pending','Pending'), ('approved','Approved'), ('rejected','Rejected'), ('cancelled','Cancelled')] %}
+  <a href="{{ url_for('attendance', status=val, dept=dept_id) }}"
+     class="btn {% if status == val %}btn-primary{% else %}btn-ghost{% endif %}">
+    {{ label }}
+    {% if val == 'pending' and pending_count > 0 %}
+    <span style="background:var(--red); color:#fff; border-radius:20px;
+                 padding:1px 7px; font-size:11px; margin-left:4px;">{{ pending_count }}</span>
+    {% endif %}
+  </a>
+  {% endfor %}
+  <a href="{{ url_for('attendance_calendar') }}" class="btn btn-ghost" style="margin-left:auto;">
+    <i class="fas fa-calendar-alt"></i> Calendar
+  </a>
+</div>
+
+<!-- Department filter -->
+<div class="card" style="margin-bottom:14px;">
+  <div style="padding:12px 16px;">
+    <form method="GET" style="display:flex; gap:10px; align-items:center;">
+      <input type="hidden" name="status" value="{{ status }}">
+      <select name="dept" class="input" style="width:180px;" onchange="this.form.submit()">
+        <option value="">All Departments</option>
+        {% for d in depts %}
+        <option value="{{ d.id }}" {% if dept_id == d.id|string %}selected{% endif %}>{{ d.name }}</option>
+        {% endfor %}
+      </select>
+      {% if dept_id %}
+      <a href="{{ url_for('attendance', status=status) }}" class="btn btn-ghost btn-sm">Clear</a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<!-- Request list -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">
+      {% if status == 'pending' %}Pending Requests
+      {% elif status == 'approved' %}Approved
+      {% elif status == 'rejected' %}Rejected
+      {% else %}Cancelled{% endif %}
+    </span>
+    <span style="font-size:13px; color:var(--tx-3);">{{ reqs|length }} record{{ 's' if reqs|length != 1 else '' }}</span>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Employee</th>
+          <th>Department</th>
+          <th>Type</th>
+          <th>Start</th>
+          <th>End</th>
+          <th>Days</th>
+          <th>Reason</th>
+          {% if status == 'pending' %}<th>Action</th>{% endif %}
+          {% if status == 'rejected' %}<th>Reject Reason</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in reqs %}
+        <tr>
+          <td>
+            <div class="u-cell">
+              <div class="avatar-xs">{{ r.user_name[0] }}</div>
+              <div>
+                <div class="u-name">{{ r.user_name }}</div>
+                <div class="u-sub">{{ r.pos_name or '' }}</div>
+              </div>
+            </div>
+          </td>
+          <td>{{ r.dept_name or '—' }}</td>
+          <td><span class="badge badge-info">{{ labels.get(r.type, r.type) }}</span></td>
+          <td>{{ r.start_date }}</td>
+          <td>{{ r.end_date }}</td>
+          <td>{{ r.days }}d</td>
+          <td style="color:var(--tx-3); max-width:140px; white-space:nowrap;
+                     overflow:hidden; text-overflow:ellipsis;">{{ r.reason or '—' }}</td>
+          {% if status == 'pending' %}
+          <td>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <form method="POST" action="{{ url_for('attendance_approve', req_id=r.id) }}">
+                <button type="submit" class="btn btn-sm"
+                        style="background:#f0fdf4; color:var(--green); border:1px solid #bbf7d0;">
+                  <i class="fas fa-check"></i> Approve
+                </button>
+              </form>
+              <form method="POST" action="{{ url_for('attendance_reject', req_id=r.id) }}"
+                    style="display:flex; gap:4px;">
+                <input type="text" name="reason" class="input"
+                       style="width:100px; padding:4px 8px; font-size:12px;"
+                       placeholder="Reason">
+                <button type="submit" class="btn btn-sm"
+                        style="background:#fef2f2; color:var(--red); border:1px solid #fecaca;">
+                  <i class="fas fa-times"></i> Reject
+                </button>
+              </form>
+            </div>
+          </td>
+          {% endif %}
+          {% if status == 'rejected' %}
+          <td style="color:var(--red); font-size:12.5px;">{{ r.reject_reason or '—' }}</td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" style="text-align:center; color:var(--tx-3); padding:48px;">
+            No records found.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

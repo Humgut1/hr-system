@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+{% block title %}Performance Review{% endblock %}
+{% block page_title %}Performance{% endblock %}
+
+{% block content %}
+<div style="max-width:600px;">
+  <a href="{{ url_for('performance') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
+    <i class="fas fa-arrow-left"></i> Back to Performance
+  </a>
+
+  <!-- Goal info -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+        <div class="avatar-xs">{{ goal.user_name[0] }}</div>
+        <span style="font-weight:700; font-size:14px;">{{ goal.user_name }}</span>
+        <span class="badge {% if goal.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}">
+          {{ goal.category }}
+        </span>
+        <span style="font-size:12px; color:var(--tx-3); margin-left:auto;">Weight {{ goal.weight }}%</span>
+      </div>
+      <div style="font-size:16px; font-weight:800; color:var(--tx-1); margin-bottom:6px;">
+        {{ goal.title }}
+      </div>
+      {% if goal.description %}
+      <div style="font-size:13px; color:var(--tx-3); line-height:1.7;">{{ goal.description }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Review form -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">
+        {% if existing %}Edit Review{% else %}Submit Review{% endif %}
+      </span>
+    </div>
+    <div class="card-body">
+      {% if error %}
+      <div class="login-error" style="margin-bottom:16px;">
+        <i class="fas fa-exclamation-circle"></i> {{ error }}
+      </div>
+      {% endif %}
+
+      <form method="POST" action="{{ url_for('performance_review', goal_id=goal.id) }}">
+
+        <div class="field">
+          <label class="form-label">Score <span style="color:var(--red);">*</span></label>
+          <div style="display:flex; gap:10px; margin-top:6px;">
+            {% for score, label in score_labels.items()|sort(reverse=true) %}
+            <label style="flex:1; cursor:pointer;">
+              <input type="radio" name="score" value="{{ score }}"
+                     {% if existing and existing.score == score %}checked
+                     {% elif not existing and score == 3 %}checked{% endif %}
+                     style="display:none;" class="score-radio">
+              <div class="score-btn" data-score="{{ score }}"
+                   style="text-align:center; padding:12px 6px; border-radius:var(--r-sm);
+                          border:2px solid var(--border); transition:all .15s; cursor:pointer;
+                          {% if existing and existing.score == score %}
+                          border-color:var(--primary); background:#eff6ff;
+                          {% endif %}">
+                <div style="font-size:20px; font-weight:900; color:
+                  {% if score == 5 %}#16a34a
+                  {% elif score == 4 %}#2563eb
+                  {% elif score == 3 %}#64748b
+                  {% elif score == 2 %}#ea580c
+                  {% else %}#dc2626{% endif %};">
+                  {{ score }}
+                </div>
+                <div style="font-size:10px; color:var(--tx-3); margin-top:2px;">
+                  {{ label.split('—')[0].strip() }}
+                </div>
+                <div style="font-size:11px; font-weight:600; color:var(--tx-2);">
+                  {{ label.split('—')[1].strip() if '—' in label else '' }}
+                </div>
+              </div>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div style="background:#f8fafc; border-radius:var(--r-sm); padding:12px 16px;
+                    border:1px solid var(--border); margin-bottom:16px; font-size:12px; color:var(--tx-2);">
+          <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:4px; text-align:center;">
+            {% for score, label in score_labels.items()|sort(reverse=true) %}
+            <div>
+              <div style="font-weight:800; font-size:14px; color:
+                {% if score == 5 %}#16a34a{% elif score == 4 %}#2563eb
+                {% elif score == 3 %}#64748b{% elif score == 2 %}#ea580c{% else %}#dc2626{% endif %};">
+                {{ score }}pt
+              </div>
+              <div>{{ label }}</div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="form-label">Comment</label>
+          <textarea name="comment" class="input" rows="4"
+                    placeholder="Provide specific evidence and feedback.">{{ existing.comment if existing else '' }}</textarea>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-star"></i> {% if existing %}Update Review{% else %}Submit Review{% endif %}
+          </button>
+          <a href="{{ url_for('performance') }}" class="btn btn-ghost">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var radios = document.querySelectorAll('.score-radio');
+  var btns   = document.querySelectorAll('.score-btn');
+
+  function updateStyle() {
+    radios.forEach(function (r, i) {
+      var btn = btns[i];
+      if (r.checked) {
+        btn.style.borderColor = 'var(--primary)';
+        btn.style.background  = '#eff6ff';
+      } else {
+        btn.style.borderColor = 'var(--border)';
+        btn.style.background  = '';
+      }
+    });
+  }
+
+  btns.forEach(function (btn, i) {
+    btn.addEventListener('click', function () {
+      radios[i].checked = true;
+      updateStyle();
+    });
+  });
+}());
+</script>
+{% endblock %}

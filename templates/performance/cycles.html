@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block title %}Review Cycles{% endblock %}
+{% block page_title %}Review Cycles{% endblock %}
+
+{% block content %}
+
+<div style="display:grid; grid-template-columns:1fr 360px; gap:24px; align-items:start;">
+
+  <!-- Left: cycle list -->
+  <div>
+    <div class="card">
+      <div style="padding:20px 24px; border-bottom:1px solid var(--border);
+                  display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:15px; font-weight:800;">All Review Cycles</span>
+        <span style="font-size:12px; color:var(--tx-3);">{{ cycles|length }} total</span>
+      </div>
+
+      {% if cycles %}
+      <div style="padding:8px 0;">
+        {% for c in cycles %}
+        <div style="padding:18px 24px; border-bottom:1px solid var(--border);
+                    display:flex; align-items:center; gap:16px;">
+          <div style="flex-shrink:0;">
+            {% if c.status == 'active' %}
+            <span class="badge badge-active">Active</span>
+            {% else %}
+            <span class="badge badge-inactive">Closed</span>
+            {% endif %}
+          </div>
+
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:14.5px; font-weight:700; margin-bottom:4px;">{{ c.name }}</div>
+            <div style="font-size:12px; color:var(--tx-3);">
+              <i class="fas fa-calendar-alt" style="margin-right:4px;"></i>
+              {{ c.start_date }} ~ {{ c.end_date }}
+              &nbsp;·&nbsp;
+              <i class="fas fa-bullseye" style="margin-right:4px;"></i>
+              {{ c.goal_count }} goals
+            </div>
+          </div>
+
+          <div style="display:flex; gap:8px; flex-shrink:0;">
+            {% if c.status == 'active' %}
+            <form method="post" action="{{ url_for('performance_cycle_close', cycle_id=c.id) }}"
+                  onsubmit="return confirm('Close cycle「{{ c.name }}」?\nNo new goals can be added after closing.')">
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--orange);">
+                <i class="fas fa-lock"></i> Close
+              </button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url_for('performance_cycle_activate', cycle_id=c.id) }}"
+                  onsubmit="return confirm('Reactivate「{{ c.name }}」?\nThe current active cycle will be closed.')">
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--primary);">
+                <i class="fas fa-rotate"></i> Activate
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% else %}
+      <div style="padding:60px; text-align:center; color:var(--tx-3);">
+        <i class="fas fa-rotate" style="font-size:36px; color:var(--border); display:block; margin-bottom:12px;"></i>
+        No review cycles have been created.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Right: new cycle form -->
+  <div>
+    <div class="card">
+      <div style="padding:20px 24px; border-bottom:1px solid var(--border);">
+        <span style="font-size:15px; font-weight:800;">Create New Cycle</span>
+      </div>
+      <div style="padding:24px;">
+        <form method="post" action="{{ url_for('performance_cycle_new') }}">
+          <div style="margin-bottom:16px;">
+            <label class="form-label">Cycle Name <span style="color:var(--orange);">*</span></label>
+            <input type="text" name="name" class="input"
+                   placeholder="e.g. 2026 H1 Review" required>
+          </div>
+          <div style="margin-bottom:16px;">
+            <label class="form-label">Start Date <span style="color:var(--orange);">*</span></label>
+            <input type="date" name="start_date" class="input" required>
+          </div>
+          <div style="margin-bottom:24px;">
+            <label class="form-label">End Date <span style="color:var(--orange);">*</span></label>
+            <input type="date" name="end_date" class="input" required>
+          </div>
+
+          <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:var(--r);
+                      padding:12px 14px; margin-bottom:20px; font-size:12.5px; color:#1d4ed8;">
+            <i class="fas fa-info-circle" style="margin-right:6px;"></i>
+            Creating a new cycle will <strong>automatically close</strong> the current active cycle.
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width:100%;">
+            <i class="fas fa-plus"></i> Create Cycle
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <a href="{{ url_for('performance') }}" class="btn btn-ghost btn-sm">
+        <i class="fas fa-arrow-left"></i> Back to Performance
+      </a>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

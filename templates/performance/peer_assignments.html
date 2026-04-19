@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block title %}Peer Assignments{% endblock %}
+{% block page_title %}Peer Review Assignments{% endblock %}
+
+{% block content %}
+
+<!-- Cycle selector -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:22px;">
+  <div style="display:flex; gap:8px; align-items:center;">
+    {% if cycles %}
+    <select class="input" style="width:220px;" onchange="location.href='?cycle='+this.value">
+      {% for c in cycles %}
+      <option value="{{ c.id }}" {% if selected_cycle and c.id == selected_cycle.id %}selected{% endif %}>
+        {{ c.name }} ({{ 'Active' if c.status == 'active' else 'Closed' }})
+      </option>
+      {% endfor %}
+    </select>
+    {% endif %}
+  </div>
+</div>
+
+{% if error %}
+<div class="alert alert-error" style="margin-bottom:18px;">{{ error }}</div>
+{% endif %}
+
+{% if selected_cycle %}
+
+<!-- Add assignment form -->
+<div class="card" style="margin-bottom:22px;">
+  <div class="card-head"><span class="card-title">Add New Assignment</span></div>
+  <div class="card-body">
+    <form method="POST" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+      <input type="hidden" name="action" value="add">
+      <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
+      <div class="field" style="margin:0; flex:1; min-width:160px;">
+        <label class="form-label">Reviewee (being reviewed)</label>
+        <select name="reviewee_id" class="input" style="margin-top:6px;" required>
+          <option value="">Select person</option>
+          {% for emp in employees %}
+          <option value="{{ emp.id }}">{{ emp.name }} ({{ emp.role }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field" style="margin:0; flex:1; min-width:160px;">
+        <label class="form-label">Reviewer (writing the review)</label>
+        <select name="reviewer_id" class="input" style="margin-top:6px;" required>
+          <option value="">Select person</option>
+          {% for emp in employees %}
+          <option value="{{ emp.id }}">{{ emp.name }} ({{ emp.role }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary" style="height:40px;">
+        <i class="fas fa-plus"></i> Add Assignment
+      </button>
+    </form>
+    <div style="margin-top:10px; font-size:12px; color:var(--tx-3);">
+      <i class="fas fa-info-circle"></i>
+      "Reviewee" = person being reviewed. "Reviewer" = person writing the review. Example: Lee (reviewee) ← Kim (reviewer)
+    </div>
+  </div>
+</div>
+
+<!-- Assignment list -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">Assignment List</span>
+    <span class="badge badge-info">{{ assignments|length }} assignments</span>
+  </div>
+  <div class="card-body" style="padding:0;">
+    {% if assignments %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Reviewee</th>
+          <th>Reviewer</th>
+          <th>Added</th>
+          <th style="width:80px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in assignments %}
+        <tr>
+          <td>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="avatar-xs">{{ a.reviewee_name[0] }}</div>
+              <span style="font-weight:600;">{{ a.reviewee_name }}</span>
+            </div>
+          </td>
+          <td>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="avatar-xs" style="background:#e0f2fe; color:#0369a1;">{{ a.reviewer_name[0] }}</div>
+              <span>{{ a.reviewer_name }}</span>
+            </div>
+          </td>
+          <td style="font-size:13px; color:var(--tx-3);">{{ a.created_at[:10] }}</td>
+          <td>
+            <form method="POST" onsubmit="return confirm('Delete this assignment?');">
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="assign_id" value="{{ a.id }}">
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:#dc2626;">
+                <i class="fas fa-trash"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="text-align:center; padding:48px; color:var(--tx-3);">
+      <i class="fas fa-users-slash" style="font-size:32px; color:var(--border); margin-bottom:10px; display:block;"></i>
+      No assignments yet.<br>Use the form above to add assignments.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% else %}
+<div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:var(--r); padding:16px 20px; color:var(--orange); font-weight:600;">
+  <i class="fas fa-exclamation-triangle"></i> Please select a review cycle first.
+</div>
+{% endif %}
+
+{% endblock %}

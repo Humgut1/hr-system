@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block title %}Dept & Grade{% endblock %}
+{% block page_title %}Dept & Grade{% endblock %}
+
+{% block content %}
+<div class="grid-2" style="align-items:start;">
+
+  <!-- Department management -->
+  <div>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head">
+        <span class="card-title">Departments</span>
+        <span style="font-size:13px; color:var(--tx-3);">{{ depts|length }}</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Parent</th>
+              <th>Members</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in depts %}
+            <tr>
+              <td style="font-weight:600;">{{ d.name }}</td>
+              <td style="color:var(--tx-3);">{{ d.parent_name or '—' }}</td>
+              <td><span class="badge badge-info">{{ d.member_count }}</span></td>
+              <td>
+                <form method="POST" action="{{ url_for('departments') }}"
+                      onsubmit="return confirm('Delete this department? Members will be unassigned.')">
+                  <input type="hidden" name="action" value="delete_dept">
+                  <input type="hidden" name="dept_id" value="{{ d.id }}">
+                  <button type="submit" class="btn btn-sm"
+                          style="background:#fef2f2; color:var(--red); border:1px solid #fecaca;">
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Add department -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">Add Department</span></div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('departments') }}" style="display:flex; flex-direction:column; gap:12px;">
+          <input type="hidden" name="action" value="add_dept">
+          <div class="field" style="margin:0;">
+            <label class="form-label">Department Name</label>
+            <input type="text" name="name" class="input" placeholder="e.g. Data Analytics" required>
+          </div>
+          <div class="field" style="margin:0;">
+            <label class="form-label">Parent Department (optional)</label>
+            <select name="parent_id" class="input">
+              <option value="">None (top-level)</option>
+              {% for d in all_depts %}
+              <option value="{{ d.id }}">{{ d.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary" style="align-self:flex-start;">
+            <i class="fas fa-plus"></i> Add
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Position management -->
+  <div>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head">
+        <span class="card-title">Positions</span>
+        <span style="font-size:13px; color:var(--tx-3);">{{ poses|length }}</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Level</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in poses %}
+            <tr>
+              <td style="font-weight:600;">{{ p.name }}</td>
+              <td><span class="badge badge-inactive">Lv.{{ p.level }}</span></td>
+              <td>
+                <form method="POST" action="{{ url_for('departments') }}"
+                      onsubmit="return confirm('Delete this position?')">
+                  <input type="hidden" name="action" value="delete_pos">
+                  <input type="hidden" name="pos_id" value="{{ p.id }}">
+                  <button type="submit" class="btn btn-sm"
+                          style="background:#fef2f2; color:var(--red); border:1px solid #fecaca;">
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Add position -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">Add Position</span></div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('departments') }}" style="display:flex; flex-direction:column; gap:12px;">
+          <input type="hidden" name="action" value="add_pos">
+          <div class="field" style="margin:0;">
+            <label class="form-label">Position Title</label>
+            <input type="text" name="name" class="input" placeholder="e.g. Principal" required>
+          </div>
+          <div class="field" style="margin:0;">
+            <label class="form-label">Level (higher = more senior)</label>
+            <input type="number" name="level" class="input" min="1" max="20" value="5">
+          </div>
+          <button type="submit" class="btn btn-primary" style="align-self:flex-start;">
+            <i class="fas fa-plus"></i> Add
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

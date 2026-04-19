@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+{% block title %}{{ applicant.name }} — Applicant Detail{% endblock %}
+{% block page_title %}Applicant Detail{% endblock %}
+
+{% block content %}
+<div style="max-width:680px;">
+  <div style="display:flex; gap:8px; margin-bottom:18px;">
+    <a href="{{ url_for('recruit_posting_detail', posting_id=applicant.posting_id) }}"
+       class="btn btn-ghost btn-sm">
+      <i class="fas fa-arrow-left"></i> Back to Posting
+    </a>
+    <a href="{{ url_for('recruit_pipeline', posting=applicant.posting_id) }}"
+       class="btn btn-ghost btn-sm">
+      <i class="fas fa-columns"></i> Pipeline
+    </a>
+  </div>
+
+  <!-- Applicant info -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body">
+      <div style="display:flex; align-items:center; gap:14px; margin-bottom:16px;">
+        <div style="width:52px; height:52px; border-radius:50%; background:var(--primary);
+                    display:flex; align-items:center; justify-content:center;
+                    font-size:22px; font-weight:900; color:#fff; flex-shrink:0;">
+          {{ applicant.name[0] }}
+        </div>
+        <div>
+          <div style="font-size:18px; font-weight:900; color:var(--tx-1);">{{ applicant.name }}</div>
+          <div style="font-size:13px; color:var(--tx-3);">{{ applicant.posting_title }}</div>
+        </div>
+        <div style="margin-left:auto;">
+          {% set stage = applicant.stage %}
+          <span class="badge
+            {% if stage == 'hired' %}badge-active
+            {% elif stage == 'rejected' %}badge-inactive
+            {% elif stage == 'offered' %}badge-info
+            {% else %}badge-pending{% endif %}"
+            style="font-size:13px; padding:6px 12px;">
+            {{ stage_map.get(stage, stage) }}
+          </span>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:13.5px;">
+        <div>
+          <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">Email</div>
+          <div style="font-weight:600;">{{ applicant.email }}</div>
+        </div>
+        <div>
+          <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">Phone</div>
+          <div style="font-weight:600;">{{ applicant.phone or '—' }}</div>
+        </div>
+        <div>
+          <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">Source</div>
+          <div style="font-weight:600;">{{ source_labels.get(applicant.source, applicant.source) }}</div>
+        </div>
+        <div>
+          <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">Applied</div>
+          <div style="font-weight:600;">{{ applicant.created_at[:10] }}</div>
+        </div>
+      </div>
+
+      {% if applicant.resume_note %}
+      <div style="margin-top:14px; padding:12px 14px; background:#f8fafc;
+                  border-radius:var(--r-sm); border:1px solid var(--border);">
+        <div style="font-size:11px; color:var(--tx-3); margin-bottom:4px;">Resume Note</div>
+        <div style="font-size:13.5px; color:var(--tx-2); line-height:1.7; white-space:pre-wrap;">{{ applicant.resume_note }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Stage change -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head"><span class="card-title">Change Stage</span></div>
+    <div class="card-body">
+      <form method="POST">
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+          {% for s, label in stages %}
+          <label style="cursor:pointer;">
+            <input type="radio" name="stage" value="{{ s }}"
+                   {% if applicant.stage == s %}checked{% endif %}
+                   style="display:none;" class="stage-radio">
+            <span class="stage-label-btn" data-stage="{{ s }}"
+                  style="display:inline-block; padding:6px 14px; border-radius:20px;
+                         border:2px solid var(--border); font-size:12.5px; font-weight:600;
+                         cursor:pointer; transition:all .15s;
+                         {% if applicant.stage == s %}
+                         border-color:var(--primary); background:var(--primary); color:#fff;
+                         {% else %}color:var(--tx-2);{% endif %}">
+              {{ label }}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="field">
+          <label class="form-label">Note / Reason</label>
+          <textarea name="note" class="input" rows="2"
+                    placeholder="Interview result, special notes, etc."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">
+          <i class="fas fa-save"></i> Save Stage
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Activity log -->
+  <div class="card">
+    <div class="card-head"><span class="card-title">Activity Log</span></div>
+    {% if logs %}
+    <div style="padding:0 20px;">
+      {% for log in logs %}
+      <div style="padding:14px 0; border-bottom:1px solid var(--border);
+                  display:flex; gap:12px; align-items:flex-start;">
+        <div style="width:8px; height:8px; border-radius:50%; background:var(--primary);
+                    margin-top:5px; flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">
+            <span style="font-size:13px; font-weight:700; color:var(--tx-1);">
+              {{ stage_map.get(log.stage, log.stage) }}
+            </span>
+            <span style="font-size:12px; color:var(--tx-3);">· {{ log.changed_by_name }}</span>
+            <span style="font-size:11px; color:var(--tx-4); margin-left:auto;">{{ log.created_at[:16] }}</span>
+          </div>
+          {% if log.note %}
+          <div style="font-size:13px; color:var(--tx-2);">{{ log.note }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card-body" style="text-align:center; color:var(--tx-3); padding:24px;">
+      No activity yet.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var radios = document.querySelectorAll('.stage-radio');
+  var btns   = document.querySelectorAll('.stage-label-btn');
+
+  function update() {
+    radios.forEach(function (r, i) {
+      var b = btns[i];
+      if (r.checked) {
+        b.style.borderColor = 'var(--primary)';
+        b.style.background  = 'var(--primary)';
+        b.style.color       = '#fff';
+      } else {
+        b.style.borderColor = 'var(--border)';
+        b.style.background  = '';
+        b.style.color       = 'var(--tx-2)';
+      }
+    });
+  }
+
+  btns.forEach(function (b, i) {
+    b.addEventListener('click', function () {
+      radios[i].checked = true;
+      update();
+    });
+  });
+}());
+</script>
+{% endblock %}

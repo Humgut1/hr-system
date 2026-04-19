@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% block title %}Employees{% endblock %}
+{% block page_title %}Employees{% endblock %}
+
+{% block content %}
+
+<!-- Search & filter -->
+<div class="card" style="margin-bottom:16px;">
+  <div style="padding:14px 18px;">
+    <form method="GET" action="{{ url_for('employees') }}"
+          style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <div style="position:relative; flex:1; min-width:200px;">
+        <i class="fas fa-search" style="position:absolute; left:11px; top:50%;
+           transform:translateY(-50%); color:var(--tx-3); font-size:13px;"></i>
+        <input type="text" name="q" value="{{ q }}" class="input"
+               style="padding-left:34px;" placeholder="Search by name or email">
+      </div>
+      <select name="dept" class="input" style="width:160px;">
+        <option value="">All Departments</option>
+        {% for d in depts %}
+        <option value="{{ d.id }}" {% if dept_id == d.id|string %}selected{% endif %}>{{ d.name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Search</button>
+      {% if q or dept_id %}
+      <a href="{{ url_for('employees') }}" class="btn btn-ghost">Clear</a>
+      {% endif %}
+      {% if session.user_role == 'admin' %}
+      <a href="{{ url_for('employee_new') }}" class="btn btn-primary" style="margin-left:auto;">
+        <i class="fas fa-plus"></i> Add Employee
+      </a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<!-- Employee table -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">Active Employees</span>
+    <span style="font-size:13px; color:var(--tx-3);">{{ employees|length }} total</span>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Department</th>
+          <th>Position</th>
+          <th>Role</th>
+          <th>Hired</th>
+          <th>Status</th>
+          {% if session.user_role == 'admin' %}<th>Actions</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for emp in employees %}
+        <tr>
+          <td>
+            <div class="u-cell">
+              <div class="avatar-xs">{{ emp.name[0] }}</div>
+              <div class="u-name">{{ emp.name }}</div>
+            </div>
+          </td>
+          <td style="color:var(--tx-3);">{{ emp.email }}</td>
+          <td>{{ emp.dept_name or '—' }}</td>
+          <td>{{ emp.pos_name  or '—' }}</td>
+          <td>
+            {% if emp.role == 'admin' %}<span class="badge badge-info">Admin</span>
+            {% elif emp.role == 'manager' %}<span class="badge badge-active">Manager</span>
+            {% elif emp.role == 'recruiter' %}<span class="badge badge-pending">Recruiter</span>
+            {% else %}<span class="badge badge-inactive">Employee</span>{% endif %}
+          </td>
+          <td style="color:var(--tx-3);">{{ emp.hire_date or '—' }}</td>
+          <td><span class="badge badge-active">Active</span></td>
+          {% if session.user_role == 'admin' %}
+          <td>
+            <div style="display:flex; gap:6px;">
+              <a href="{{ url_for('employee_edit', emp_id=emp.id) }}" class="btn btn-ghost btn-sm">
+                <i class="fas fa-pencil-alt"></i>
+              </a>
+              <button type="button" class="btn btn-sm resign-btn"
+                      data-action="{{ url_for('employee_resign', emp_id=emp.id) }}"
+                      data-name="{{ emp.name }}"
+                      style="background:#fef2f2; color:var(--red); border:1px solid #fecaca;">
+                <i class="fas fa-user-times"></i>
+              </button>
+            </div>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" style="text-align:center; color:var(--tx-3); padding:48px;">
+            No employees found.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<form id="resignForm" method="POST" style="display:none;"></form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.resign-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var name   = btn.dataset.name;
+    var action = btn.dataset.action;
+    if (confirm('Terminate ' + name + '? This cannot be undone.')) {
+      var form = document.getElementById('resignForm');
+      form.action = action;
+      form.submit();
+    }
+  });
+});
+</script>
+{% endblock %}

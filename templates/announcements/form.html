@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit Announcement' if post else 'New Announcement' }}{% endblock %}
+{% block page_title %}Announcements{% endblock %}
+
+{% block content %}
+<div style="max-width:760px;">
+  <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
+    <i class="fas fa-arrow-left"></i> Back to list
+  </a>
+
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">{{ 'Edit Announcement' if post else 'New Announcement' }}</span>
+    </div>
+    <div class="card-body">
+      {% if error %}
+      <div class="login-error" style="margin-bottom:18px;">
+        <i class="fas fa-exclamation-circle"></i> {{ error }}
+      </div>
+      {% endif %}
+
+      <form method="POST"
+            action="{{ url_for('announcement_edit', post_id=post.id) if post else url_for('announcement_new') }}">
+        <div class="field">
+          <label class="form-label">Title</label>
+          <input type="text" name="title" class="input"
+                 value="{{ post.title if post else '' }}"
+                 placeholder="Announcement title" required>
+        </div>
+        <div class="field">
+          <label class="form-label">Content</label>
+          <textarea name="content" class="input"
+                    style="height:260px; resize:vertical; line-height:1.7;"
+                    placeholder="Write your announcement here" required>{{ post.content if post else '' }}</textarea>
+        </div>
+        <div class="field" style="display:flex; align-items:center; gap:10px;">
+          <input type="checkbox" name="pinned" id="pinned"
+                 style="width:16px; height:16px; accent-color:var(--primary);"
+                 {{ 'checked' if post and post.pinned else '' }}>
+          <label for="pinned" style="font-size:13.5px; font-weight:600; color:var(--tx-2); cursor:pointer; margin:0;">
+            Pin to top
+          </label>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:8px;">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save"></i> {{ 'Save Changes' if post else 'Publish' }}
+          </button>
+          <a href="{{ url_for('announcement_detail', post_id=post.id) if post else url_for('announcements') }}"
+             class="btn btn-ghost">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

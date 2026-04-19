@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<!-- Page Head -->
+<div class="page-head">
+  <div>
+    <div class="page-eyebrow">{{ today_str }}</div>
+    <h1 class="headline-lg page-title">{{ greet }}, <span style="color:var(--primary);">{{ first_name }}.</span></h1>
+    <p class="page-sub">{{ session.dept_name or '' }}{% if session.pos_name %} · {{ session.pos_name }}{% endif %}
+      {% if remain_leave is defined %}
+      · <span style="font-weight:600; color:var(--primary);">{{ remain_leave | int }}d leave remaining</span>
+      {% endif %}
+    </p>
+  </div>
+  <a href="{{ url_for('leave_new') }}" class="btn btn-primary">
+    <i class="fas fa-plus"></i> Request Leave
+  </a>
+</div>
+
+<!-- KPI Cards -->
+<div class="grid-4" style="margin-bottom:28px;">
+  <div class="card" style="padding:20px;">
+    <div class="label">Leave Balance</div>
+    <div class="headline-lg" style="margin-top:8px; color:var(--primary);">{{ remain_leave | int }}<span class="muted" style="font-size:18px; font-weight:500;">d</span></div>
+    <div class="muted body-sm" style="margin-top:4px;">of {{ total_leave }} days total</div>
+  </div>
+  <div class="card" style="padding:20px;">
+    <div class="label">Used This Year</div>
+    <div class="headline-lg" style="margin-top:8px;">{{ used_leave | int }}<span class="muted" style="font-size:18px; font-weight:500;">d</span></div>
+    <div class="muted body-sm" style="margin-top:4px;">{{ pct_used }}% of annual leave</div>
+  </div>
+  <a href="{{ url_for('performance') }}" class="card" style="padding:20px; text-decoration:none;">
+    <div class="label">Performance</div>
+    <div class="headline-lg" style="margin-top:8px; font-size:20px;">→ Review</div>
+    <div class="muted body-sm" style="margin-top:4px;">self-review &amp; goals</div>
+  </a>
+  <div class="card" style="padding:20px; background:var(--surface-container-low);">
+    <div class="label">Tenure</div>
+    <div class="headline-lg" style="margin-top:8px; font-size:22px;">{{ tenure_str or '—' }}</div>
+    <div class="muted body-sm" style="margin-top:4px;">with the company</div>
+  </div>
+</div>
+
+<!-- Main grid-dash -->
+<div class="grid-dash">
+
+  <!-- Left column -->
+  <div class="stack">
+
+    <!-- Leave history -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Leave Requests</span>
+        <a href="{{ url_for('leave_my') }}" class="btn btn-ghost btn-sm">View all</a>
+      </div>
+      {% if recent_reqs %}
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr><th>Type</th><th>Period</th><th>Days</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            {% for r in recent_reqs %}
+            <tr>
+              <td style="font-weight:600; font-size:13px;">{{ labels.get(r.type, r.type) }}</td>
+              <td class="muted" style="font-size:12.5px;">
+                {{ r.start_date }}{% if r.start_date != r.end_date %} – {{ r.end_date }}{% endif %}
+              </td>
+              <td class="muted" style="font-size:13px;">{{ r.days }}d</td>
+              <td>
+                <span class="badge
+                  {% if r.status == 'approved' %}badge-active
+                  {% elif r.status == 'rejected' %}badge-reject
+                  {% elif r.status == 'cancelled' %}badge-inactive
+                  {% else %}badge-pending{% endif %}"
+                  style="font-size:11px;">
+                  {{ r.status | capitalize }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body" style="text-align:center; padding:40px;" class="muted">
+        <i class="fas fa-calendar" style="font-size:28px; color:var(--surface-container-high); margin-bottom:10px; display:block;"></i>
+        No leave requests yet.
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card inset" style="padding:22px;">
+      <div class="label" style="margin-bottom:14px;">Quick Actions</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <a href="{{ url_for('leave_new') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-plus-circle" style="color:var(--primary); width:16px;"></i> Request Leave
+        </a>
+        <a href="{{ url_for('attendance_home') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-clock" style="color:#0891b2; width:16px;"></i> Attendance
+        </a>
+        <a href="{{ url_for('payroll_list') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-money-check-alt" style="color:#16a34a; width:16px;"></i> Payslips
+        </a>
+        <a href="{{ url_for('performance') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-chart-line" style="color:#9333ea; width:16px;"></i> Goals
+        </a>
+        <a href="{{ url_for('cert_employment') }}" target="_blank" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-id-card" style="color:#ea580c; width:16px;"></i> Employment Cert.
+        </a>
+        <a href="{{ url_for('peer_reviews_page') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-star" style="color:#f59e0b; width:16px;"></i> Peer Review
+        </a>
+      </div>
+    </div>
+
+  </div><!-- /left -->
+
+  <!-- Right column -->
+  <div class="stack">
+
+    <!-- Time off balance visual -->
+    <div class="card inset" style="padding:24px;">
+      <div class="label">Time Off Balance</div>
+      <div style="margin-top:10px; font-size:40px; font-weight:700; letter-spacing:-0.025em; line-height:1;">
+        {{ remain_leave | int }}<span class="muted" style="font-size:22px; font-weight:500;"> / {{ total_leave }}d</span>
+      </div>
+      <div class="progress" style="margin-top:18px; height:8px; border-radius:99px; background:var(--surface-container-high); overflow:hidden;">
+        <span style="display:block; height:100%; width:{{ pct_used }}%;
+                     background:linear-gradient(90deg,var(--primary),var(--primary-light));
+                     border-radius:99px;"></span>
+      </div>
+      <div class="row-between" style="margin-top:10px;">
+        <span class="muted body-sm">Used {{ used_leave | int }}d this year</span>
+        <a href="{{ url_for('leave_new') }}" class="btn btn-ghost btn-sm">Request <i class="fas fa-arrow-right" style="font-size:11px;"></i></a>
+      </div>
+    </div>
+
+    <!-- Upcoming approved leave -->
+    {% if upcoming_leave %}
+    <div class="card">
+      <div style="padding:20px 22px 0;">
+        <h3 class="headline-sm" style="margin:0 0 14px;">Upcoming Leave</h3>
+      </div>
+      <div style="padding:0 10px 10px;">
+        {% for u in upcoming_leave %}
+        <div class="row" style="padding:10px 12px; border-radius:12px;">
+          <div style="width:36px; height:36px; border-radius:12px; flex-shrink:0;
+                      background:var(--secondary-container); color:var(--primary);
+                      display:grid; place-items:center;">
+            <i class="fas fa-calendar" style="font-size:14px;"></i>
+          </div>
+          <div style="flex:1; min-width:0;">
+            <div class="body-sm" style="font-weight:600;">{{ labels.get(u.type, u.type) }}</div>
+            <div class="muted" style="font-size:12px;">{{ u.start_date }}{% if u.start_date != u.end_date %} – {{ u.end_date }}{% endif %} · {{ u.days }}d</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Latest Announcements -->
+    <div class="card">
+      <div style="padding:20px 22px 4px;">
+        <h3 class="headline-sm" style="margin:0 0 4px;">Announcements</h3>
+      </div>
+      {% if recent_posts %}
+      <div style="padding:0 10px 10px;">
+        {% for post in recent_posts %}
+        <a href="{{ url_for('announcement_detail', post_id=post.id) }}"
+           class="row" style="padding:10px 12px; border-radius:12px; text-decoration:none; display:flex; align-items:center; gap:10px;"
+           onmouseover="this.style.background='var(--surface-container-low)'"
+           onmouseout="this.style.background=''">
+          <div style="flex:1; min-width:0;">
+            <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ post.title }}</div>
+            <div class="muted" style="font-size:11px;">{{ post.created_at[:10] }}</div>
+          </div>
+          {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px; flex-shrink:0;">Pinned</span>{% endif %}
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="padding:20px 22px;" class="muted body-sm">No announcements.</div>
+      {% endif %}
+    </div>
+
+  </div><!-- /right -->
+
+</div><!-- /grid-dash -->
+
+{% endblock %}

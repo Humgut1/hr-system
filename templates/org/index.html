@@ -1,0 +1,277 @@
+{% extends 'base.html' %}
+{% block title %}Organization Chart{% endblock %}
+{% block page_title %}Organization Chart{% endblock %}
+
+{% block head %}
+<style>
+/* ── Tree wrapper ─────────────────────────────────────── */
+.org-wrap { overflow-x: auto; }
+
+.tree-root-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #0f2544, #1e40af);
+  color: #fff;
+  border-radius: var(--r);
+  padding: 14px 24px;
+  margin-bottom: 4px;
+  font-weight: 800;
+  font-size: 15px;
+}
+.tree-root-card .root-count {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: .75;
+  margin-left: 4px;
+}
+
+/* ── Tree nodes ─────────────────────────────────────── */
+.tree-children {
+  margin-left: 24px;
+  border-left: 2px solid #e2e8f0;
+  padding-left: 0;
+}
+
+.tree-node { position: relative; }
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px 7px 16px;
+  border-radius: 7px;
+  cursor: pointer;
+  user-select: none;
+  transition: background .12s;
+  position: relative;
+}
+/* Left connector line */
+.tree-row::before {
+  content: '';
+  position: absolute;
+  left: -22px;
+  top: 50%;
+  width: 20px;
+  height: 2px;
+  background: #e2e8f0;
+}
+.tree-row:hover { background: #f1f5f9; }
+
+/* Toggle icon */
+.toggle-icon {
+  font-size: 10px;
+  color: #94a3b8;
+  width: 16px;
+  flex-shrink: 0;
+  transition: transform .2s;
+  text-align: center;
+}
+.toggle-icon.leaf {
+  color: #cbd5e1;
+  font-size: 7px;
+}
+
+/* Level badge */
+.level-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.lv0 { background: #0f2544; color: #fff; }
+.lv1 { background: #1e40af; color: #fff; }
+.lv2 { background: #0891b2; color: #fff; }
+.lv3 { background: #475569; color: #fff; }
+
+/* Node name */
+.node-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0f172a;
+  flex: 1;
+}
+.lv3-name { color: #334155; font-weight: 500; }
+
+/* Member count badge */
+.node-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e40af;
+  background: #eff6ff;
+  padding: 2px 9px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.node-count.zero { color: #94a3b8; background: #f8fafc; }
+
+/* Team summary grid */
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+.team-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.team-card-name { font-size: 12.5px; font-weight: 600; color: var(--tx-1); }
+.team-card-count { font-size: 13px; font-weight: 800; color: var(--primary); }
+</style>
+{% endblock %}
+
+{# ── Recursive macro: render all levels ────────────────────── #}
+{% macro render_node(node, depth) %}
+{% set labels = ['Division', 'Group', 'Department', 'Team'] %}
+{% set label  = labels[depth] if depth < labels|length else 'Team' %}
+{% set lv_cls = 'lv' ~ (depth if depth < 4 else 3) %}
+
+<div class="tree-node">
+  <div class="tree-row" onclick="toggleNode({{ node.id }})">
+
+    {% if node.children %}
+      <span class="toggle-icon" id="toggle-{{ node.id }}">▼</span>
+    {% else %}
+      <span class="toggle-icon leaf">●</span>
+    {% endif %}
+
+    <span class="level-badge {{ lv_cls }}">{{ label }}</span>
+
+    <span class="node-name {% if depth == 3 %}lv3-name{% endif %}">
+      {{ node.name }}
+    </span>
+
+    {% set cnt = node.total_count %}
+    <span class="node-count {% if cnt == 0 %}zero{% endif %}">
+      {{ cnt }} members
+    </span>
+
+  </div>
+
+  {% if node.children %}
+  <div class="tree-children" id="children-{{ node.id }}">
+    {% for child in node.children %}
+      {{ render_node(child, depth + 1) }}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
+
+<div class="stat-grid" style="margin-bottom:22px;">
+  <div class="stat-card">
+    <div class="stat-ico ico-blue"><i class="fas fa-users"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ total }}</div>
+      <div class="stat-lbl">Total Employees</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-ico ico-green"><i class="fas fa-sitemap"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ tree|length }}</div>
+      <div class="stat-lbl">Top-level Divisions</div>
+    </div>
+  </div>
+</div>
+
+<!-- Org tree -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">Organization Structure</span>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-ghost btn-sm" onclick="expandAll()">Expand All</button>
+      <button class="btn btn-ghost btn-sm" onclick="collapseAll()">Collapse All</button>
+      {% if session.user_role == 'admin' %}
+      <a href="{{ url_for('departments') }}" class="btn btn-ghost btn-sm">
+        <i class="fas fa-cog"></i> Manage Depts
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="org-wrap">
+
+      <div class="tree-root-card" style="margin-left:16px;">
+        <i class="fas fa-building"></i>
+        TalentCore
+        <span class="root-count">{{ total }} total</span>
+      </div>
+
+      <div style="margin-left:16px; border-left:2px solid #e2e8f0; padding-left:0; margin-top:0;">
+        {% for node in tree %}
+          {{ render_node(node, 0) }}
+        {% endfor %}
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Team headcount grid -->
+<div class="card" style="margin-top:20px;">
+  <div class="card-head">
+    <span class="card-title">Team Headcount</span>
+    <span style="font-size:12px; color:var(--tx-3);">Teams with assigned members</span>
+  </div>
+  <div class="card-body">
+    <div class="team-grid">
+      {% for n0 in tree %}
+        {% for n1 in n0.children %}
+          {% for n2 in n1.children %}
+            {% for n3 in n2.children %}
+              {% if n3.member_count > 0 %}
+              <div class="team-card">
+                <span class="team-card-name">{{ n3.name }}</span>
+                <span class="team-card-count">{{ n3.member_count }}</span>
+              </div>
+              {% endif %}
+            {% endfor %}
+          {% endfor %}
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleNode(id) {
+  var children = document.getElementById('children-' + id);
+  var toggle   = document.getElementById('toggle-' + id);
+  if (!children) return;
+  var isOpen = children.style.display !== 'none';
+  children.style.display = isOpen ? 'none' : '';
+  if (toggle) toggle.textContent = isOpen ? '▶' : '▼';
+}
+
+function expandAll() {
+  document.querySelectorAll('.tree-children').forEach(function(el) {
+    el.style.display = '';
+  });
+  document.querySelectorAll('.toggle-icon:not(.leaf)').forEach(function(el) {
+    el.textContent = '▼';
+  });
+}
+
+function collapseAll() {
+  document.querySelectorAll('.tree-children').forEach(function(el) {
+    el.style.display = 'none';
+  });
+  document.querySelectorAll('.toggle-icon:not(.leaf)').forEach(function(el) {
+    el.textContent = '▶';
+  });
+}
+</script>
+{% endblock %}

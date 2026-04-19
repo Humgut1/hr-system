@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Announcements{% endblock %}
+{% block page_title %}Announcements{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+  <div>
+    <div style="font-size:13px; color:var(--tx-3);">{{ posts|length }} announcement{{ 's' if posts|length != 1 else '' }}</div>
+  </div>
+  {% if session.user_role == 'admin' %}
+  <a href="{{ url_for('announcement_new') }}" class="btn btn-primary">
+    <i class="fas fa-plus"></i> New Announcement
+  </a>
+  {% endif %}
+</div>
+
+{% if posts %}
+<div style="display:flex; flex-direction:column; gap:10px;">
+  {% for post in posts %}
+  <a href="{{ url_for('announcement_detail', post_id=post.id) }}"
+     style="display:block; text-decoration:none;">
+    <div class="card" style="transition:box-shadow .15s; cursor:pointer;"
+         onmouseover="this.style.boxShadow='var(--sh-md)'"
+         onmouseout="this.style.boxShadow=''">
+      <div style="padding:18px 24px; display:flex; align-items:center; gap:14px;">
+        {% if post.pinned %}
+        <div style="width:36px; height:36px; background:#eff6ff; border-radius:var(--r-sm);
+                    display:flex; align-items:center; justify-content:center;
+                    color:var(--primary); flex-shrink:0;">
+          <i class="fas fa-thumbtack"></i>
+        </div>
+        {% else %}
+        <div style="width:36px; height:36px; background:var(--bg); border-radius:var(--r-sm);
+                    display:flex; align-items:center; justify-content:center;
+                    color:var(--tx-3); flex-shrink:0;">
+          <i class="fas fa-file-alt"></i>
+        </div>
+        {% endif %}
+        <div style="flex:1; min-width:0;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">
+            {% if post.pinned %}
+            <span class="badge badge-info" style="font-size:10px;">Pinned</span>
+            {% endif %}
+            <span style="font-size:15px; font-weight:700; color:var(--tx-1);">{{ post.title }}</span>
+          </div>
+          <div style="font-size:12.5px; color:var(--tx-3);">
+            {{ post.author_name }} · {{ post.created_at[:10] }}
+          </div>
+        </div>
+        <i class="fas fa-chevron-right" style="color:var(--tx-3); font-size:12px;"></i>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body" style="text-align:center; padding:60px; color:var(--tx-3);">
+    <i class="fas fa-bullhorn" style="font-size:36px; color:var(--border); margin-bottom:12px; display:block;"></i>
+    <div>No announcements yet.</div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

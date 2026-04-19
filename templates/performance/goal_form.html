@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}Add Goal{% endblock %}
+{% block page_title %}Performance{% endblock %}
+
+{% block content %}
+<div style="max-width:600px;">
+  <a href="{{ url_for('performance') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
+    <i class="fas fa-arrow-left"></i> Back to Performance
+  </a>
+
+  <div class="card">
+    <div class="card-head"><span class="card-title">Add Performance Goal</span></div>
+    <div class="card-body">
+      {% if error %}
+      <div class="login-error" style="margin-bottom:18px;">
+        <i class="fas fa-exclamation-circle"></i> {{ error }}
+      </div>
+      {% endif %}
+
+      {% if not cycles %}
+      <div style="text-align:center; color:var(--tx-3); padding:32px;">
+        No active review cycle. Please contact your HR admin.
+      </div>
+      {% else %}
+      <form method="POST" action="{{ url_for('performance_goal_new') }}">
+
+        <div class="field">
+          <label class="form-label">Review Cycle <span style="color:var(--red);">*</span></label>
+          <select name="cycle_id" class="input" required>
+            {% for c in cycles %}
+            <option value="{{ c.id }}">{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="grid-2" style="gap:14px;">
+          <div class="field">
+            <label class="form-label">Goal Type <span style="color:var(--red);">*</span></label>
+            <select name="category" class="input">
+              <option value="KPI">KPI — Key Performance Indicator</option>
+              <option value="OKR">OKR — Objectives & Key Results</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">
+              Weight (%) <span style="color:var(--red);">*</span>
+              <span style="font-weight:400; color:var(--tx-3);">Total 100% recommended</span>
+            </label>
+            <input type="number" name="weight" class="input"
+                   min="1" max="100" value="100" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="form-label">Goal Title <span style="color:var(--red);">*</span></label>
+          <input type="text" name="title" class="input"
+                 placeholder="e.g. Achieve NPS score of 30 or above" required>
+        </div>
+
+        <div class="field">
+          <label class="form-label">Description</label>
+          <textarea name="description" class="input" rows="4"
+                    placeholder="Describe how this goal will be measured, the criteria, and your plan to achieve it."></textarea>
+        </div>
+
+        <div style="background:#f8fafc; border-radius:var(--r-sm); padding:14px 16px;
+                    border:1px solid var(--border); margin-bottom:16px; font-size:13px; color:var(--tx-2);">
+          <div style="font-weight:700; margin-bottom:6px;">
+            <i class="fas fa-lightbulb" style="color:var(--orange);"></i> SMART Goal Guide
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 16px;">
+            <div>S — Specific</div>
+            <div>M — Measurable</div>
+            <div>A — Achievable</div>
+            <div>R — Relevant</div>
+            <div>T — Time-bound</div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-check"></i> Add Goal
+          </button>
+          <a href="{{ url_for('performance') }}" class="btn btn-ghost">Cancel</a>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

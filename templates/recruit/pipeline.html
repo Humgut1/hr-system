@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% block title %}Applicant Pipeline{% endblock %}
+{% block page_title %}Recruitment Pipeline{% endblock %}
+
+{% block head %}
+<style>
+.pipeline-board {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+  align-items: flex-start;
+}
+.pipeline-col {
+  flex-shrink: 0;
+  width: 200px;
+}
+.pipeline-col-head {
+  padding: 10px 12px;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  background: var(--navy);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.pipeline-col-body {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--r-sm) var(--r-sm);
+  min-height: 120px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pipeline-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: box-shadow .15s;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+.pipeline-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,.1);
+  border-color: var(--primary);
+}
+.pipeline-rejected-col .pipeline-col-head { background: #64748b; }
+.pipeline-hired-col .pipeline-col-head    { background: #16a34a; }
+.pipeline-offered-col .pipeline-col-head  { background: #2563eb; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Filter bar -->
+<div style="display:flex; align-items:center; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+  <a href="{{ url_for('recruit_postings') }}" class="btn btn-ghost btn-sm">
+    <i class="fas fa-arrow-left"></i> Postings
+  </a>
+  <div style="width:1px; height:22px; background:var(--border);"></div>
+  <select class="input" style="width:220px;"
+          onchange="location.href='{{ url_for('recruit_pipeline') }}?posting='+this.value">
+    <option value="">All Postings</option>
+    {% for jp in postings %}
+    <option value="{{ jp.id }}" {% if posting_id|string == jp.id|string %}selected{% endif %}>
+      {{ jp.title }}
+    </option>
+    {% endfor %}
+  </select>
+  <a href="{{ url_for('recruit_posting_new') }}" class="btn btn-primary btn-sm" style="margin-left:auto;">
+    <i class="fas fa-plus"></i> New Posting
+  </a>
+</div>
+
+<!-- Stats summary -->
+{% set total = namespace(n=0) %}
+{% for stage, label in active_stages %}{% set total.n = total.n + pipeline[stage]|length %}{% endfor %}
+<div style="display:flex; gap:14px; margin-bottom:20px; flex-wrap:wrap;">
+  <div class="card" style="padding:14px 20px; flex-shrink:0;">
+    <div style="font-size:11px; color:var(--tx-3);">Total Applicants</div>
+    <div style="font-size:24px; font-weight:900; color:var(--primary);">
+      {{ total.n + pipeline['rejected']|length }}
+    </div>
+  </div>
+  <div class="card" style="padding:14px 20px; flex-shrink:0;">
+    <div style="font-size:11px; color:var(--tx-3);">In Progress</div>
+    <div style="font-size:24px; font-weight:900; color:var(--navy);">{{ total.n }}</div>
+  </div>
+  <div class="card" style="padding:14px 20px; flex-shrink:0;">
+    <div style="font-size:11px; color:var(--tx-3);">Hired</div>
+    <div style="font-size:24px; font-weight:900; color:var(--green);">{{ pipeline['hired']|length }}</div>
+  </div>
+  <div class="card" style="padding:14px 20px; flex-shrink:0;">
+    <div style="font-size:11px; color:var(--tx-3);">Rejected</div>
+    <div style="font-size:24px; font-weight:900; color:var(--tx-3);">{{ pipeline['rejected']|length }}</div>
+  </div>
+</div>
+
+<!-- Kanban board -->
+<div class="pipeline-board">
+  {% for stage, label in stages %}
+  <div class="pipeline-col
+    {% if stage == 'rejected' %}pipeline-rejected-col
+    {% elif stage == 'hired' %}pipeline-hired-col
+    {% elif stage == 'offered' %}pipeline-offered-col{% endif %}">
+    <div class="pipeline-col-head">
+      <span>{{ label }}</span>
+      <span style="background:rgba(255,255,255,.2); border-radius:10px; padding:1px 7px; font-size:11px;">
+        {{ pipeline[stage]|length }}
+      </span>
+    </div>
+    <div class="pipeline-col-body">
+      {% for a in pipeline[stage] %}
+      <a href="{{ url_for('recruit_applicant_detail', applicant_id=a.id) }}" class="pipeline-card">
+        <div style="font-size:13px; font-weight:700; color:var(--tx-1); margin-bottom:3px;">{{ a.name }}</div>
+        <div style="font-size:11px; color:var(--tx-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+          {{ a.posting_title }}
+        </div>
+        <div style="font-size:11px; color:var(--tx-4); margin-top:4px;">{{ a.created_at[:10] }}</div>
+      </a>
+      {% else %}
+      <div style="text-align:center; color:var(--tx-4); font-size:12px; padding:16px 0;">Empty</div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

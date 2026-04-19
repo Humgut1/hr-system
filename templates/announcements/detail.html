@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}{{ post.title }}{% endblock %}
+{% block page_title %}Announcements{% endblock %}
+
+{% block content %}
+<div style="max-width:760px;">
+  <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
+    <i class="fas fa-arrow-left"></i> Back to list
+  </a>
+
+  <div class="card">
+    <div style="padding:28px 30px; border-bottom:1px solid var(--border);">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+        {% if post.pinned %}
+        <span class="badge badge-info">Pinned</span>
+        {% endif %}
+      </div>
+      <h2 style="font-size:22px; font-weight:800; color:var(--tx-1); margin-bottom:10px; letter-spacing:-.3px;">
+        {{ post.title }}
+      </h2>
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div style="display:flex; align-items:center; gap:14px; font-size:13px; color:var(--tx-3);">
+          <span><i class="fas fa-user" style="margin-right:5px;"></i>{{ post.author_name }}</span>
+          <span><i class="fas fa-calendar" style="margin-right:5px;"></i>{{ post.created_at[:10] }}</span>
+        </div>
+        {% if session.user_role == 'admin' %}
+        <a href="{{ url_for('announcement_edit', post_id=post.id) }}" class="btn btn-ghost btn-sm">
+          <i class="fas fa-pencil-alt"></i> Edit
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    <div style="padding:28px 30px;">
+      <div style="font-size:15px; line-height:1.85; color:var(--tx-1); white-space:pre-wrap;">{{ post.content }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,221 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<!-- Page Head -->
+<div class="page-head">
+  <div>
+    <div class="page-eyebrow">{{ today_str }}</div>
+    <h1 class="headline-lg page-title">{{ greet }}, <span style="color:var(--primary);">{{ first_name }}.</span></h1>
+    <p class="page-sub">{{ team_count }} people on your team
+      {% if pending_count > 0 %}
+      · <a href="{{ url_for('attendance') }}" style="color:var(--primary); font-weight:600;">{{ pending_count }} request{{ 's' if pending_count != 1 else '' }} pending</a>
+      {% endif %}
+    </p>
+  </div>
+  <a href="{{ url_for('attendance') }}" class="btn btn-primary">
+    <i class="fas fa-check-circle"></i> Review Requests
+  </a>
+</div>
+
+<!-- KPI Cards -->
+<div class="grid-4" style="margin-bottom:28px;">
+  <div class="card" style="padding:20px;">
+    <div class="label">Team Size</div>
+    <div class="headline-lg" style="margin-top:8px;">{{ team_count }}</div>
+    <div class="muted body-sm" style="margin-top:4px;">active members</div>
+  </div>
+  <a href="{{ url_for('attendance') }}" class="card" style="padding:20px; text-decoration:none;">
+    <div class="label">Pending Approval</div>
+    <div class="headline-lg" style="margin-top:8px; {% if pending_count > 0 %}color:#ea580c;{% endif %}">{{ pending_count }}</div>
+    <div class="muted body-sm" style="margin-top:4px;">leave requests</div>
+  </a>
+  <div class="card" style="padding:20px;">
+    <div class="label">Out Today</div>
+    <div class="headline-lg" style="margin-top:8px;">{{ today_leave }}</div>
+    <div class="muted body-sm" style="margin-top:4px;">on approved leave</div>
+  </div>
+  <a href="{{ url_for('performance') }}" class="card" style="padding:20px; text-decoration:none;">
+    <div class="label">Performance</div>
+    <div class="headline-lg" style="margin-top:8px; font-size:20px;">→ Review</div>
+    <div class="muted body-sm" style="margin-top:4px;">team goals &amp; scores</div>
+  </a>
+</div>
+
+<!-- Main grid-dash -->
+<div class="grid-dash">
+
+  <!-- Left column -->
+  <div class="stack">
+
+    <!-- Pending Leave Requests -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Pending Leave Requests</span>
+        {% if pending_count > 0 %}
+        <span class="badge badge-pending" style="font-size:11px;">{{ pending_count }} waiting</span>
+        {% endif %}
+      </div>
+      {% if pending_reqs %}
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr><th>Employee</th><th>Type</th><th>Period</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            {% for r in pending_reqs %}
+            <tr>
+              <td style="font-weight:600; font-size:13px;">{{ r.user_name }}</td>
+              <td>
+                <span class="badge badge-pending" style="font-size:11px;">
+                  {{ labels.get(r.type, r.type) }}
+                </span>
+              </td>
+              <td class="muted" style="font-size:12.5px;">
+                {{ r.start_date }}{% if r.start_date != r.end_date %} – {{ r.end_date }}{% endif %}
+              </td>
+              <td>
+                <div style="display:flex; gap:6px;">
+                  <form method="POST" action="{{ url_for('attendance_approve', req_id=r.id) }}" style="display:inline;">
+                    <button type="submit" class="btn btn-primary btn-sm" style="font-size:11px;">Approve</button>
+                  </form>
+                  <form method="POST" action="{{ url_for('attendance_reject', req_id=r.id) }}" style="display:inline;">
+                    <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px;">Reject</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div style="padding:10px 22px; border-top:1px solid var(--outline-variant);">
+        <a href="{{ url_for('attendance') }}" class="btn btn-ghost btn-sm">View all requests</a>
+      </div>
+      {% else %}
+      <div style="text-align:center; padding:40px;" class="muted">
+        <i class="fas fa-check-circle" style="font-size:28px; color:var(--surface-container-high); margin-bottom:10px; display:block;"></i>
+        No pending requests.
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Team Performance -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Team Performance</span>
+        <a href="{{ url_for('performance') }}" class="btn btn-ghost btn-sm">View all</a>
+      </div>
+      {% if team_goals %}
+      <div>
+        {% for g in team_goals %}
+        <div style="padding:14px 22px; border-bottom:1px solid var(--outline-variant); display:flex; align-items:center; gap:12px;">
+          <div class="avatar-xs" style="flex-shrink:0;">{{ g.user_name[0] }}</div>
+          <div style="flex:1; min-width:0;">
+            <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ g.title }}</div>
+            <div class="muted" style="font-size:12px;">{{ g.user_name }}</div>
+          </div>
+          <div style="flex-shrink:0; text-align:right;">
+            {% if g.avg_score %}
+            <div style="font-size:17px; font-weight:700;
+                        color:{% if g.avg_score >= 4 %}#16a34a{% elif g.avg_score >= 3 %}var(--primary){% else %}#ea580c{% endif %};">
+              {{ '%.1f'|format(g.avg_score) }}
+            </div>
+            {% else %}
+            <span class="chip" style="font-size:10px;">No score</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="text-align:center; padding:40px;" class="muted">
+        <i class="fas fa-chart-line" style="font-size:28px; color:var(--surface-container-high); margin-bottom:10px; display:block;"></i>
+        No goals recorded yet.
+      </div>
+      {% endif %}
+    </div>
+
+  </div><!-- /left -->
+
+  <!-- Right column -->
+  <div class="stack">
+
+    <!-- Quick Actions -->
+    <div class="card inset" style="padding:22px;">
+      <div class="label" style="margin-bottom:14px;">Quick Actions</div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <a href="{{ url_for('attendance') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-check-circle" style="color:var(--primary); width:18px;"></i> Approve Leave
+        </a>
+        <a href="{{ url_for('performance') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-chart-line" style="color:#9333ea; width:18px;"></i> Team Performance
+        </a>
+        <a href="{{ url_for('peer_assignments_page') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-users" style="color:#0891b2; width:18px;"></i> Peer Assignments
+        </a>
+        <a href="{{ url_for('calibration') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-scale-balanced" style="color:#1e40af; width:18px;"></i> Calibration
+        </a>
+      </div>
+    </div>
+
+    <!-- Who's Out Today -->
+    <div class="card">
+      <div style="padding:20px 22px 0;">
+        <h3 class="headline-sm" style="margin:0 0 14px;">Who's Out Today</h3>
+      </div>
+      {% if who_out %}
+      <div style="padding:0 10px 10px;">
+        {% for p in who_out %}
+        <div class="row" style="padding:10px 12px; border-radius:12px;">
+          <div class="avatar-xs" style="flex-shrink:0;">{{ p.name[0] }}</div>
+          <div style="flex:1; min-width:0;">
+            <div class="body-sm" style="font-weight:600;">{{ p.name }}</div>
+            <div class="muted" style="font-size:12px;">Back {{ p.end_date }}</div>
+          </div>
+          <span class="chip" style="font-size:11px; white-space:nowrap;">
+            {{ labels.get(p.type, p.type) }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="padding:24px 22px;" class="muted body-sm">
+        Everyone is in today.
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Announcements -->
+    <div class="card">
+      <div style="padding:20px 22px 4px;">
+        <h3 class="headline-sm" style="margin:0 0 4px;">Announcements</h3>
+      </div>
+      {% if recent_posts %}
+      <div style="padding:0 10px 10px;">
+        {% for post in recent_posts %}
+        <a href="{{ url_for('announcement_detail', post_id=post.id) }}"
+           class="row" style="padding:10px 12px; border-radius:12px; text-decoration:none; display:flex; align-items:center; gap:10px;"
+           onmouseover="this.style.background='var(--surface-container-low)'"
+           onmouseout="this.style.background=''">
+          <div style="flex:1; min-width:0;">
+            <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ post.title }}</div>
+            <div class="muted" style="font-size:11px;">{{ post.created_at[:10] }}</div>
+          </div>
+          {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px; flex-shrink:0;">Pinned</span>{% endif %}
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="padding:20px 22px;" class="muted body-sm">No announcements.</div>
+      {% endif %}
+    </div>
+
+  </div><!-- /right -->
+
+</div><!-- /grid-dash -->
+
+{% endblock %}

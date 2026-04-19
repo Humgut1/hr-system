@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}대시보드{% endblock %} — TalentCore</title>
+
+  <!-- Plus Jakarta Sans + JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- 디자인 시스템 + 기존 스타일 -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  {% block head %}{% endblock %}
+  {% block extra_css %}{% endblock %}
+</head>
+<body class="app-layout">
+<div class="app-shell">
+
+  <!-- ══ 사이드바 ══════════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">T</div>
+      <div>
+        <div class="brand-name">TalentCore</div>
+        <div class="label" style="font-size:10px; margin-top:-2px; opacity:.65;">People · OS</div>
+      </div>
+    </div>
+
+    <nav class="nav sidebar-nav">
+
+      <div class="nav-section">
+        <span class="nav-section-label">Main</span>
+        <a href="{{ url_for('dashboard') }}" class="nav-item{% if active_page == 'home' %} active{% endif %}">
+          <i class="fas fa-home"></i><span>Dashboard</span>
+        </a>
+        <a href="{{ url_for('announcements') }}" class="nav-item{% if active_page == 'announcements' %} active{% endif %}">
+          <i class="fas fa-bullhorn"></i><span>Announcements</span>
+        </a>
+        <a href="{{ url_for('org_chart') }}" class="nav-item{% if active_page == 'org' %} active{% endif %}">
+          <i class="fas fa-sitemap"></i><span>Org Chart</span>
+        </a>
+      </div>
+
+      {% if session.user_role in ('admin', 'manager') %}
+      <div class="nav-section">
+        <span class="nav-section-label">People</span>
+        <a href="{{ url_for('employees') }}" class="nav-item{% if active_page == 'employees' %} active{% endif %}">
+          <i class="fas fa-users"></i><span>Employees</span>
+        </a>
+        {% if session.user_role == 'admin' %}
+        <a href="{{ url_for('departments') }}" class="nav-item{% if active_page == 'departments' %} active{% endif %}">
+          <i class="fas fa-layer-group"></i><span>Dept & Grade</span>
+        </a>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <div class="nav-section">
+        <span class="nav-section-label">Attendance</span>
+        <a href="{{ url_for('attendance_home') }}" class="nav-item{% if active_page == 'attendance_home' %} active{% endif %}">
+          <i class="fas fa-clock"></i><span>Attendance</span>
+        </a>
+        <a href="{{ url_for('leave_new') }}" class="nav-item{% if active_page == 'leave_new' %} active{% endif %}">
+          <i class="fas fa-plus-circle"></i><span>Request Leave</span>
+        </a>
+        <a href="{{ url_for('leave_my') }}" class="nav-item{% if active_page == 'leave' %} active{% endif %}">
+          <i class="fas fa-list"></i><span>My Leaves</span>
+        </a>
+        {% if session.user_role in ('admin', 'manager') %}
+        <a href="{{ url_for('attendance') }}" class="nav-item{% if active_page == 'attendance' %} active{% endif %}">
+          <i class="fas fa-check-circle"></i><span>Approvals</span>
+        </a>
+        {% endif %}
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-section-label">Payroll</span>
+        <a href="{{ url_for('payroll_list') }}"
+           class="nav-item{% if active_page == 'payroll' %} active{% endif %}">
+          <i class="fas fa-won-sign"></i><span>Payslips</span>
+        </a>
+        <a href="{{ url_for('cert_employment') }}" target="_blank" class="nav-item">
+          <i class="fas fa-id-card"></i><span>Employment Cert.</span>
+        </a>
+        <a href="{{ url_for('cert_career') }}" target="_blank" class="nav-item">
+          <i class="fas fa-file-alt"></i><span>Career Cert.</span>
+        </a>
+        {% if session.user_role == 'admin' %}
+        <a href="{{ url_for('admin_payroll') }}"
+           class="nav-item{% if active_page == 'admin_payroll' %} active{% endif %}">
+          <i class="fas fa-cog"></i><span>Payroll Admin</span>
+        </a>
+        <a href="{{ url_for('salary_table') }}"
+           class="nav-item{% if active_page == 'salary_table' %} active{% endif %}">
+          <i class="fas fa-table"></i><span>Salary Table</span>
+        </a>
+        {% endif %}
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-section-label">Performance</span>
+        <a href="{{ url_for('performance') }}"
+           class="nav-item{% if active_page == 'performance' %} active{% endif %}">
+          <i class="fas fa-chart-line"></i><span>Performance</span>
+        </a>
+        <a href="{{ url_for('peer_reviews_page') }}"
+           class="nav-item{% if active_page == 'peer' %} active{% endif %}">
+          <i class="fas fa-users"></i><span>Peer Review</span>
+        </a>
+        {% if session.user_role in ('admin', 'manager') %}
+        <a href="{{ url_for('peer_assignments') }}"
+           class="nav-item{% if active_page == 'peer_assignments' %} active{% endif %}">
+          <i class="fas fa-user-plus"></i><span>Assignments</span>
+        </a>
+        {% endif %}
+        {% if session.user_role == 'admin' %}
+        <a href="{{ url_for('calibration') }}"
+           class="nav-item{% if active_page == 'calibration' %} active{% endif %}">
+          <i class="fas fa-scale-balanced"></i><span>Calibration</span>
+        </a>
+        <a href="{{ url_for('performance_cycles') }}"
+           class="nav-item{% if active_page == 'performance_cycles' %} active{% endif %}">
+          <i class="fas fa-rotate"></i><span>Cycles</span>
+        </a>
+        {% endif %}
+      </div>
+
+      {% if session.user_role in ('admin', 'recruiter') %}
+      <div class="nav-section">
+        <span class="nav-section-label">Recruit</span>
+        <a href="{{ url_for('recruit_postings') }}"
+           class="nav-item{% if active_page == 'recruit' %} active{% endif %}">
+          <i class="fas fa-file-signature"></i><span>Job Postings</span>
+        </a>
+        <a href="{{ url_for('recruit_pipeline') }}"
+           class="nav-item{% if active_page == 'recruit_pipeline' %} active{% endif %}">
+          <i class="fas fa-user-tie"></i><span>Pipeline</span>
+        </a>
+      </div>
+      {% endif %}
+
+    </nav>
+
+    <div class="sidebar-footer">
+      <a href="{{ url_for('profile') }}"
+         class="nav-item{% if active_page == 'profile' %} active{% endif %}">
+        <i class="fas fa-cog"></i><span>Settings</span>
+      </a>
+      <form method="POST" action="{{ url_for('logout') }}" style="margin:0;">
+        <button type="submit" class="nav-item" style="width:100%;background:none;border:none;cursor:pointer;text-align:left;">
+          <i class="fas fa-sign-out-alt"></i><span>Sign Out</span>
+        </button>
+      </form>
+    </div>
+  </aside>
+
+  <!-- 사이드바 오버레이 (모바일) -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- ══ 메인 ══════════════════════════════════════ -->
+  <div class="main-wrapper">
+    <header class="header">
+      <div class="header-left">
+        <button class="hamburger" id="hamburgerBtn" aria-label="메뉴">
+          <i class="fas fa-bars"></i>
+        </button>
+        <h1 class="page-title">{% block page_title %}대시보드{% endblock %}</h1>
+      </div>
+      <div class="header-right">
+        <a href="{{ url_for('announcements') }}" class="icon-btn" title="공지사항">
+          <i class="fas fa-bell"></i>
+          {% if notif_count | default(0) > 0 %}
+          <span class="notif-badge">{{ notif_count }}</span>
+          {% endif %}
+        </a>
+        <div class="divider-v"></div>
+        <div class="user-pill">
+          <div class="user-avatar">{{ session.user_name[0] if session.user_name else 'U' }}</div>
+          <div class="user-info-wrap">
+            <span class="user-fullname">{{ session.user_name }}</span>
+            <span class="user-rolelabel">
+              {% if session.user_role == 'admin' %}HR 관리자
+              {% elif session.user_role == 'manager' %}팀장
+              {% elif session.user_role == 'recruiter' %}채용담당자
+              {% else %}{{ session.dept_name }} · {{ session.pos_name }}{% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+          <div class="flash flash-{{ category }}" style="
+            margin-bottom:16px; padding:12px 18px; border-radius:var(--r);
+            font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:10px;
+            {% if category == 'success' %}background:#f0fdf4; border:1px solid #86efac; color:#15803d;
+            {% else %}background:#fff7ed; border:1px solid #fed7aa; color:#c2410c;{% endif %}
+          ">
+            <i class="fas {% if category == 'success' %}fa-check-circle{% else %}fa-exclamation-triangle{% endif %}"></i>
+            {{ message }}
+          </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+</div><!-- /.app-shell -->
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block scripts %}{% endblock %}
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

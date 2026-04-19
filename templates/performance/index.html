@@ -1,0 +1,291 @@
+{% extends 'base.html' %}
+{% block title %}Performance{% endblock %}
+{% block page_title %}Performance{% endblock %}
+
+{% block head %}
+<style>
+.progress-bar-bg {
+  height: 6px; background: #e2e8f0; border-radius: 99px; overflow: hidden; margin-top: 6px;
+}
+.progress-bar-fill {
+  height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, #1e40af, #0891b2);
+  transition: width .3s;
+}
+.score-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 50%;
+  font-size: 16px; font-weight: 900;
+}
+.chip-s { background:#dcfce7; color:#16a34a; }
+.chip-a { background:#dbeafe; color:#1e40af; }
+.chip-b { background:#e0f2fe; color:#0369a1; }
+.chip-c { background:#fef3c7; color:#92400e; }
+.chip-d { background:#fee2e2; color:#dc2626; }
+
+.result-banner {
+  background: linear-gradient(135deg, #0f2544, #1e40af);
+  border-radius: var(--r);
+  padding: 20px 28px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+.result-grade {
+  font-size: 48px; font-weight: 900; letter-spacing: -1px; line-height: 1;
+}
+.result-label { font-size: 14px; opacity: .75; margin-top: 4px; }
+.result-detail { display: flex; gap: 28px; }
+.result-item { text-align: center; }
+.result-item .ri-val { font-size: 22px; font-weight: 800; }
+.result-item .ri-lbl { font-size: 11px; opacity: .7; margin-top: 2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Review cycle banner -->
+{% if selected_cycle %}
+<div class="welcome-banner" style="margin-bottom:22px;">
+  <div>
+    <div class="welcome-greeting">{{ selected_cycle.name }}</div>
+    <div class="welcome-sub">
+      {{ selected_cycle.start_date }} ~ {{ selected_cycle.end_date }} &nbsp;·&nbsp;
+      {{ 'Active cycle' if selected_cycle.status == 'active' else 'Closed cycle' }}
+    </div>
+  </div>
+  <div class="welcome-icon"><i class="fas fa-chart-line"></i></div>
+</div>
+{% else %}
+<div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:var(--r);
+            padding:16px 20px; margin-bottom:22px; color:var(--orange); font-weight:600;">
+  <i class="fas fa-exclamation-triangle"></i>
+  No active review cycle. Please contact your HR admin.
+</div>
+{% endif %}
+
+<!-- Top actions -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+  <div style="display:flex; gap:8px; align-items:center;">
+    {% if cycles %}
+    <select id="cycleSelect" class="input" style="width:200px;"
+            onchange="location.href='?cycle='+this.value">
+      {% for c in cycles %}
+      <option value="{{ c.id }}"
+              {% if selected_cycle and c.id == selected_cycle.id %}selected{% endif %}>
+        {{ c.name }} ({{ 'Active' if c.status == 'active' else 'Closed' }})
+      </option>
+      {% endfor %}
+    </select>
+    {% endif %}
+  </div>
+  <a href="{{ url_for('performance_goal_new') }}" class="btn btn-primary">
+    <i class="fas fa-plus"></i> Add Goal
+  </a>
+</div>
+
+<!-- Employee: weighted average result card -->
+{% if session.user_role == 'employee' and goals %}
+  {% set total_weight = 0 %}
+  {% set weighted_sum = 0 %}
+  {% for g in goals %}
+    {% if g.avg_score %}
+      {% set total_weight  = total_weight  + g.weight %}
+      {% set weighted_sum  = weighted_sum  + g.avg_score * g.weight %}
+    {% endif %}
+  {% endfor %}
+  {% if total_weight > 0 %}
+  {% set final_score = weighted_sum / total_weight %}
+  <div class="result-banner" style="margin-bottom:22px;">
+    <div>
+      {% if final_score >= 4.5 %}
+        <div class="result-grade">S</div>
+        <div class="result-label">Outstanding — far exceeds expectations</div>
+      {% elif final_score >= 3.5 %}
+        <div class="result-grade">A</div>
+        <div class="result-label">Excellent — exceeds expectations</div>
+      {% elif final_score >= 2.5 %}
+        <div class="result-grade">B</div>
+        <div class="result-label">Good — meets expectations</div>
+      {% elif final_score >= 1.5 %}
+        <div class="result-grade">C</div>
+        <div class="result-label">Needs Improvement — below expectations</div>
+      {% else %}
+        <div class="result-grade">D</div>
+        <div class="result-label">Unsatisfactory — well below expectations</div>
+      {% endif %}
+    </div>
+    <div class="result-detail">
+      <div class="result-item">
+        <div class="ri-val">{{ '%.2f'|format(final_score) }}</div>
+        <div class="ri-lbl">Weighted Score</div>
+      </div>
+      <div class="result-item">
+        <div class="ri-val">{{ goals|length }}</div>
+        <div class="ri-lbl">Goals</div>
+      </div>
+      <div class="result-item">
+        <div class="ri-val">{{ total_weight }}%</div>
+        <div class="ri-lbl">Total Weight</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+{% endif %}
+
+<!-- Goal list -->
+{% if goals %}
+
+{% if session.user_role in ('admin', 'manager') %}
+<!-- Admin / Manager: grouped by employee -->
+{% set ns = namespace(current_uid=0) %}
+{% for g in goals %}
+  {% if g.user_id != ns.current_uid %}
+    {% if not loop.first %}</div>{% endif %}
+    {% set ns.current_uid = g.user_id %}
+    <div style="margin-bottom:18px;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+      <div class="avatar-xs">{{ g.user_name[0] }}</div>
+      <span style="font-size:15px; font-weight:800; color:var(--tx-1);">{{ g.user_name }}</span>
+      <span style="font-size:12px; color:var(--tx-3);">{{ g.dept_name or '' }}</span>
+    </div>
+  {% endif %}
+
+  <div class="card" style="margin-bottom:8px;">
+    <div style="padding:16px 20px;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <span class="badge {% if g.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}">
+          {{ g.category }}
+        </span>
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:14px; font-weight:700; margin-bottom:2px;">{{ g.title }}</div>
+          {% if g.description %}
+          <div style="font-size:12px; color:var(--tx-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+            {{ g.description }}
+          </div>
+          {% endif %}
+        </div>
+        <div style="text-align:center; flex-shrink:0; min-width:50px;">
+          <div style="font-size:10px; color:var(--tx-3);">Weight</div>
+          <div style="font-size:16px; font-weight:800; color:var(--primary);">{{ g.weight }}%</div>
+        </div>
+        <div style="text-align:center; flex-shrink:0; min-width:80px;">
+          {% if g.avg_score %}
+          {% set sc = g.avg_score|float %}
+          {% if sc >= 4.5 %}{% set cls='chip-s' %}{% elif sc >= 3.5 %}{% set cls='chip-a' %}
+          {% elif sc >= 2.5 %}{% set cls='chip-b' %}{% elif sc >= 1.5 %}{% set cls='chip-c' %}
+          {% else %}{% set cls='chip-d' %}{% endif %}
+          <span class="score-chip {{ cls }}">{{ '%.1f'|format(sc) }}</span>
+          <div style="font-size:10px; color:var(--tx-3); margin-top:3px;">
+            {% if sc >= 4.5 %}S{% elif sc >= 3.5 %}A{% elif sc >= 2.5 %}B{% elif sc >= 1.5 %}C{% else %}D{% endif %}
+          </div>
+          {% else %}
+          <span class="badge badge-pending" style="font-size:11px;">Not Rated</span>
+          {% endif %}
+        </div>
+        <div>
+          <a href="{{ url_for('performance_review', goal_id=g.id) }}" class="btn btn-ghost btn-sm">
+            <i class="fas fa-star"></i> Review
+          </a>
+        </div>
+      </div>
+      <!-- Progress bar -->
+      <div style="margin-top:10px; display:flex; align-items:center; gap:10px;">
+        <div style="flex:1;">
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width:{{ g.progress or 0 }}%;"></div>
+          </div>
+        </div>
+        <span style="font-size:11px; color:var(--tx-3); white-space:nowrap;">Progress {{ g.progress or 0 }}%</span>
+      </div>
+    </div>
+  </div>
+{% endfor %}
+</div>
+
+{% else %}
+<!-- Employee own view -->
+<div style="display:flex; flex-direction:column; gap:10px;">
+  {% for g in goals %}
+  <div class="card">
+    <div style="padding:18px 22px;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <span class="badge {% if g.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}">
+          {{ g.category }}
+        </span>
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:14.5px; font-weight:700; margin-bottom:2px;">{{ g.title }}</div>
+          {% if g.description %}
+          <div style="font-size:12.5px; color:var(--tx-3);">{{ g.description }}</div>
+          {% endif %}
+        </div>
+        <div style="text-align:center; min-width:60px;">
+          <div style="font-size:10px; color:var(--tx-3);">Weight</div>
+          <div style="font-size:18px; font-weight:800; color:var(--primary);">{{ g.weight }}%</div>
+        </div>
+        <!-- Review result -->
+        <div style="text-align:center; min-width:80px;">
+          {% if g.avg_score %}
+          {% set score = g.avg_score|float %}
+          {% if score >= 4.5 %}{% set cls='chip-s' %}{% elif score >= 3.5 %}{% set cls='chip-a' %}
+          {% elif score >= 2.5 %}{% set cls='chip-b' %}{% elif score >= 1.5 %}{% set cls='chip-c' %}
+          {% else %}{% set cls='chip-d' %}{% endif %}
+          <div style="font-size:10px; color:var(--tx-3); margin-bottom:4px;">Result</div>
+          <span class="score-chip {{ cls }}">{{ '%.1f'|format(score) }}</span>
+          {% else %}
+          <span class="badge badge-inactive" style="font-size:11px;">Pending</span>
+          {% endif %}
+        </div>
+        <!-- Self-review button -->
+        <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+          <a href="{{ url_for('performance_self_review', goal_id=g.id) }}"
+             class="btn btn-ghost btn-sm" style="white-space:nowrap;">
+            {% if g.self_score %}
+              <i class="fas fa-edit"></i> Edit Self-Review
+            {% else %}
+              <i class="fas fa-pen"></i> Self-Review
+            {% endif %}
+          </a>
+          {% if g.self_score %}
+          <span style="font-size:11px; color:var(--tx-3);">Self score: {{ g.self_score }}pt</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Progress slider -->
+      <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-size:12px; font-weight:600; color:var(--tx-2);">Progress</span>
+          <span style="font-size:12px; font-weight:800; color:var(--primary);" id="pct-{{ g.id }}">{{ g.progress or 0 }}%</span>
+        </div>
+        <form method="POST" action="{{ url_for('performance_goal_progress', goal_id=g.id) }}"
+              style="display:flex; gap:10px; align-items:center;">
+          <input type="range" name="progress" min="0" max="100" step="5"
+                 value="{{ g.progress or 0 }}"
+                 oninput="document.getElementById('pct-{{ g.id }}').textContent=this.value+'%'"
+                 style="flex:1; accent-color:#1e40af;">
+          <button type="submit" class="btn btn-ghost btn-sm" style="white-space:nowrap;">Save</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="card">
+  <div class="card-body" style="text-align:center; color:var(--tx-3); padding:60px;">
+    <i class="fas fa-chart-line" style="font-size:36px; color:var(--border); margin-bottom:12px; display:block;"></i>
+    No goals have been added yet.<br>
+    <a href="{{ url_for('performance_goal_new') }}" class="btn btn-primary" style="margin-top:14px;">
+      <i class="fas fa-plus"></i> Add Your First Goal
+    </a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

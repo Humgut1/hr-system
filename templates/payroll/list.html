@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% block title %}Payslips{% endblock %}
+{% block page_title %}Payslips{% endblock %}
+
+{% block content %}
+
+<div class="stat-grid" style="margin-bottom:22px;">
+  <div class="stat-card">
+    <div class="stat-ico ico-blue"><i class="fas fa-calendar-check"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ (total_leave - used_leave)|int }}</div>
+      <div class="stat-lbl">Leave Remaining</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-ico ico-orange"><i class="fas fa-calendar-minus"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ used_leave|int }}</div>
+      <div class="stat-lbl">Leave Used</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-ico ico-green"><i class="fas fa-file-invoice-dollar"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ slips|length }}</div>
+      <div class="stat-lbl">Payslips Issued</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-ico ico-purple"><i class="fas fa-file-alt"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">2</div>
+      <div class="stat-lbl">Certificates Available</div>
+    </div>
+  </div>
+</div>
+
+<div class="grid-2" style="align-items:start;">
+
+  <!-- Payslip list -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Monthly Payslips</span>
+    </div>
+    {% if slips %}
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Period</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for s in slips %}
+          <tr>
+            <td style="font-weight:700;">{{ s.year }} / {{ '%02d'|format(s.month) }}</td>
+            <td>{{ fmt_krw(s.gross_pay) }}₩</td>
+            <td style="color:var(--red);">- {{ fmt_krw(s.total_deduction) }}₩</td>
+            <td style="font-weight:800; color:var(--primary);">{{ fmt_krw(s.net_pay) }}₩</td>
+            <td>
+              <a href="{{ url_for('payroll_detail', year=s.year, month=s.month) }}"
+                 class="btn btn-ghost btn-sm">
+                <i class="fas fa-eye"></i> View
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body" style="text-align:center; color:var(--tx-3); padding:48px;">
+      <i class="fas fa-file-invoice-dollar" style="font-size:32px; color:var(--border); margin-bottom:12px; display:block;"></i>
+      No payslips yet.<br>
+      <span style="font-size:12px; margin-top:6px; display:block;">Contact your HR admin to set up payroll.</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Certificates -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Certificates</span>
+    </div>
+    <div class="card-body" style="display:flex; flex-direction:column; gap:10px;">
+      <a href="{{ url_for('cert_employment') }}" target="_blank"
+         style="display:flex; align-items:center; gap:14px; padding:16px;
+                border:1.5px solid var(--border); border-radius:var(--r);
+                transition:all .15s; text-decoration:none;"
+         onmouseover="this.style.borderColor='var(--primary)'; this.style.background='#eff6ff'"
+         onmouseout="this.style.borderColor='var(--border)'; this.style.background=''">
+        <div style="width:42px; height:42px; background:#eff6ff; border-radius:var(--r-sm);
+                    display:flex; align-items:center; justify-content:center;
+                    color:var(--primary); font-size:18px; flex-shrink:0;">
+          <i class="fas fa-id-card"></i>
+        </div>
+        <div>
+          <div style="font-size:14px; font-weight:700; color:var(--tx-1);">Employment Certificate</div>
+          <div style="font-size:12px; color:var(--tx-3);">Proof of current employment</div>
+        </div>
+        <i class="fas fa-print" style="margin-left:auto; color:var(--tx-3);"></i>
+      </a>
+
+      <a href="{{ url_for('cert_career') }}" target="_blank"
+         style="display:flex; align-items:center; gap:14px; padding:16px;
+                border:1.5px solid var(--border); border-radius:var(--r);
+                transition:all .15s; text-decoration:none;"
+         onmouseover="this.style.borderColor='var(--primary)'; this.style.background='#eff6ff'"
+         onmouseout="this.style.borderColor='var(--border)'; this.style.background=''">
+        <div style="width:42px; height:42px; background:#f0fdf4; border-radius:var(--r-sm);
+                    display:flex; align-items:center; justify-content:center;
+                    color:var(--green); font-size:18px; flex-shrink:0;">
+          <i class="fas fa-file-alt"></i>
+        </div>
+        <div>
+          <div style="font-size:14px; font-weight:700; color:var(--tx-1);">Career Certificate</div>
+          <div style="font-size:12px; color:var(--tx-3);">Work history from hire date to present</div>
+        </div>
+        <i class="fas fa-print" style="margin-left:auto; color:var(--tx-3);"></i>
+      </a>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

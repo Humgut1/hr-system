@@ -1,0 +1,238 @@
+{% extends 'base.html' %}
+{% block title %}{{ target.name }} Calibration{% endblock %}
+{% block page_title %}Calibration Packet{% endblock %}
+
+{% block head %}
+<style>
+.section-title {
+  font-size: 13px; font-weight: 800; color: var(--tx-3);
+  text-transform: uppercase; letter-spacing: .5px;
+  margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+}
+.score-block {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 16px 20px; text-align: center;
+}
+.score-block .val { font-size: 28px; font-weight: 900; color: var(--primary); }
+.score-block .lbl { font-size: 11px; color: var(--tx-3); margin-top: 3px; }
+.ai-box {
+  background: linear-gradient(135deg, #0f2544 0%, #1e40af 100%);
+  border-radius: var(--r); padding: 20px 24px; color: #fff; margin-bottom: 22px;
+}
+.ai-box .ai-label { font-size: 11px; font-weight: 700; opacity: .7; margin-bottom: 6px; letter-spacing:.5px; text-transform:uppercase; }
+.ai-box .ai-text { font-size: 14px; line-height: 1.7; }
+.peer-item {
+  background: var(--bg); border-radius: var(--r-sm); padding: 14px 16px; margin-bottom: 8px;
+}
+.q-row { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.q-row .q-lbl { flex:1; font-size:12px; color:var(--tx-2); }
+.q-row .q-score { font-size:13px; font-weight:700; color:var(--primary); min-width:28px; text-align:right; }
+.q-row .q-bar-bg { width:100px; height:5px; background:#e2e8f0; border-radius:99px; overflow:hidden; }
+.q-row .q-bar-fill { height:100%; border-radius:99px; background:linear-gradient(90deg,#1e40af,#0891b2); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div style="display:flex; align-items:center; gap:16px; margin-bottom:24px;">
+  <a href="{{ url_for('calibration', cycle=cycle_id) }}" class="btn btn-ghost btn-sm">
+    <i class="fas fa-arrow-left"></i> Back
+  </a>
+  <div style="flex:1;">
+    <div style="font-size:20px; font-weight:900; color:var(--tx-1);">{{ target.name }}</div>
+    <div style="font-size:13px; color:var(--tx-3);">{{ cycle.name }}</div>
+  </div>
+</div>
+
+<!-- AI summary -->
+<div class="ai-box" style="margin-bottom:22px;">
+  <div class="ai-label"><i class="fas fa-robot"></i> AI Calibration Summary</div>
+  <div class="ai-text">{{ summary }}</div>
+</div>
+
+<!-- Score summary (4 blocks) -->
+<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px;">
+  <div class="score-block">
+    <div class="val">{{ '%.2f'|format(self_avg) if self_avg else '-' }}</div>
+    <div class="lbl">Self-Review Avg</div>
+  </div>
+  <div class="score-block">
+    <div class="val">{{ '%.2f'|format(peer_avg) if peer_avg else '-' }}</div>
+    <div class="lbl">Peer Review Avg</div>
+  </div>
+  <div class="score-block">
+    <div class="val">{{ '%.2f'|format(mgr_avg) if mgr_avg else '-' }}</div>
+    <div class="lbl">Manager Review Avg</div>
+  </div>
+  <div class="score-block">
+    <div class="val" style="{% if upward_avg %}color:#0891b2;{% else %}color:var(--tx-3);{% endif %}">
+      {{ '%.2f'|format(upward_avg) if upward_avg else '-' }}
+    </div>
+    <div class="lbl">Team Feedback Avg</div>
+  </div>
+</div>
+
+<!-- Goal detail -->
+<div style="margin-bottom:28px;">
+  <div class="section-title"><i class="fas fa-bullseye"></i> Goal-by-Goal Detail</div>
+  {% if goals %}
+  {% for g in goals %}
+  <div class="card" style="margin-bottom:8px;">
+    <div style="padding:14px 18px;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span class="badge {% if g.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}">{{ g.category }}</span>
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:13px; font-weight:700;">{{ g.title }}</div>
+          {% if g.description %}
+          <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">{{ g.description }}</div>
+          {% endif %}
+        </div>
+        <div style="text-align:center; min-width:50px;">
+          <div style="font-size:10px; color:var(--tx-3);">Weight</div>
+          <div style="font-size:15px; font-weight:800; color:var(--primary);">{{ g.weight }}%</div>
+        </div>
+        <div style="text-align:center; min-width:60px;">
+          <div style="font-size:10px; color:var(--tx-3);">Self</div>
+          <div style="font-size:15px; font-weight:800;">{{ g.self_score or '-' }}</div>
+        </div>
+        <div style="text-align:center; min-width:70px;">
+          <div style="font-size:10px; color:var(--tx-3);">Manager</div>
+          <div style="font-size:15px; font-weight:800; color:var(--primary);">
+            {{ '%.1f'|format(g.mgr_score_avg) if g.mgr_score_avg else '-' }}
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:8px; display:flex; align-items:center; gap:8px;">
+        <div style="flex:1; height:4px; background:#e2e8f0; border-radius:99px; overflow:hidden;">
+          <div style="height:100%; border-radius:99px; background:linear-gradient(90deg,#1e40af,#0891b2); width:{{ g.progress or 0 }}%;"></div>
+        </div>
+        <span style="font-size:11px; color:var(--tx-3);">{{ g.progress or 0 }}%</span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div style="text-align:center; color:var(--tx-3); padding:24px;">No goals registered.</div>
+  {% endif %}
+</div>
+
+<!-- Peer reviews -->
+{% if peer_rows %}
+<div style="margin-bottom:28px;">
+  <div class="section-title"><i class="fas fa-users"></i> Peer Reviews ({{ peer_rows|length }})</div>
+  {% for r in peer_rows %}
+  <div class="peer-item">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+      <div class="avatar-xs">{{ r.reviewer_name[0] }}</div>
+      <span style="font-size:13px; font-weight:700;">{{ r.reviewer_name }}</span>
+      <span style="font-size:14px; font-weight:900; color:var(--primary); margin-left:auto;">{{ r.score }}pt</span>
+    </div>
+    {% if r.strength %}
+    <div style="font-size:12px; margin-bottom:4px;"><strong style="color:#16a34a;">Strengths:</strong> {{ r.strength }}</div>
+    {% endif %}
+    {% if r.improvement %}
+    <div style="font-size:12px; margin-bottom:4px;"><strong style="color:#ea580c;">Growth Areas:</strong> {{ r.improvement }}</div>
+    {% endif %}
+    {% if r.comment %}
+    <div style="font-size:12px; color:var(--tx-3);">{{ r.comment }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Team feedback (upward) -->
+{% if upward_rows %}
+<div style="margin-bottom:28px;">
+  <div class="section-title"><i class="fas fa-comment-alt"></i> Team Feedback ({{ upward_rows|length }} respondents, anonymous)</div>
+  {% if upward_rows|length >= 3 %}
+  <div class="card" style="margin-bottom:12px;">
+    <div style="padding:16px 20px;">
+      {% for i in range(1, 6) %}
+      {% set q_vals = [] %}
+      {% for r in upward_rows %}{% if r['q' ~ i ~ '_score'] %}{% set _ = q_vals.append(r['q' ~ i ~ '_score']) %}{% endif %}{% endfor %}
+      {% set q_avg = (q_vals|sum / q_vals|length) if q_vals else 0 %}
+      <div class="q-row">
+        <div class="q-lbl">Q{{ i }}. {{ upward_questions[i-1] }}</div>
+        <div class="q-bar-bg"><div class="q-bar-fill" style="width:{{ (q_avg/5*100)|int }}%;"></div></div>
+        <div class="q-score">{{ '%.1f'|format(q_avg) if q_avg else '-' }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% set comments = upward_rows|selectattr('comment')|list %}
+  {% if comments %}
+  <div class="section-title" style="font-size:12px; margin-top:12px;">Comments (anonymous)</div>
+  {% for r in comments %}
+  <div style="background:var(--bg); border-radius:var(--r-sm); padding:10px 14px; font-size:13px; color:var(--tx-2); margin-bottom:6px;">{{ r.comment }}</div>
+  {% endfor %}
+  {% endif %}
+  {% else %}
+  <div style="color:var(--tx-3); font-size:13px; padding:12px;">
+    <i class="fas fa-lock"></i> {{ upward_rows|length }} response(s) — shown after 3+ for anonymity protection.
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Final grade form -->
+<div class="card" style="border: 2px solid var(--primary-light);">
+  <div class="card-head" style="background:linear-gradient(135deg,#0f2544,#1e40af); border-radius:var(--r) var(--r) 0 0;">
+    <span class="card-title" style="color:#fff;"><i class="fas fa-gavel"></i> Confirm Final Grade</span>
+    {% if cal %}
+    <span style="font-size:12px; color:rgba(255,255,255,.7);">Last updated: {{ cal.decided_at[:10] }}</span>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    <form method="POST">
+      <div class="field" style="margin-bottom:20px;">
+        <label class="form-label" style="font-size:14px; font-weight:700;">Final Grade</label>
+        <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+          {% for grade, bg, tc, lbl in [
+            ('S','#dcfce7','#16a34a','S — Outstanding'),
+            ('A','#dbeafe','#1e40af','A — Excellent'),
+            ('B','#e0f2fe','#0369a1','B — Good'),
+            ('C','#fef3c7','#92400e','C — Needs Improvement'),
+            ('D','#fee2e2','#dc2626','D — Unsatisfactory'),
+          ] %}
+          <label style="cursor:pointer;">
+            <input type="radio" name="final_grade" value="{{ grade }}"
+                   {% if cal and cal.final_grade == grade %}checked{% endif %}
+                   style="display:none;" class="grade-radio">
+            <span class="grade-opt" data-color="{{ tc }}"
+                  style="display:inline-block; padding:10px 20px; border-radius:10px;
+                         border:2px solid {{ bg }}; background:{{ bg }}; color:{{ tc }};
+                         font-size:13px; font-weight:700; transition:all .15s;
+                         {% if cal and cal.final_grade == grade %}outline:3px solid {{ tc }};{% endif %}">
+              {{ lbl }}
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:20px;">
+        <label class="form-label" style="font-size:14px; font-weight:700;">Adjustment Note <span style="font-weight:400; color:var(--tx-3);">(optional)</span></label>
+        <textarea name="note" class="input" rows="3" style="margin-top:8px; resize:vertical;"
+                  placeholder="If the final grade differs from the recommended grade, explain the reason.">{{ cal.note if cal and cal.note else '' }}</textarea>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;">
+        <i class="fas fa-check"></i> Confirm Final Grade
+      </button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.grade-radio').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    document.querySelectorAll('.grade-opt').forEach(function(opt) { opt.style.outline = ''; });
+    var opt = this.parentElement.querySelector('.grade-opt');
+    opt.style.outline = '3px solid ' + opt.dataset.color;
+  });
+});
+</script>
+{% endblock %}

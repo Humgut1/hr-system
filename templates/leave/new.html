@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block title %}Request Leave{% endblock %}
+{% block page_title %}Attendance{% endblock %}
+
+{% block content %}
+<div style="max-width:560px;">
+  <a href="{{ url_for('leave_my') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
+    <i class="fas fa-arrow-left"></i> My Leave
+  </a>
+
+  <div class="card">
+    <div class="card-head"><span class="card-title">Request Leave</span></div>
+    <div class="card-body">
+      {% if error %}
+      <div class="login-error" style="margin-bottom:18px;">
+        <i class="fas fa-exclamation-circle"></i> {{ error }}
+      </div>
+      {% endif %}
+
+      <form method="POST" action="{{ url_for('leave_new') }}">
+        <div class="field">
+          <label class="form-label">Type <span style="color:var(--red);">*</span></label>
+          <select name="type" id="leaveType" class="input" required>
+            <option value="">Select type</option>
+            {% for val, label in labels.items() %}
+            <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div id="dayInfo" style="display:none; margin-bottom:14px; padding:10px 14px;
+             background:#eff6ff; border-radius:var(--r-sm); font-size:13px;
+             color:var(--primary); font-weight:600;"></div>
+
+        <div class="grid-2" style="gap:14px;">
+          <div class="field">
+            <label class="form-label">Start Date <span style="color:var(--red);">*</span></label>
+            <input type="date" name="start_date" id="startDate" class="input" required>
+          </div>
+          <div class="field">
+            <label class="form-label">End Date <span style="color:var(--red);">*</span></label>
+            <input type="date" name="end_date" id="endDate" class="input" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="form-label">Reason (optional)</label>
+          <textarea name="reason" class="input" rows="3"
+                    placeholder="Briefly describe the reason"></textarea>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-paper-plane"></i> Submit Request
+          </button>
+          <a href="{{ url_for('leave_my') }}" class="btn btn-ghost">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var infoMap = {
+    annual:  '1 annual leave day will be deducted.',
+    half_am: '0.5 days (AM half-day) will be deducted.',
+    half_pm: '0.5 days (PM half-day) will be deducted.',
+    sick:    '1 sick leave day will be deducted.',
+    remote:  'Remote work does not deduct from leave balance.',
+    outing:  'Outing does not deduct from leave balance.'
+  };
+  var halfTypes = new Set(['half_am', 'half_pm']);
+
+  var typeEl  = document.getElementById('leaveType');
+  var startEl = document.getElementById('startDate');
+  var endEl   = document.getElementById('endDate');
+  var infoEl  = document.getElementById('dayInfo');
+
+  function onStartChange() {
+    if (halfTypes.has(typeEl.value)) {
+      endEl.value = startEl.value;
+    }
+  }
+
+  typeEl.addEventListener('change', function () {
+    var val = typeEl.value;
+    if (infoMap[val]) {
+      infoEl.textContent = infoMap[val];
+      infoEl.style.display = 'block';
+    } else {
+      infoEl.style.display = 'none';
+    }
+    if (halfTypes.has(val) && startEl.value) {
+      endEl.value = startEl.value;
+    }
+  });
+
+  startEl.addEventListener('change', onStartChange);
+}());
+</script>
+{% endblock %}

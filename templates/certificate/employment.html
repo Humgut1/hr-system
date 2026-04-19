@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>재직증명서</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
+      background: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px 80px;
+    }
+
+    /* ── 툴바 (화면 전용) ── */
+    .toolbar {
+      width: 720px;
+      max-width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .toolbar-left {
+      font-size: 13px;
+      color: #64748b;
+    }
+    .toolbar-right { display: flex; gap: 8px; align-items: center; }
+
+    .purpose-select {
+      padding: 7px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #334155;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .btn {
+      padding: 8px 18px;
+      border-radius: 7px;
+      border: none;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-primary { background: #1e40af; color: #fff; }
+    .btn-ghost   { background: #fff; color: #475569; border: 1px solid #cbd5e1; }
+
+    /* ── 증명서 본지 ── */
+    .cert {
+      width: 720px;
+      max-width: 100%;
+      background: #fff;
+      padding: 56px 64px 52px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.10);
+      position: relative;
+    }
+
+    /* 증명서 번호 */
+    .cert-no {
+      text-align: right;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 36px;
+      letter-spacing: 0.5px;
+    }
+
+    /* 제목 */
+    .cert-title {
+      text-align: center;
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 10px;
+      color: #0f172a;
+      margin-bottom: 48px;
+      position: relative;
+    }
+    .cert-title::after {
+      content: '';
+      display: block;
+      width: 48px;
+      height: 3px;
+      background: #1e40af;
+      margin: 12px auto 0;
+      border-radius: 2px;
+    }
+
+    /* 인적사항 테이블 */
+    .info-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 32px;
+    }
+    .info-table th,
+    .info-table td {
+      padding: 11px 14px;
+      border: 1px solid #e2e8f0;
+      font-size: 13.5px;
+      vertical-align: middle;
+    }
+    .info-table th {
+      background: #f8fafc;
+      font-weight: 700;
+      color: #475569;
+      width: 110px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .info-table td {
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    /* 본문 확인 문구 */
+    .cert-body {
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      border-radius: 4px;
+      padding: 20px 22px;
+      font-size: 14.5px;
+      line-height: 2.0;
+      color: #0f172a;
+      margin-bottom: 28px;
+    }
+    .cert-body strong { color: #1e40af; }
+
+    /* 용도 */
+    .purpose-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 36px;
+      font-size: 13.5px;
+    }
+    .purpose-label {
+      font-weight: 700;
+      color: #475569;
+      white-space: nowrap;
+      width: 60px;
+      text-align: right;
+    }
+    .purpose-value {
+      font-weight: 600;
+      color: #0f172a;
+      border-bottom: 1px solid #334155;
+      min-width: 200px;
+      padding-bottom: 2px;
+    }
+
+    /* 발급일 + 회사정보 */
+    .cert-footer {
+      margin-top: 8px;
+    }
+    .issue-date {
+      text-align: center;
+      font-size: 15px;
+      color: #334155;
+      font-weight: 600;
+      margin-bottom: 36px;
+    }
+
+    .company-block {
+      display: flex;
+      justify-content: flex-end;
+    }
+    .company-inner {
+      display: flex;
+      align-items: flex-end;
+      gap: 28px;
+    }
+    .company-info-table {
+      border-collapse: collapse;
+      font-size: 13.5px;
+    }
+    .company-info-table th {
+      text-align: right;
+      font-weight: 700;
+      color: #475569;
+      padding: 5px 12px 5px 0;
+      white-space: nowrap;
+    }
+    .company-info-table td {
+      font-weight: 600;
+      color: #0f172a;
+      padding: 5px 0;
+    }
+
+    /* 직인 */
+    .seal {
+      width: 84px;
+      height: 84px;
+      border-radius: 50%;
+      border: 3px solid #1e40af;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #1e40af;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      flex-shrink: 0;
+    }
+
+    /* ── 인쇄 스타일 ── */
+    @media print {
+      body        { background: #fff; padding: 0; }
+      .cert       { box-shadow: none; padding: 40px 52px; }
+      .toolbar    { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- 툴바 (화면 전용) -->
+<div class="toolbar">
+  <span class="toolbar-left">
+    증명서 번호: <strong>{{ cert_no }}</strong>
+  </span>
+  <div class="toolbar-right">
+    <select class="purpose-select" id="purposeSelect">
+      <option value="사용처 미기재">용도 선택</option>
+      <option value="금융기관 제출용">금융기관 제출용</option>
+      <option value="보증보험 제출용">보증보험 제출용</option>
+      <option value="공공기관 제출용">공공기관 제출용</option>
+      <option value="관공서 제출용">관공서 제출용</option>
+      <option value="비자 발급용">비자 발급용</option>
+      <option value="사용처 미기재">사용처 미기재</option>
+    </select>
+    <button class="btn btn-ghost" onclick="window.close()">닫기</button>
+    <button class="btn btn-primary" onclick="window.print()">🖨 인쇄 / PDF</button>
+  </div>
+</div>
+
+<!-- 증명서 본지 -->
+<div class="cert">
+
+  <div class="cert-no">No. {{ cert_no }}</div>
+
+  <div class="cert-title">재 직 증 명 서</div>
+
+  <table class="info-table">
+    <tr>
+      <th>성 명</th>
+      <td>{{ user.name }}</td>
+      <th>생년월일</th>
+      <td>
+        {% if user.birth_date %}
+          {{ user.birth_date[:4] }}년 {{ user.birth_date[5:7] }}월 {{ user.birth_date[8:10] }}일
+        {% else %}—{% endif %}
+      </td>
+    </tr>
+    <tr>
+      <th>소 속</th>
+      <td colspan="3">{{ user.dept_name or '—' }}</td>
+    </tr>
+    <tr>
+      <th>직 군</th>
+      <td>{{ user.jf_name or '—' }}</td>
+      <th>직 급</th>
+      <td>{{ user.pos_name or '—' }}</td>
+    </tr>
+    <tr>
+      <th>입 사 일</th>
+      <td>
+        {% if user.hire_date %}
+          {{ user.hire_date[:4] }}년 {{ user.hire_date[5:7] }}월 {{ user.hire_date[8:10] }}일
+        {% else %}—{% endif %}
+      </td>
+      <th>재직기간</th>
+      <td>
+        {% if user.hire_date %}
+          {{ user.hire_date[:4] }}.{{ user.hire_date[5:7] }}.{{ user.hire_date[8:10] }} ~ 현재 재직중
+        {% else %}—{% endif %}
+      </td>
+    </tr>
+  </table>
+
+  <div class="cert-body">
+    위 사람은 <strong>{{ company.name }}</strong>에
+    {% if user.hire_date %}
+      <strong>{{ user.hire_date[:4] }}년 {{ user.hire_date[5:7] }}월 {{ user.hire_date[8:10] }}일</strong>부터
+    {% endif %}
+    현재까지
+    <strong>{{ user.dept_name or '' }}</strong> 소속
+    <strong>{{ user.pos_name or '' }}</strong>으로
+    재직 중임을 증명합니다.
+  </div>
+
+  <div class="purpose-row">
+    <span class="purpose-label">용 도</span>
+    <span class="purpose-value" id="purposeDisplay">사용처 미기재</span>
+  </div>
+
+  <div class="cert-footer">
+    <div class="issue-date">발급일자 : {{ today }}</div>
+
+    <div class="company-block">
+      <div class="company-inner">
+        <table class="company-info-table">
+          <tr>
+            <th>회 사 명</th>
+            <td>{{ company.name }}</td>
+          </tr>
+          <tr>
+            <th>사업자등록번호</th>
+            <td>{{ company.reg_no }}</td>
+          </tr>
+          <tr>
+            <th>주 소</th>
+            <td>{{ company.address }}</td>
+          </tr>
+          <tr>
+            <th>대 표 이 사</th>
+            <td>{{ company.ceo }}&nbsp;&nbsp;<span style="font-size:12px; color:#94a3b8;">(인)</span></td>
+          </tr>
+        </table>
+        <div class="seal">직 인</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  var sel     = document.getElementById('purposeSelect');
+  var display = document.getElementById('purposeDisplay');
+  sel.addEventListener('change', function () {
+    display.textContent = sel.value;
+  });
+</script>
+
+</body>
+</html>

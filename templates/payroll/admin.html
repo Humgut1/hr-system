@@ -1,0 +1,351 @@
+{% extends 'base.html' %}
+{% block title %}Payroll Admin{% endblock %}
+{% block page_title %}Payroll Admin{% endblock %}
+
+{% block content %}
+
+{% if msg %}
+<div style="background:#f0fdf4; border:1px solid #bbf7d0; color:var(--green);
+            padding:12px 16px; border-radius:var(--r-sm); margin-bottom:16px;
+            display:flex; align-items:center; gap:8px; font-weight:600;">
+  <i class="fas fa-check-circle"></i> {{ msg }}
+</div>
+{% endif %}
+{% if error %}
+<div class="login-error" style="margin-bottom:16px;">
+  <i class="fas fa-exclamation-circle"></i> {{ error }}
+</div>
+{% endif %}
+
+<div class="grid-2" style="align-items:start; margin-bottom:20px;">
+
+  <!-- Bulk payslip generation -->
+  <div class="card">
+    <div class="card-head"><span class="card-title">Generate Monthly Payslips</span></div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('admin_payroll') }}">
+        <input type="hidden" name="action" value="generate">
+        <div class="grid-2" style="gap:12px; margin-bottom:14px;">
+          <div class="field" style="margin:0;">
+            <label class="form-label">Year</label>
+            <input type="number" name="year" class="input"
+                   value="2026" min="2020" max="2099" required>
+          </div>
+          <div class="field" style="margin:0;">
+            <label class="form-label">Month</label>
+            <select name="month" class="input">
+              {% for m in range(1, 13) %}
+              <option value="{{ m }}" {% if m == 4 %}selected{% endif %}>{{ m }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <p style="font-size:12px; color:var(--tx-3); margin-bottom:12px;">
+          <i class="fas fa-info-circle"></i>
+          Generates payslips for all active employees with salary data. Skips already generated months.
+        </p>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-cogs"></i> Generate Payslips
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Insurance rates -->
+  <div class="card">
+    <div class="card-head"><span class="card-title">2026 Social Insurance Rates (Employee)</span></div>
+    <div class="card-body">
+      {% for label, rate, law in [
+          ('National Pension',       '4.5%',              'National Pension Act'),
+          ('Health Insurance',       '3.545%',            'National Health Insurance Act'),
+          ('Long-term Care',         'Health × 12.95%',   'Long-term Care Insurance Act'),
+          ('Employment Insurance',   '0.9%',              'Employment Insurance Act'),
+          ('Income Tax',             '6–45% (progressive)','Income Tax Act'),
+          ('Local Income Tax',       'Income tax × 10%',  'Local Tax Act'),
+      ] %}
+      <div style="display:flex; justify-content:space-between; align-items:center;
+                  padding:8px 0; border-bottom:1px solid var(--border); font-size:13px;">
+        <span style="font-weight:600;">{{ label }}</span>
+        <div style="text-align:right;">
+          <span style="color:var(--primary); font-weight:700;">{{ rate }}</span>
+          <span style="color:var(--tx-3); font-size:11px; margin-left:8px;">{{ law }}</span>
+        </div>
+      </div>
+      {% endfor %}
+      <p style="font-size:11px; color:var(--tx-3); margin-top:10px;">
+        Tax-free: Meal allowance ₩200k, Transport ₩200k
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Employee salary table -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">Employee Salary Info</span>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span style="font-size:12px; color:var(--tx-3);">Click pencil icon to edit</span>
+      <a href="{{ url_for('salary_table') }}" class="btn btn-ghost btn-sm">
+        <i class="fas fa-table"></i> Salary Table
+      </a>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>Dept</th><th>Position</th>
+          <th>Base Salary</th><th>Meal</th><th>Transport</th><th>Est. Gross</th><th>Edit</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in emps %}
+        <tr data-uid="{{ e.id }}"
+            data-name="{{ e.name }}"
+            data-base="{{ e.base_salary }}"
+            data-meal="{{ e.meal_allowance }}"
+            data-trans="{{ e.transport_allowance }}">
+          <td>
+            <div class="u-cell">
+              <div class="avatar-xs">{{ e.name[0] }}</div>
+              <span class="u-name">{{ e.name }}</span>
+            </div>
+          </td>
+          <td>{{ e.dept_name or '—' }}</td>
+          <td>{{ e.pos_name  or '—' }}</td>
+          <td style="font-weight:700;">{{ fmt_krw(e.base_salary) }}₩</td>
+          <td>{{ fmt_krw(e.meal_allowance) }}₩</td>
+          <td>{{ fmt_krw(e.transport_allowance) }}₩</td>
+          <td style="font-weight:700; color:var(--primary);">
+            {{ fmt_krw(e.base_salary + e.meal_allowance + e.transport_allowance) }}₩
+          </td>
+          <td>
+            <button type="button" class="btn btn-ghost btn-sm edit-btn">
+              <i class="fas fa-pencil-alt"></i>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Salary edit modal -->
+<div id="salaryModal" style="display:none; position:fixed; inset:0;
+     background:rgba(0,0,0,.45); z-index:999;
+     align-items:center; justify-content:center;">
+
+  <div style="background:#fff; border-radius:var(--r-lg);
+              width:800px; max-width:95vw;
+              box-shadow:0 20px 60px rgba(0,0,0,.18); overflow:hidden;">
+
+    <div style="display:flex; align-items:center; justify-content:space-between;
+                padding:22px 28px 18px; border-bottom:1px solid var(--border);">
+      <div>
+        <div id="modalTitle" style="font-size:17px; font-weight:800; color:#0f172a;"></div>
+        <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">
+          Chart updates in real-time as you type
+        </div>
+      </div>
+      <button id="closeModal"
+              style="background:none; border:none; font-size:20px;
+                     color:var(--tx-3); cursor:pointer; padding:4px 8px;
+                     border-radius:var(--r-sm);">✕</button>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; min-height:360px;">
+
+      <!-- Left: form -->
+      <div style="padding:24px 28px; border-right:1px solid var(--border);">
+        <form method="POST" action="{{ url_for('admin_payroll') }}" id="salaryForm">
+          <input type="hidden" name="action" value="update_salary">
+          <input type="hidden" name="user_id" id="modalUserId">
+
+          <div class="field">
+            <label class="form-label">Base Salary (₩)</label>
+            <input type="number" name="base_salary" id="modalBase"
+                   class="input" step="10000" min="0" required>
+          </div>
+          <div class="field">
+            <label class="form-label">
+              Meal Allowance
+              <span style="font-size:11px; color:var(--tx-3); font-weight:400;">
+                — Tax-free up to ₩200,000
+              </span>
+            </label>
+            <input type="number" name="meal_allowance" id="modalMeal"
+                   class="input" step="10000" min="0">
+          </div>
+          <div class="field">
+            <label class="form-label">
+              Transport Allowance
+              <span style="font-size:11px; color:var(--tx-3); font-weight:400;">
+                — Tax-free up to ₩200,000
+              </span>
+            </label>
+            <input type="number" name="transport_allowance" id="modalTrans"
+                   class="input" step="10000" min="0">
+          </div>
+
+          <div style="background:#f8fafc; border:1px solid var(--border);
+                      border-radius:var(--r-sm); padding:14px 16px; margin-top:4px;">
+            <div style="display:flex; justify-content:space-between; font-size:13px; padding:4px 0;">
+              <span style="color:var(--tx-3);">Gross Pay</span>
+              <span id="summaryGross" style="font-weight:700;">—</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:13px; padding:4px 0;
+                        border-top:1px dashed var(--border); margin-top:4px;">
+              <span style="color:#dc2626;">Total Deductions</span>
+              <span id="summaryDeduct" style="font-weight:700; color:#dc2626;">—</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:15px; padding:6px 0 2px;
+                        border-top:1px solid var(--border); margin-top:4px;">
+              <span style="font-weight:700; color:#0f172a;">Net Pay</span>
+              <span id="summaryNet" style="font-weight:800; color:var(--primary); font-size:16px;">—</span>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:10px; margin-top:20px;">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save"></i> Save
+            </button>
+            <button type="button" class="btn btn-ghost" id="cancelBtn">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Right: donut chart -->
+      <div style="padding:24px 28px; display:flex; flex-direction:column;
+                  align-items:center; justify-content:center;">
+        <div style="position:relative; width:200px; height:200px;">
+          <canvas id="salaryChart" width="200" height="200"></canvas>
+        </div>
+        <div id="chartLegend" style="width:100%; margin-top:20px; display:flex; flex-direction:column; gap:7px;"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var COLORS = {
+    net:        '#1e40af',
+    pension:    '#0891b2',
+    health:     '#059669',
+    employment: '#d97706',
+    tax:        '#dc2626',
+  };
+
+  function calcPayroll(base, meal, trans) {
+    var TAX_FREE_MEAL  = 200000;
+    var TAX_FREE_TRANS = 200000;
+    var taxable = base + Math.max(0, meal - TAX_FREE_MEAL) + Math.max(0, trans - TAX_FREE_TRANS);
+    var gross = base + meal + trans;
+    var pension    = Math.round(taxable * 0.045);
+    var health     = Math.round(taxable * 0.03545);
+    var ltc        = Math.round(health  * 0.1295);
+    var employment = Math.round(taxable * 0.009);
+    var annualTaxable = taxable * 12;
+    var annualTax;
+    if      (annualTaxable <=  14000000) annualTax = annualTaxable * 0.06;
+    else if (annualTaxable <=  50000000) annualTax = annualTaxable * 0.15 - 1260000;
+    else if (annualTaxable <=  88000000) annualTax = annualTaxable * 0.24 - 5760000;
+    else if (annualTaxable <= 150000000) annualTax = annualTaxable * 0.35 - 15440000;
+    else if (annualTaxable <= 300000000) annualTax = annualTaxable * 0.38 - 19940000;
+    else if (annualTaxable <= 500000000) annualTax = annualTaxable * 0.40 - 25940000;
+    else                                 annualTax = annualTaxable * 0.42 - 35940000;
+    var incomeTax = Math.max(0, Math.round(annualTax / 12));
+    var localTax  = Math.round(incomeTax * 0.1);
+    var totalDeduction = pension + health + ltc + employment + incomeTax + localTax;
+    return { gross, pension, health: health + ltc, employment, tax: incomeTax + localTax, totalDeduction, netPay: gross - totalDeduction };
+  }
+
+  function krw(n) { return n.toLocaleString('ko-KR') + '₩'; }
+
+  function drawDonut(result) {
+    var canvas = document.getElementById('salaryChart');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var W = canvas.width, H = canvas.height;
+    var cx = W/2, cy = H/2, outerR = Math.min(cx,cy)-6, innerR = outerR*0.56, gap = 0.025;
+    var segments = [
+      { label:'Net Pay',            value: Math.max(0,result.netPay),  color:COLORS.net        },
+      { label:'National Pension',   value: result.pension,             color:COLORS.pension    },
+      { label:'Health + LTC',       value: result.health,              color:COLORS.health     },
+      { label:'Employment Ins.',    value: result.employment,          color:COLORS.employment },
+      { label:'Income + Local Tax', value: result.tax,                 color:COLORS.tax        },
+    ];
+    var total = segments.reduce(function(s,d){return s+d.value;},0);
+    if (total <= 0) return;
+    ctx.clearRect(0,0,W,H);
+    var angle = -Math.PI/2;
+    segments.forEach(function(seg){
+      if (seg.value <= 0) return;
+      var slice = (seg.value/total)*2*Math.PI;
+      var halfGap = Math.min(gap/2, slice/4);
+      ctx.beginPath();
+      ctx.arc(cx,cy,outerR,angle+halfGap,angle+slice-halfGap);
+      ctx.arc(cx,cy,innerR,angle+slice-halfGap,angle+halfGap,true);
+      ctx.closePath();
+      ctx.fillStyle = seg.color;
+      ctx.fill();
+      angle += slice;
+    });
+    var netPct = Math.round(result.netPay/total*100);
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#1e40af'; ctx.font='bold 26px system-ui,sans-serif';
+    ctx.fillText(netPct+'%',cx,cy-10);
+    ctx.fillStyle='#64748b'; ctx.font='12px system-ui,sans-serif';
+    ctx.fillText('Net',cx,cy+14);
+    var legend = document.getElementById('chartLegend');
+    legend.innerHTML='';
+    segments.forEach(function(seg){
+      if (seg.value<=0) return;
+      var pct=(seg.value/total*100).toFixed(1);
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;justify-content:space-between;font-size:12.5px;';
+      row.innerHTML='<div style="display:flex;align-items:center;gap:7px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+seg.color+';flex-shrink:0;"></span><span style="color:#334155;">'+seg.label+'</span></div><div style="display:flex;gap:10px;align-items:center;"><span style="color:#64748b;font-size:11px;">'+pct+'%</span><span style="font-weight:700;color:#0f172a;min-width:80px;text-align:right;">'+seg.value.toLocaleString('ko-KR')+'₩</span></div>';
+      legend.appendChild(row);
+    });
+  }
+
+  function updateSummary() {
+    var base  = parseInt(document.getElementById('modalBase').value)  || 0;
+    var meal  = parseInt(document.getElementById('modalMeal').value)  || 0;
+    var trans = parseInt(document.getElementById('modalTrans').value) || 0;
+    var r = calcPayroll(base, meal, trans);
+    document.getElementById('summaryGross').textContent  = krw(r.gross);
+    document.getElementById('summaryDeduct').textContent = '- ' + krw(r.totalDeduction);
+    document.getElementById('summaryNet').textContent    = krw(r.netPay);
+    drawDonut(r);
+  }
+
+  var modal = document.getElementById('salaryModal');
+  function openModal(row) {
+    document.getElementById('modalTitle').textContent = row.dataset.name + ' — Edit Salary';
+    document.getElementById('modalUserId').value = row.dataset.uid;
+    document.getElementById('modalBase').value   = row.dataset.base;
+    document.getElementById('modalMeal').value   = row.dataset.meal;
+    document.getElementById('modalTrans').value  = row.dataset.trans;
+    modal.style.display = 'flex';
+    updateSummary();
+  }
+  function closeModal() { modal.style.display = 'none'; }
+
+  document.querySelectorAll('.edit-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ openModal(btn.closest('tr')); });
+  });
+  ['modalBase','modalMeal','modalTrans'].forEach(function(id){
+    document.getElementById(id).addEventListener('input', updateSummary);
+  });
+  document.getElementById('closeModal').addEventListener('click', closeModal);
+  document.getElementById('cancelBtn').addEventListener('click', closeModal);
+  modal.addEventListener('click', function(e){ if(e.target===modal) closeModal(); });
+}());
+</script>
+{% endblock %}

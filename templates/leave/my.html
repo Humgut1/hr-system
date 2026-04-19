@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block title %}My Leave{% endblock %}
+{% block page_title %}Attendance{% endblock %}
+
+{% block content %}
+
+<!-- Leave balance cards -->
+<div class="stat-grid" style="margin-bottom:22px;">
+  <div class="stat-card">
+    <div class="stat-ico ico-blue"><i class="fas fa-calendar-check"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ total - used }}</div>
+      <div class="stat-lbl">Remaining Days</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-ico ico-orange"><i class="fas fa-calendar-minus"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ used }}</div>
+      <div class="stat-lbl">Used This Year</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-ico ico-green"><i class="fas fa-calendar"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ total }}</div>
+      <div class="stat-lbl">Total Days</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-ico ico-purple"><i class="fas fa-hourglass-half"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ requests | selectattr('status','equalto','pending') | list | length }}</div>
+      <div class="stat-lbl">Pending Approval</div>
+    </div>
+  </div>
+</div>
+
+<!-- Leave usage bar -->
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-body" style="padding:18px 22px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <span style="font-size:14px; font-weight:700;">Leave Usage</span>
+      <span style="font-size:13px; color:var(--tx-3);">{{ used }} / {{ total }} days used</span>
+    </div>
+    <div class="leave-bar-track">
+      <div class="leave-bar-fill" style="width:{{ [(used / total * 100)|int, 100]|min }}%;"></div>
+    </div>
+    <div class="leave-bar-labels">
+      <span>Remaining <strong style="color:var(--primary);">{{ total - used }} days</strong></span>
+      <span>{{ (used / total * 100)|int }}%</span>
+    </div>
+  </div>
+</div>
+
+<!-- Leave history -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">Leave History</span>
+    <a href="{{ url_for('leave_new') }}" class="btn btn-primary btn-sm">
+      <i class="fas fa-plus"></i> Request Leave
+    </a>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Type</th><th>Start</th><th>End</th><th>Days</th><th>Reason</th><th>Status</th><th>Approver</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for r in requests %}
+        <tr>
+          <td><span class="badge badge-info">{{ labels.get(r.type, r.type) }}</span></td>
+          <td>{{ r.start_date }}</td>
+          <td>{{ r.end_date }}</td>
+          <td>{{ r.days }}d</td>
+          <td style="color:var(--tx-3); max-width:160px; white-space:nowrap;
+                     overflow:hidden; text-overflow:ellipsis;">{{ r.reason or '—' }}</td>
+          <td>
+            {% if r.status == 'approved' %}<span class="badge badge-active">Approved</span>
+            {% elif r.status == 'rejected' %}<span class="badge badge-reject">Rejected</span>
+            {% elif r.status == 'cancelled' %}<span class="badge badge-inactive">Cancelled</span>
+            {% else %}<span class="badge badge-pending">Pending</span>{% endif %}
+          </td>
+          <td style="color:var(--tx-3);">{{ r.approver_name or '—' }}</td>
+          <td>
+            {% if r.status == 'pending' %}
+            <form method="POST" action="{{ url_for('leave_cancel', req_id=r.id) }}">
+              <button type="submit" class="btn btn-sm"
+                      style="background:#fef2f2; color:var(--red); border:1px solid #fecaca;"
+                      onclick="return confirm('Cancel this request?')">
+                Cancel
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" style="text-align:center; color:var(--tx-3); padding:48px;">
+            No leave requests yet.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

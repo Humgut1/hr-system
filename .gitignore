@@ -1,0 +1,22 @@
+# DB 파일 (민감 데이터)
+*.db
+*.sqlite
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# 환경변수
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+
+# Claude 내부 파일
+.claude/

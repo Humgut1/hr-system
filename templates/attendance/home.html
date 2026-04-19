@@ -1,0 +1,261 @@
+{% extends 'base.html' %}
+{% block title %}Attendance Home{% endblock %}
+{% block page_title %}Attendance Home{% endblock %}
+
+{% block head %}
+<style>
+.checkin-card {
+  background: linear-gradient(135deg, #0f2544, #1e40af);
+  border-radius: var(--r);
+  padding: 28px 32px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+.checkin-card .date-block { line-height: 1.4; }
+.checkin-card .date-label { font-size: 12px; opacity: .7; margin-bottom: 4px; }
+.checkin-card .date-value { font-size: 22px; font-weight: 800; }
+.checkin-card .time-block { display: flex; gap: 20px; align-items: center; }
+.time-item { text-align: center; }
+.time-item .t-label { font-size: 11px; opacity: .7; margin-bottom: 4px; }
+.time-item .t-value { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.time-item .t-value.empty { opacity: .35; font-size: 15px; }
+.time-divider { font-size: 22px; opacity: .4; margin-top: 12px; }
+
+.btn-checkin {
+  padding: 12px 28px;
+  border-radius: 10px;
+  border: none;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity .15s;
+  white-space: nowrap;
+}
+.btn-checkin:hover { opacity: .85; }
+.btn-checkin.in   { background: #22c55e; color: #fff; }
+.btn-checkin.out  { background: #f97316; color: #fff; }
+.btn-checkin.done { background: rgba(255,255,255,.15); color: #fff; cursor: default; }
+
+.leave-bar-wrap { margin-bottom: 6px; }
+.leave-bar-bg { height: 10px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+.leave-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #1e40af, #0891b2); transition: width .4s; }
+.leave-bar-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--tx-3); margin-top: 5px; }
+
+.month-log-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.day-dot {
+  width: 36px; height: 36px; border-radius: 8px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+  background: #f1f5f9; color: var(--tx-3);
+}
+.day-dot.worked { background: #dbeafe; color: #1e40af; }
+.day-dot.today-dot { background: #1e40af; color: #fff; }
+.day-dot .dot-time { font-size: 9px; font-weight: 500; margin-top: 1px; opacity: .8; }
+
+.leave-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.leave-row:last-child { border-bottom: none; }
+.leave-type-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+.badge-annual  { background: #dbeafe; color: #1e40af; }
+.badge-half    { background: #e0f2fe; color: #0369a1; }
+.badge-sick    { background: #fef3c7; color: #92400e; }
+.badge-remote  { background: #f0fdf4; color: #166534; }
+.badge-outing  { background: #fdf4ff; color: #7e22ce; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.s-pending  { background: #f59e0b; }
+.s-approved { background: #22c55e; }
+.s-rejected { background: #ef4444; }
+.s-cancelled{ background: #94a3b8; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Check-in card -->
+<div class="checkin-card">
+  <div class="date-block">
+    <div class="date-label">Today</div>
+    <div class="date-value">{{ today.strftime('%B %d, %Y') }}</div>
+    <div style="font-size:12px; opacity:.6; margin-top:4px;">
+      {{ today.strftime('%A') }}
+    </div>
+  </div>
+
+  <div class="time-block">
+    <div class="time-item">
+      <div class="t-label">Check-in</div>
+      {% if checkin and checkin.check_in %}
+        <div class="t-value">{{ checkin.check_in }}</div>
+      {% else %}
+        <div class="t-value empty">--:--</div>
+      {% endif %}
+    </div>
+    <div class="time-divider">→</div>
+    <div class="time-item">
+      <div class="t-label">Check-out</div>
+      {% if checkin and checkin.check_out %}
+        <div class="t-value">{{ checkin.check_out }}</div>
+      {% else %}
+        <div class="t-value empty">--:--</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div>
+    {% if not checkin or not checkin.check_in %}
+      <form method="POST" action="{{ url_for('do_checkin') }}">
+        <button type="submit" class="btn-checkin in">
+          <i class="fas fa-sign-in-alt"></i> Check In
+        </button>
+      </form>
+    {% elif not checkin.check_out %}
+      <form method="POST" action="{{ url_for('do_checkout') }}">
+        <button type="submit" class="btn-checkin out">
+          <i class="fas fa-sign-out-alt"></i> Check Out
+        </button>
+      </form>
+    {% else %}
+      <button class="btn-checkin done" disabled>
+        <i class="fas fa-check"></i> Done for Today
+      </button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 2-column grid -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+
+  <!-- Leave balance -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Leave Balance</span>
+      <span style="font-size:12px; color:var(--tx-3);">{{ today.year }}</span>
+    </div>
+    <div class="card-body">
+      {% set pct = ((used_leave / total_leave) * 100) if total_leave > 0 else 0 %}
+      <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
+        <div>
+          <span style="font-size:32px; font-weight:900; color:var(--primary);">{{ remain_leave|int }}</span>
+          <span style="font-size:14px; color:var(--tx-3);"> days left</span>
+        </div>
+        <div style="text-align:right; font-size:12.5px; color:var(--tx-3); line-height:1.7;">
+          <div>Total {{ total_leave }}d</div>
+          <div>Used {{ used_leave }}d</div>
+        </div>
+      </div>
+      <div class="leave-bar-wrap">
+        <div class="leave-bar-bg">
+          <div class="leave-bar-fill" style="width:{{ pct|int }}%;"></div>
+        </div>
+        <div class="leave-bar-labels">
+          <span>Used {{ '%.0f'|format(pct) }}%</span>
+          <span>Remaining {{ '%.0f'|format(100 - pct) }}%</span>
+        </div>
+      </div>
+
+      {% if pending > 0 %}
+      <div style="margin-top:12px; padding:8px 12px; background:#fff7ed;
+                  border-radius:var(--r-sm); font-size:12.5px; color:#92400e;">
+        <i class="fas fa-clock"></i> {{ pending }} request{{ 's' if pending != 1 else '' }} pending approval
+      </div>
+      {% endif %}
+
+      <div style="margin-top:14px; display:flex; gap:8px;">
+        <a href="{{ url_for('leave_new') }}" class="btn btn-primary btn-sm" style="flex:1; text-align:center;">
+          <i class="fas fa-plus"></i> Request
+        </a>
+        <a href="{{ url_for('leave_my') }}" class="btn btn-ghost btn-sm" style="flex:1; text-align:center;">
+          History
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly attendance -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">This Month</span>
+      <span style="font-size:12px; color:var(--tx-3);">{{ today.strftime('%B') }}</span>
+    </div>
+    <div class="card-body">
+      {% if checkins_month %}
+      <div class="month-log-grid">
+        {% for c in checkins_month %}
+        {% set is_today = (c.date == today.isoformat()) %}
+        <div class="day-dot {% if is_today %}today-dot{% else %}worked{% endif %}">
+          <span>{{ c.date[8:10] }}</span>
+          {% if c.check_in %}
+          <span class="dot-time">{{ c.check_in }}</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <div style="margin-top:12px; font-size:12px; color:var(--tx-3);">
+        {{ checkins_month|length }} day{{ 's' if checkins_month|length != 1 else '' }} this month
+      </div>
+      {% else %}
+      <div style="text-align:center; color:var(--tx-3); padding:24px 0; font-size:13px;">
+        <i class="fas fa-calendar" style="font-size:28px; color:var(--border); display:block; margin-bottom:8px;"></i>
+        No attendance records this month.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- Recent requests -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">Recent Leave Requests</span>
+    <a href="{{ url_for('leave_my') }}" class="btn btn-ghost btn-sm">View all</a>
+  </div>
+  <div class="card-body">
+    {% if recent_requests %}
+    {% set type_badge = {
+      'annual':  ('Annual', 'annual'),
+      'half_am': ('AM Half', 'half'),
+      'half_pm': ('PM Half', 'half'),
+      'sick':    ('Sick', 'sick'),
+      'remote':  ('Remote', 'remote'),
+      'outing':  ('Outing', 'outing'),
+    } %}
+    {% for r in recent_requests %}
+    {% set tb = type_badge.get(r.type, (r.type, 'annual')) %}
+    <div class="leave-row">
+      <span class="leave-type-badge badge-{{ tb[1] }}">{{ tb[0] }}</span>
+      <div style="flex:1; min-width:0;">
+        <div style="font-size:13.5px; font-weight:600; color:var(--tx-1);">
+          {{ r.start_date }}
+          {% if r.start_date != r.end_date %} – {{ r.end_date }}{% endif %}
+        </div>
+        {% if r.reason %}
+        <div style="font-size:12px; color:var(--tx-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+          {{ r.reason }}
+        </div>
+        {% endif %}
+      </div>
+      <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+        <span class="status-dot s-{{ r.status }}"></span>
+        <span style="font-size:12px; color:var(--tx-3);">
+          {% if r.status == 'pending' %}Pending
+          {% elif r.status == 'approved' %}Approved
+          {% elif r.status == 'rejected' %}Rejected
+          {% else %}Cancelled{% endif %}
+        </span>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="text-align:center; color:var(--tx-3); padding:32px 0; font-size:13px;">
+      No requests yet.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

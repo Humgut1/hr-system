@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>대시보드 — TalentCore</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  
+</head>
+<body class="app-layout">
+
+  <!-- ══ 사이드바 ══════════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon"><i class="fas fa-briefcase"></i></div>
+      <span class="logo-text">TalentCore</span>
+    </div>
+
+    <nav class="sidebar-nav">
+
+      <div class="nav-section">
+        <span class="nav-section-label">메인</span>
+        <a href="/dashboard" class="nav-item active">
+          <i class="fas fa-home"></i><span>대시보드</span>
+        </a>
+        <a href="/announcements" class="nav-item">
+          <i class="fas fa-bullhorn"></i><span>공지사항</span>
+        </a>
+        <a href="/org" class="nav-item">
+          <i class="fas fa-sitemap"></i><span>조직도</span>
+        </a>
+      </div>
+
+      
+      <div class="nav-section">
+        <span class="nav-section-label">인력 관리</span>
+        <a href="/employees" class="nav-item">
+          <i class="fas fa-users"></i><span>직원 관리</span>
+        </a>
+        
+        <a href="/departments" class="nav-item">
+          <i class="fas fa-layer-group"></i><span>부서 · 직급</span>
+        </a>
+        
+      </div>
+      
+
+      <div class="nav-section">
+        <span class="nav-section-label">근태</span>
+        <a href="/attendance/home" class="nav-item">
+          <i class="fas fa-clock"></i><span>근태 홈</span>
+        </a>
+        <a href="/leave/new" class="nav-item">
+          <i class="fas fa-plus-circle"></i><span>휴가 신청</span>
+        </a>
+        <a href="/leave" class="nav-item">
+          <i class="fas fa-list"></i><span>신청 내역</span>
+        </a>
+        
+        <a href="/attendance" class="nav-item">
+          <i class="fas fa-check-circle"></i><span>근태 승인</span>
+        </a>
+        
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-section-label">급여 · 증명</span>
+        <a href="/payroll"
+           class="nav-item">
+          <i class="fas fa-won-sign"></i><span>급여명세서</span>
+        </a>
+        <a href="/certificate/employment" target="_blank" class="nav-item">
+          <i class="fas fa-id-card"></i><span>재직증명서</span>
+        </a>
+        <a href="/certificate/career" target="_blank" class="nav-item">
+          <i class="fas fa-file-alt"></i><span>경력증명서</span>
+        </a>
+        
+        <a href="/admin/payroll"
+           class="nav-item">
+          <i class="fas fa-cog"></i><span>급여 관리</span>
+        </a>
+        <a href="/payroll/salary-table"
+           class="nav-item">
+          <i class="fas fa-table"></i><span>연봉 기준표</span>
+        </a>
+        
+      </div>
+
+      <div class="nav-section">
+        <span class="nav-section-label">성과</span>
+        <a href="/performance"
+           class="nav-item">
+          <i class="fas fa-chart-line"></i><span>성과 관리</span>
+        </a>
+        
+        <a href="/performance/cycles"
+           class="nav-item">
+          <i class="fas fa-rotate"></i><span>평가 주기 관리</span>
+        </a>
+        
+      </div>
+
+      
+      <div class="nav-section">
+        <span class="nav-section-label">채용</span>
+        <a href="/recruit/postings"
+           class="nav-item">
+          <i class="fas fa-file-signature"></i><span>채용 공고</span>
+        </a>
+        <a href="/recruit/pipeline"
+           class="nav-item">
+          <i class="fas fa-user-tie"></i><span>지원자 파이프라인</span>
+        </a>
+      </div>
+      
+
+    </nav>
+
+    <div class="sidebar-footer">
+      <a href="/profile"
+         class="nav-item">
+        <i class="fas fa-cog"></i><span>설정</span>
+      </a>
+      <form method="POST" action="/logout" style="margin:0;">
+        <button type="submit" class="nav-item" style="width:100%;background:none;border:none;cursor:pointer;text-align:left;">
+          <i class="fas fa-sign-out-alt"></i><span>로그아웃</span>
+        </button>
+      </form>
+    </div>
+  </aside>
+
+  <!-- 사이드바 오버레이 (모바일) -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- ══ 메인 ══════════════════════════════════════ -->
+  <div class="main-wrapper">
+    <header class="header">
+      <div class="header-left">
+        <button class="hamburger" id="hamburgerBtn" aria-label="메뉴">
+          <i class="fas fa-bars"></i>
+        </button>
+        <h1 class="page-title">대시보드</h1>
+      </div>
+      <div class="header-right">
+        <a href="/announcements" class="icon-btn" title="공지사항">
+          <i class="fas fa-bell"></i>
+          
+        </a>
+        <div class="divider-v"></div>
+        <div class="user-pill">
+          <div class="user-avatar">H</div>
+          <div class="user-info-wrap">
+            <span class="user-fullname">HR 관리자</span>
+            <span class="user-rolelabel">
+              HR 관리자
+              
+            </span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-content">
+      
+        
+      
+      
+
+<div class="welcome-banner">
+  <div>
+    <div class="welcome-greeting">안녕하세요, HR 관리자님!</div>
+    <div class="welcome-sub">전사 현황을 확인하고 주요 업무를 처리하세요.</div>
+  </div>
+  <div class="welcome-icon"><i class="fas fa-chart-bar"></i></div>
+</div>
+
+<!-- 인력 현황 -->
+<div class="stat-grid" style="margin-bottom:10px;">
+  <div class="stat-card">
+    <div class="stat-ico ico-blue"><i class="fas fa-users"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">100</div>
+      <div class="stat-lbl">전체 재직자</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-ico ico-green"><i class="fas fa-sitemap"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">48</div>
+      <div class="stat-lbl">부서 수</div>
+    </div>
+  </div>
+  <a href="/attendance" class="stat-card" style="text-decoration:none; color:inherit;">
+    <div class="stat-ico ico-orange"><i class="fas fa-clock"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">0</div>
+      <div class="stat-lbl">근태 승인 대기</div>
+    </div>
+  </a>
+  <a href="/employees" class="stat-card" style="text-decoration:none; color:inherit;">
+    <div class="stat-ico ico-purple"><i class="fas fa-user-plus"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">100</div>
+      <div class="stat-lbl">활성 직원</div>
+    </div>
+  </a>
+</div>
+
+<!-- 채용 현황 -->
+<div class="stat-grid" style="margin-bottom:22px;">
+  <a href="/recruit/postings" class="stat-card" style="text-decoration:none; color:inherit;">
+    <div class="stat-ico ico-blue"><i class="fas fa-file-signature"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">0</div>
+      <div class="stat-lbl">진행중 공고</div>
+    </div>
+  </a>
+  <a href="/recruit/pipeline" class="stat-card" style="text-decoration:none; color:inherit;">
+    <div class="stat-ico ico-purple"><i class="fas fa-user-tie"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">0</div>
+      <div class="stat-lbl">전체 지원자</div>
+    </div>
+  </a>
+  <div class="stat-card">
+    <div class="stat-ico ico-green"><i class="fas fa-won-sign"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">
+        <a href="/admin/payroll" style="color:inherit; text-decoration:none;">급여 관리</a>
+      </div>
+      <div class="stat-lbl">이번달 명세서</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-ico ico-orange"><i class="fas fa-chart-line"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">
+        <a href="/performance" style="color:inherit; text-decoration:none;">성과 평가</a>
+      </div>
+      <div class="stat-lbl">평가 현황</div>
+    </div>
+  </div>
+</div>
+
+<div class="grid-2" style="align-items:start;">
+
+  <!-- 최근 직원 -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">최근 등록 직원</span>
+      <a href="/employees/new" class="btn btn-primary btn-sm">
+        <i class="

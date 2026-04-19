@@ -1,0 +1,205 @@
+{% extends 'base.html' %}
+{% block title %}Attendance Calendar{% endblock %}
+{% block page_title %}Attendance Calendar{% endblock %}
+
+{% block head %}
+<style>
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+.cal-head {
+  background: #f8fafc;
+  padding: 10px 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tx-3);
+}
+.cal-head.weekend { color: #e11d48; }
+.cal-cell {
+  background: #fff;
+  min-height: 110px;
+  padding: 7px;
+  vertical-align: top;
+}
+.cal-cell.other-month { background: #fafbfd; }
+.cal-cell.today { background: #eff6ff; }
+.cal-date {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tx-2);
+  margin-bottom: 5px;
+  display: block;
+}
+.cal-date.today-num {
+  background: var(--primary);
+  color: #fff;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+}
+.cal-date.sunday { color: #e11d48; }
+.cal-date.saturday { color: #2563eb; }
+.cal-event {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+.cal-extra { font-size: 10.5px; color: var(--tx-3); padding: 1px 4px; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Controls -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+  <div style="display:flex; gap:8px; align-items:center;">
+    <a href="?month={{ prev_month }}{% if dept_filter %}&dept={{ dept_filter }}{% endif %}"
+       class="btn btn-ghost btn-sm">
+      <i class="fas fa-chevron-left"></i>
+    </a>
+    <span style="font-size:16px; font-weight:800; padding:5px 10px;">
+      {{ year }} / {{ '%02d'|format(month) }}
+    </span>
+    <a href="?month={{ next_month }}{% if dept_filter %}&dept={{ dept_filter }}{% endif %}"
+       class="btn btn-ghost btn-sm">
+      <i class="fas fa-chevron-right"></i>
+    </a>
+  </div>
+
+  <div style="display:flex; gap:8px; align-items:center;">
+    {% if session.user_role in ('admin','manager') and departments %}
+    <select class="input" style="width:140px; font-size:13px;"
+            onchange="applyDeptFilter(this.value)">
+      <option value="">All Departments</option>
+      {% for d in departments %}
+      <option value="{{ d.id }}" {% if dept_filter == d.id %}selected{% endif %}>
+        {{ d.name }}
+      </option>
+      {% endfor %}
+    </select>
+    {% endif %}
+
+    {% if session.user_role in ('admin','manager') %}
+    <a href="{{ url_for('attendance') }}" class="btn btn-ghost btn-sm">
+      <i class="fas fa-list"></i> Approvals
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Today absent -->
+{% if today_absent %}
+<div class="card" style="margin-bottom:16px;">
+  <div style="padding:14px 20px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+    <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+      <div style="background:#fee2e2; color:#dc2626; width:34px; height:34px;
+                  border-radius:50%; display:flex; align-items:center; justify-content:center;">
+        <i class="fas fa-user-clock" style="font-size:14px;"></i>
+      </div>
+      <div>
+        <div style="font-size:11px; color:var(--tx-3); font-weight:600;">Out Today</div>
+        <div style="font-size:15px; font-weight:800; color:var(--tx-1);">
+          {{ today_absent|length }} people
+        </div>
+      </div>
+    </div>
+    <div style="width:1px; height:32px; background:var(--border); flex-shrink:0;"></div>
+    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+      {% for a in today_absent %}
+      <div style="display:flex; align-items:center; gap:5px; background:{{ a.color }};
+                  border-radius:20px; padding:4px 10px;">
+        <span style="font-size:12.5px; font-weight:700; color:{{ a.tc }};">{{ a.name }}</span>
+        <span style="font-size:11px; color:{{ a.tc }}; opacity:0.8;">{{ a.type }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div style="background:#f0fdf4; border:1px solid #86efac; border-radius:var(--r);
+            padding:11px 18px; margin-bottom:16px; font-size:13px;
+            color:#15803d; font-weight:600; display:flex; align-items:center; gap:8px;">
+  <i class="fas fa-check-circle"></i>
+  Everyone is in today.
+</div>
+{% endif %}
+
+<!-- Legend -->
+<div style="display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+  {% for color, tc, label in [('#eff6ff','#2563eb','Annual/Half-day'), ('#f0fdf4','#16a34a','Remote'), ('#fff7ed','#ea580c','Sick'), ('#faf5ff','#9333ea','Outing')] %}
+  <div style="display:flex; align-items:center; gap:5px; font-size:12px; color:var(--tx-2);">
+    <div style="width:12px; height:12px; border-radius:3px; background:{{ color }};
+                border:1px solid {{ tc }}22;"></div>
+    {{ label }}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Calendar -->
+<div class="card">
+  <div class="card-body" style="padding:0; overflow:hidden;">
+    <div class="cal-grid">
+      {% for idx, day_name in [(0,'Sun'),(1,'Mon'),(2,'Tue'),(3,'Wed'),(4,'Thu'),(5,'Fri'),(6,'Sat')] %}
+      <div class="cal-head {% if idx == 0 %}weekend{% endif %}{% if idx == 6 %} weekend{% endif %}">
+        {{ day_name }}
+      </div>
+      {% endfor %}
+
+      {% for cell in calendar_cells %}
+      {% set col = loop.index0 % 7 %}
+      <div class="cal-cell
+        {% if not cell.current_month %}other-month{% endif %}
+        {% if cell.is_today %}today{% endif %}">
+
+        <span class="cal-date
+          {% if cell.is_today %}today-num
+          {% elif col == 0 %}sunday
+          {% elif col == 6 %}saturday{% endif %}">
+          {{ cell.day }}
+        </span>
+
+        {% for ev in cell.events %}
+        <div class="cal-event"
+             title="{{ ev.name }} ({{ ev.type }})"
+             style="background:{{ ev.color }}; color:{{ ev.text_color }};">
+          {{ ev.name }} <span style="opacity:0.75;">{{ ev.type }}</span>
+        </div>
+        {% endfor %}
+
+        {% if cell.extra > 0 %}
+        <div class="cal-extra">+{{ cell.extra }} more</div>
+        {% endif %}
+
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function applyDeptFilter(deptId) {
+  const params = new URLSearchParams(window.location.search);
+  if (deptId) { params.set('dept', deptId); } else { params.delete('dept'); }
+  window.location.href = '?' + params.toString();
+}
+</script>
+{% endblock %}

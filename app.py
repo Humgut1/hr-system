@@ -1,0 +1,2355 @@
+import os
+import sqlite3
+from datetime import datetime, date
+from functools import wraps
+
+from flask import (Flask, abort, flash, g, redirect, render_template,
+                   request, session, url_for)
+from werkzeug.security import check_password_hash, generate_password_hash
+from payroll_utils import calc_payslip, calc_annual_leave, fmt_krw
+
+app = Flask(__name__)
+app.secret_key = os.environ.get('HR_SECRET_KEY', 'dev-only-change-in-prod')
+
+DATABASE = 'hr_system.db'
+
+# ── 회사 정보 (환경변수로 관리, 증명서 발급에 사용) ─────────
+COMPANY_INFO = {
+    'name':    os.environ.get('COMPANY_NAME',    '주식회사 탤런트코어'),
+    'reg_no':  os.environ.get('COMPANY_REG_NO',  '000-00-00000'),
+    'ceo':     os.environ.get('COMPANY_CEO',     '대표이사'),
+    'address': os.environ.get('COMPANY_ADDRESS', '서울특별시 강남구 테헤란로 000'),
+    'tel':     os.environ.get('COMPANY_TEL',     '02-0000-0000'),
+}
+
+
+# ── DB ──────────────────────────────────────────────────────
+def get_db():
+    db = getattr(g, '_database', None)
+    if db is None:
+        db = g._database = sqlite3.connect(DATABASE)
+        db.row_factory = sqlite3.Row
+        db.execute('PRAGMA foreign_keys = ON')
+    return db
+
+@app.teardown_appcontext
+def close_connection(exception):
+    db = getattr(g, '_database', None)
+    if db is not None:
+        db.close()
+
+
+# ── Auth Decorators ──────────────────────────────────────────
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        if session.get('user_role') != 'admin':
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+def manager_or_admin(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        if session.get('user_role') not in ('admin', 'manager'):
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+def recruiter_or_admin(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        if session.get('user_role') not in ('admin', 'recruiter'):
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ── Helper ──────────────────────────────────────────────────
+def build_dept_tree(depts, parent_id=None):
+    nodes = []
+    for d in depts:
+        if d['parent_id'] == parent_id:
+            node = dict(d)
+            node['children'] = build_dept_tree(depts, d['id'])
+            # 하위 전체 인원 합산 (팀 단위 인원을 상위 부서에 집계)
+            node['total_count'] = node['member_count'] + sum(
+                c['total_count'] for c in node['children']
+            )
+            nodes.append(node)
+    return nodes
+
+
+# ── Auth Routes ──────────────────────────────────────────────
+@app.route('/')
+def index():
+    return redirect(url_for('dashboard') if 'user_id' in session else url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    error = None
+    if request.method == 'POST':
+        email    = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        if not email or not password:
+            error = '이메일과 비밀번호를 입력해주세요.'
+        else:
+            db   = get_db()
+            user = db.execute(
+                'SELECT u.*, d.name AS dept_name, p.name AS pos_name '
+                'FROM users u '
+                'LEFT JOIN departments d ON u.department_id = d.id '
+                'LEFT JOIN positions   p ON u.position_id   = p.id '
+                'WHERE u.email = ? AND u.status = ?',
+                (email, 'active')
+            ).fetchone()
+            if user and check_password_hash(user['password_hash'], password):
+                session.clear()
+                session['user_id']    = user['id']
+                session['user_name']  = user['name']
+                session['user_role']  = user['role']
+                session['user_email'] = user['email']
+                session['dept_name']  = user['dept_name'] or ''
+                session['pos_name']   = user['pos_name']  or ''
+                session['dept_id']    = user['department_id'] or 0
+                return redirect(url_for('dashboard'))
+            error = '이메일 또는 비밀번호가 올바르지 않습니다.'
+    return render_template('login.html', error=error)
+
+@app.route('/logout', methods=['GET', 'POST'])
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+
+# ── Dashboard helpers ─────────────────────────────────────────
+def _greeting():
+    h = datetime.now().hour
+    if h < 12:  return 'Good morning'
+    if h < 17:  return 'Good afternoon'
+    return 'Good evening'
+
+def _today_label():
+    d = date.today()
+    return d.strftime('%A, %B ') + str(d.day)
+
+def _tenure(hire_date_str):
+    if not hire_date_str:
+        return None
+    try:
+        hd = datetime.strptime(hire_date_str, '%Y-%m-%d').date()
+        td = date.today()
+        years  = td.year - hd.year - ((td.month, td.day) < (hd.month, hd.day))
+        months = (td.month - hd.month) % 12
+        return f'{years}y {months}m' if years else f'{months}m'
+    except Exception:
+        return None
+
+# ── Dashboard ────────────────────────────────────────────────
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    role = session.get('user_role')
+    uid  = session.get('user_id')
+    db   = get_db()
+    today      = date.today().isoformat()
+    greet      = _greeting()
+    today_str  = _today_label()
+    first_name = (session.get('user_name') or '').split()[0]
+    LEAVE_LABELS = {'annual':'Annual','half_am':'Half AM','half_pm':'Half PM','sick':'Sick','etc':'Other'}
+
+    if role == 'admin':
+        total_employees   = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
+        total_departments = db.execute("SELECT COUNT(*) FROM departments").fetchone()[0]
+        pending_leave     = db.execute("SELECT COUNT(*) FROM leave_requests WHERE status='pending'").fetchone()[0]
+        open_postings     = db.execute("SELECT COUNT(*) FROM job_postings WHERE status='open'").fetchone()[0]
+        total_applicants  = db.execute("SELECT COUNT(*) FROM applicants").fetchone()[0]
+        recent_employees  = db.execute(
+            'SELECT u.name, d.name AS dept, p.name AS pos, u.hire_date '
+            'FROM users u LEFT JOIN departments d ON u.department_id=d.id '
+            'LEFT JOIN positions p ON u.position_id=p.id '
+            "WHERE u.status='active' ORDER BY u.created_at DESC LIMIT 6"
+        ).fetchall()
+        recent_posts = db.execute(
+            'SELECT id, title, pinned, created_at FROM announcements '
+            'ORDER BY pinned DESC, created_at DESC LIMIT 5'
+        ).fetchall()
+        who_out = db.execute(
+            'SELECT u.name, d.name AS dept, lr.type, lr.end_date '
+            'FROM leave_requests lr JOIN users u ON lr.user_id=u.id '
+            'LEFT JOIN departments d ON u.department_id=d.id '
+            "WHERE lr.status='approved' AND lr.start_date<=? AND lr.end_date>=? "
+            'ORDER BY u.name LIMIT 8', (today, today)
+        ).fetchall()
+        return render_template('dashboard/admin.html',
+            greet=greet, today_str=today_str, first_name=first_name,
+            total_employees=total_employees, total_departments=total_departments,
+            pending_leave=pending_leave, open_postings=open_postings,
+            total_applicants=total_applicants, recent_employees=recent_employees,
+            recent_posts=recent_posts, who_out=who_out,
+            labels=LEAVE_LABELS, active_page='home')
+
+    if role == 'manager':
+        dept_id = session.get('dept_id')
+        team_count = db.execute(
+            "SELECT COUNT(*) FROM users WHERE department_id=? AND status='active'", (dept_id,)
+        ).fetchone()[0]
+        pending_count = db.execute(
+            "SELECT COUNT(*) FROM leave_requests lr JOIN users u ON lr.user_id=u.id "
+            "WHERE u.department_id=? AND lr.status='pending'", (dept_id,)
+        ).fetchone()[0]
+        today_leave = db.execute(
+            "SELECT COUNT(*) FROM leave_requests lr JOIN users u ON lr.user_id=u.id "
+            "WHERE u.department_id=? AND lr.status='approved' "
+            "AND lr.start_date<=? AND lr.end_date>=?", (dept_id, today, today)
+        ).fetchone()[0]
+        pending_reqs = db.execute(
+            "SELECT lr.id, lr.type, lr.start_date, lr.end_date, u.name as user_name "
+            "FROM leave_requests lr JOIN users u ON lr.user_id=u.id "
+            "WHERE u.department_id=? AND lr.status='pending' "
+            "ORDER BY lr.created_at DESC LIMIT 5", (dept_id,)
+        ).fetchall()
+        team_goals = db.execute(
+            "SELECT pg.title, pg.self_score, u.name as user_name, AVG(pe.score) as avg_score "
+            "FROM performance_goals pg JOIN users u ON pg.user_id=u.id "
+            "LEFT JOIN performance_evaluations pe ON pg.id=pe.goal_id "
+            "WHERE u.department_id=? GROUP BY pg.id ORDER BY u.name LIMIT 8", (dept_id,)
+        ).fetchall()
+        recent_posts = db.execute(
+            'SELECT id, title, pinned, created_at FROM announcements '
+            'ORDER BY pinned DESC, created_at DESC LIMIT 4'
+        ).fetchall()
+        who_out = db.execute(
+            "SELECT u.name, lr.type, lr.end_date FROM leave_requests lr "
+            "JOIN users u ON lr.user_id=u.id WHERE u.department_id=? "
+            "AND lr.status='approved' AND lr.start_date<=? AND lr.end_date>=? "
+            "ORDER BY u.name", (dept_id, today, today)
+        ).fetchall()
+        return render_template('dashboard/manager.html',
+            greet=greet, today_str=today_str, first_name=first_name,
+            team_count=team_count, pending_count=pending_count,
+            today_leave=today_leave, pending_reqs=pending_reqs,
+            team_goals=team_goals, recent_posts=recent_posts,
+            who_out=who_out, labels=LEAVE_LABELS, active_page='home')
+
+    if role == 'recruiter':
+        open_postings     = db.execute("SELECT COUNT(*) FROM job_postings WHERE status='open'").fetchone()[0]
+        total_applicants  = db.execute('SELECT COUNT(*) FROM applicants').fetchone()[0]
+        interview_count   = db.execute("SELECT COUNT(*) FROM applicants WHERE stage='interview'").fetchone()[0]
+        month_start       = date.today().replace(day=1).isoformat()
+        hired_month       = db.execute(
+            "SELECT COUNT(*) FROM applicants WHERE stage='hired' AND created_at>=?", (month_start,)
+        ).fetchone()[0]
+        recent_applicants = db.execute(
+            'SELECT a.name, a.stage, a.created_at, jp.title AS posting_title '
+            'FROM applicants a LEFT JOIN job_postings jp ON a.posting_id=jp.id '
+            'ORDER BY a.created_at DESC LIMIT 6'
+        ).fetchall()
+        recent_posts      = db.execute(
+            'SELECT id, title, pinned, created_at FROM announcements '
+            'ORDER BY pinned DESC, created_at DESC LIMIT 5'
+        ).fetchall()
+        STAGE_MAP = {
+            'applied':'Applied','screening':'Screening','interview':'Interview',
+            'offered':'Offered','hired':'Hired','rejected':'Rejected'
+        }
+        return render_template('dashboard/recruiter.html',
+            greet=greet, today_str=today_str, first_name=first_name,
+            open_postings=open_postings, total_applicants=total_applicants,
+            interview_count=interview_count, hired_month=hired_month,
+            recent_applicants=recent_applicants, recent_posts=recent_posts,
+            stage_map=STAGE_MAP, active_page='home')
+
+    # employee
+    hire_row = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
+    hire_date_str = hire_row['hire_date'] if hire_row else None
+    total_leave   = calc_annual_leave(hire_date_str) if hire_date_str else 15
+    used_leave    = db.execute(
+        "SELECT COALESCE(SUM(days),0) FROM leave_requests "
+        "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm','sick')",
+        (uid,)
+    ).fetchone()[0]
+    remain_leave  = total_leave - float(used_leave)
+    recent_reqs   = db.execute(
+        'SELECT type, start_date, end_date, days, status FROM leave_requests '
+        'WHERE user_id=? ORDER BY created_at DESC LIMIT 5', (uid,)
+    ).fetchall()
+    upcoming_leave = db.execute(
+        "SELECT type, start_date, end_date, days FROM leave_requests "
+        "WHERE user_id=? AND status='approved' AND start_date>? "
+        "ORDER BY start_date ASC LIMIT 3", (uid, today)
+    ).fetchall()
+    recent_posts = db.execute(
+        'SELECT id, title, pinned, created_at FROM announcements '
+        'ORDER BY pinned DESC, created_at DESC LIMIT 4'
+    ).fetchall()
+    tenure_str = _tenure(hire_date_str)
+    pct_used   = int(float(used_leave) / total_leave * 100) if total_leave else 0
+    return render_template('dashboard/employee.html',
+        greet=greet, today_str=today_str, first_name=first_name,
+        total_leave=total_leave, used_leave=used_leave,
+        remain_leave=remain_leave, pct_used=pct_used,
+        recent_reqs=recent_reqs, upcoming_leave=upcoming_leave,
+        recent_posts=recent_posts, tenure_str=tenure_str,
+        labels=LEAVE_LABELS, active_page='home')
+
+
+# ── Announcements ────────────────────────────────────────────
+@app.route('/announcements')
+@login_required
+def announcements():
+    db    = get_db()
+    posts = db.execute(
+        'SELECT a.*, u.name AS author_name '
+        'FROM announcements a JOIN users u ON a.author_id = u.id '
+        'ORDER BY a.pinned DESC, a.created_at DESC'
+    ).fetchall()
+    return render_template('announcements/list.html', posts=posts,
+                           active_page='announcements')
+
+@app.route('/announcements/<int:post_id>')
+@login_required
+def announcement_detail(post_id):
+    db   = get_db()
+    post = db.execute(
+        'SELECT a.*, u.name AS author_name '
+        'FROM announcements a JOIN users u ON a.author_id = u.id '
+        'WHERE a.id = ?', (post_id,)
+    ).fetchone()
+    if not post:
+        abort(404)
+    return render_template('announcements/detail.html', post=post,
+                           active_page='announcements')
+
+@app.route('/announcements/new', methods=['GET', 'POST'])
+@admin_required
+def announcement_new():
+    error = None
+    if request.method == 'POST':
+        title   = request.form.get('title', '').strip()
+        content = request.form.get('content', '').strip()
+        pinned  = 1 if request.form.get('pinned') else 0
+        if not title or not content:
+            error = '제목과 내용을 모두 입력해주세요.'
+        else:
+            db = get_db()
+            db.execute(
+                'INSERT INTO announcements (title, content, pinned, author_id) VALUES (?, ?, ?, ?)',
+                (title, content, pinned, session['user_id'])
+            )
+            db.commit()
+            return redirect(url_for('announcements'))
+    return render_template('announcements/form.html', post=None, error=error,
+                           active_page='announcements')
+
+@app.route('/announcements/<int:post_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def announcement_edit(post_id):
+    db   = get_db()
+    post = db.execute('SELECT * FROM announcements WHERE id=?', (post_id,)).fetchone()
+    if not post:
+        abort(404)
+    error = None
+    if request.method == 'POST':
+        title   = request.form.get('title', '').strip()
+        content = request.form.get('content', '').strip()
+        pinned  = 1 if request.form.get('pinned') else 0
+        if not title or not content:
+            error = '제목과 내용을 모두 입력해주세요.'
+        else:
+            db.execute(
+                'UPDATE announcements SET title=?, content=?, pinned=?, '
+                'updated_at=CURRENT_TIMESTAMP WHERE id=?',
+                (title, content, pinned, post_id)
+            )
+            db.commit()
+            return redirect(url_for('announcement_detail', post_id=post_id))
+    return render_template('announcements/form.html', post=post, error=error,
+                           active_page='announcements')
+
+
+# ── Org Chart ────────────────────────────────────────────────
+@app.route('/org')
+@login_required
+def org_chart():
+    db    = get_db()
+    depts = db.execute(
+        'SELECT d.*, COUNT(u.id) AS member_count '
+        'FROM departments d '
+        'LEFT JOIN users u ON u.department_id = d.id AND u.status = "active" '
+        'GROUP BY d.id'
+    ).fetchall()
+    tree = build_dept_tree([dict(d) for d in depts])
+    total = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
+    return render_template('org/index.html', tree=tree, total=total,
+                           active_page='org')
+
+
+# ── Employees ────────────────────────────────────────────────
+@app.route('/employees')
+@manager_or_admin
+def employees():
+    db      = get_db()
+    q       = request.args.get('q', '').strip()
+    dept_id = request.args.get('dept', '')
+    depts   = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+
+    sql    = ('SELECT u.*, d.name AS dept_name, p.name AS pos_name '
+              'FROM users u '
+              'LEFT JOIN departments d ON u.department_id = d.id '
+              'LEFT JOIN positions   p ON u.position_id   = p.id '
+              "WHERE u.status = 'active'")
+    params = []
+    if q:
+        sql   += ' AND (u.name LIKE ? OR u.email LIKE ?)'
+        params += [f'%{q}%', f'%{q}%']
+    if dept_id:
+        sql   += ' AND u.department_id = ?'
+        params.append(dept_id)
+    sql += ' ORDER BY u.created_at DESC'
+
+    emp_list = db.execute(sql, params).fetchall()
+    return render_template('employees/list.html',
+                           employees=emp_list, depts=depts, q=q, dept_id=dept_id,
+                           active_page='employees')
+
+@app.route('/employees/new', methods=['GET', 'POST'])
+@admin_required
+def employee_new():
+    db    = get_db()
+    depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+    error = None
+
+    if request.method == 'POST':
+        name      = request.form.get('name', '').strip()
+        email     = request.form.get('email', '').strip()
+        password  = request.form.get('password', '').strip()
+        role      = request.form.get('role', 'employee')
+        dept_id   = request.form.get('department_id') or None
+        pos_id    = request.form.get('position_id') or None
+        phone     = request.form.get('phone', '').strip() or None
+        hire_date = request.form.get('hire_date') or None
+
+        if not name or not email or not password:
+            error = '이름, 이메일, 비밀번호는 필수입니다.'
+        elif db.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone():
+            error = '이미 사용 중인 이메일입니다.'
+        else:
+            db.execute(
+                'INSERT INTO users (name, email, password_hash, role, department_id, position_id, phone, hire_date) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                (name, email, generate_password_hash(password), role, dept_id, pos_id, phone, hire_date)
+            )
+            db.commit()
+            return redirect(url_for('employees'))
+
+    return render_template('employees/form.html',
+                           mode='new', depts=depts, poses=poses, error=error, emp=None,
+                           active_page='employees')
+
+@app.route('/employees/<int:emp_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def employee_edit(emp_id):
+    db    = get_db()
+    emp   = db.execute('SELECT * FROM users WHERE id=?', (emp_id,)).fetchone()
+    if not emp:
+        abort(404)
+    depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+    error = None
+
+    if request.method == 'POST':
+        name      = request.form.get('name', '').strip()
+        email     = request.form.get('email', '').strip()
+        role      = request.form.get('role', 'employee')
+        dept_id   = request.form.get('department_id') or None
+        pos_id    = request.form.get('position_id') or None
+        phone     = request.form.get('phone', '').strip() or None
+        hire_date = request.form.get('hire_date') or None
+        new_pw    = request.form.get('password', '').strip()
+
+        if not name or not email:
+            error = '이름과 이메일은 필수입니다.'
+        elif db.execute('SELECT id FROM users WHERE email=? AND id!=?', (email, emp_id)).fetchone():
+            error = '이미 사용 중인 이메일입니다.'
+        else:
+            if new_pw:
+                db.execute(
+                    'UPDATE users SET name=?, email=?, password_hash=?, role=?, '
+                    'department_id=?, position_id=?, phone=?, hire_date=? WHERE id=?',
+                    (name, email, generate_password_hash(new_pw), role,
+                     dept_id, pos_id, phone, hire_date, emp_id)
+                )
+            else:
+                db.execute(
+                    'UPDATE users SET name=?, email=?, role=?, '
+                    'department_id=?, position_id=?, phone=?, hire_date=? WHERE id=?',
+                    (name, email, role, dept_id, pos_id, phone, hire_date, emp_id)
+                )
+            db.commit()
+            return redirect(url_for('employees'))
+
+    return render_template('employees/form.html',
+                           mode='edit', depts=depts, poses=poses, error=error, emp=emp,
+                           active_page='employees')
+
+@app.route('/employees/<int:emp_id>/resign', methods=['POST'])
+@admin_required
+def employee_resign(emp_id):
+    db = get_db()
+    db.execute("UPDATE users SET status='resigned' WHERE id=?", (emp_id,))
+    db.commit()
+    return redirect(url_for('employees'))
+
+
+# ── Departments & Positions ──────────────────────────────────
+@app.route('/departments', methods=['GET', 'POST'])
+@admin_required
+def departments():
+    db = get_db()
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'add_dept':
+            name      = request.form.get('name', '').strip()
+            parent_id = request.form.get('parent_id') or None
+            if name:
+                db.execute('INSERT INTO departments (name, parent_id) VALUES (?, ?)', (name, parent_id))
+                db.commit()
+        elif action == 'delete_dept':
+            db.execute('DELETE FROM departments WHERE id=?', (request.form.get('dept_id'),))
+            db.commit()
+        elif action == 'add_pos':
+            name  = request.form.get('name', '').strip()
+            level = request.form.get('level', 1)
+            if name:
+                db.execute('INSERT INTO positions (name, level) VALUES (?, ?)', (name, level))
+                db.commit()
+        elif action == 'delete_pos':
+            db.execute('DELETE FROM positions WHERE id=?', (request.form.get('pos_id'),))
+            db.commit()
+        return redirect(url_for('departments'))
+
+    depts = db.execute(
+        'SELECT d.*, p.name AS parent_name, COUNT(u.id) AS member_count '
+        'FROM departments d '
+        'LEFT JOIN departments p ON d.parent_id = p.id '
+        'LEFT JOIN users u ON u.department_id = d.id AND u.status="active" '
+        'GROUP BY d.id ORDER BY d.name'
+    ).fetchall()
+    all_depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    poses     = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+    return render_template('admin/departments.html',
+                           depts=depts, all_depts=all_depts, poses=poses,
+                           active_page='departments')
+
+
+# ── Leave / Attendance ──────────────────────────────────────
+LEAVE_LABELS = {
+    'annual':  '연차',
+    'half_am': '오전 반차',
+    'half_pm': '오후 반차',
+    'sick':    '병가',
+    'remote':  '재택근무',
+    'outing':  '외출',
+}
+LEAVE_DAYS = {
+    'annual': 1.0, 'half_am': 0.5, 'half_pm': 0.5,
+    'sick': 1.0,   'remote': 0.0,  'outing': 0.0,
+}
+
+def calc_working_days(start_str, end_str):
+    """평일(월~금) 근무일수 계산"""
+    from datetime import date, timedelta
+    try:
+        s = date.fromisoformat(start_str)
+        e = date.fromisoformat(end_str)
+    except (ValueError, TypeError):
+        return 1.0
+    days = 0.0
+    cur = s
+    while cur <= e:
+        if cur.weekday() < 5:   # 0=월 … 4=금
+            days += 1.0
+        cur += timedelta(days=1)
+    return max(days, 0.0)
+
+@app.route('/leave')
+@login_required
+def leave_my():
+    db  = get_db()
+    uid = session['user_id']
+    requests = db.execute(
+        'SELECT r.*, u.name AS approver_name '
+        'FROM leave_requests r '
+        'LEFT JOIN users u ON r.approver_id = u.id '
+        'WHERE r.user_id = ? ORDER BY r.created_at DESC',
+        (uid,)
+    ).fetchall()
+    # 연차 사용일 합산 (승인된 것만)
+    used = db.execute(
+        "SELECT COALESCE(SUM(days),0) FROM leave_requests "
+        "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm','sick')",
+        (uid,)
+    ).fetchone()[0]
+    hire_row = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
+    total = calc_annual_leave(hire_row['hire_date']) if hire_row and hire_row['hire_date'] else 15
+    return render_template('leave/my.html', requests=requests,
+                           used=used, total=total, labels=LEAVE_LABELS,
+                           active_page='leave')
+
+@app.route('/leave/new', methods=['GET', 'POST'])
+@login_required
+def leave_new():
+    error = None
+    if request.method == 'POST':
+        leave_type = request.form.get('type', '')
+        start_date = request.form.get('start_date', '')
+        end_date   = request.form.get('end_date', '')
+        reason     = request.form.get('reason', '').strip()
+
+        if not leave_type or not start_date or not end_date:
+            error = '유형, 시작일, 종료일은 필수입니다.'
+        elif start_date > end_date:
+            error = '종료일이 시작일보다 앞설 수 없습니다.'
+        elif leave_type not in LEAVE_DAYS:
+            error = '올바르지 않은 신청 유형입니다.'
+        else:
+            db  = get_db()
+            uid = session['user_id']
+            # 근무일수 계산 (반차·재택·외출은 고정값)
+            if leave_type in ('half_am', 'half_pm', 'remote', 'outing'):
+                days = LEAVE_DAYS[leave_type]
+            else:
+                days = calc_working_days(start_date, end_date)
+            # 연차 소진 유형일 때 잔여 연차 검사
+            if leave_type in ('annual', 'half_am', 'half_pm', 'sick'):
+                hire_row = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
+                total = calc_annual_leave(hire_row['hire_date']) if hire_row and hire_row['hire_date'] else 15
+                used = db.execute(
+                    "SELECT COALESCE(SUM(days),0) FROM leave_requests "
+                    "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm','sick')",
+                    (uid,)
+                ).fetchone()[0]
+                if used + days > total:
+                    error = f'잔여 연차가 부족합니다. (잔여: {total - used:.1f}일, 신청: {days:.1f}일)'
+            # 기간 중복 검사 (취소·반려 제외)
+            if not error:
+                overlap = db.execute(
+                    "SELECT id FROM leave_requests "
+                    "WHERE user_id=? AND status NOT IN ('cancelled','rejected') "
+                    "AND start_date <= ? AND end_date >= ?",
+                    (uid, end_date, start_date)
+                ).fetchone()
+                if overlap:
+                    error = '해당 기간에 이미 신청된 휴가가 있습니다.'
+            if not error:
+                db.execute(
+                    'INSERT INTO leave_requests (user_id, type, start_date, end_date, days, reason) '
+                    'VALUES (?, ?, ?, ?, ?, ?)',
+                    (uid, leave_type, start_date, end_date, days, reason or None)
+                )
+                db.commit()
+                return redirect(url_for('leave_my'))
+
+    return render_template('leave/new.html', error=error, labels=LEAVE_LABELS,
+                           active_page='leave_new')
+
+@app.route('/leave/<int:req_id>/cancel', methods=['POST'])
+@login_required
+def leave_cancel(req_id):
+    db  = get_db()
+    req = db.execute('SELECT * FROM leave_requests WHERE id=?', (req_id,)).fetchone()
+    if req and req['user_id'] == session['user_id'] and req['status'] == 'pending':
+        db.execute("UPDATE leave_requests SET status='cancelled' WHERE id=?", (req_id,))
+        db.commit()
+    return redirect(url_for('leave_my'))
+
+@app.route('/attendance')
+@manager_or_admin
+def attendance():
+    db      = get_db()
+    status  = request.args.get('status', 'pending')
+    dept_id = request.args.get('dept', '')
+    depts   = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+
+    sql = (
+        'SELECT r.*, u.name AS user_name, u.department_id, '
+        'd.name AS dept_name, p.name AS pos_name '
+        'FROM leave_requests r '
+        'JOIN users u ON r.user_id = u.id '
+        'LEFT JOIN departments d ON u.department_id = d.id '
+        'LEFT JOIN positions   p ON u.position_id   = p.id '
+        'WHERE r.status = ?'
+    )
+    params = [status]
+    if dept_id:
+        sql   += ' AND u.department_id = ?'
+        params.append(dept_id)
+    sql += ' ORDER BY r.created_at DESC'
+
+    reqs = db.execute(sql, params).fetchall()
+    pending_count = db.execute(
+        "SELECT COUNT(*) FROM leave_requests WHERE status='pending'"
+    ).fetchone()[0]
+    return render_template('attendance/list.html', reqs=reqs, status=status,
+                           depts=depts, dept_id=dept_id,
+                           pending_count=pending_count, labels=LEAVE_LABELS,
+                           active_page='attendance')
+
+@app.route('/attendance/<int:req_id>/approve', methods=['POST'])
+@manager_or_admin
+def attendance_approve(req_id):
+    db  = get_db()
+    req = db.execute(
+        'SELECT r.*, u.department_id FROM leave_requests r '
+        'JOIN users u ON r.user_id = u.id WHERE r.id=?', (req_id,)
+    ).fetchone()
+    if not req:
+        abort(404)
+    if req['status'] != 'pending':
+        flash('이미 처리된 신청입니다.', 'error')
+        return redirect(url_for('attendance'))
+    mgr_dept = session.get('dept_id', 0)
+    if session.get('user_role') == 'manager' and mgr_dept and req['department_id'] != mgr_dept:
+        abort(403)
+    db.execute(
+        "UPDATE leave_requests SET status='approved', approver_id=? WHERE id=?",
+        (session['user_id'], req_id)
+    )
+    db.commit()
+    return redirect(url_for('attendance'))
+
+@app.route('/attendance/<int:req_id>/reject', methods=['POST'])
+@manager_or_admin
+def attendance_reject(req_id):
+    db  = get_db()
+    req = db.execute(
+        'SELECT r.*, u.department_id FROM leave_requests r '
+        'JOIN users u ON r.user_id = u.id WHERE r.id=?', (req_id,)
+    ).fetchone()
+    if not req:
+        abort(404)
+    if req['status'] != 'pending':
+        flash('이미 처리된 신청입니다.', 'error')
+        return redirect(url_for('attendance'))
+    mgr_dept = session.get('dept_id', 0)
+    if session.get('user_role') == 'manager' and mgr_dept and req['department_id'] != mgr_dept:
+        abort(403)
+    reason = request.form.get('reason', '').strip() or None
+    db.execute(
+        "UPDATE leave_requests SET status='rejected', approver_id=?, reject_reason=? WHERE id=?",
+        (session['user_id'], reason, req_id)
+    )
+    db.commit()
+    return redirect(url_for('attendance'))
+
+@app.route('/attendance/calendar')
+@login_required
+def attendance_calendar():
+    import calendar as cal_mod
+    from datetime import date, timedelta
+
+    db   = get_db()
+    uid  = session['user_id']
+    role = session['user_role']
+
+    today = date.today()
+    raw   = request.args.get('month', today.strftime('%Y-%m'))
+    try:
+        y, m = int(raw[:4]), int(raw[5:7])
+        if not (1 <= m <= 12):
+            raise ValueError
+    except (ValueError, IndexError):
+        y, m = today.year, today.month
+
+    prev_m = date(y, m, 1) - timedelta(days=1)
+    next_m = date(y, m, cal_mod.monthrange(y, m)[1]) + timedelta(days=1)
+
+    # 부서 필터 (Admin/Manager 전용)
+    dept_filter = None
+    departments = []
+    if role in ('admin', 'manager'):
+        departments = db.execute(
+            "SELECT id, name FROM departments ORDER BY name"
+        ).fetchall()
+        raw_dept = request.args.get('dept', '')
+        if raw_dept.isdigit():
+            dept_filter = int(raw_dept)
+
+    COLOR_MAP = {
+        'annual':  ('#eff6ff', '#2563eb'),
+        'half_am': ('#eff6ff', '#2563eb'),
+        'half_pm': ('#eff6ff', '#2563eb'),
+        'sick':    ('#fff7ed', '#ea580c'),
+        'remote':  ('#f0fdf4', '#16a34a'),
+        'outing':  ('#faf5ff', '#9333ea'),
+    }
+
+    if role in ('admin', 'manager'):
+        if dept_filter:
+            reqs = db.execute(
+                "SELECT r.*, u.name AS user_name, d.name AS dept_name "
+                "FROM leave_requests r "
+                "JOIN users u ON r.user_id = u.id "
+                "LEFT JOIN departments d ON u.department_id = d.id "
+                "WHERE r.status='approved' AND u.department_id=? "
+                "ORDER BY r.start_date",
+                (dept_filter,)
+            ).fetchall()
+        else:
+            reqs = db.execute(
+                "SELECT r.*, u.name AS user_name, d.name AS dept_name "
+                "FROM leave_requests r "
+                "JOIN users u ON r.user_id = u.id "
+                "LEFT JOIN departments d ON u.department_id = d.id "
+                "WHERE r.status='approved' ORDER BY r.start_date"
+            ).fetchall()
+    else:
+        reqs = db.execute(
+            "SELECT r.*, u.name AS user_name, d.name AS dept_name "
+            "FROM leave_requests r "
+            "JOIN users u ON r.user_id = u.id "
+            "LEFT JOIN departments d ON u.department_id = d.id "
+            "WHERE r.status='approved' "
+            "AND u.department_id=(SELECT department_id FROM users WHERE id=?) "
+            "ORDER BY r.start_date",
+            (uid,)
+        ).fetchall()
+
+    # 오늘 부재자 목록
+    today_absent = []
+    for r in reqs:
+        try:
+            sd = date.fromisoformat(r['start_date'])
+            ed = date.fromisoformat(r['end_date'])
+        except ValueError:
+            continue
+        if sd <= today <= ed:
+            today_absent.append({
+                'name':      r['user_name'],
+                'dept_name': r['dept_name'] if 'dept_name' in r.keys() else '',
+                'type':      LEAVE_LABELS.get(r['type'], r['type']),
+                'color':     COLOR_MAP.get(r['type'], ('#f1f5f9', '#475569'))[0],
+                'tc':        COLOR_MAP.get(r['type'], ('#f1f5f9', '#475569'))[1],
+            })
+
+    events_by_date = {}
+    for r in reqs:
+        try:
+            sd = date.fromisoformat(r['start_date'])
+            ed = date.fromisoformat(r['end_date'])
+        except ValueError:
+            continue
+        cur = sd
+        while cur <= ed:
+            key = cur.isoformat()
+            events_by_date.setdefault(key, []).append({
+                'name':       r['user_name'],
+                'type':       LEAVE_LABELS.get(r['type'], r['type']),
+                'color':      COLOR_MAP.get(r['type'], ('#f1f5f9', '#475569'))[0],
+                'text_color': COLOR_MAP.get(r['type'], ('#f1f5f9', '#475569'))[1],
+            })
+            cur += timedelta(days=1)
+
+    # 일요일 기준 시작 셀: offset = (weekday+1) % 7
+    first_day  = date(y, m, 1)
+    offset     = (first_day.weekday() + 1) % 7
+    start_cell = first_day - timedelta(days=offset)
+
+    cells = []
+    cur = start_cell
+    for _ in range(42):
+        all_events = events_by_date.get(cur.isoformat(), [])
+        cells.append({
+            'day':           cur.day,
+            'current_month': cur.month == m,
+            'is_today':      cur == today,
+            'events':        all_events[:3],
+            'extra':         max(0, len(all_events) - 3),
+        })
+        cur += timedelta(days=1)
+
+    return render_template('attendance/calendar.html',
+                           calendar_cells=cells,
+                           year=y, month=m, labels=LEAVE_LABELS,
+                           prev_month=prev_m.strftime('%Y-%m'),
+                           next_month=next_m.strftime('%Y-%m'),
+                           departments=departments,
+                           dept_filter=dept_filter,
+                           today_absent=today_absent,
+                           active_page='attendance')
+
+
+# ── Payroll ─────────────────────────────────────────────────
+@app.route('/payroll')
+@login_required
+def payroll_list():
+    db  = get_db()
+    uid = session['user_id']
+    slips = db.execute(
+        'SELECT year, month, gross_pay, total_deduction, net_pay '
+        'FROM payslips WHERE user_id=? ORDER BY year DESC, month DESC',
+        (uid,)
+    ).fetchall()
+    # 연차 잔여일 계산
+    user = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
+    total_leave = calc_annual_leave(user['hire_date']) if user and user['hire_date'] else 15
+    used_leave  = db.execute(
+        "SELECT COALESCE(SUM(days),0) FROM leave_requests "
+        "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm','sick')",
+        (uid,)
+    ).fetchone()[0]
+    return render_template('payroll/list.html', slips=slips,
+                           total_leave=total_leave, used_leave=used_leave,
+                           fmt_krw=fmt_krw,
+                           active_page='payroll')
+
+@app.route('/payroll/<int:year>/<int:month>')
+@login_required
+def payroll_detail(year, month):
+    db  = get_db()
+    uid = session['user_id']
+    slip = db.execute(
+        'SELECT p.*, u.name, u.email, u.hire_date, '
+        'd.name AS dept_name, pos.name AS pos_name '
+        'FROM payslips p '
+        'JOIN users u ON p.user_id = u.id '
+        'LEFT JOIN departments d   ON u.department_id = d.id '
+        'LEFT JOIN positions   pos ON u.position_id   = pos.id '
+        'WHERE p.user_id=? AND p.year=? AND p.month=?',
+        (uid, year, month)
+    ).fetchone()
+    if not slip:
+        abort(404)
+    return render_template('payroll/detail.html', slip=slip,
+                           year=year, month=month, fmt_krw=fmt_krw,
+                           active_page='payroll')
+
+@app.route('/admin/payroll', methods=['GET', 'POST'])
+@admin_required
+def admin_payroll():
+    db    = get_db()
+    error = None
+    msg   = None
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        # 급여 정보 수정
+        if action == 'update_salary':
+            uid   = request.form.get('user_id')
+            base  = int(request.form.get('base_salary', 0))
+            meal  = int(request.form.get('meal_allowance', 0))
+            trans = int(request.form.get('transport_allowance', 0))
+            db.execute(
+                'INSERT INTO employee_salary (user_id, base_salary, meal_allowance, transport_allowance) '
+                'VALUES (?, ?, ?, ?) '
+                'ON CONFLICT(user_id) DO UPDATE SET '
+                'base_salary=excluded.base_salary, '
+                'meal_allowance=excluded.meal_allowance, '
+                'transport_allowance=excluded.transport_allowance, '
+                'updated_at=CURRENT_TIMESTAMP',
+                (uid, base, meal, trans)
+            )
+            db.commit()
+            msg = '급여 정보가 저장되었습니다.'
+
+        # 월 급여 일괄 생성
+        elif action == 'generate':
+            year  = int(request.form.get('year', 2026))
+            month = int(request.form.get('month', 1))
+            if not (1 <= month <= 12):
+                error = '올바른 월을 입력해주세요.'
+            else:
+                emps = db.execute(
+                    "SELECT u.id, s.base_salary, s.meal_allowance, s.transport_allowance "
+                    "FROM users u "
+                    "JOIN employee_salary s ON u.id = s.user_id "
+                    "WHERE u.status = 'active'"
+                ).fetchall()
+                count = 0
+                for e in emps:
+                    # 이미 생성된 명세서는 건너뜀
+                    exists = db.execute(
+                        'SELECT id FROM payslips WHERE user_id=? AND year=? AND month=?',
+                        (e['id'], year, month)
+                    ).fetchone()
+                    if exists:
+                        continue
+                    result = calc_payslip(
+                        e['base_salary'],
+                        e['meal_allowance'],
+                        e['transport_allowance']
+                    )
+                    db.execute(
+                        'INSERT INTO payslips '
+                        '(user_id, year, month, base_salary, meal_allowance, transport_allowance, '
+                        'overtime_pay, national_pension, health_insurance, long_term_care, '
+                        'employment_insurance, income_tax, local_income_tax, '
+                        'gross_pay, total_deduction, net_pay) '
+                        'VALUES (?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?)',
+                        (e['id'], year, month,
+                         result['base_salary'], result['meal_allowance'],
+                         result['transport_allowance'],
+                         result['national_pension'], result['health_insurance'],
+                         result['long_term_care'], result['employment_insurance'],
+                         result['income_tax'], result['local_income_tax'],
+                         result['gross_pay'], result['total_deduction'], result['net_pay'])
+                    )
+                    count += 1
+                db.commit()
+                msg = f'{year}년 {month}월 급여명세서 {count}건이 생성되었습니다.'
+
+    emps = db.execute(
+        'SELECT u.id, u.name, d.name AS dept_name, p.name AS pos_name, '
+        'COALESCE(s.base_salary, 0) AS base_salary, '
+        'COALESCE(s.meal_allowance, 0) AS meal_allowance, '
+        'COALESCE(s.transport_allowance, 0) AS transport_allowance '
+        'FROM users u '
+        'LEFT JOIN departments d ON u.department_id = d.id '
+        'LEFT JOIN positions   p ON u.position_id   = p.id '
+        'LEFT JOIN employee_salary s ON u.id = s.user_id '
+        "WHERE u.status='active' ORDER BY d.name, u.name"
+    ).fetchall()
+    return render_template('payroll/admin.html', emps=emps,
+                           error=error, msg=msg, fmt_krw=fmt_krw,
+                           active_page='admin_payroll')
+
+
+@app.route('/payroll/salary-table')
+@admin_required
+def salary_table():
+    db = get_db()
+    positions   = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+    job_families = db.execute('SELECT * FROM job_families ORDER BY id').fetchall()
+    grades_raw  = db.execute(
+        'SELECT sg.job_family_id, sg.position_id, sg.annual_salary '
+        'FROM salary_grades sg'
+    ).fetchall()
+    # {(job_family_id, position_id): annual_salary}
+    grade_map = {(r['job_family_id'], r['position_id']): r['annual_salary'] for r in grades_raw}
+    return render_template('payroll/salary_table.html',
+                           positions=positions,
+                           job_families=job_families,
+                           grade_map=grade_map,
+                           fmt_krw=fmt_krw,
+                           active_page='salary_table')
+
+
+# ── Certificate ──────────────────────────────────────────────
+@app.route('/certificate/employment')
+@login_required
+def cert_employment():
+    from datetime import date
+    db  = get_db()
+    uid = session['user_id']
+    user = db.execute(
+        'SELECT u.*, d.name AS dept_name, p.name AS pos_name, '
+        '       jf.name AS jf_name '
+        'FROM users u '
+        'LEFT JOIN departments d  ON u.department_id  = d.id '
+        'LEFT JOIN positions   p  ON u.position_id    = p.id '
+        'LEFT JOIN job_families jf ON u.job_family_id = jf.id '
+        'WHERE u.id=?', (uid,)
+    ).fetchone()
+    today = date.today()
+    cert_no = f"EMP-{today.strftime('%Y%m')}-{uid:04d}"
+    return render_template('certificate/employment.html',
+                           user=user,
+                           today=today.strftime('%Y년 %m월 %d일'),
+                           cert_no=cert_no,
+                           company=COMPANY_INFO)
+
+@app.route('/certificate/career')
+@login_required
+def cert_career():
+    from datetime import date
+    db  = get_db()
+    uid = session['user_id']
+    user = db.execute(
+        'SELECT u.*, d.name AS dept_name, p.name AS pos_name, '
+        '       jf.name AS jf_name '
+        'FROM users u '
+        'LEFT JOIN departments d  ON u.department_id  = d.id '
+        'LEFT JOIN positions   p  ON u.position_id    = p.id '
+        'LEFT JOIN job_families jf ON u.job_family_id = jf.id '
+        'WHERE u.id=?', (uid,)
+    ).fetchone()
+    today = date.today()
+    cert_no = f"CAR-{today.strftime('%Y%m')}-{uid:04d}"
+    return render_template('certificate/career.html',
+                           user=user,
+                           today=today.strftime('%Y년 %m월 %d일'),
+                           cert_no=cert_no,
+                           company=COMPANY_INFO)
+
+
+# ── Performance ──────────────────────────────────────────────
+SCORE_LABELS = {5: 'S — 탁월', 4: 'A — 우수', 3: 'B — 양호', 2: 'C — 개선필요', 1: 'D — 미흡'}
+
+@app.route('/performance')
+@login_required
+def performance():
+    db   = get_db()
+    uid  = session['user_id']
+    role = session['user_role']
+
+    cycles = db.execute(
+        "SELECT * FROM performance_cycles ORDER BY start_date DESC"
+    ).fetchall()
+    active_cycle = next((c for c in cycles if c['status'] == 'active'), None)
+
+    # URL ?cycle= 파라미터로 주기 선택 (정수 변환으로 안전하게 처리)
+    try:
+        selected_cycle_id = int(request.args.get('cycle', 0))
+    except (ValueError, TypeError):
+        selected_cycle_id = 0
+    if selected_cycle_id:
+        selected_cycle = next((c for c in cycles if c['id'] == selected_cycle_id), active_cycle)
+    else:
+        selected_cycle = active_cycle
+
+    cycle_id = selected_cycle['id'] if selected_cycle else 0
+
+    if role in ('admin', 'manager'):
+        # manager는 자기 부서 팀원만 조회
+        mgr_dept = int(session.get('dept_id') or 0)
+        if role == 'manager' and mgr_dept:
+            goals = db.execute(
+                'SELECT g.*, u.id AS user_id, u.name AS user_name, d.name AS dept_name, '
+                'AVG(r.score) AS avg_score, COUNT(r.id) AS review_count '
+                'FROM performance_goals g '
+                'JOIN users u ON g.user_id = u.id '
+                'LEFT JOIN departments d ON u.department_id = d.id '
+                'LEFT JOIN performance_reviews r ON g.id = r.goal_id '
+                'WHERE g.cycle_id = ? AND u.department_id = ? '
+                'GROUP BY g.id ORDER BY u.name, g.created_at',
+                (cycle_id, mgr_dept)
+            ).fetchall()
+        else:
+            goals = db.execute(
+                'SELECT g.*, u.id AS user_id, u.name AS user_name, d.name AS dept_name, '
+                'AVG(r.score) AS avg_score, COUNT(r.id) AS review_count '
+                'FROM performance_goals g '
+                'JOIN users u ON g.user_id = u.id '
+                'LEFT JOIN departments d ON u.department_id = d.id '
+                'LEFT JOIN performance_reviews r ON g.id = r.goal_id '
+                'WHERE g.cycle_id = ? '
+                'GROUP BY g.id ORDER BY u.name, g.created_at',
+                (cycle_id,)
+            ).fetchall()
+    else:
+        goals = db.execute(
+            'SELECT g.*, AVG(r.score) AS avg_score, COUNT(r.id) AS review_count '
+            'FROM performance_goals g '
+            'LEFT JOIN performance_reviews r ON g.id = r.goal_id '
+            'WHERE g.user_id=? AND g.cycle_id=? '
+            'GROUP BY g.id ORDER BY g.created_at',
+            (uid, cycle_id)
+        ).fetchall()
+
+    return render_template('performance/index.html',
+                           cycles=cycles, active_cycle=active_cycle,
+                           selected_cycle=selected_cycle,
+                           goals=goals, score_labels=SCORE_LABELS,
+                           active_page='performance')
+
+@app.route('/performance/goals/new', methods=['GET', 'POST'])
+@login_required
+def performance_goal_new():
+    db   = get_db()
+    uid  = session['user_id']
+    cycles = db.execute(
+        "SELECT * FROM performance_cycles WHERE status='active' ORDER BY start_date DESC"
+    ).fetchall()
+    error = None
+
+    if request.method == 'POST':
+        cycle_id = request.form.get('cycle_id')
+        category = request.form.get('category', 'KPI')
+        title    = request.form.get('title', '').strip()
+        desc     = request.form.get('description', '').strip() or None
+        weight   = int(request.form.get('weight', 100))
+
+        if not cycle_id or not title:
+            error = '평가 주기와 목표명은 필수입니다.'
+        elif not (1 <= weight <= 100):
+            error = '가중치는 1~100 사이여야 합니다.'
+        else:
+            db.execute(
+                'INSERT INTO performance_goals (cycle_id, user_id, category, title, description, weight) '
+                'VALUES (?, ?, ?, ?, ?, ?)',
+                (cycle_id, uid, category, title, desc, weight)
+            )
+            db.commit()
+            return redirect(url_for('performance'))
+
+    return render_template('performance/goal_form.html',
+                           cycles=cycles, error=error,
+                           active_page='performance')
+
+@app.route('/performance/goals/<int:goal_id>/review', methods=['GET', 'POST'])
+@manager_or_admin
+def performance_review(goal_id):
+    db   = get_db()
+    goal = db.execute(
+        'SELECT g.*, u.name AS user_name '
+        'FROM performance_goals g JOIN users u ON g.user_id = u.id '
+        'WHERE g.id=?', (goal_id,)
+    ).fetchone()
+    if not goal:
+        abort(404)
+
+    existing = db.execute(
+        'SELECT * FROM performance_reviews WHERE goal_id=? AND reviewer_id=?',
+        (goal_id, session['user_id'])
+    ).fetchone()
+    error = None
+
+    if request.method == 'POST':
+        score   = int(request.form.get('score', 3))
+        comment = request.form.get('comment', '').strip() or None
+        if not (1 <= score <= 5):
+            error = '점수는 1~5 사이여야 합니다.'
+        else:
+            db.execute(
+                'INSERT INTO performance_reviews (goal_id, reviewer_id, score, comment) '
+                'VALUES (?, ?, ?, ?) '
+                'ON CONFLICT(goal_id, reviewer_id) DO UPDATE SET score=excluded.score, '
+                'comment=excluded.comment, created_at=CURRENT_TIMESTAMP',
+                (goal_id, session['user_id'], score, comment)
+            )
+            db.commit()
+            return redirect(url_for('performance'))
+
+    return render_template('performance/review.html',
+                           goal=goal, existing=existing,
+                           score_labels=SCORE_LABELS, error=error,
+                           active_page='performance')
+
+
+# ── Performance Cycles (Admin) ────────────────────────────────
+@app.route('/performance/cycles')
+@admin_required
+def performance_cycles():
+    db     = get_db()
+    cycles = db.execute(
+        'SELECT pc.*, COUNT(pg.id) AS goal_count '
+        'FROM performance_cycles pc '
+        'LEFT JOIN performance_goals pg ON pc.id = pg.cycle_id '
+        'GROUP BY pc.id ORDER BY pc.start_date DESC'
+    ).fetchall()
+    return render_template('performance/cycles.html', cycles=cycles,
+                           active_page='performance_cycles')
+
+
+@app.route('/performance/cycles/new', methods=['POST'])
+@admin_required
+def performance_cycle_new():
+    db         = get_db()
+    name       = request.form.get('name', '').strip()
+    start_date = request.form.get('start_date', '').strip()
+    end_date   = request.form.get('end_date', '').strip()
+
+    if not name or not start_date or not end_date:
+        flash('모든 항목을 입력해 주세요.', 'error')
+        return redirect(url_for('performance_cycles'))
+    if start_date >= end_date:
+        flash('종료일은 시작일보다 이후여야 합니다.', 'error')
+        return redirect(url_for('performance_cycles'))
+
+    # 기존 active 사이클이 있으면 자동 closed 처리
+    db.execute("UPDATE performance_cycles SET status='closed' WHERE status='active'")
+    db.execute(
+        'INSERT INTO performance_cycles (name, start_date, end_date, status) VALUES (?, ?, ?, ?)',
+        (name, start_date, end_date, 'active')
+    )
+    db.commit()
+    flash(f'평가 주기 "{name}"이 생성되었습니다.', 'success')
+    return redirect(url_for('performance_cycles'))
+
+
+@app.route('/performance/cycles/<int:cycle_id>/close', methods=['POST'])
+@admin_required
+def performance_cycle_close(cycle_id):
+    db = get_db()
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cycle:
+        abort(404)
+    db.execute("UPDATE performance_cycles SET status='closed' WHERE id=?", (cycle_id,))
+    db.commit()
+    flash(f'"{cycle["name"]}" 평가 주기가 마감되었습니다.', 'success')
+    return redirect(url_for('performance_cycles'))
+
+
+@app.route('/performance/cycles/<int:cycle_id>/activate', methods=['POST'])
+@admin_required
+def performance_cycle_activate(cycle_id):
+    db = get_db()
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cycle:
+        abort(404)
+    # 기존 active 사이클 종료 후 대상 활성화
+    db.execute("UPDATE performance_cycles SET status='closed' WHERE status='active'")
+    db.execute("UPDATE performance_cycles SET status='active' WHERE id=?", (cycle_id,))
+    db.commit()
+    flash(f'"{cycle["name"]}" 평가 주기가 활성화되었습니다.', 'success')
+    return redirect(url_for('performance_cycles'))
+
+
+# ── Profile ─────────────────────────────────────────────────
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    db    = get_db()
+    uid   = session['user_id']
+    user  = db.execute(
+        'SELECT u.*, d.name AS dept_name, p.name AS pos_name FROM users u '
+        'LEFT JOIN departments d ON u.department_id = d.id '
+        'LEFT JOIN positions p ON u.position_id = p.id WHERE u.id=?', (uid,)
+    ).fetchone()
+    error = None
+    msg   = None
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        if action == 'update_info':
+            phone = request.form.get('phone', '').strip() or None
+            db.execute('UPDATE users SET phone=? WHERE id=?', (phone, uid))
+            db.commit()
+            msg = '정보가 저장되었습니다.'
+            user = db.execute(
+                'SELECT u.*, d.name AS dept_name, p.name AS pos_name FROM users u '
+                'LEFT JOIN departments d ON u.department_id = d.id '
+                'LEFT JOIN positions p ON u.position_id = p.id WHERE u.id=?', (uid,)
+            ).fetchone()
+
+        elif action == 'change_password':
+            current_pw  = request.form.get('current_password', '')
+            new_pw      = request.form.get('new_password', '')
+            confirm_pw  = request.form.get('confirm_password', '')
+            if not check_password_hash(user['password_hash'], current_pw):
+                error = '현재 비밀번호가 올바르지 않습니다.'
+            elif len(new_pw) < 8:
+                error = '새 비밀번호는 8자 이상이어야 합니다.'
+            elif new_pw != confirm_pw:
+                error = '새 비밀번호와 확인 비밀번호가 일치하지 않습니다.'
+            else:
+                db.execute(
+                    'UPDATE users SET password_hash=? WHERE id=?',
+                    (generate_password_hash(new_pw), uid)
+                )
+                db.commit()
+                msg = '비밀번호가 변경되었습니다.'
+
+    return render_template('profile.html', user=user, error=error, msg=msg,
+                           active_page='profile')
+
+
+# ── Recruit ─────────────────────────────────────────────────
+STAGES = [
+    ('applied',    '지원 접수'),
+    ('screening',  '서류 심사'),
+    ('interview1', '1차 면접'),
+    ('interview2', '2차 면접'),
+    ('final',      '최종 면접'),
+    ('offered',    '오퍼'),
+    ('hired',      '입사 확정'),
+    ('rejected',   '불합격'),
+]
+STAGE_MAP     = dict(STAGES)
+ACTIVE_STAGES = [s for s in STAGES if s[0] != 'rejected']
+
+SOURCE_LABELS = {
+    'direct':   '직접 지원',
+    'referral': '내부 추천',
+    'headhunt': '헤드헌팅',
+    'platform': '채용 플랫폼',
+    'other':    '기타',
+}
+
+@app.route('/recruit/postings')
+@recruiter_or_admin
+def recruit_postings():
+    db     = get_db()
+    status = request.args.get('status', '')
+    sql    = (
+        'SELECT jp.*, d.name AS dept_name, p.name AS pos_name, '
+        'u.name AS created_by_name, COUNT(a.id) AS applicant_count '
+        'FROM job_postings jp '
+        'LEFT JOIN departments d ON jp.department_id = d.id '
+        'LEFT JOIN positions   p ON jp.position_id   = p.id '
+        'LEFT JOIN users       u ON jp.created_by    = u.id '
+        'LEFT JOIN applicants  a ON jp.id = a.posting_id '
+    )
+    params = []
+    if status in ('draft', 'open', 'closed'):
+        sql += 'WHERE jp.status = ? '
+        params.append(status)
+    sql += 'GROUP BY jp.id ORDER BY jp.created_at DESC'
+    postings = db.execute(sql, params).fetchall()
+    return render_template('recruit/postings.html',
+                           postings=postings, status=status,
+                           active_page='recruit')
+
+@app.route('/recruit/postings/new', methods=['GET', 'POST'])
+@recruiter_or_admin
+def recruit_posting_new():
+    db    = get_db()
+    depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+    error = None
+
+    if request.method == 'POST':
+        title    = request.form.get('title', '').strip()
+        dept_id  = request.form.get('department_id') or None
+        pos_id   = request.form.get('position_id') or None
+        desc     = request.form.get('description', '').strip() or None
+        reqs     = request.form.get('requirements', '').strip() or None
+        status   = request.form.get('status', 'open')
+        deadline = request.form.get('deadline') or None
+
+        if not title:
+            error = '공고 제목은 필수입니다.'
+        elif status not in ('draft', 'open', 'closed'):
+            error = '올바르지 않은 공고 상태입니다.'
+        else:
+            db.execute(
+                'INSERT INTO job_postings '
+                '(title, department_id, position_id, description, requirements, status, deadline, created_by) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                (title, dept_id, pos_id, desc, reqs, status, deadline, session['user_id'])
+            )
+            db.commit()
+            return redirect(url_for('recruit_postings'))
+
+    return render_template('recruit/posting_form.html',
+                           mode='new', posting=None, depts=depts, poses=poses, error=error,
+                           active_page='recruit')
+
+@app.route('/recruit/postings/<int:posting_id>', methods=['GET', 'POST'])
+@recruiter_or_admin
+def recruit_posting_detail(posting_id):
+    db      = get_db()
+    posting = db.execute(
+        'SELECT jp.*, d.name AS dept_name, p.name AS pos_name '
+        'FROM job_postings jp '
+        'LEFT JOIN departments d ON jp.department_id = d.id '
+        'LEFT JOIN positions   p ON jp.position_id   = p.id '
+        'WHERE jp.id = ?', (posting_id,)
+    ).fetchone()
+    if not posting:
+        abort(404)
+
+    error = None
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'add_applicant':
+            name   = request.form.get('name', '').strip()
+            email  = request.form.get('email', '').strip()
+            phone  = request.form.get('phone', '').strip() or None
+            source = request.form.get('source', 'direct')
+            note   = request.form.get('resume_note', '').strip() or None
+            if not name or not email:
+                error = '지원자 이름과 이메일은 필수입니다.'
+            elif source not in SOURCE_LABELS:
+                error = '올바르지 않은 지원 경로입니다.'
+            else:
+                db.execute(
+                    'INSERT INTO applicants (posting_id, name, email, phone, source, resume_note) '
+                    'VALUES (?, ?, ?, ?, ?, ?)',
+                    (posting_id, name, email, phone, source, note)
+                )
+                db.commit()
+        elif action == 'close':
+            db.execute("UPDATE job_postings SET status='closed' WHERE id=?", (posting_id,))
+            db.commit()
+        elif action == 'reopen':
+            db.execute("UPDATE job_postings SET status='open' WHERE id=?", (posting_id,))
+            db.commit()
+        return redirect(url_for('recruit_posting_detail', posting_id=posting_id))
+
+    applicants = db.execute(
+        'SELECT * FROM applicants WHERE posting_id=? ORDER BY created_at DESC',
+        (posting_id,)
+    ).fetchall()
+    return render_template('recruit/posting_detail.html',
+                           posting=posting, applicants=applicants,
+                           stage_map=STAGE_MAP, source_labels=SOURCE_LABELS,
+                           error=error,
+                           active_page='recruit')
+
+@app.route('/recruit/postings/<int:posting_id>/edit', methods=['GET', 'POST'])
+@recruiter_or_admin
+def recruit_posting_edit(posting_id):
+    db      = get_db()
+    posting = db.execute('SELECT * FROM job_postings WHERE id=?', (posting_id,)).fetchone()
+    if not posting:
+        abort(404)
+    depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+    error = None
+
+    if request.method == 'POST':
+        title    = request.form.get('title', '').strip()
+        dept_id  = request.form.get('department_id') or None
+        pos_id   = request.form.get('position_id') or None
+        desc     = request.form.get('description', '').strip() or None
+        reqs     = request.form.get('requirements', '').strip() or None
+        status   = request.form.get('status', 'open')
+        deadline = request.form.get('deadline') or None
+
+        if not title:
+            error = '공고 제목은 필수입니다.'
+        elif status not in ('draft', 'open', 'closed'):
+            error = '올바르지 않은 공고 상태입니다.'
+        else:
+            db.execute(
+                'UPDATE job_postings SET title=?, department_id=?, position_id=?, '
+                'description=?, requirements=?, status=?, deadline=? WHERE id=?',
+                (title, dept_id, pos_id, desc, reqs, status, deadline, posting_id)
+            )
+            db.commit()
+            return redirect(url_for('recruit_posting_detail', posting_id=posting_id))
+
+    return render_template('recruit/posting_form.html',
+                           mode='edit', posting=posting, depts=depts, poses=poses, error=error,
+                           active_page='recruit')
+
+@app.route('/recruit/pipeline')
+@recruiter_or_admin
+def recruit_pipeline():
+    db         = get_db()
+    posting_id = request.args.get('posting', '')
+    postings   = db.execute(
+        "SELECT * FROM job_postings WHERE status != 'draft' ORDER BY created_at DESC"
+    ).fetchall()
+
+    sql    = (
+        'SELECT a.*, jp.title AS posting_title '
+        'FROM applicants a '
+        'JOIN job_postings jp ON a.posting_id = jp.id '
+    )
+    params = []
+    if posting_id:
+        sql += 'WHERE a.posting_id = ? '
+        params.append(posting_id)
+    sql += 'ORDER BY a.created_at DESC'
+    applicants = db.execute(sql, params).fetchall()
+
+    pipeline = {stage: [] for stage, _ in STAGES}
+    for a in applicants:
+        stage = a['stage']
+        if stage in pipeline:
+            pipeline[stage].append(a)
+
+    return render_template('recruit/pipeline.html',
+                           pipeline=pipeline, stages=STAGES,
+                           active_stages=ACTIVE_STAGES,
+                           postings=postings, posting_id=posting_id,
+                           active_page='recruit_pipeline')
+
+@app.route('/recruit/applicants/<int:applicant_id>', methods=['GET', 'POST'])
+@recruiter_or_admin
+def recruit_applicant_detail(applicant_id):
+    db        = get_db()
+    applicant = db.execute(
+        'SELECT a.*, jp.title AS posting_title, jp.id AS posting_id '
+        'FROM applicants a JOIN job_postings jp ON a.posting_id = jp.id '
+        'WHERE a.id=?', (applicant_id,)
+    ).fetchone()
+    if not applicant:
+        abort(404)
+
+    if request.method == 'POST':
+        new_stage = request.form.get('stage', '')
+        note      = request.form.get('note', '').strip() or None
+        if new_stage in STAGE_MAP:
+            db.execute('UPDATE applicants SET stage=? WHERE id=?', (new_stage, applicant_id))
+            db.execute(
+                'INSERT INTO applicant_logs (applicant_id, stage, note, changed_by) VALUES (?, ?, ?, ?)',
+                (applicant_id, new_stage, note, session['user_id'])
+            )
+            db.commit()
+        return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+
+    logs = db.execute(
+        'SELECT l.*, u.name AS changed_by_name '
+        'FROM applicant_logs l JOIN users u ON l.changed_by = u.id '
+        'WHERE l.applicant_id=? ORDER BY l.created_at DESC',
+        (applicant_id,)
+    ).fetchall()
+    return render_template('recruit/applicant_detail.html',
+                           applicant=applicant, logs=logs,
+                           stages=STAGES, stage_map=STAGE_MAP,
+                           source_labels=SOURCE_LABELS,
+                           active_page='recruit')
+
+
+# ── Performance: Progress & Self-Review ─────────────────────
+@app.route('/performance/goals/<int:goal_id>/progress', methods=['POST'])
+@login_required
+def performance_goal_progress(goal_id):
+    db   = get_db()
+    uid  = session['user_id']
+    goal = db.execute('SELECT user_id FROM performance_goals WHERE id=?', (goal_id,)).fetchone()
+    if not goal:
+        abort(404)
+    if goal['user_id'] != uid:
+        abort(403)
+    try:
+        progress = max(0, min(100, int(request.form.get('progress', 0))))
+    except (ValueError, TypeError):
+        progress = 0
+    db.execute('UPDATE performance_goals SET progress=? WHERE id=?', (progress, goal_id))
+    db.commit()
+    return redirect(url_for('performance'))
+
+
+@app.route('/performance/goals/<int:goal_id>/self-review', methods=['GET', 'POST'])
+@login_required
+def performance_self_review(goal_id):
+    db   = get_db()
+    uid  = session['user_id']
+    goal = db.execute(
+        'SELECT g.*, c.name AS cycle_name FROM performance_goals g '
+        'JOIN performance_cycles c ON g.cycle_id = c.id WHERE g.id=?',
+        (goal_id,)
+    ).fetchone()
+    if not goal:
+        abort(404)
+    if goal['user_id'] != uid:
+        abort(403)
+    error = None
+    if request.method == 'POST':
+        try:
+            score = int(request.form.get('self_score', 0))
+        except (ValueError, TypeError):
+            score = 0
+        comment = request.form.get('self_comment', '').strip() or None
+        if not (1 <= score <= 5):
+            error = '자기평가 점수는 1~5점 사이여야 합니다.'
+        else:
+            db.execute(
+                'UPDATE performance_goals SET self_score=?, self_comment=? WHERE id=?',
+                (score, comment, goal_id)
+            )
+            db.commit()
+            return redirect(url_for('performance'))
+    return render_template('performance/self_review.html',
+                           goal=goal, error=error, score_labels=SCORE_LABELS,
+                           active_page='performance')
+
+
+# ── Attendance Home ─────────────────────────────────────────
+@app.route('/attendance/home')
+@login_required
+def attendance_home():
+    from datetime import date, timedelta
+    db    = get_db()
+    uid   = session['user_id']
+    today = date.today()
+
+    checkin = db.execute(
+        'SELECT * FROM checkins WHERE user_id=? AND date=?',
+        (uid, today.isoformat())
+    ).fetchone()
+
+    hire_row = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
+    total_leave  = calc_annual_leave(hire_row['hire_date']) if hire_row and hire_row['hire_date'] else 15
+    used_leave   = db.execute(
+        "SELECT COALESCE(SUM(days),0) FROM leave_requests "
+        "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm','sick')",
+        (uid,)
+    ).fetchone()[0]
+
+    recent_requests = db.execute(
+        'SELECT * FROM leave_requests WHERE user_id=? ORDER BY created_at DESC LIMIT 5',
+        (uid,)
+    ).fetchall()
+
+    first_day = today.replace(day=1)
+    if today.month == 12:
+        last_day = date(today.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        last_day = date(today.year, today.month + 1, 1) - timedelta(days=1)
+
+    checkins_month = db.execute(
+        'SELECT * FROM checkins WHERE user_id=? AND date>=? AND date<=? ORDER BY date DESC',
+        (uid, first_day.isoformat(), last_day.isoformat())
+    ).fetchall()
+
+    pending = db.execute(
+        "SELECT COUNT(*) FROM leave_requests WHERE user_id=? AND status='pending'",
+        (uid,)
+    ).fetchone()[0]
+
+    return render_template('attendance/home.html',
+                           today=today,
+                           checkin=checkin,
+                           total_leave=total_leave,
+                           used_leave=float(used_leave),
+                           remain_leave=total_leave - float(used_leave),
+                           recent_requests=recent_requests,
+                           checkins_month=checkins_month,
+                           pending=pending,
+                           labels=LEAVE_LABELS,
+                           active_page='attendance_home')
+
+
+@app.route('/attendance/checkin', methods=['POST'])
+@login_required
+def do_checkin():
+    from datetime import date, datetime
+    db    = get_db()
+    uid   = session['user_id']
+    today = date.today().isoformat()
+    now   = datetime.now().strftime('%H:%M')
+    db.execute(
+        'INSERT INTO checkins (user_id, date, check_in) VALUES (?, ?, ?) '
+        'ON CONFLICT(user_id, date) DO UPDATE SET check_in=excluded.check_in',
+        (uid, today, now)
+    )
+    db.commit()
+    return redirect(url_for('attendance_home'))
+
+
+@app.route('/attendance/checkout', methods=['POST'])
+@login_required
+def do_checkout():
+    from datetime import date, datetime
+    db    = get_db()
+    uid   = session['user_id']
+    today = date.today().isoformat()
+    now   = datetime.now().strftime('%H:%M')
+    row = db.execute(
+        'SELECT id FROM checkins WHERE user_id=? AND date=?', (uid, today)
+    ).fetchone()
+    if row:
+        db.execute(
+            'UPDATE checkins SET check_out=? WHERE user_id=? AND date=?',
+            (now, uid, today)
+        )
+        db.commit()
+    return redirect(url_for('attendance_home'))
+
+
+# ── Peer Review & Calibration ────────────────────────────────
+
+UPWARD_QUESTIONS = [
+    '매니저는 나의 성장을 위한 구체적인 피드백을 제공한다.',
+    '매니저는 불필요하게 세부 사항을 통제하지 않는다 (마이크로매니징 없음).',
+    '매니저는 팀 목표와 우선순위를 명확하게 전달한다.',
+    '매니저는 나를 한 사람으로서 배려한다.',
+    '전반적으로 이 매니저와 계속 일하고 싶다.',
+]
+
+
+def _calc_upward_avg(row):
+    """upward review 행에서 5개 질문 평균 반환"""
+    scores = [row[f'q{i}_score'] for i in range(1, 6) if row[f'q{i}_score'] is not None]
+    return round(sum(scores) / len(scores), 2) if scores else None
+
+
+def generate_calibration_summary(name, self_avg, peer_avg, mgr_avg, upward_avg):
+    """규칙 기반 캘리브레이션 요약 텍스트 생성"""
+    scores = {k: v for k, v in {
+        '자기평가': self_avg, '동료평가': peer_avg, '매니저평가': mgr_avg
+    }.items() if v is not None}
+
+    if not scores:
+        return '아직 평가 데이터가 없습니다.'
+
+    overall = sum(scores.values()) / len(scores)
+
+    # 등급 결정
+    if overall >= 4.5:
+        grade, label = 'S', '탁월'
+    elif overall >= 3.5:
+        grade, label = 'A', '우수'
+    elif overall >= 2.5:
+        grade, label = 'B', '양호'
+    elif overall >= 1.5:
+        grade, label = 'C', '개선필요'
+    else:
+        grade, label = 'D', '미흡'
+
+    parts = [f'{name}의 종합 평균은 {overall:.2f}점으로 {label}({grade}) 등급에 해당합니다.']
+
+    # 일관성 분석
+    if len(scores) >= 2:
+        rng = max(scores.values()) - min(scores.values())
+        if rng <= 0.5:
+            parts.append('3가지 평가 간 일관성이 높습니다.')
+        elif rng <= 1.0:
+            parts.append('평가 간 소폭의 차이가 있습니다.')
+        else:
+            parts.append('평가 간 상당한 편차가 있어 추가 논의가 필요합니다.')
+
+    # 자기평가 vs 매니저평가 갭
+    if self_avg is not None and mgr_avg is not None:
+        gap = self_avg - mgr_avg
+        if gap >= 1.0:
+            parts.append('자기평가가 매니저평가보다 1점 이상 높습니다 (자기인식 과잉 경향 확인 필요).')
+        elif gap <= -1.0:
+            parts.append('매니저평가가 자기평가보다 1점 이상 높습니다 (겸손한 자기평가).')
+
+    # 동료평가 특이점
+    if peer_avg is not None and mgr_avg is not None:
+        if peer_avg < mgr_avg - 0.7:
+            parts.append('동료평가가 매니저평가보다 낮습니다 — 협업/커뮤니케이션 측면을 확인하세요.')
+        elif peer_avg > mgr_avg + 0.7:
+            parts.append('동료들의 평가가 매니저평가보다 높습니다.')
+
+    # 매니저 upward
+    if upward_avg is not None:
+        if upward_avg >= 4.0:
+            parts.append(f'팀원 피드백 평균 {upward_avg:.1f}점 — 높은 리더십 만족도를 보입니다.')
+        elif upward_avg < 3.0:
+            parts.append(f'팀원 피드백 평균 {upward_avg:.1f}점 — 리더십 개선이 필요합니다.')
+
+    parts.append(f'캘리브레이션 권고 등급: {grade}')
+    return ' '.join(parts)
+
+
+@app.route('/performance/peer')
+@login_required
+def peer_reviews_page():
+    db    = get_db()
+    uid   = session['user_id']
+    role  = session['user_role']
+
+    cycles = db.execute(
+        "SELECT * FROM performance_cycles ORDER BY start_date DESC"
+    ).fetchall()
+    active_cycle = next((c for c in cycles if c['status'] == 'active'), None)
+
+    try:
+        selected_cycle_id = int(request.args.get('cycle', 0))
+    except (ValueError, TypeError):
+        selected_cycle_id = 0
+    selected_cycle = next(
+        (c for c in cycles if c['id'] == selected_cycle_id), active_cycle
+    )
+    cycle_id = selected_cycle['id'] if selected_cycle else 0
+
+    # 내가 작성해야 할 다면평가 (배정된 것)
+    my_assignments = []
+    if cycle_id:
+        rows = db.execute(
+            'SELECT pa.*, u.name AS reviewee_name, u.id AS reviewee_id, '
+            "pr.id AS done_id "
+            'FROM peer_assignments pa '
+            'JOIN users u ON pa.reviewee_id = u.id '
+            "LEFT JOIN peer_reviews pr ON pr.cycle_id=pa.cycle_id "
+            "  AND pr.reviewee_id=pa.reviewee_id AND pr.reviewer_id=pa.reviewer_id "
+            "  AND pr.review_type='peer' "
+            'WHERE pa.cycle_id=? AND pa.reviewer_id=?',
+            (cycle_id, uid)
+        ).fetchall()
+        my_assignments = rows
+
+    # 내가 작성해야 할 매니저 평가 (같은 부서 매니저 목록)
+    upward_targets = []
+    if cycle_id:
+        my_dept = int(session.get('dept_id') or 0)
+        if my_dept and role == 'employee':
+            mgrs = db.execute(
+                "SELECT u.id, u.name FROM users u "
+                "WHERE u.department_id=? AND u.role='manager' AND u.status='active'",
+                (my_dept,)
+            ).fetchall()
+            for mgr in mgrs:
+                done = db.execute(
+                    "SELECT id FROM peer_reviews WHERE cycle_id=? AND reviewee_id=? "
+                    "AND reviewer_id=? AND review_type='upward'",
+                    (cycle_id, mgr['id'], uid)
+                ).fetchone()
+                upward_targets.append({'id': mgr['id'], 'name': mgr['name'], 'done': done is not None})
+
+    # 내가 받은 다면평가 결과
+    received_peer = []
+    if cycle_id:
+        rows = db.execute(
+            "SELECT pr.*, u.name AS reviewer_name "
+            "FROM peer_reviews pr JOIN users u ON pr.reviewer_id = u.id "
+            "WHERE pr.cycle_id=? AND pr.reviewee_id=? AND pr.review_type='peer' "
+            "ORDER BY pr.created_at DESC",
+            (cycle_id, uid)
+        ).fetchall()
+        received_peer = rows
+
+    # 내가 받은 매니저 평가 결과 (매니저인 경우, 익명 — 3명 이상일 때만)
+    received_upward = None
+    upward_count = 0
+    if cycle_id and role in ('manager', 'admin'):
+        rows = db.execute(
+            "SELECT * FROM peer_reviews "
+            "WHERE cycle_id=? AND reviewee_id=? AND review_type='upward'",
+            (cycle_id, uid)
+        ).fetchall()
+        upward_count = len(rows)
+        if upward_count >= 3:
+            avgs = {}
+            for i in range(1, 6):
+                vals = [r[f'q{i}_score'] for r in rows if r[f'q{i}_score'] is not None]
+                avgs[f'q{i}'] = round(sum(vals) / len(vals), 1) if vals else None
+            comments = [r['comment'] for r in rows if r['comment']]
+            received_upward = {'avgs': avgs, 'comments': comments, 'count': upward_count}
+
+    return render_template('performance/peer_reviews.html',
+                           cycles=cycles, selected_cycle=selected_cycle,
+                           my_assignments=my_assignments,
+                           upward_targets=upward_targets,
+                           received_peer=received_peer,
+                           received_upward=received_upward,
+                           upward_count=upward_count,
+                           upward_questions=UPWARD_QUESTIONS,
+                           active_page='peer')
+
+
+@app.route('/performance/peer/write/<int:reviewee_id>', methods=['GET', 'POST'])
+@login_required
+def peer_review_write(reviewee_id):
+    db    = get_db()
+    uid   = session['user_id']
+    role  = session['user_role']
+
+    try:
+        cycle_id = int(request.args.get('cycle', 0))
+    except (ValueError, TypeError):
+        cycle_id = 0
+
+    review_type = request.args.get('type', 'peer')
+    if review_type not in ('peer', 'upward'):
+        review_type = 'peer'
+
+    if not cycle_id:
+        abort(400)
+    if reviewee_id == uid:
+        abort(403)
+
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    reviewee = db.execute('SELECT id, name, role FROM users WHERE id=?', (reviewee_id,)).fetchone()
+    if not cycle or not reviewee:
+        abort(404)
+
+    # upward 평가는 employee만, 같은 부서의 manager만 대상
+    if review_type == 'upward':
+        if role != 'employee':
+            abort(403)
+        my_dept = int(session.get('dept_id') or 0)
+        mgr_dept = db.execute(
+            'SELECT department_id FROM users WHERE id=?', (reviewee_id,)
+        ).fetchone()
+        if not mgr_dept or mgr_dept['department_id'] != my_dept:
+            abort(403)
+        if reviewee['role'] not in ('manager', 'admin'):
+            abort(403)
+
+    # peer 평가는 배정된 경우만
+    if review_type == 'peer':
+        assigned = db.execute(
+            'SELECT id FROM peer_assignments WHERE cycle_id=? AND reviewee_id=? AND reviewer_id=?',
+            (cycle_id, reviewee_id, uid)
+        ).fetchone()
+        if not assigned:
+            abort(403)
+
+    existing = db.execute(
+        'SELECT * FROM peer_reviews WHERE cycle_id=? AND reviewee_id=? AND reviewer_id=? AND review_type=?',
+        (cycle_id, reviewee_id, uid, review_type)
+    ).fetchone()
+    error = None
+
+    if request.method == 'POST':
+        if review_type == 'peer':
+            try:
+                score = int(request.form.get('score', 0))
+            except (ValueError, TypeError):
+                score = 0
+            strength    = request.form.get('strength', '').strip() or None
+            improvement = request.form.get('improvement', '').strip() or None
+            comment     = request.form.get('comment', '').strip() or None
+            if not (1 <= score <= 5):
+                error = '점수를 선택해주세요.'
+            else:
+                db.execute(
+                    'INSERT INTO peer_reviews '
+                    '(cycle_id, reviewee_id, reviewer_id, review_type, score, strength, improvement, comment) '
+                    'VALUES (?, ?, ?, ?, ?, ?, ?, ?) '
+                    'ON CONFLICT(cycle_id, reviewee_id, reviewer_id, review_type) DO UPDATE SET '
+                    'score=excluded.score, strength=excluded.strength, '
+                    'improvement=excluded.improvement, comment=excluded.comment, '
+                    'created_at=CURRENT_TIMESTAMP',
+                    (cycle_id, reviewee_id, uid, 'peer', score, strength, improvement, comment)
+                )
+                db.commit()
+                return redirect(url_for('peer_reviews_page', cycle=cycle_id))
+        else:  # upward
+            q_scores = []
+            for i in range(1, 6):
+                try:
+                    v = int(request.form.get(f'q{i}', 0))
+                except (ValueError, TypeError):
+                    v = 0
+                q_scores.append(v)
+            comment = request.form.get('comment', '').strip() or None
+            if any(not (1 <= s <= 5) for s in q_scores):
+                error = '모든 항목에 점수를 선택해주세요.'
+            else:
+                db.execute(
+                    'INSERT INTO peer_reviews '
+                    '(cycle_id, reviewee_id, reviewer_id, review_type, '
+                    'q1_score, q2_score, q3_score, q4_score, q5_score, comment) '
+                    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                    'ON CONFLICT(cycle_id, reviewee_id, reviewer_id, review_type) DO UPDATE SET '
+                    'q1_score=excluded.q1_score, q2_score=excluded.q2_score, '
+                    'q3_score=excluded.q3_score, q4_score=excluded.q4_score, '
+                    'q5_score=excluded.q5_score, comment=excluded.comment, '
+                    'created_at=CURRENT_TIMESTAMP',
+                    (cycle_id, reviewee_id, uid, 'upward', *q_scores, comment)
+                )
+                db.commit()
+                return redirect(url_for('peer_reviews_page', cycle=cycle_id))
+
+    return render_template('performance/peer_write.html',
+                           cycle=cycle, reviewee=reviewee,
+                           review_type=review_type, existing=existing,
+                           upward_questions=UPWARD_QUESTIONS, error=error,
+                           active_page='peer')
+
+
+@app.route('/performance/peer/assignments', methods=['GET', 'POST'])
+@manager_or_admin
+def peer_assignments():
+    db   = get_db()
+    role = session['user_role']
+
+    cycles = db.execute(
+        "SELECT * FROM performance_cycles ORDER BY start_date DESC"
+    ).fetchall()
+    active_cycle = next((c for c in cycles if c['status'] == 'active'), None)
+
+    try:
+        selected_cycle_id = int(request.args.get('cycle', 0))
+    except (ValueError, TypeError):
+        selected_cycle_id = 0
+    selected_cycle = next(
+        (c for c in cycles if c['id'] == selected_cycle_id), active_cycle
+    )
+    cycle_id = selected_cycle['id'] if selected_cycle else 0
+
+    error = None
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'add':
+            try:
+                reviewee_id = int(request.form.get('reviewee_id', 0))
+                reviewer_id = int(request.form.get('reviewer_id', 0))
+                cid         = int(request.form.get('cycle_id', 0))
+            except (ValueError, TypeError):
+                error = '입력값이 올바르지 않습니다.'
+                reviewee_id = reviewer_id = cid = 0
+            if not error and reviewee_id == reviewer_id:
+                error = '평가자와 피평가자가 동일할 수 없습니다.'
+            if not error and cid and reviewee_id and reviewer_id:
+                existing = db.execute(
+                    'SELECT id FROM peer_assignments WHERE cycle_id=? AND reviewee_id=? AND reviewer_id=?',
+                    (cid, reviewee_id, reviewer_id)
+                ).fetchone()
+                if existing:
+                    error = '이미 등록된 배정입니다.'
+                else:
+                    db.execute(
+                        'INSERT INTO peer_assignments (cycle_id, reviewee_id, reviewer_id) VALUES (?, ?, ?)',
+                        (cid, reviewee_id, reviewer_id)
+                    )
+                    db.commit()
+        elif action == 'delete':
+            try:
+                assign_id = int(request.form.get('assign_id', 0))
+            except (ValueError, TypeError):
+                assign_id = 0
+            if assign_id:
+                db.execute('DELETE FROM peer_assignments WHERE id=?', (assign_id,))
+                db.commit()
+        return redirect(url_for('peer_assignments', cycle=cycle_id))
+
+    # 배정 목록
+    assignments = []
+    if cycle_id:
+        assignments = db.execute(
+            'SELECT pa.*, '
+            'rv.name AS reviewee_name, rr.name AS reviewer_name '
+            'FROM peer_assignments pa '
+            'JOIN users rv ON pa.reviewee_id = rv.id '
+            'JOIN users rr ON pa.reviewer_id = rr.id '
+            'WHERE pa.cycle_id=? ORDER BY rv.name, rr.name',
+            (cycle_id,)
+        ).fetchall()
+
+    # 직원 목록 (배정 선택용)
+    mgr_dept = int(session.get('dept_id') or 0)
+    if role == 'manager' and mgr_dept:
+        employees = db.execute(
+            "SELECT id, name, role FROM users WHERE department_id=? AND status='active' ORDER BY name",
+            (mgr_dept,)
+        ).fetchall()
+    else:
+        employees = db.execute(
+            "SELECT id, name, role FROM users WHERE status='active' ORDER BY name"
+        ).fetchall()
+
+    return render_template('performance/peer_assignments.html',
+                           cycles=cycles, selected_cycle=selected_cycle,
+                           assignments=assignments, employees=employees,
+                           cycle_id=cycle_id, error=error,
+                           active_page='peer_assignments')
+
+
+@app.route('/performance/calibration')
+@admin_required
+def calibration():
+    db = get_db()
+
+    cycles = db.execute(
+        "SELECT * FROM performance_cycles ORDER BY start_date DESC"
+    ).fetchall()
+    active_cycle = next((c for c in cycles if c['status'] == 'active'), None)
+
+    try:
+        selected_cycle_id = int(request.args.get('cycle', 0))
+    except (ValueError, TypeError):
+        selected_cycle_id = 0
+    selected_cycle = next(
+        (c for c in cycles if c['id'] == selected_cycle_id), active_cycle
+    )
+    cycle_id = selected_cycle['id'] if selected_cycle else 0
+
+    employees = []
+    grade_dist = {'S': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0}
+
+    if cycle_id:
+        # 해당 주기에 목표가 있는 직원 목록
+        rows = db.execute(
+            'SELECT u.id, u.name, u.role, d.name AS dept_name, '
+            'AVG(g.self_score) AS self_avg, '
+            'AVG(r.score) AS mgr_avg '
+            'FROM users u '
+            'JOIN performance_goals g ON g.user_id = u.id AND g.cycle_id = ? '
+            'LEFT JOIN performance_reviews r ON r.goal_id = g.id '
+            'LEFT JOIN departments d ON u.department_id = d.id '
+            'GROUP BY u.id ORDER BY u.name',
+            (cycle_id,)
+        ).fetchall()
+
+        for row in rows:
+            uid = row['id']
+
+            # 동료평가 평균
+            peer_row = db.execute(
+                "SELECT AVG(score) AS avg FROM peer_reviews "
+                "WHERE cycle_id=? AND reviewee_id=? AND review_type='peer'",
+                (cycle_id, uid)
+            ).fetchone()
+            peer_avg = round(peer_row['avg'], 2) if peer_row['avg'] else None
+
+            # 매니저 upward 평가 평균 (매니저인 경우)
+            upward_avg = None
+            if row['role'] in ('manager', 'admin'):
+                u_rows = db.execute(
+                    "SELECT * FROM peer_reviews WHERE cycle_id=? AND reviewee_id=? AND review_type='upward'",
+                    (cycle_id, uid)
+                ).fetchall()
+                if len(u_rows) >= 3:
+                    all_q = []
+                    for ur in u_rows:
+                        q_vals = [ur[f'q{i}_score'] for i in range(1, 6) if ur[f'q{i}_score'] is not None]
+                        if q_vals:
+                            all_q.append(sum(q_vals) / len(q_vals))
+                    upward_avg = round(sum(all_q) / len(all_q), 2) if all_q else None
+
+            # 캘리브레이션 최종 등급
+            cal = db.execute(
+                'SELECT * FROM calibration_results WHERE cycle_id=? AND user_id=?',
+                (cycle_id, uid)
+            ).fetchone()
+
+            # 종합 점수 (자기평가, 동료, 매니저 평균)
+            scores = [v for v in [row['self_avg'], peer_avg, row['mgr_avg']] if v is not None]
+            overall = round(sum(scores) / len(scores), 2) if scores else None
+
+            # 권고 등급
+            if overall is None:
+                rec_grade = '-'
+            elif overall >= 4.5:
+                rec_grade = 'S'
+            elif overall >= 3.5:
+                rec_grade = 'A'
+            elif overall >= 2.5:
+                rec_grade = 'B'
+            elif overall >= 1.5:
+                rec_grade = 'C'
+            else:
+                rec_grade = 'D'
+
+            final_grade = cal['final_grade'] if cal else None
+            if final_grade:
+                grade_dist[final_grade] = grade_dist.get(final_grade, 0) + 1
+
+            employees.append({
+                'id': uid,
+                'name': row['name'],
+                'role': row['role'],
+                'dept_name': row['dept_name'] or '',
+                'self_avg': round(row['self_avg'], 2) if row['self_avg'] else None,
+                'peer_avg': peer_avg,
+                'mgr_avg': round(row['mgr_avg'], 2) if row['mgr_avg'] else None,
+                'upward_avg': upward_avg,
+                'overall': overall,
+                'rec_grade': rec_grade,
+                'final_grade': final_grade,
+                'cal_note': cal['note'] if cal else None,
+            })
+
+    return render_template('performance/calibration.html',
+                           cycles=cycles, selected_cycle=selected_cycle,
+                           employees=employees, grade_dist=grade_dist,
+                           cycle_id=cycle_id,
+                           active_page='calibration')
+
+
+@app.route('/performance/calibration/<int:target_uid>', methods=['GET', 'POST'])
+@admin_required
+def calibration_detail(target_uid):
+    db       = get_db()
+    admin_id = session['user_id']
+
+    try:
+        cycle_id = int(request.args.get('cycle', 0))
+    except (ValueError, TypeError):
+        cycle_id = 0
+    if not cycle_id:
+        abort(400)
+
+    cycle   = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    target  = db.execute('SELECT id, name, role FROM users WHERE id=?', (target_uid,)).fetchone()
+    if not cycle or not target:
+        abort(404)
+
+    if request.method == 'POST':
+        final_grade = request.form.get('final_grade', '').strip()
+        note        = request.form.get('note', '').strip() or None
+        if final_grade in ('S', 'A', 'B', 'C', 'D'):
+            db.execute(
+                'INSERT INTO calibration_results (cycle_id, user_id, final_grade, note, decided_by) '
+                'VALUES (?, ?, ?, ?, ?) '
+                'ON CONFLICT(cycle_id, user_id) DO UPDATE SET '
+                'final_grade=excluded.final_grade, note=excluded.note, '
+                'decided_by=excluded.decided_by, decided_at=CURRENT_TIMESTAMP',
+                (cycle_id, target_uid, final_grade, note, admin_id)
+            )
+            db.commit()
+        return redirect(url_for('calibration', cycle=cycle_id))
+
+    # 목표별 자기평가 + 매니저평가
+    goals = db.execute(
+        'SELECT g.*, AVG(r.score) AS mgr_score_avg, COUNT(r.id) AS review_count '
+        'FROM performance_goals g '
+        'LEFT JOIN performance_reviews r ON r.goal_id = g.id '
+        'WHERE g.user_id=? AND g.cycle_id=? GROUP BY g.id ORDER BY g.created_at',
+        (target_uid, cycle_id)
+    ).fetchall()
+
+    # 자기평가 평균
+    self_scores = [g['self_score'] for g in goals if g['self_score'] is not None]
+    self_avg = round(sum(self_scores) / len(self_scores), 2) if self_scores else None
+
+    # 매니저평가 평균
+    mgr_scores = [g['mgr_score_avg'] for g in goals if g['mgr_score_avg'] is not None]
+    mgr_avg = round(sum(mgr_scores) / len(mgr_scores), 2) if mgr_scores else None
+
+    # 동료평가
+    peer_rows = db.execute(
+        "SELECT pr.*, u.name AS reviewer_name FROM peer_reviews pr "
+        "JOIN users u ON pr.reviewer_id = u.id "
+        "WHERE pr.cycle_id=? AND pr.reviewee_id=? AND pr.review_type='peer' "
+        "ORDER BY pr.created_at",
+        (cycle_id, target_uid)
+    ).fetchall()
+    peer_scores = [r['score'] for r in peer_rows if r['score'] is not None]
+    peer_avg = round(sum(peer_scores) / len(peer_scores), 2) if peer_scores else None
+
+    # 매니저 upward 평가
+    upward_rows = []
+    upward_avg = None
+    if target['role'] in ('manager', 'admin'):
+        upward_rows = db.execute(
+            "SELECT * FROM peer_reviews WHERE cycle_id=? AND reviewee_id=? AND review_type='upward'",
+            (cycle_id, target_uid)
+        ).fetchall()
+        if len(upward_rows) >= 3:
+            all_q = []
+            for ur in upward_rows:
+                q_vals = [ur[f'q{i}_score'] for i in range(1, 6) if ur[f'q{i}_score'] is not None]
+                if q_vals:
+                    all_q.append(sum(q_vals) / len(q_vals))
+            upward_avg = round(sum(all_q) / len(all_q), 2) if all_q else None
+
+    # 기존 캘리브레이션 결과
+    cal = db.execute(
+        'SELECT * FROM calibration_results WHERE cycle_id=? AND user_id=?',
+        (cycle_id, target_uid)
+    ).fetchone()
+
+    # AI 요약
+    summary = generate_calibration_summary(
+        target['name'], self_avg, peer_avg, mgr_avg, upward_avg
+    )
+
+    return render_template('performance/calibration_detail.html',
+                           cycle=cycle, target=target,
+                           goals=goals, peer_rows=peer_rows,
+                           upward_rows=upward_rows,
+                           upward_questions=UPWARD_QUESTIONS,
+                           self_avg=self_avg, peer_avg=peer_avg,
+                           mgr_avg=mgr_avg, upward_avg=upward_avg,
+                           summary=summary, cal=cal,
+                           cycle_id=cycle_id,
+                           active_page='calibration')
+
+
+# ── Error Handlers ───────────────────────────────────────────
+@app.errorhandler(403)
+def forbidden(e):
+    return render_template('errors/403.html'), 403
+
+@app.errorhandler(404)
+def not_found(e):
+    return render_template('errors/404.html'), 404
+
+
+# ── Run ─────────────────────────────────────────────────────
+if __name__ == '__main__':
+    from database import init_db
+    init_db()
+    app.run(debug=os.environ.get('FLASK_DEBUG', '').lower() == 'true')

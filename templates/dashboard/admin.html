@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<!-- Page Head -->
+<div class="page-head">
+  <div>
+    <div class="page-eyebrow">{{ today_str }}</div>
+    <h1 class="headline-lg page-title">{{ greet }}, <span style="color:var(--primary);">{{ first_name }}.</span></h1>
+    <p class="page-sub">{{ total_employees }} people across {{ total_departments }} departments
+      {% if pending_leave > 0 %}
+      · <a href="{{ url_for('attendance') }}" style="color:var(--primary); font-weight:600;">{{ pending_leave }} leave request{{ 's' if pending_leave != 1 else '' }} waiting</a>
+      {% endif %}
+    </p>
+  </div>
+  <a href="{{ url_for('employee_new') }}" class="btn btn-primary">
+    <i class="fas fa-user-plus"></i> Add Employee
+  </a>
+</div>
+
+<!-- KPI Cards -->
+<div class="grid-4" style="margin-bottom:28px;">
+  <div class="card" style="padding:20px;">
+    <div class="label">Headcount</div>
+    <div class="headline-lg" style="margin-top:8px;">{{ total_employees }}</div>
+    <div class="muted body-sm" style="margin-top:4px;">{{ total_departments }} departments</div>
+  </div>
+  <a href="{{ url_for('recruit_postings') }}" class="card" style="padding:20px; text-decoration:none;">
+    <div class="label">Open Reqs</div>
+    <div class="headline-lg" style="margin-top:8px;">{{ open_postings }}</div>
+    <div class="muted body-sm" style="margin-top:4px;">{{ total_applicants }} applicants total</div>
+  </a>
+  <a href="{{ url_for('attendance') }}" class="card" style="padding:20px; text-decoration:none;">
+    <div class="label">Leave Pending</div>
+    <div class="headline-lg" style="margin-top:8px; {% if pending_leave > 0 %}color:#ea580c;{% endif %}">{{ pending_leave }}</div>
+    <div class="muted body-sm" style="margin-top:4px;">awaiting approval</div>
+  </a>
+  <div class="card" style="padding:20px; background:var(--surface-container-low);">
+    <div class="label">Today Out</div>
+    <div class="headline-lg" style="margin-top:8px;">{{ who_out | length }}</div>
+    <div class="muted body-sm" style="margin-top:4px;">on approved leave</div>
+  </div>
+</div>
+
+<!-- Main grid-dash -->
+<div class="grid-dash">
+
+  <!-- Left column -->
+  <div class="stack">
+
+    <!-- Recent Employees -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Recent Employees</span>
+        <a href="{{ url_for('employees') }}" class="btn btn-ghost btn-sm">View all</a>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Department</th><th>Position</th><th>Hired</th></tr>
+          </thead>
+          <tbody>
+            {% for emp in recent_employees %}
+            <tr>
+              <td>
+                <div class="u-cell">
+                  <div class="avatar-xs">{{ emp.name[0] }}</div>
+                  <span class="u-name">{{ emp.name }}</span>
+                </div>
+              </td>
+              <td class="muted" style="font-size:13px;">{{ emp.dept or '—' }}</td>
+              <td class="muted" style="font-size:13px;">{{ emp.pos or '—' }}</td>
+              <td class="muted" style="font-size:13px;">{{ emp.hire_date or '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" style="text-align:center; color:var(--tx-3); padding:32px;">No employees yet</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Recent Announcements -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Announcements</span>
+        <div style="display:flex; gap:6px;">
+          <a href="{{ url_for('announcement_new') }}" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> New</a>
+          <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">View all</a>
+        </div>
+      </div>
+      <div>
+        {% for post in recent_posts %}
+        <a href="{{ url_for('announcement_detail', post_id=post.id) }}"
+           class="list-item" style="padding:14px 22px; text-decoration:none; border-bottom:1px solid rgba(21,28,35,0.06); display:flex; align-items:center; gap:12px;"
+           onmouseover="this.style.background='var(--surface-container-low)'"
+           onmouseout="this.style.background=''">
+          <div style="width:32px; height:32px; border-radius:10px; flex-shrink:0;
+                      background:{% if post.pinned %}var(--secondary-container){% else %}var(--surface-container){% endif %};
+                      display:flex; align-items:center; justify-content:center;
+                      color:{% if post.pinned %}var(--primary){% else %}var(--on-surface-muted){% endif %}; font-size:13px;">
+            <i class="fas fa-{% if post.pinned %}thumbtack{% else %}file-alt{% endif %}"></i>
+          </div>
+          <div style="flex:1; min-width:0;">
+            <div class="body-md" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ post.title }}</div>
+            <div class="muted body-sm">{{ post.created_at[:10] }}</div>
+          </div>
+          {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px;">Pinned</span>{% endif %}
+        </a>
+        {% else %}
+        <div style="text-align:center; padding:32px;" class="muted">No announcements</div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div><!-- /left -->
+
+  <!-- Right column -->
+  <div class="stack">
+
+    <!-- Quick Actions -->
+    <div class="card inset" style="padding:22px;">
+      <div class="label" style="margin-bottom:14px;">Quick Actions</div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <a href="{{ url_for('employee_new') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-user-plus" style="color:var(--primary); width:18px;"></i> Add Employee
+        </a>
+        <a href="{{ url_for('announcement_new') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-bullhorn" style="color:#ea580c; width:18px;"></i> Post Announcement
+        </a>
+        <a href="{{ url_for('admin_payroll') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-money-check-alt" style="color:#16a34a; width:18px;"></i> Manage Payroll
+        </a>
+        <a href="{{ url_for('performance') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-chart-line" style="color:#9333ea; width:18px;"></i> Performance
+        </a>
+        <a href="{{ url_for('recruit_postings') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-file-signature" style="color:#0891b2; width:18px;"></i> Job Postings
+        </a>
+        <a href="{{ url_for('calibration') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
+          <i class="fas fa-scale-balanced" style="color:#1e40af; width:18px;"></i> Calibration
+        </a>
+      </div>
+    </div>
+
+    <!-- Who's Out Today -->
+    <div class="card">
+      <div style="padding:20px 22px 0;">
+        <h3 class="headline-sm" style="margin:0 0 14px;">Who's Out Today</h3>
+      </div>
+      {% if who_out %}
+      <div style="padding:0 10px 10px;">
+        {% for p in who_out %}
+        <div class="row" style="padding:10px 12px; border-radius:12px;">
+          <div class="avatar-xs" style="flex-shrink:0;">{{ p.name[0] }}</div>
+          <div style="flex:1; min-width:0;">
+            <div class="body-sm" style="font-weight:600;">{{ p.name }}</div>
+            <div class="muted" style="font-size:12px;">{{ p.dept or '—' }}</div>
+          </div>
+          <span class="chip" style="font-size:11px; white-space:nowrap;">
+            {{ labels.get(p.type, p.type) }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="padding:24px 22px;" class="muted body-sm" style="text-align:center;">
+        Everyone is in today.
+      </div>
+      {% endif %}
+    </div>
+
+  </div><!-- /right -->
+
+</div><!-- /grid-dash -->
+
+{% endblock %}

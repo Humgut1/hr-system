@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% block title %}Calibration{% endblock %}
+{% block page_title %}Calibration Board{% endblock %}
+
+{% block head %}
+<style>
+.cal-table th, .cal-table td { padding: 12px 14px; font-size: 13px; }
+.cal-table th { font-size: 11px; font-weight: 700; color: var(--tx-3); text-transform: uppercase; letter-spacing: .4px; }
+.score-cell { text-align: center; font-weight: 700; }
+.score-na { color: var(--tx-3); font-weight: 400; font-size: 12px; }
+.grade-chip { display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 50%; font-size: 14px; font-weight: 900; }
+.g-s { background:#dcfce7; color:#16a34a; }
+.g-a { background:#dbeafe; color:#1e40af; }
+.g-b { background:#e0f2fe; color:#0369a1; }
+.g-c { background:#fef3c7; color:#92400e; }
+.g-d { background:#fee2e2; color:#dc2626; }
+.g-none { background:#f1f5f9; color:#94a3b8; }
+.dist-bar { display: flex; gap: 6px; margin-bottom: 20px; }
+.dist-item { flex: 1; text-align: center; padding: 12px 8px; border-radius: var(--r-sm); }
+.dist-count { font-size: 24px; font-weight: 900; }
+.dist-label { font-size: 11px; margin-top: 2px; opacity: .75; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Cycle selector -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+  <select class="input" style="width:220px;" onchange="location.href='?cycle='+this.value">
+    {% for c in cycles %}
+    <option value="{{ c.id }}" {% if selected_cycle and c.id == selected_cycle.id %}selected{% endif %}>
+      {{ c.name }} ({{ 'Active' if c.status == 'active' else 'Closed' }})
+    </option>
+    {% endfor %}
+  </select>
+  <a href="{{ url_for('peer_assignments', cycle=selected_cycle.id if selected_cycle else '') }}"
+     class="btn btn-ghost btn-sm">
+    <i class="fas fa-user-plus"></i> Manage Peer Assignments
+  </a>
+</div>
+
+{% if employees %}
+
+<!-- Grade distribution -->
+<div class="dist-bar">
+  {% for grade, bg, tc in [('S','#dcfce7','#16a34a'),('A','#dbeafe','#1e40af'),('B','#e0f2fe','#0369a1'),('C','#fef3c7','#92400e'),('D','#fee2e2','#dc2626')] %}
+  <div class="dist-item" style="background:{{ bg }}; color:{{ tc }};">
+    <div class="dist-count">{{ grade_dist[grade] }}</div>
+    <div class="dist-label">{{ grade }} Grade</div>
+  </div>
+  {% endfor %}
+  <div class="dist-item" style="background:#f1f5f9; color:#64748b;">
+    <div class="dist-count">{{ employees|selectattr('final_grade', 'none')|list|length }}</div>
+    <div class="dist-label">Undecided</div>
+  </div>
+</div>
+
+<!-- Summary table -->
+<div class="card">
+  <div class="card-body" style="padding:0; overflow-x:auto;">
+    <table class="table cal-table" style="min-width:780px;">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Department</th>
+          <th class="score-cell">Self</th>
+          <th class="score-cell">Peer</th>
+          <th class="score-cell">Manager</th>
+          <th class="score-cell">Overall</th>
+          <th class="score-cell">Recommended</th>
+          <th class="score-cell">Final Grade</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for emp in employees %}
+        <tr>
+          <td>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="avatar-xs">{{ emp.name[0] }}</div>
+              <span style="font-weight:700;">{{ emp.name }}</span>
+              {% if emp.role == 'manager' %}
+              <span class="badge badge-info" style="font-size:10px;">Manager</span>
+              {% endif %}
+            </div>
+          </td>
+          <td style="color:var(--tx-3); font-size:12px;">{{ emp.dept_name }}</td>
+          <td class="score-cell">
+            {% if emp.self_avg %}<span style="color:var(--tx-1);">{{ '%.1f'|format(emp.self_avg) }}</span>
+            {% else %}<span class="score-na">-</span>{% endif %}
+          </td>
+          <td class="score-cell">
+            {% if emp.peer_avg %}<span style="color:var(--tx-1);">{{ '%.1f'|format(emp.peer_avg) }}</span>
+            {% else %}<span class="score-na">-</span>{% endif %}
+          </td>
+          <td class="score-cell">
+            {% if emp.mgr_avg %}<span style="color:var(--tx-1);">{{ '%.1f'|format(emp.mgr_avg) }}</span>
+            {% else %}<span class="score-na">-</span>{% endif %}
+          </td>
+          <td class="score-cell">
+            {% if emp.overall %}
+            <span style="font-size:15px; font-weight:800; color:var(--primary);">{{ '%.2f'|format(emp.overall) }}</span>
+            {% else %}<span class="score-na">-</span>{% endif %}
+          </td>
+          <td class="score-cell">
+            {% if emp.rec_grade != '-' %}
+            {% set gc = {'S':'g-s','A':'g-a','B':'g-b','C':'g-c','D':'g-d'} %}
+            <span class="grade-chip {{ gc[emp.rec_grade] }}">{{ emp.rec_grade }}</span>
+            {% else %}<span class="score-na">-</span>{% endif %}
+          </td>
+          <td class="score-cell">
+            {% if emp.final_grade %}
+            {% set gc = {'S':'g-s','A':'g-a','B':'g-b','C':'g-c','D':'g-d'} %}
+            <span class="grade-chip {{ gc[emp.final_grade] }}">{{ emp.final_grade }}</span>
+            {% else %}
+            <span class="grade-chip g-none">?</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('calibration_detail', target_uid=emp.id, cycle=cycle_id) }}"
+               class="btn btn-ghost btn-sm">
+              <i class="fas fa-clipboard-list"></i> Packet
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% elif selected_cycle %}
+<div class="card">
+  <div class="card-body" style="text-align:center; padding:60px; color:var(--tx-3);">
+    <i class="fas fa-inbox" style="font-size:36px; color:var(--border); margin-bottom:12px; display:block;"></i>
+    No goals registered for this cycle.
+  </div>
+</div>
+{% else %}
+<div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:var(--r); padding:16px 20px; color:var(--orange); font-weight:600;">
+  <i class="fas fa-exclamation-triangle"></i> Please select a review cycle.
+</div>
+{% endif %}
+
+{% endblock %}
