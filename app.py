@@ -2522,6 +2522,268 @@ def calibration_detail(target_uid):
                            active_page='calibration')
 
 
+# ── Export (Excel 내보내기) ──────────────────────────────────
+from export_utils import (make_wb, write_header, write_row, auto_width,
+                           freeze_header, to_response, apply_number_format,
+                           KRW_FORMAT, NUM_FORMAT)
+import urllib.parse
+
+
+@app.route('/export')
+@admin_required
+def export_hub():
+    db     = get_db()
+    cycles = db.execute('SELECT id, name FROM performance_cycles ORDER BY id DESC').fetchall()
+    today  = date.today()
+    return render_template('export/hub.html', active_page='export',
+                           cycles=cycles,
+                           today_year=today.year,
+                           today_month=today.month)
+
+
+@app.route('/export/employees')
+@admin_required
+def export_employees():
+    db   = get_db()
+    rows = db.execute(
+        'SELECT u.name, u.email, d.name dept, p.name pos, jf.name jf, '
+        '       u.hire_date, u.birth_date, u.phone, u.status, u.role '
+        'FROM users u '
+        'LEFT JOIN departments d   ON u.department_id = d.id '
+        'LEFT JOIN positions   p   ON u.position_id   = p.id '
+        'LEFT JOIN job_families jf ON u.job_family_id = jf.id '
+        "WHERE u.role != 'guest' ORDER BY d.name, u.name"
+    ).fetchall()
+
+    wb, ws = make_wb("직원 명단")
+    headers = ['이름','이메일','부서','직위','직군','입사일','생년월일','연락처','상태','역할']
+    write_header(ws, headers)
+    am = {1:'left',2:'left',3:'left',4:'center',5:'left',6:'center',7:'center',8:'center',9:'center',10:'center'}
+    STATUS_KO = {'active':'재직','inactive':'휴직','resigned':'퇴직'}
+    ROLE_KO   = {'admin':'관리자','manager':'매니저','employee':'직원','recruiter':'채용담당'}
+    for i, r in enumerate(rows, 2):
+        write_row(ws, i, [
+            r['name'], r['email'], r['dept'] or '', r['pos'] or '',
+            r['jf'] or '', r['hire_date'] or '', r['birth_date'] or '',
+            r['phone'] or '', STATUS_KO.get(r['status'], r['status']),
+            ROLE_KO.get(r['role'], r['role']),
+        ], align_map=am)
+    auto_width(ws); freeze_header(ws)
+    fname = urllib.parse.quote("직원명단.xlsx")
+    return to_response(wb, fname)
+
+
+@app.route('/export/payroll')
+@admin_required
+def export_payroll():
+    db    = get_db()
+    year  = request.args.get('year',  date.today().year,  type=int)
+    month = request.args.get('month', date.today().month, type=int)
+    rows  = db.execute(
+        'SELECT u.name, d.name dept, p.name pos, '
+        '       ps.base_salary, ps.meal_allowance, ps.transport_allowance, ps.overtime_pay, '
+        '       ps.gross_pay, ps.national_pension, ps.health_insurance, ps.long_term_care, '
+        '       ps.employment_insurance, ps.income_tax, ps.local_income_tax, '
+        '       ps.total_deduction, ps.net_pay '
+        'FROM payslips ps '
+        'JOIN users u ON ps.user_id=u.id '
+        'LEFT JOIN departments d ON u.department_id=d.id '
+        'LEFT JOIN positions   p ON u.position_id=p.id '
+        'WHERE ps.year=? AND ps.month=? ORDER BY d.name, u.name',
+        (year, month)
+    ).fetchall()
+
+    wb, ws = make_wb(f"{year}년 {month}월 급여")
+    headers = ['이름','부서','직위','기본급','식대','교통비','초과근무수당',
+               '총지급액','국민연금','건강보험','장기요양','고용보험',
+               '소득세','지방소득세','총공제액','실수령액']
+    write_header(ws, headers)
+    krw_cols = list(range(4, 17))  # 4~16열 통화 포맷
+    am = {i: ('right' if i >= 4 else 'left') for i in range(1, 17)}
+    totals = [0] * 13
+
+    for i, r in enumerate(rows, 2):
+        vals = [r['name'], r['dept'] or '', r['pos'] or '',
+                r['base_salary'], r['meal_allowance'], r['transport_allowance'], r['overtime_pay'],
+                r['gross_pay'], r['national_pension'], r['health_insurance'], r['long_term_care'],
+                r['employment_insurance'], r['income_tax'], r['local_income_tax'],
+                r['total_deduction'], r['net_pay']]
+        write_row(ws, i, vals, align_map=am)
+        for j, v in enumerate(vals[3:], 0):
+            totals[j] += (v or 0)
+
+    # 합계 행
+    total_row = len(rows) + 2
+    write_row(ws, total_row,
+              ['합계', '', ''] + totals,
+              total=True, align_map=am)
+
+    for col in krw_cols:
+        apply_number_format(ws, col, 2, total_row, KRW_FORMAT)
+    auto_width(ws); freeze_header(ws)
+    fname = urllib.parse.quote(f"{year}년{month}월_급여내역.xlsx")
+    return to_response(wb, fname)
+
+
+@app.route('/export/payroll/annual')
+@admin_required
+def export_payroll_annual():
+    db   = get_db()
+    year = request.args.get('year', date.today().year, type=int)
+    rows = db.execute(
+        'SELECT u.name, d.name dept, '
+        '       SUM(ps.gross_pay) gross, SUM(ps.net_pay) net, '
+        '       SUM(ps.income_tax) itax, SUM(ps.local_income_tax) ltax, '
+        '       SUM(ps.national_pension) pension, '
+        '       SUM(ps.health_insurance) health, '
+        '       SUM(ps.employment_insurance) emp_ins, '
+        '       COUNT(*) months '
+        'FROM payslips ps JOIN users u ON ps.user_id=u.id '
+        'LEFT JOIN departments d ON u.department_id=d.id '
+        'WHERE ps.year=? GROUP BY ps.user_id ORDER BY d.name, u.name',
+        (year,)
+    ).fetchall()
+
+    wb, ws = make_wb(f"{year}년 연간 급여")
+    headers = ['이름','부서','연간총지급액','연간실수령액','소득세','지방소득세',
+               '국민연금','건강보험','고용보험','급여지급월수']
+    write_header(ws, headers)
+    am = {i: ('right' if i >= 3 else 'left') for i in range(1, 11)}
+    am[10] = 'center'
+    for i, r in enumerate(rows, 2):
+        write_row(ws, i, [
+            r['name'], r['dept'] or '',
+            r['gross'], r['net'], r['itax'], r['ltax'],
+            r['pension'], r['health'], r['emp_ins'], r['months']
+        ], align_map=am)
+    for col in range(3, 10):
+        apply_number_format(ws, col, 2, len(rows) + 1, KRW_FORMAT)
+    auto_width(ws); freeze_header(ws)
+    fname = urllib.parse.quote(f"{year}년_연간급여요약.xlsx")
+    return to_response(wb, fname)
+
+
+@app.route('/export/attendance')
+@admin_required
+def export_attendance():
+    db    = get_db()
+    year  = request.args.get('year',  date.today().year,  type=int)
+    month = request.args.get('month', 0, type=int)  # 0 = 전체
+
+    if month:
+        rows = db.execute(
+            'SELECT u.name, d.name dept, lr.type, lr.start_date, lr.end_date, '
+            '       lr.days, lr.status, lr.reason, lr.created_at '
+            'FROM leave_requests lr JOIN users u ON lr.user_id=u.id '
+            'LEFT JOIN departments d ON u.department_id=d.id '
+            "WHERE strftime('%Y', lr.start_date)=? AND strftime('%m', lr.start_date)=? "
+            'ORDER BY d.name, u.name, lr.start_date',
+            (str(year), f"{month:02d}")
+        ).fetchall()
+        sheet_name = f"{year}년 {month}월 근태"
+        fname = urllib.parse.quote(f"{year}년{month}월_근태내역.xlsx")
+    else:
+        rows = db.execute(
+            'SELECT u.name, d.name dept, lr.type, lr.start_date, lr.end_date, '
+            '       lr.days, lr.status, lr.reason, lr.created_at '
+            'FROM leave_requests lr JOIN users u ON lr.user_id=u.id '
+            'LEFT JOIN departments d ON u.department_id=d.id '
+            "WHERE strftime('%Y', lr.start_date)=? "
+            'ORDER BY d.name, u.name, lr.start_date',
+            (str(year),)
+        ).fetchall()
+        sheet_name = f"{year}년 전체 근태"
+        fname = urllib.parse.quote(f"{year}년_근태내역.xlsx")
+
+    TYPE_KO   = {'annual':'연차','half_am':'반차(오전)','half_pm':'반차(오후)',
+                 'sick':'병가','remote':'재택근무','outing':'외근'}
+    STATUS_KO = {'pending':'대기','approved':'승인','rejected':'반려','cancelled':'취소'}
+
+    wb, ws = make_wb(sheet_name)
+    headers = ['이름','부서','신청유형','시작일','종료일','일수','상태','사유','신청일시']
+    write_header(ws, headers)
+    am = {i: ('center' if i in (3,4,5,6,7) else 'left') for i in range(1, 10)}
+    for i, r in enumerate(rows, 2):
+        write_row(ws, i, [
+            r['name'], r['dept'] or '',
+            TYPE_KO.get(r['type'], r['type']),
+            r['start_date'], r['end_date'], r['days'],
+            STATUS_KO.get(r['status'], r['status']),
+            r['reason'] or '', r['created_at'] or '',
+        ], align_map=am)
+    auto_width(ws); freeze_header(ws)
+    return to_response(wb, fname)
+
+
+@app.route('/export/performance')
+@admin_required
+def export_performance():
+    db       = get_db()
+    cycle_id = request.args.get('cycle_id', type=int)
+    cycles   = db.execute('SELECT id, name FROM performance_cycles ORDER BY id DESC').fetchall()
+
+    if not cycle_id and cycles:
+        cycle_id = cycles[0]['id']
+
+    rows = db.execute(
+        'SELECT u.name, d.name dept, pc.name cycle, '
+        '       pg.category, pg.title, pg.weight, pg.progress, '
+        '       pg.self_score, pg.self_comment, pg.status '
+        'FROM performance_goals pg '
+        'JOIN users u ON pg.user_id=u.id '
+        'JOIN performance_cycles pc ON pg.cycle_id=pc.id '
+        'LEFT JOIN departments d ON u.department_id=d.id '
+        'WHERE pg.cycle_id=? ORDER BY d.name, u.name, pg.id',
+        (cycle_id,)
+    ).fetchall() if cycle_id else []
+
+    cycle_name = next((c['name'] for c in cycles if c['id'] == cycle_id), '전체')
+    wb, ws = make_wb(f"성과목표 {cycle_name}")
+    headers = ['이름','부서','평가주기','구분','목표제목','가중치(%)','진행률(%)','자기평가점수','자기평가의견','상태']
+    write_header(ws, headers)
+    am = {i: ('center' if i in (3,4,6,7,8) else 'left') for i in range(1, 11)}
+    for i, r in enumerate(rows, 2):
+        write_row(ws, i, [
+            r['name'], r['dept'] or '', r['cycle'],
+            r['category'], r['title'], r['weight'], r['progress'],
+            r['self_score'] or '', r['self_comment'] or '',
+            '완료' if r['status'] == 'completed' else '진행중',
+        ], align_map=am)
+    auto_width(ws); freeze_header(ws)
+    fname = urllib.parse.quote(f"성과목표_{cycle_name}.xlsx")
+    return to_response(wb, fname)
+
+
+@app.route('/export/applicants')
+@admin_required
+def export_applicants():
+    db   = get_db()
+    rows = db.execute(
+        'SELECT jp.title posting, a.name, a.email, a.phone, a.source, '
+        '       a.stage, a.resume_note, a.created_at '
+        'FROM applicants a JOIN job_postings jp ON a.posting_id=jp.id '
+        'ORDER BY jp.title, a.created_at'
+    ).fetchall()
+
+    STAGE_KO = {'applied':'지원','screening':'서류검토','interview1':'1차면접',
+                'interview2':'2차면접','final':'최종면접','offered':'처우협의',
+                'hired':'채용','rejected':'불합격'}
+
+    wb, ws = make_wb("지원자 현황")
+    headers = ['공고명','지원자명','이메일','전화번호','채널','전형단계','이력서 메모','지원일시']
+    write_header(ws, headers)
+    am = {i: ('center' if i in (6,) else 'left') for i in range(1, 9)}
+    for i, r in enumerate(rows, 2):
+        write_row(ws, i, [
+            r['posting'], r['name'], r['email'], r['phone'] or '',
+            r['source'] or '', STAGE_KO.get(r['stage'], r['stage']),
+            r['resume_note'] or '', r['created_at'] or '',
+        ], align_map=am)
+    auto_width(ws); freeze_header(ws)
+    fname = urllib.parse.quote("지원자현황.xlsx")
+    return to_response(wb, fname)
+
+
 # ── Error Handlers ───────────────────────────────────────────
 @app.errorhandler(403)
 def forbidden(e):

@@ -114,6 +114,16 @@
       </div>
       {% endif %}
 
+      {% if session.user_role == 'admin' %}
+      <div class="nav-section">
+        <span class="nav-section-label">Reports</span>
+        <a href="{{ url_for('export_hub') }}"
+           class="nav-item{% if active_page == 'export' %} active{% endif %}">
+          <i class="fas fa-file-excel"></i><span>데이터 내보내기</span>
+        </a>
+      </div>
+      {% endif %}
+
       {% if not user_features or 'performance' in user_features or 'peer_review' in user_features or 'calibration' in user_features %}
       <div class="nav-section">
         <span class="nav-section-label">Performance</span>
