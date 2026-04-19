@@ -24,44 +24,78 @@ A full-featured HR platform built with Flask, designed for startups and small-to
 ## Features
 
 ### People Management
-- Employee directory — add, edit, deactivate
-- Department & position hierarchy
-- Org chart visualization
-- Role-based access control (Admin / Manager / Employee / Recruiter)
+- Employee directory with add / edit / deactivate
+- Department & position hierarchy (Division → Group → Department → Team, up to 4 levels)
+- Job family system (12 families) with grade-based salary table (CL1–CL9)
+- Org chart visualization with expand/collapse per node
+- Role-based access control — 4 roles (Admin / Manager / Employee / Recruiter) with route-level enforcement
 
 ### Attendance
-- Leave requests (annual, half-day, sick, remote, outing)
-- Manager approval / rejection workflow
-- Team calendar with department filter
-- Daily check-in / check-out
-- Automatic working-day calculation & remaining leave balance
+- Leave types: annual, half-day AM/PM, sick, remote, outing
+- Working-day auto-calculation (weekdays only, start–end date)
+- Remaining leave balance calculated per Korean Labor Standards Act (근로기준법) — tenure-based accrual, not hardcoded
+- Duplicate period & over-limit validation on submission
+- Manager approval / rejection workflow with reason field
+- Team calendar with department filter and multi-event per cell
+- Daily check-in / check-out with monthly attendance grid
 
 ### Payroll
-- Monthly payslip generation
-- Korean 4대보험 auto-calculation (2026 rates)
-  - National Pension 4.5%, Health Insurance 3.545%, Employment Insurance 0.9%
-- Income tax & local income tax
-- Non-taxable allowances (meal ₩200k, transport ₩100k)
-- Print-ready payslip layout
-- Employment & career certificate issuance (PDF/print)
+- Monthly payslip generation per employee
+- **Korean 4대보험 auto-calculation (2026 rates)**
+  - National Pension (국민연금) 4.5%
+  - Health Insurance (건강보험) 3.545% + Long-term Care (장기요양) 12.95% of health premium
+  - Employment Insurance (고용보험) 0.9%
+- Income tax (소득세) + Local income tax (지방소득세) auto-calculation
+- Non-taxable allowances per 소득세법 시행령 §12 — meal ₩200k, transport ₩100k excluded from tax base
+- Print-optimized payslip layout (all deduction line items visible, 근로기준법 §48 compliant)
+- Donut chart visualization of payroll distribution on admin screen
+- **Employment certificate (재직증명서)** & **Career certificate (경력증명서)** — corporate legal format, print/PDF ready
 
-### Performance
-- Review cycles (active / closed)
-- Goal setting with KPI / OKR categories and SMART guide
-- 5-point rating scale with weighted average
-- Self-review and manager review
-- 360° peer review (upward review, Google-style questions)
-- Calibration board with rule-based AI summary
+### Performance Management
+
+#### Goal Setting & Review Cycles
+- Admin-managed review cycles (active / closed) — opening a new cycle auto-closes the previous one
+- Per-employee goal registration with KPI / OKR category, weight (1–100), and SMART guide
+- Progress tracking (0–100%) with visual progress bar
+- Weighted average score calculation → final grade (S / A / B / C / D)
+
+#### Self-Review
+- Employees submit self-assessment per goal: 1–5 score + written comment
+- Self-scores feed into the calibration data packet
+
+#### 360° Peer Review
+- HR assigns reviewer pairs per cycle (peer assignments management screen)
+- Peers write qualitative reviews: Strengths + Areas for Growth
+- **Upward review** (Google-style) — 5 standardized questions scored 1–5:
+  1. Creates a clear shared vision for the team
+  2. Gives actionable, specific feedback
+  3. Does not micromanage
+  4. Takes interest in my career growth
+  5. Is someone I would want on my next team
+- Review completion status tracked per assignee
+
+#### Calibration
+- Admin-only calibration board showing all employees in a cycle
+- Per-employee data packet: self-score, manager score, peer scores, upward scores
+- **Rule-based AI calibration summary** — auto-generated narrative per employee based on score patterns:
+  - Detects high performer signals (all scores ≥ 4.5)
+  - Flags score divergence between self and manager (gap ≥ 1.5)
+  - Identifies upward feedback concerns (upward avg < 3.0)
+  - Produces plain-language summary without external API calls
+- HR sets final calibrated grade (S / A / B / C / D) with notes
+- Calibration results stored separately from raw scores — audit trail preserved
 
 ### Recruiting
-- Job posting management (draft / open / closed)
-- 8-stage applicant pipeline kanban board
-- Activity log per applicant
-- Recruiter-only access control
+- Job posting lifecycle: draft → open → closed
+- Direct applicant registration per posting (name, email, source, resume note)
+- **8-stage pipeline kanban board**: Applied → Screening → Interview 1 → Interview 2 → Final → Offered → Hired / Rejected
+- Drag-free stage change via dropdown — stage history auto-logged
+- Activity log timeline per applicant (who changed what, when)
+- Recruiter + Admin only — Manager / Employee get 403
 
 ### Announcements & Org
-- Pinned announcements
-- Hierarchical org chart (Division → Group → Department → Team)
+- Pinned announcements with notification badge (unread within 3 days)
+- Hierarchical org chart with expandable nodes per department level
 
 ---
 
