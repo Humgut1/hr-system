@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>회사 정보 설정 — TalentCore</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    body { background: var(--surface); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; }
+    .ob-wrap { width: 100%; max-width: 560px; }
+    .ob-header { text-align: center; margin-bottom: 2.5rem; }
+    .ob-logo { display: inline-flex; align-items: center; gap: .75rem; margin-bottom: 1.5rem; }
+    .ob-logo-mark { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #2b5bff, #6b8eff); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; color: #fff; }
+    .ob-logo-name { font-size: 1.35rem; font-weight: 700; color: var(--on-surface); }
+    .ob-title { font-size: 1.75rem; font-weight: 800; color: var(--on-surface); margin-bottom: .5rem; }
+    .ob-sub { font-size: .95rem; color: var(--on-surface-muted); line-height: 1.6; }
+
+    .ob-steps { display: flex; align-items: center; justify-content: center; gap: 0; margin-bottom: 2rem; }
+    .ob-step { display: flex; align-items: center; gap: .5rem; }
+    .ob-step-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; }
+    .ob-step.active .ob-step-num { background: #2b5bff; color: #fff; }
+    .ob-step.done .ob-step-num { background: #22c55e; color: #fff; }
+    .ob-step.pending .ob-step-num { background: var(--surface-container-low); color: var(--on-surface-muted); }
+    .ob-step-label { font-size: .82rem; font-weight: 600; }
+    .ob-step.active .ob-step-label { color: #2b5bff; }
+    .ob-step.done .ob-step-label { color: #16a34a; }
+    .ob-step.pending .ob-step-label { color: var(--on-surface-muted); }
+    .ob-step-divider { width: 40px; height: 2px; background: var(--outline-variant); margin: 0 .5rem; }
+
+    .ob-card { background: var(--surface-container-low); border-radius: var(--radius-md); padding: 2rem; margin-bottom: 1.5rem; }
+    .ob-field { margin-bottom: 1.25rem; }
+    .ob-field:last-child { margin-bottom: 0; }
+    .ob-label { display: block; font-size: .82rem; font-weight: 700; color: var(--on-surface-muted); margin-bottom: .4rem; letter-spacing: .03em; text-transform: uppercase; }
+    .ob-input { width: 100%; padding: .7rem 1rem; font-size: .95rem; font-family: inherit;
+                background: var(--surface-container-lowest); border: none; border-radius: var(--radius-sm);
+                color: var(--on-surface); outline: none; box-sizing: border-box;
+                transition: box-shadow .15s; }
+    .ob-input:focus { box-shadow: 0 0 0 2px #2b5bff44; }
+    .ob-hint { font-size: .75rem; color: var(--on-surface-muted); margin-top: .3rem; }
+
+    .ob-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+    .ob-back { font-size: .88rem; color: var(--on-surface-muted); font-weight: 600; background: none; border: none; cursor: pointer; padding: 0; text-decoration: none; }
+    .ob-back:hover { color: var(--on-surface); }
+    .ob-submit { padding: .75rem 2rem; font-size: .95rem; font-weight: 700; color: #fff;
+                 background: linear-gradient(135deg, #2b5bff, #6b8eff); border: none; border-radius: var(--radius-sm);
+                 cursor: pointer; transition: opacity .15s; }
+    .ob-submit:hover { opacity: .88; }
+
+    .flash-error { background: #fef2f2; color: #b91c1c; border-radius: var(--radius-sm); padding: .75rem 1rem; margin-bottom: 1.5rem; font-size: .88rem; }
+    .flash-success { background: #f0fdf4; color: #15803d; border-radius: var(--radius-sm); padding: .75rem 1rem; margin-bottom: 1.5rem; font-size: .88rem; }
+  </style>
+</head>
+<body>
+<div class="ob-wrap">
+  <div class="ob-header">
+    <div class="ob-logo">
+      <div class="ob-logo-mark">T</div>
+      <div class="ob-logo-name">TalentCore</div>
+    </div>
+
+    <div class="ob-steps">
+      <div class="ob-step done">
+        <div class="ob-step-num">✓</div>
+        <div class="ob-step-label">기능 선택</div>
+      </div>
+      <div class="ob-step-divider"></div>
+      <div class="ob-step active">
+        <div class="ob-step-num">2</div>
+        <div class="ob-step-label">회사 정보</div>
+      </div>
+    </div>
+
+    <div class="ob-title">회사 정보를 입력해주세요</div>
+    <div class="ob-sub">재직·경력 증명서에 표시되는 정보예요. 나중에 설정 메뉴에서 변경할 수 있어요.</div>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, msg in messages %}
+      <div class="flash-{{ category }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <form method="POST" action="{{ url_for('onboarding_company') }}">
+    <div class="ob-card">
+      <div class="ob-field">
+        <label class="ob-label" for="name">회사명</label>
+        <input class="ob-input" type="text" id="name" name="name"
+               value="{{ company.name }}" placeholder="주식회사 탤런트코어">
+      </div>
+      <div class="ob-field">
+        <label class="ob-label" for="reg_no">사업자등록번호</label>
+        <input class="ob-input" type="text" id="reg_no" name="reg_no"
+               value="{{ company.reg_no }}" placeholder="000-00-00000">
+      </div>
+      <div class="ob-field">
+        <label class="ob-label" for="ceo">대표이사</label>
+        <input class="ob-input" type="text" id="ceo" name="ceo"
+               value="{{ company.ceo }}" placeholder="홍길동">
+      </div>
+      <div class="ob-field">
+        <label class="ob-label" for="address">주소</label>
+        <input class="ob-input" type="text" id="address" name="address"
+               value="{{ company.address }}" placeholder="서울특별시 강남구 테헤란로 000">
+      </div>
+      <div class="ob-field">
+        <label class="ob-label" for="tel">대표 전화</label>
+        <input class="ob-input" type="text" id="tel" name="tel"
+               value="{{ company.tel }}" placeholder="02-0000-0000">
+        <div class="ob-hint">비워두면 기본값이 사용됩니다.</div>
+      </div>
+    </div>
+
+    <div class="ob-actions">
+      <a href="{{ url_for('onboarding') }}" class="ob-back">← 이전으로</a>
+      <button type="submit" class="ob-submit">설정 완료 →</button>
+    </div>
+  </form>
+</div>
+</body>
+</html>

@@ -65,6 +65,18 @@
     .flash-error { background: #fef2f2; color: #b91c1c; border-radius: var(--radius-sm); padding: .75rem 1rem; margin-bottom: 1.5rem; font-size: .88rem; }
     .flash-success { background: #f0fdf4; color: #15803d; border-radius: var(--radius-sm); padding: .75rem 1rem; margin-bottom: 1.5rem; font-size: .88rem; }
     .ob-note { font-size: .8rem; color: var(--on-surface-muted); }
+
+    .ob-steps { display: flex; align-items: center; justify-content: center; gap: 0; margin-bottom: 2rem; }
+    .ob-step { display: flex; align-items: center; gap: .5rem; }
+    .ob-step-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; }
+    .ob-step.active .ob-step-num { background: #2b5bff; color: #fff; }
+    .ob-step.done .ob-step-num { background: #22c55e; color: #fff; }
+    .ob-step.pending .ob-step-num { background: var(--surface-container-low); color: var(--on-surface-muted); }
+    .ob-step-label { font-size: .82rem; font-weight: 600; }
+    .ob-step.active .ob-step-label { color: #2b5bff; }
+    .ob-step.done .ob-step-label { color: #16a34a; }
+    .ob-step.pending .ob-step-label { color: var(--on-surface-muted); }
+    .ob-step-divider { width: 40px; height: 2px; background: var(--outline-variant); margin: 0 .5rem; }
   </style>
 </head>
 <body>
@@ -74,6 +86,19 @@
       <div class="ob-logo-mark">T</div>
       <div class="ob-logo-name">TalentCore</div>
     </div>
+
+    <div class="ob-steps">
+      <div class="ob-step active">
+        <div class="ob-step-num">1</div>
+        <div class="ob-step-label">기능 선택</div>
+      </div>
+      <div class="ob-step-divider"></div>
+      <div class="ob-step pending">
+        <div class="ob-step-num">2</div>
+        <div class="ob-step-label">회사 정보</div>
+      </div>
+    </div>
+
     <div class="ob-title">어떤 기능이 필요하신가요?</div>
     <div class="ob-sub">회사에 맞는 기능만 골라서 시작하세요. 나중에 언제든지 변경할 수 있어요.</div>
   </div>
@@ -104,7 +129,7 @@
         <button type="button" class="ob-select-all" onclick="toggleAll(false)">전체 해제</button>
         <div class="ob-note" style="margin-top:.4rem;">선택 안 한 기능은 사이드바에서 숨겨집니다.</div>
       </div>
-      <button type="submit" class="ob-submit">설정 완료 →</button>
+      <button type="submit" class="ob-submit">다음: 회사 정보 →</button>
     </div>
   </form>
 </div>

@@ -243,6 +243,11 @@ def init_db():
                 decided_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(cycle_id, user_id)
             );
+
+            CREATE TABLE IF NOT EXISTS company_settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL DEFAULT ''
+            );
         ''')
 
         # 컬럼 마이그레이션: 기존 DB에 없을 수 있는 컬럼 추가

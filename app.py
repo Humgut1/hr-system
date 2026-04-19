@@ -17,14 +17,24 @@ DATABASE = 'hr_system.db'
 from database import init_db
 init_db()
 
-# ── 회사 정보 (환경변수로 관리, 증명서 발급에 사용) ─────────
-COMPANY_INFO = {
+# ── 회사 정보 기본값 (환경변수 → DB 순으로 오버라이드) ────────
+_COMPANY_DEFAULTS = {
     'name':    os.environ.get('COMPANY_NAME',    '주식회사 탤런트코어'),
     'reg_no':  os.environ.get('COMPANY_REG_NO',  '000-00-00000'),
     'ceo':     os.environ.get('COMPANY_CEO',     '대표이사'),
     'address': os.environ.get('COMPANY_ADDRESS', '서울특별시 강남구 테헤란로 000'),
     'tel':     os.environ.get('COMPANY_TEL',     '02-0000-0000'),
 }
+
+def get_company_info():
+    """DB에 저장된 회사 정보 우선, 없으면 환경변수 기본값 사용"""
+    db = get_db()
+    rows = db.execute('SELECT key, value FROM company_settings').fetchall()
+    info = dict(_COMPANY_DEFAULTS)
+    for row in rows:
+        if row['key'] in info and row['value']:
+            info[row['key']] = row['value']
+    return info
 
 
 # ── DB ──────────────────────────────────────────────────────
@@ -189,10 +199,30 @@ def onboarding():
             (features_str, session['user_id'])
         )
         db.commit()
+        # 1단계 완료 → 2단계 회사 정보 입력으로 이동
+        return redirect(url_for('onboarding_company'))
+    return render_template('onboarding.html', feature_defs=FEATURE_DEFS, step=1)
+
+
+@app.route('/onboarding/company', methods=['GET', 'POST'])
+@admin_required
+def onboarding_company():
+    db = get_db()
+    if request.method == 'POST':
+        fields = ['name', 'reg_no', 'ceo', 'address', 'tel']
+        for key in fields:
+            val = request.form.get(key, '').strip()
+            db.execute(
+                'INSERT INTO company_settings (key, value) VALUES (?, ?) '
+                'ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+                (key, val)
+            )
+        db.commit()
         session['onboarded'] = 1
         flash('설정이 완료되었습니다! TalentCore에 오신 것을 환영합니다.', 'success')
         return redirect(url_for('dashboard'))
-    return render_template('onboarding.html', feature_defs=FEATURE_DEFS)
+    current = get_company_info()
+    return render_template('onboarding_company.html', company=current, step=2)
 
 
 # ── Dashboard helpers ─────────────────────────────────────────
@@ -1134,7 +1164,7 @@ def cert_employment():
                            user=user,
                            today=today.strftime('%Y년 %m월 %d일'),
                            cert_no=cert_no,
-                           company=COMPANY_INFO)
+                           company=get_company_info())
 
 @app.route('/certificate/career')
 @login_required
@@ -1157,7 +1187,7 @@ def cert_career():
                            user=user,
                            today=today.strftime('%Y년 %m월 %d일'),
                            cert_no=cert_no,
-                           company=COMPANY_INFO)
+                           company=get_company_info())
 
 
 # ── Performance ──────────────────────────────────────────────
