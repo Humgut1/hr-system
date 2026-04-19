@@ -13,6 +13,10 @@ app.secret_key = os.environ.get('HR_SECRET_KEY', 'dev-only-change-in-prod')
 
 DATABASE = 'hr_system.db'
 
+# DB 초기화 — gunicorn 포함 모든 실행 방식에서 실행
+from database import init_db
+init_db()
+
 # ── 회사 정보 (환경변수로 관리, 증명서 발급에 사용) ─────────
 COMPANY_INFO = {
     'name':    os.environ.get('COMPANY_NAME',    '주식회사 탤런트코어'),
