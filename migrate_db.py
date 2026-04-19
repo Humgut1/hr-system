@@ -13,6 +13,7 @@ import sqlite3
 import random
 from datetime import date, timedelta
 from werkzeug.security import generate_password_hash
+from database import init_db
 
 DB  = 'hr_system.db'
 PW  = 'changeme!'
@@ -114,9 +115,14 @@ def monthly_base(jf_code: str, cl: int) -> int:
 
 
 def run():
+    init_db()   # 테이블이 없을 때도 안전하게 실행되도록
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
+    # 이미 실행된 경우 스킵 (idempotent)
+    if c.execute('SELECT COUNT(*) FROM job_families').fetchone()[0] > 0:
+        conn.close()
+        return
     c.execute('PRAGMA foreign_keys = OFF')
 
     # ── 새 테이블 생성 ─────────────────────────────────────────
@@ -289,6 +295,9 @@ def run():
         (D_STRAT_TEAM,   'STRAT',  2, small_dist,'employee'),
     ]
     # 합계 확인: 11+8+6+4+4+2+6+4+8+4+4+4+4+2+6+3+4+3+3+4+2+2+2 = 100
+
+    ALL_FEATURES = ('attendance,payroll,performance,peer_review,calibration,'
+                    'recruiting,announcements,org_chart,certificates')
 
     total_count = sum(t[2] for t in TEAMS)
     all_names   = gen_names(total_count)

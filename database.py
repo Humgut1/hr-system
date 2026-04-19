@@ -4,7 +4,8 @@ from werkzeug.security import generate_password_hash
 
 DATABASE = 'hr_system.db'
 
-_DEV_PW = os.environ.get('HR_DEV_PASSWORD', 'changeme!')
+_DEV_PW   = os.environ.get('HR_DEV_PASSWORD',   'changeme!')
+_GUEST_PW = os.environ.get('HR_GUEST_PASSWORD', 'guest1234!')
 
 
 def init_db():
@@ -47,7 +48,7 @@ def init_db():
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 name TEXT NOT NULL,
-                role TEXT NOT NULL CHECK(role IN ('admin', 'manager', 'employee', 'recruiter')),
+                role TEXT NOT NULL CHECK(role IN ('admin', 'manager', 'employee', 'recruiter', 'guest')),
                 department_id INTEGER REFERENCES departments(id),
                 position_id   INTEGER REFERENCES positions(id),
                 job_family_id INTEGER REFERENCES job_families(id),
@@ -55,6 +56,8 @@ def init_db():
                 hire_date  DATE,
                 birth_date DATE,
                 status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive', 'resigned')),
+                onboarded INTEGER NOT NULL DEFAULT 0,
+                features_enabled TEXT NOT NULL DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -242,6 +245,13 @@ def init_db():
             );
         ''')
 
+        # 컬럼 마이그레이션: 기존 DB에 없을 수 있는 컬럼 추가
+        existing = {r[1] for r in c.execute('PRAGMA table_info(users)').fetchall()}
+        if 'onboarded' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN onboarded INTEGER NOT NULL DEFAULT 0')
+        if 'features_enabled' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN features_enabled TEXT NOT NULL DEFAULT ""')
+
         if c.execute('SELECT COUNT(*) FROM departments').fetchone()[0] == 0:
             departments = [
                 ('경영지원', None), ('개발', None), ('마케팅', None),
@@ -255,21 +265,40 @@ def init_db():
             ]
             c.executemany('INSERT INTO positions (name, level) VALUES (?, ?)', positions)
 
-            pw = generate_password_hash(_DEV_PW)
+            pw      = generate_password_hash(_DEV_PW)
+            gpw     = generate_password_hash(_GUEST_PW)
+            ALL_F   = ('attendance,payroll,performance,peer_review,calibration,'
+                       'recruiting,announcements,org_chart,certificates')
             users = [
-                ('admin@company.com',     pw, 'HR 관리자', 'admin',     5, 7, '2022-01-03'),
-                ('manager@company.com',   pw, '김팀장',    'manager',   2, 6, '2021-05-10'),
-                ('employee@company.com',  pw, '이직원',    'employee',  2, 4, '2023-03-06'),
-                ('recruiter@company.com', pw, '박채용',    'recruiter', 5, 4, '2023-07-01'),
-                ('kim@company.com',       pw, '김철수',    'employee',  2, 3, '2024-01-15'),
-                ('lee@company.com',       pw, '이영희',    'employee',  3, 4, '2023-11-01'),
-                ('park@company.com',      pw, '박민준',    'employee',  4, 5, '2022-08-20'),
-                ('choi@company.com',      pw, '최지수',    'employee',  1, 2, '2024-03-01'),
+                ('admin@company.com',     pw,  'HR 관리자', 'admin',     5, 7, '2022-01-03', 0,  ''),
+                ('manager@company.com',   pw,  '김팀장',    'manager',   2, 6, '2021-05-10', 1,  ALL_F),
+                ('employee@company.com',  pw,  '이직원',    'employee',  2, 4, '2023-03-06', 1,  ALL_F),
+                ('recruiter@company.com', pw,  '박채용',    'recruiter', 5, 4, '2023-07-01', 1,  ALL_F),
+                ('kim@company.com',       pw,  '김철수',    'employee',  2, 3, '2024-01-15', 1,  ALL_F),
+                ('lee@company.com',       pw,  '이영희',    'employee',  3, 4, '2023-11-01', 1,  ALL_F),
+                ('park@company.com',      pw,  '박민준',    'employee',  4, 5, '2022-08-20', 1,  ALL_F),
+                ('choi@company.com',      pw,  '최지수',    'employee',  1, 2, '2024-03-01', 1,  ALL_F),
+                ('guest@talentcore.com',  gpw, 'Guest',    'guest',     1, 3, '2024-01-01', 1,  ALL_F),
             ]
             c.executemany(
-                'INSERT INTO users (email, password_hash, name, role, department_id, position_id, hire_date) '
-                'VALUES (?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO users '
+                '(email, password_hash, name, role, department_id, position_id, '
+                ' hire_date, onboarded, features_enabled) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 users
+            )
+
+        # guest 계정 보장 (migrate_db 실행 후 삭제되어도 앱 기동 시 자동 복구)
+        if c.execute("SELECT COUNT(*) FROM users WHERE role='guest'").fetchone()[0] == 0:
+            ALL_F = ('attendance,payroll,performance,peer_review,calibration,'
+                     'recruiting,announcements,org_chart,certificates')
+            gpw = generate_password_hash(_GUEST_PW)
+            c.execute(
+                "INSERT INTO users (email, password_hash, name, role, department_id, "
+                "position_id, hire_date, onboarded, features_enabled) "
+                "VALUES (?,?,?,?,?,?,?,?,?)",
+                ('guest@talentcore.com', gpw, 'Guest', 'guest', 1, 3,
+                 '2024-01-01', 1, ALL_F)
             )
 
         if c.execute('SELECT COUNT(*) FROM announcements').fetchone()[0] == 0:

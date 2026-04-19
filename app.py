@@ -43,12 +43,29 @@ def close_connection(exception):
         db.close()
 
 
+@app.context_processor
+def inject_user_features():
+    uid = session.get('user_id')
+    if not uid:
+        return {'user_features': set()}
+    row = get_db().execute(
+        'SELECT features_enabled FROM users WHERE id=?', (uid,)
+    ).fetchone()
+    features = set()
+    if row and row['features_enabled']:
+        features = set(row['features_enabled'].split(','))
+    return {'user_features': features}
+
+
 # ── Auth Decorators ──────────────────────────────────────────
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'user_id' not in session:
             return redirect(url_for('login'))
+        if session.get('user_role') == 'guest' and request.method == 'POST':
+            flash('게스트 계정은 조회만 가능합니다.', 'error')
+            return redirect(request.referrer or url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated
 
@@ -132,6 +149,7 @@ def login():
                 session['dept_name']  = user['dept_name'] or ''
                 session['pos_name']   = user['pos_name']  or ''
                 session['dept_id']    = user['department_id'] or 0
+                session['onboarded']  = 1 if user['onboarded'] else 0
                 return redirect(url_for('dashboard'))
             error = '이메일 또는 비밀번호가 올바르지 않습니다.'
     return render_template('login.html', error=error)
@@ -140,6 +158,41 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for('login'))
+
+
+# ── 기능 목록 (온보딩·사이드바 공용) ─────────────────────────
+FEATURE_DEFS = [
+    ('attendance',    '근태 관리',    '연차·반차·재택 신청, 매니저 승인, 팀 캘린더, 출퇴근 체크인'),
+    ('payroll',       '급여 관리',    '4대보험 자동계산, 월별 급여명세서 발행, 급여 현황 차트'),
+    ('performance',   '성과 관리',    'KPI/OKR 목표 설정, 자기평가, 진행률 추적, 주기 관리'),
+    ('peer_review',   '다면평가',     '360° 동료평가, 상향평가(Google 방식 5문항), 리뷰어 배정'),
+    ('calibration',   '캘리브레이션', '평가 조정 보드, AI 요약, S/A/B/C/D 최종 등급 확정'),
+    ('recruiting',    '채용 관리',    '채용공고 관리, 지원자 파이프라인 칸반, 단계별 이력 로그'),
+    ('announcements', '공지사항',     '핀 고정 공지, 3일 내 미읽음 배지, 작성·수정·삭제'),
+    ('org_chart',     '조직도',       '부문→본부→실→팀 계층 조직도, 인원수 집계, 접기/펼치기'),
+    ('certificates',  '증명서 발급',  '재직증명서·경력증명서 법인 양식, 인쇄/PDF 저장'),
+]
+
+
+@app.route('/onboarding', methods=['GET', 'POST'])
+@admin_required
+def onboarding():
+    db = get_db()
+    if request.method == 'POST':
+        selected = request.form.getlist('features')
+        if not selected:
+            flash('최소 하나 이상의 기능을 선택해주세요.', 'error')
+            return redirect(url_for('onboarding'))
+        features_str = ','.join(f for f in selected if f in [fd[0] for fd in FEATURE_DEFS])
+        db.execute(
+            'UPDATE users SET onboarded=1, features_enabled=? WHERE id=?',
+            (features_str, session['user_id'])
+        )
+        db.commit()
+        session['onboarded'] = 1
+        flash('설정이 완료되었습니다! TalentCore에 오신 것을 환영합니다.', 'success')
+        return redirect(url_for('dashboard'))
+    return render_template('onboarding.html', feature_defs=FEATURE_DEFS)
 
 
 # ── Dashboard helpers ─────────────────────────────────────────
@@ -179,6 +232,8 @@ def dashboard():
     LEAVE_LABELS = {'annual':'Annual','half_am':'Half AM','half_pm':'Half PM','sick':'Sick','etc':'Other'}
 
     if role == 'admin':
+        if not session.get('onboarded'):
+            return redirect(url_for('onboarding'))
         total_employees   = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
         total_departments = db.execute("SELECT COUNT(*) FROM departments").fetchone()[0]
         pending_leave     = db.execute("SELECT COUNT(*) FROM leave_requests WHERE status='pending'").fetchone()[0]

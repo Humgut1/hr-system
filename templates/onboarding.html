@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>기능 설정 — TalentCore</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    body { background: var(--surface); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; }
+    .ob-wrap { width: 100%; max-width: 860px; }
+    .ob-header { text-align: center; margin-bottom: 2.5rem; }
+    .ob-logo { display: inline-flex; align-items: center; gap: .75rem; margin-bottom: 1.5rem; }
+    .ob-logo-mark { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #2b5bff, #6b8eff); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; color: #fff; }
+    .ob-logo-name { font-size: 1.35rem; font-weight: 700; color: var(--on-surface); }
+    .ob-title { font-size: 1.75rem; font-weight: 800; color: var(--on-surface); margin-bottom: .5rem; }
+    .ob-sub { font-size: .95rem; color: var(--on-surface-muted); line-height: 1.6; }
+
+    .feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .feature-card { position: relative; }
+    .feature-card input[type="checkbox"] { position: absolute; opacity: 0; width: 0; height: 0; }
+    .feature-card label {
+      display: block; cursor: pointer; padding: 1.25rem 1.25rem 1.25rem 3.25rem;
+      background: var(--surface-container-low); border-radius: var(--radius-md);
+      transition: background .15s, box-shadow .15s;
+      border: 2px solid transparent;
+    }
+    .feature-card input:checked + label {
+      background: color-mix(in srgb, #2b5bff 8%, var(--surface-container-low));
+      border-color: #2b5bff;
+    }
+    .feature-card label::before {
+      content: '';
+      position: absolute; left: 1.25rem; top: 1.35rem;
+      width: 18px; height: 18px; border-radius: 5px;
+      border: 2px solid var(--outline-variant);
+      background: var(--surface-container-lowest);
+      transition: background .15s, border-color .15s;
+    }
+    .feature-card input:checked + label::before {
+      background: #2b5bff; border-color: #2b5bff;
+    }
+    .feature-card label::after {
+      content: '';
+      position: absolute; left: 1.59rem; top: 1.57rem;
+      width: 6px; height: 10px;
+      border: 2px solid #fff; border-top: none; border-left: none;
+      transform: rotate(45deg);
+      opacity: 0; transition: opacity .15s;
+    }
+    .feature-card input:checked + label::after { opacity: 1; }
+    .feature-name { font-size: .9rem; font-weight: 700; color: var(--on-surface); margin-bottom: .3rem; }
+    .feature-desc { font-size: .78rem; color: var(--on-surface-muted); line-height: 1.5; }
+
+    .ob-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+    .ob-select-all { font-size: .85rem; color: #2b5bff; cursor: pointer; font-weight: 600; background: none; border: none; padding: 0; }
+    .ob-submit { padding: .75rem 2rem; font-size: .95rem; font-weight: 700; color: #fff;
+                 background: linear-gradient(135deg, #2b5bff, #6b8eff); border: none; border-radius: var(--radius-sm);
+                 cursor: pointer; transition: opacity .15s; }
+    .ob-submit:hover { opacity: .88; }
+
+    .flash-error { background: #fef2f2; color: #b91c1c; border-radius: var(--radius-sm); padding: .75rem 1rem; margin-bottom: 1.5rem; font-size: .88rem; }
+    .flash-success { background: #f0fdf4; color: #15803d; border-radius: var(--radius-sm); padding: .75rem 1rem; margin-bottom: 1.5rem; font-size: .88rem; }
+    .ob-note { font-size: .8rem; color: var(--on-surface-muted); }
+  </style>
+</head>
+<body>
+<div class="ob-wrap">
+  <div class="ob-header">
+    <div class="ob-logo">
+      <div class="ob-logo-mark">T</div>
+      <div class="ob-logo-name">TalentCore</div>
+    </div>
+    <div class="ob-title">어떤 기능이 필요하신가요?</div>
+    <div class="ob-sub">회사에 맞는 기능만 골라서 시작하세요. 나중에 언제든지 변경할 수 있어요.</div>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, msg in messages %}
+      <div class="flash-{{ category }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <form method="POST" action="{{ url_for('onboarding') }}">
+    <div class="feature-grid">
+      {% for key, name, desc in feature_defs %}
+      <div class="feature-card">
+        <input type="checkbox" name="features" value="{{ key }}" id="f_{{ key }}" checked>
+        <label for="f_{{ key }}">
+          <div class="feature-name">{{ name }}</div>
+          <div class="feature-desc">{{ desc }}</div>
+        </label>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="ob-actions">
+      <div>
+        <button type="button" class="ob-select-all" onclick="toggleAll(true)">전체 선택</button>
+        &nbsp;·&nbsp;
+        <button type="button" class="ob-select-all" onclick="toggleAll(false)">전체 해제</button>
+        <div class="ob-note" style="margin-top:.4rem;">선택 안 한 기능은 사이드바에서 숨겨집니다.</div>
+      </div>
+      <button type="submit" class="ob-submit">설정 완료 →</button>
+    </div>
+  </form>
+</div>
+
+<script>
+function toggleAll(state) {
+  document.querySelectorAll('input[name="features"]').forEach(cb => cb.checked = state);
+}
+</script>
+</body>
+</html>

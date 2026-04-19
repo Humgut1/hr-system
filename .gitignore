@@ -20,3 +20,8 @@ env/
 
 # Claude 내부 파일
 .claude/
+
+check_*.txt
+flask_run.log
+extracted_*.css
+patch_app.py
