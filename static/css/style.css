@@ -400,6 +400,7 @@ tbody tr:hover { background: #fafbfd; }
   background: linear-gradient(160deg, #0d0f14 0%, #141824 55%, #1c2235 100%);
   display: flex; align-items: center; justify-content: center;
   padding: 60px; position: relative; overflow: hidden;
+  -webkit-font-smoothing: auto;
 }
 .login-left::before {
   content: '';
