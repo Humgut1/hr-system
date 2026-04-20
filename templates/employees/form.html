@@ -3,7 +3,7 @@
 {% block page_title %}Employees{% endblock %}
 
 {% block content %}
-<div style="max-width:680px;">
+<div style="max-width:720px;">
   <a href="{{ url_for('employees') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
     <i class="fas fa-arrow-left"></i> Back to list
   </a>
@@ -11,6 +11,11 @@
   <div class="card">
     <div class="card-head">
       <span class="card-title">{{ 'Add New Employee' if mode == 'new' else 'Edit Employee' }}</span>
+      {% if emp and emp.emp_no %}
+      <span class="badge" style="font-size:12px; background:#f1f5f9; color:#64748b; padding:4px 10px; border-radius:6px; font-weight:700;">
+        {{ emp.emp_no }}
+      </span>
+      {% endif %}
     </div>
     <div class="card-body">
       {% if error %}
@@ -22,38 +27,61 @@
       <form method="POST"
             action="{{ url_for('employee_new') if mode == 'new' else url_for('employee_edit', emp_id=emp.id) }}">
 
+        <!-- 기본 정보 -->
+        <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">
+          기본 정보
+        </div>
+
         <div class="grid-2" style="gap:14px;">
           <div class="field">
             <label class="form-label">Full Name <span style="color:var(--red);">*</span></label>
             <input type="text" name="name" class="input"
-                   value="{{ emp.name if emp else '' }}" required placeholder="Jane Smith">
+                   value="{{ emp.name if emp else '' }}" required placeholder="홍길동">
           </div>
           <div class="field">
             <label class="form-label">Email <span style="color:var(--red);">*</span></label>
             <input type="email" name="email" class="input"
-                   value="{{ emp.email if emp else '' }}" required placeholder="jane@company.com">
+                   value="{{ emp.email if emp else '' }}" required placeholder="hong@company.com">
           </div>
-        </div>
-
-        <div class="field">
-          <label class="form-label">
-            Password
-            {% if mode == 'edit' %}
-            <span style="font-weight:400; color:var(--tx-3);">(leave blank to keep current)</span>
-            {% else %}
-            <span style="color:var(--red);">*</span>
-            {% endif %}
-          </label>
-          <input type="password" name="password" class="input"
-                 {% if mode == 'new' %}required{% endif %}
-                 placeholder="{{ 'Set password' if mode == 'new' else 'New password' }}">
         </div>
 
         <div class="grid-2" style="gap:14px;">
           <div class="field">
-            <label class="form-label">Department</label>
+            <label class="form-label">
+              Password
+              {% if mode == 'edit' %}
+              <span style="font-weight:400; color:var(--text-muted);">(비워두면 유지)</span>
+              {% else %}
+              <span style="color:var(--red);">*</span>
+              {% endif %}
+            </label>
+            <input type="password" name="password" class="input"
+                   {% if mode == 'new' %}required{% endif %}
+                   placeholder="{{ '비밀번호 설정' if mode == 'new' else '새 비밀번호' }}">
+          </div>
+          <div class="field">
+            <label class="form-label">생년월일</label>
+            <input type="date" name="birth_date" class="input"
+                   value="{{ emp.birth_date if emp else '' }}">
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="form-label">연락처</label>
+          <input type="tel" name="phone" class="input"
+                 value="{{ emp.phone if emp else '' }}" placeholder="010-0000-0000">
+        </div>
+
+        <!-- 인사 정보 -->
+        <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin:22px 0 12px;">
+          인사 정보
+        </div>
+
+        <div class="grid-2" style="gap:14px;">
+          <div class="field">
+            <label class="form-label">부서</label>
             <select name="department_id" class="input">
-              <option value="">Select department</option>
+              <option value="">부서 선택</option>
               {% for d in depts %}
               <option value="{{ d.id }}"
                 {% if emp and emp.department_id == d.id %}selected{% endif %}>
@@ -63,9 +91,9 @@
             </select>
           </div>
           <div class="field">
-            <label class="form-label">Position</label>
+            <label class="form-label">직위</label>
             <select name="position_id" class="input">
-              <option value="">Select position</option>
+              <option value="">직위 선택</option>
               {% for p in poses %}
               <option value="{{ p.id }}"
                 {% if emp and emp.position_id == p.id %}selected{% endif %}>
@@ -78,7 +106,34 @@
 
         <div class="grid-2" style="gap:14px;">
           <div class="field">
-            <label class="form-label">Role</label>
+            <label class="form-label">직군</label>
+            <select name="job_family_id" class="input">
+              <option value="">직군 선택</option>
+              {% for jf in jfs %}
+              <option value="{{ jf.id }}"
+                {% if emp and emp.job_family_id == jf.id %}selected{% endif %}>
+                {{ jf.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">직속상관</label>
+            <select name="manager_id" class="input">
+              <option value="">없음</option>
+              {% for m in managers %}
+              <option value="{{ m.id }}"
+                {% if emp and emp.manager_id == m.id %}selected{% endif %}>
+                {{ m.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-2" style="gap:14px;">
+          <div class="field">
+            <label class="form-label">역할</label>
             <select name="role" class="input">
               {% for val, label in [('employee','Employee'), ('manager','Manager'), ('recruiter','Recruiter'), ('admin','HR Admin')] %}
               <option value="{{ val }}"
@@ -89,23 +144,47 @@
             </select>
           </div>
           <div class="field">
-            <label class="form-label">Hire Date</label>
-            <input type="date" name="hire_date" class="input"
-                   value="{{ emp.hire_date if emp else '' }}">
+            <label class="form-label">고용형태</label>
+            <select name="employment_type" class="input">
+              {% for val, label in [('full_time','정규직'),('part_time','시간제'),('contract','계약직'),('intern','인턴')] %}
+              <option value="{{ val }}"
+                {% if emp and emp.employment_type == val %}selected{% elif not emp and val == 'full_time' %}selected{% endif %}>
+                {{ label }}
+              </option>
+              {% endfor %}
+            </select>
           </div>
         </div>
 
-        <div class="field">
-          <label class="form-label">Phone</label>
-          <input type="tel" name="phone" class="input"
-                 value="{{ emp.phone if emp else '' }}" placeholder="+82 10-0000-0000">
+        <div class="grid-2" style="gap:14px;">
+          <div class="field">
+            <label class="form-label">입사일</label>
+            <input type="date" name="hire_date" class="input"
+                   value="{{ emp.hire_date if emp else '' }}">
+          </div>
+          <div class="field">
+            <label class="form-label">퇴사일
+              <span style="font-weight:400;color:var(--text-muted);">(퇴직자만)</span>
+            </label>
+            <input type="date" name="termination_date" class="input"
+                   value="{{ emp.termination_date if emp else '' }}">
+          </div>
         </div>
 
-        <div style="display:flex; gap:10px; margin-top:8px;">
+        {% if mode == 'edit' %}
+        <div class="field">
+          <label class="form-label">퇴사 사유</label>
+          <input type="text" name="termination_reason" class="input"
+                 value="{{ emp.termination_reason if emp else '' }}"
+                 placeholder="자발적 퇴직 / 계약 만료 등">
+        </div>
+        {% endif %}
+
+        <div style="display:flex; gap:10px; margin-top:20px;">
           <button type="submit" class="btn btn-primary">
-            <i class="fas fa-save"></i> {{ 'Add Employee' if mode == 'new' else 'Save Changes' }}
+            <i class="fas fa-save"></i> {{ '직원 추가' if mode == 'new' else '저장' }}
           </button>
-          <a href="{{ url_for('employees') }}" class="btn btn-ghost">Cancel</a>
+          <a href="{{ url_for('employees') }}" class="btn btn-ghost">취소</a>
         </div>
       </form>
     </div>

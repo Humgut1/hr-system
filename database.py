@@ -56,6 +56,12 @@ def init_db():
                 hire_date  DATE,
                 birth_date DATE,
                 status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive', 'resigned')),
+                emp_no TEXT,
+                manager_id INTEGER REFERENCES users(id),
+                employment_type TEXT NOT NULL DEFAULT 'full_time'
+                    CHECK(employment_type IN ('full_time','part_time','contract','intern')),
+                termination_date DATE,
+                termination_reason TEXT,
                 onboarded INTEGER NOT NULL DEFAULT 0,
                 features_enabled TEXT NOT NULL DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -256,6 +262,18 @@ def init_db():
             c.execute('ALTER TABLE users ADD COLUMN onboarded INTEGER NOT NULL DEFAULT 0')
         if 'features_enabled' not in existing:
             c.execute('ALTER TABLE users ADD COLUMN features_enabled TEXT NOT NULL DEFAULT ""')
+        if 'emp_no' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN emp_no TEXT')
+            c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_emp_no ON users(emp_no) WHERE emp_no IS NOT NULL")
+            c.execute("UPDATE users SET emp_no = 'TC-' || printf('%05d', id) WHERE emp_no IS NULL")
+        if 'manager_id' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN manager_id INTEGER REFERENCES users(id)')
+        if 'employment_type' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN employment_type TEXT NOT NULL DEFAULT "full_time"')
+        if 'termination_date' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN termination_date DATE')
+        if 'termination_reason' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN termination_reason TEXT')
 
         if c.execute('SELECT COUNT(*) FROM departments').fetchone()[0] == 0:
             departments = [

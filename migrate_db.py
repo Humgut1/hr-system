@@ -358,6 +358,9 @@ def run():
             base = monthly_base(jf_code, cl)
             salary_rows.append((uid, base, 200000, 100000))
 
+    # ── 사번 일괄 생성 ────────────────────────────────────────
+    c.execute("UPDATE users SET emp_no = 'TC-' || printf('%05d', id) WHERE emp_no IS NULL")
+
     # ── 급여 정보 삽입 ─────────────────────────────────────────
     for uid, base, meal, trans in salary_rows:
         c.execute(

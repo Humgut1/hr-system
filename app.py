@@ -533,58 +533,84 @@ def employees():
 @app.route('/employees/new', methods=['GET', 'POST'])
 @admin_required
 def employee_new():
-    db    = get_db()
-    depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
-    poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+    db      = get_db()
+    depts   = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    poses   = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+    jfs     = db.execute('SELECT * FROM job_families ORDER BY name').fetchall()
+    managers = db.execute(
+        "SELECT id, name FROM users WHERE role IN ('admin','manager') AND status='active' ORDER BY name"
+    ).fetchall()
     error = None
 
     if request.method == 'POST':
-        name      = request.form.get('name', '').strip()
-        email     = request.form.get('email', '').strip()
-        password  = request.form.get('password', '').strip()
-        role      = request.form.get('role', 'employee')
-        dept_id   = request.form.get('department_id') or None
-        pos_id    = request.form.get('position_id') or None
-        phone     = request.form.get('phone', '').strip() or None
-        hire_date = request.form.get('hire_date') or None
+        name            = request.form.get('name', '').strip()
+        email           = request.form.get('email', '').strip()
+        password        = request.form.get('password', '').strip()
+        role            = request.form.get('role', 'employee')
+        dept_id         = request.form.get('department_id') or None
+        pos_id          = request.form.get('position_id') or None
+        jf_id           = request.form.get('job_family_id') or None
+        phone           = request.form.get('phone', '').strip() or None
+        hire_date       = request.form.get('hire_date') or None
+        birth_date      = request.form.get('birth_date') or None
+        employment_type = request.form.get('employment_type', 'full_time')
+        manager_id      = request.form.get('manager_id') or None
 
         if not name or not email or not password:
             error = '이름, 이메일, 비밀번호는 필수입니다.'
         elif db.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone():
             error = '이미 사용 중인 이메일입니다.'
         else:
-            db.execute(
-                'INSERT INTO users (name, email, password_hash, role, department_id, position_id, phone, hire_date) '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                (name, email, generate_password_hash(password), role, dept_id, pos_id, phone, hire_date)
+            cur = db.execute(
+                'INSERT INTO users (name, email, password_hash, role, department_id, position_id, '
+                '  job_family_id, phone, hire_date, birth_date, employment_type, manager_id) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (name, email, generate_password_hash(password), role,
+                 dept_id, pos_id, jf_id, phone, hire_date, birth_date,
+                 employment_type, manager_id)
             )
+            new_id = cur.lastrowid
+            db.execute("UPDATE users SET emp_no = 'TC-' || printf('%05d', id) WHERE id=?", (new_id,))
             db.commit()
+            flash(f'직원 {name}(TC-{new_id:05d})이 추가되었습니다.', 'success')
             return redirect(url_for('employees'))
 
     return render_template('employees/form.html',
-                           mode='new', depts=depts, poses=poses, error=error, emp=None,
+                           mode='new', depts=depts, poses=poses, jfs=jfs,
+                           managers=managers, error=error, emp=None,
                            active_page='employees')
 
 @app.route('/employees/<int:emp_id>/edit', methods=['GET', 'POST'])
 @admin_required
 def employee_edit(emp_id):
-    db    = get_db()
-    emp   = db.execute('SELECT * FROM users WHERE id=?', (emp_id,)).fetchone()
+    db       = get_db()
+    emp      = db.execute('SELECT * FROM users WHERE id=?', (emp_id,)).fetchone()
     if not emp:
         abort(404)
-    depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
-    poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+    depts    = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    poses    = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+    jfs      = db.execute('SELECT * FROM job_families ORDER BY name').fetchall()
+    managers = db.execute(
+        "SELECT id, name FROM users WHERE role IN ('admin','manager') AND status='active' AND id!=? ORDER BY name",
+        (emp_id,)
+    ).fetchall()
     error = None
 
     if request.method == 'POST':
-        name      = request.form.get('name', '').strip()
-        email     = request.form.get('email', '').strip()
-        role      = request.form.get('role', 'employee')
-        dept_id   = request.form.get('department_id') or None
-        pos_id    = request.form.get('position_id') or None
-        phone     = request.form.get('phone', '').strip() or None
-        hire_date = request.form.get('hire_date') or None
-        new_pw    = request.form.get('password', '').strip()
+        name             = request.form.get('name', '').strip()
+        email            = request.form.get('email', '').strip()
+        role             = request.form.get('role', 'employee')
+        dept_id          = request.form.get('department_id') or None
+        pos_id           = request.form.get('position_id') or None
+        jf_id            = request.form.get('job_family_id') or None
+        phone            = request.form.get('phone', '').strip() or None
+        hire_date        = request.form.get('hire_date') or None
+        birth_date       = request.form.get('birth_date') or None
+        employment_type  = request.form.get('employment_type', 'full_time')
+        manager_id       = request.form.get('manager_id') or None
+        termination_date = request.form.get('termination_date') or None
+        term_reason      = request.form.get('termination_reason', '').strip() or None
+        new_pw           = request.form.get('password', '').strip()
 
         if not name or not email:
             error = '이름과 이메일은 필수입니다.'
@@ -594,28 +620,41 @@ def employee_edit(emp_id):
             if new_pw:
                 db.execute(
                     'UPDATE users SET name=?, email=?, password_hash=?, role=?, '
-                    'department_id=?, position_id=?, phone=?, hire_date=? WHERE id=?',
+                    'department_id=?, position_id=?, job_family_id=?, phone=?, '
+                    'hire_date=?, birth_date=?, employment_type=?, manager_id=?, '
+                    'termination_date=?, termination_reason=? WHERE id=?',
                     (name, email, generate_password_hash(new_pw), role,
-                     dept_id, pos_id, phone, hire_date, emp_id)
+                     dept_id, pos_id, jf_id, phone, hire_date, birth_date,
+                     employment_type, manager_id, termination_date, term_reason, emp_id)
                 )
             else:
                 db.execute(
                     'UPDATE users SET name=?, email=?, role=?, '
-                    'department_id=?, position_id=?, phone=?, hire_date=? WHERE id=?',
-                    (name, email, role, dept_id, pos_id, phone, hire_date, emp_id)
+                    'department_id=?, position_id=?, job_family_id=?, phone=?, '
+                    'hire_date=?, birth_date=?, employment_type=?, manager_id=?, '
+                    'termination_date=?, termination_reason=? WHERE id=?',
+                    (name, email, role, dept_id, pos_id, jf_id, phone,
+                     hire_date, birth_date, employment_type, manager_id,
+                     termination_date, term_reason, emp_id)
                 )
             db.commit()
+            flash('직원 정보가 저장되었습니다.', 'success')
             return redirect(url_for('employees'))
 
     return render_template('employees/form.html',
-                           mode='edit', depts=depts, poses=poses, error=error, emp=emp,
+                           mode='edit', depts=depts, poses=poses, jfs=jfs,
+                           managers=managers, error=error, emp=emp,
                            active_page='employees')
 
 @app.route('/employees/<int:emp_id>/resign', methods=['POST'])
 @admin_required
 def employee_resign(emp_id):
-    db = get_db()
-    db.execute("UPDATE users SET status='resigned' WHERE id=?", (emp_id,))
+    db     = get_db()
+    reason = request.form.get('termination_reason', '').strip() or None
+    db.execute(
+        "UPDATE users SET status='resigned', termination_date=DATE('now'), termination_reason=? WHERE id=?",
+        (reason, emp_id)
+    )
     db.commit()
     return redirect(url_for('employees'))
 
@@ -2546,30 +2585,68 @@ def export_hub():
 def export_employees():
     db   = get_db()
     rows = db.execute(
-        'SELECT u.name, u.email, d.name dept, p.name pos, jf.name jf, '
-        '       u.hire_date, u.birth_date, u.phone, u.status, u.role '
-        'FROM users u '
-        'LEFT JOIN departments d   ON u.department_id = d.id '
-        'LEFT JOIN positions   p   ON u.position_id   = p.id '
-        'LEFT JOIN job_families jf ON u.job_family_id = jf.id '
+        "SELECT u.emp_no, u.name, u.email, "
+        "       d.name dept, p.name pos, jf.name jf, "
+        "       u.employment_type, u.role, u.status, "
+        "       u.hire_date, u.birth_date, u.phone, "
+        "       u.termination_date, u.termination_reason, "
+        "       mgr.name manager_name, "
+        "       es.base_salary, "
+        "       ROUND((JULIANDAY('now') - JULIANDAY(u.hire_date)) / 365.25, 1) years_of_service, "
+        "       cr.final_grade last_grade, "
+        "       es.updated_at last_salary_change "
+        "FROM users u "
+        "LEFT JOIN departments d      ON u.department_id = d.id "
+        "LEFT JOIN positions   p      ON u.position_id   = p.id "
+        "LEFT JOIN job_families jf    ON u.job_family_id = jf.id "
+        "LEFT JOIN users mgr          ON u.manager_id    = mgr.id "
+        "LEFT JOIN employee_salary es ON u.id = es.user_id "
+        "LEFT JOIN calibration_results cr "
+        "  ON cr.user_id = u.id "
+        "  AND cr.decided_at = ("
+        "    SELECT MAX(decided_at) FROM calibration_results WHERE user_id = u.id"
+        "  ) "
         "WHERE u.role != 'guest' ORDER BY d.name, u.name"
     ).fetchall()
 
     wb, ws = make_wb("직원 명단")
-    headers = ['이름','이메일','부서','직위','직군','입사일','생년월일','연락처','상태','역할']
+    headers = [
+        '사번', '이름', '이메일', '부서', '직위', '직군',
+        '고용형태', '역할', '재직상태',
+        '입사일', '생년월일', '연락처',
+        '퇴사일', '퇴사사유',
+        '직속상관', '기본급(월)', '근속연수(년)',
+        '최근성과등급', '최근급여변경일'
+    ]
     write_header(ws, headers)
-    am = {1:'left',2:'left',3:'left',4:'center',5:'left',6:'center',7:'center',8:'center',9:'center',10:'center'}
-    STATUS_KO = {'active':'재직','inactive':'휴직','resigned':'퇴직'}
-    ROLE_KO   = {'admin':'관리자','manager':'매니저','employee':'직원','recruiter':'채용담당'}
+
+    EMP_TYPE_KO = {'full_time':'정규직','part_time':'시간제','contract':'계약직','intern':'인턴'}
+    STATUS_KO   = {'active':'재직','inactive':'휴직','resigned':'퇴직'}
+    ROLE_KO     = {'admin':'관리자','manager':'매니저','employee':'직원','recruiter':'채용담당'}
+    am = {i: 'center' for i in range(1, 20)}
+    am.update({2:'left', 3:'left', 4:'left', 5:'left', 6:'left', 13:'left', 15:'left'})
+
     for i, r in enumerate(rows, 2):
         write_row(ws, i, [
-            r['name'], r['email'], r['dept'] or '', r['pos'] or '',
-            r['jf'] or '', r['hire_date'] or '', r['birth_date'] or '',
-            r['phone'] or '', STATUS_KO.get(r['status'], r['status']),
+            r['emp_no'] or f"TC-{r['name']}",
+            r['name'], r['email'],
+            r['dept'] or '', r['pos'] or '', r['jf'] or '',
+            EMP_TYPE_KO.get(r['employment_type'], r['employment_type'] or ''),
             ROLE_KO.get(r['role'], r['role']),
+            STATUS_KO.get(r['status'], r['status']),
+            r['hire_date'] or '', r['birth_date'] or '', r['phone'] or '',
+            r['termination_date'] or '', r['termination_reason'] or '',
+            r['manager_name'] or '',
+            r['base_salary'] or '',
+            r['years_of_service'] or '',
+            r['last_grade'] or '',
+            (r['last_salary_change'] or '')[:10],
         ], align_map=am)
-    auto_width(ws); freeze_header(ws)
-    fname = urllib.parse.quote("직원명단.xlsx")
+
+    apply_number_format(ws, 16, 2, len(rows) + 1, KRW_FORMAT)
+    auto_width(ws)
+    freeze_header(ws)
+    fname = urllib.parse.quote("직원명단_Workday형식.xlsx")
     return to_response(wb, fname)
 
 
