@@ -701,17 +701,114 @@ def departments():
 
 
 # ── Leave / Attendance ──────────────────────────────────────
-LEAVE_LABELS = {
-    'annual':  '연차',
-    'half_am': '오전 반차',
-    'half_pm': '오후 반차',
-    'sick':    '병가',
-    'remote':  '재택근무',
-    'outing':  '외출',
+# ── 휴가 메타 정보 ─────────────────────────────────────────────
+# deduct: 'annual' = 연차차감, 'none' = 비차감
+# fixed_days: None = 기간 선택, 숫자 = 고정일수
+# max_days: None = 제한없음(연차잔여 기준), 숫자 = 법정 최대일
+LEAVE_META = {
+    # ── 연차 소진형 ──────────────────────────────────────────
+    'annual': {
+        'label': '연차휴가', 'group': '연차',
+        'deduct': 'annual', 'fixed_days': None, 'max_days': None,
+        'law': '근로기준법 §60',
+        'desc': '연간 부여된 유급 연차를 사용합니다. 잔여 연차 내에서 기간을 선택하세요.',
+        'icon': 'fa-umbrella-beach', 'color': '#3b82f6',
+    },
+    'half_am': {
+        'label': '오전 반차', 'group': '연차',
+        'deduct': 'annual', 'fixed_days': 0.5, 'max_days': 0.5,
+        'law': '근로기준법 §60',
+        'desc': '오전(~13:00) 반일 유급휴가. 0.5일이 연차에서 차감됩니다.',
+        'icon': 'fa-sun', 'color': '#3b82f6',
+    },
+    'half_pm': {
+        'label': '오후 반차', 'group': '연차',
+        'deduct': 'annual', 'fixed_days': 0.5, 'max_days': 0.5,
+        'law': '근로기준법 §60',
+        'desc': '오후(13:00~) 반일 유급휴가. 0.5일이 연차에서 차감됩니다.',
+        'icon': 'fa-moon', 'color': '#3b82f6',
+    },
+    'sick': {
+        'label': '병가', 'group': '연차',
+        'deduct': 'annual', 'fixed_days': None, 'max_days': None,
+        'law': '취업규칙',
+        'desc': '질병·부상으로 인한 휴가. 연차에서 차감됩니다. 진단서 제출이 필요할 수 있습니다.',
+        'icon': 'fa-kit-medical', 'color': '#ef4444',
+    },
+    # ── 법정 특별휴가 (연차 비차감) ─────────────────────────
+    'maternity': {
+        'label': '출산전후휴가', 'group': '법정 특별휴가',
+        'deduct': 'none', 'fixed_days': 90, 'max_days': 90,
+        'law': '근로기준법 §74',
+        'desc': '출산 전후 90일 유급 보장 (다태아 120일). 출산 후 최소 45일 이상 포함되어야 합니다. 연차에서 차감되지 않습니다.',
+        'icon': 'fa-baby', 'color': '#ec4899',
+    },
+    'paternity': {
+        'label': '배우자출산휴가', 'group': '법정 특별휴가',
+        'deduct': 'none', 'fixed_days': 10, 'max_days': 10,
+        'law': '남녀고용평등법 §18의2',
+        'desc': '배우자 출산 시 10일 유급. 출산일로부터 90일 이내 사용. 연차에서 차감되지 않습니다.',
+        'icon': 'fa-person', 'color': '#8b5cf6',
+    },
+    'parental': {
+        'label': '육아휴직', 'group': '법정 특별휴가',
+        'deduct': 'none', 'fixed_days': None, 'max_days': 365,
+        'law': '남녀고용평등법 §19',
+        'desc': '만 8세 이하 자녀 양육을 위한 최대 1년 휴직. 고용보험에서 육아휴직급여 지급. 신청 30일 전 서면 통보 필요.',
+        'icon': 'fa-baby-carriage', 'color': '#10b981',
+    },
+    'family_care': {
+        'label': '가족돌봄휴직', 'group': '법정 특별휴가',
+        'deduct': 'none', 'fixed_days': None, 'max_days': 90,
+        'law': '남녀고용평등법 §22의2',
+        'desc': '가족 질병·사고·노령으로 인한 돌봄. 연간 최대 90일 무급. (단기 가족돌봄휴가: 연 10일 별도)',
+        'icon': 'fa-heart-pulse', 'color': '#f59e0b',
+    },
+    'bereavement': {
+        'label': '경조사휴가', 'group': '법정 특별휴가',
+        'deduct': 'none', 'fixed_days': None, 'max_days': 5,
+        'law': '취업규칙 (법정 아님)',
+        'desc': '경조사 발생 시 회사 규정에 따라 부여. 부모·배우자 사망 5일, 자녀·형제 3일 등 (회사별 상이). 연차에서 차감되지 않습니다.',
+        'icon': 'fa-ribbon', 'color': '#6b7280',
+    },
+    # ── 기타 (비소진형) ──────────────────────────────────────
+    'military': {
+        'label': '예비군·민방위', 'group': '기타',
+        'deduct': 'none', 'fixed_days': None, 'max_days': None,
+        'law': '병역법 §44',
+        'desc': '예비군 훈련 및 민방위 소집 기간. 유급 처리. 소집 통지서 사본 첨부 필요.',
+        'icon': 'fa-shield-halved', 'color': '#64748b',
+    },
+    'compensation': {
+        'label': '대체휴무', 'group': '기타',
+        'deduct': 'none', 'fixed_days': None, 'max_days': None,
+        'law': '근로기준법 §57',
+        'desc': '초과 근무 대신 부여받은 대체 휴무일. 연차에서 차감되지 않습니다.',
+        'icon': 'fa-arrows-rotate', 'color': '#64748b',
+    },
+    'remote': {
+        'label': '재택근무', 'group': '기타',
+        'deduct': 'none', 'fixed_days': None, 'max_days': None,
+        'law': '취업규칙',
+        'desc': '재택근무 신청. 연차에서 차감되지 않습니다.',
+        'icon': 'fa-house-laptop', 'color': '#64748b',
+    },
+    'outing': {
+        'label': '외출', 'group': '기타',
+        'deduct': 'none', 'fixed_days': None, 'max_days': None,
+        'law': '취업규칙',
+        'desc': '업무 관련 외출. 연차에서 차감되지 않습니다.',
+        'icon': 'fa-person-walking', 'color': '#64748b',
+    },
 }
-LEAVE_DAYS = {
-    'annual': 1.0, 'half_am': 0.5, 'half_pm': 0.5,
-    'sick': 1.0,   'remote': 0.0,  'outing': 0.0,
+
+LEAVE_LABELS = {k: v['label'] for k, v in LEAVE_META.items()}
+LEAVE_DAYS   = {
+    'annual': 1.0, 'half_am': 0.5, 'half_pm': 0.5, 'sick': 1.0,
+    'remote': 0.0, 'outing': 0.0,
+    'maternity': 90.0, 'paternity': 10.0,
+    'parental': 0.0, 'family_care': 0.0,
+    'bereavement': 0.0, 'military': 0.0, 'compensation': 0.0,
 }
 
 def calc_working_days(start_str, end_str):
@@ -766,30 +863,43 @@ def leave_new():
 
         if not leave_type or not start_date or not end_date:
             error = '유형, 시작일, 종료일은 필수입니다.'
+        elif leave_type not in LEAVE_META:
+            error = '올바르지 않은 신청 유형입니다.'
         elif start_date > end_date:
             error = '종료일이 시작일보다 앞설 수 없습니다.'
-        elif leave_type not in LEAVE_DAYS:
-            error = '올바르지 않은 신청 유형입니다.'
         else:
-            db  = get_db()
-            uid = session['user_id']
-            # 근무일수 계산 (반차·재택·외출은 고정값)
-            if leave_type in ('half_am', 'half_pm', 'remote', 'outing'):
-                days = LEAVE_DAYS[leave_type]
+            db   = get_db()
+            uid  = session['user_id']
+            meta = LEAVE_META[leave_type]
+
+            # 일수 계산
+            if meta['fixed_days'] is not None and meta['fixed_days'] > 0:
+                days = meta['fixed_days']
+            elif leave_type in ('half_am', 'half_pm'):
+                days = 0.5
+            elif meta['deduct'] == 'none' and leave_type not in ('remote', 'outing'):
+                days = calc_working_days(start_date, end_date)
             else:
                 days = calc_working_days(start_date, end_date)
-            # 연차 소진 유형일 때 잔여 연차 검사
-            if leave_type in ('annual', 'half_am', 'half_pm', 'sick'):
+
+            # 법정 최대일 초과 검사
+            if meta['max_days'] and days > meta['max_days']:
+                error = f'{meta["label"]} 최대 사용 가능일은 {meta["max_days"]}일입니다. (신청: {days:.0f}일)'
+
+            # 연차 소진 유형: 잔여 연차 검사
+            if not error and meta['deduct'] == 'annual':
                 hire_row = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
                 total = calc_annual_leave(hire_row['hire_date']) if hire_row and hire_row['hire_date'] else 15
-                used = db.execute(
+                used  = db.execute(
                     "SELECT COALESCE(SUM(days),0) FROM leave_requests "
-                    "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm','sick')",
+                    "WHERE user_id=? AND status='approved' "
+                    "AND type IN ('annual','half_am','half_pm','sick')",
                     (uid,)
                 ).fetchone()[0]
                 if used + days > total:
                     error = f'잔여 연차가 부족합니다. (잔여: {total - used:.1f}일, 신청: {days:.1f}일)'
-            # 기간 중복 검사 (취소·반려 제외)
+
+            # 기간 중복 검사
             if not error:
                 overlap = db.execute(
                     "SELECT id FROM leave_requests "
@@ -798,7 +908,8 @@ def leave_new():
                     (uid, end_date, start_date)
                 ).fetchone()
                 if overlap:
-                    error = '해당 기간에 이미 신청된 휴가가 있습니다.'
+                    error = '해당 기간에 이미 신청된 휴가·재택이 있습니다.'
+
             if not error:
                 db.execute(
                     'INSERT INTO leave_requests (user_id, type, start_date, end_date, days, reason) '
@@ -806,9 +917,39 @@ def leave_new():
                     (uid, leave_type, start_date, end_date, days, reason or None)
                 )
                 db.commit()
+                flash(f'{meta["label"]} 신청이 완료되었습니다.', 'success')
                 return redirect(url_for('leave_my'))
 
-    return render_template('leave/new.html', error=error, labels=LEAVE_LABELS,
+    # 연차 잔여일 계산 (폼에 표시용)
+    db  = get_db()
+    uid = session['user_id']
+    hire_row   = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
+    annual_total = calc_annual_leave(hire_row['hire_date']) if hire_row and hire_row['hire_date'] else 15
+    annual_used  = db.execute(
+        "SELECT COALESCE(SUM(days),0) FROM leave_requests "
+        "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm','sick')",
+        (uid,)
+    ).fetchone()[0]
+    annual_remain = round(annual_total - annual_used, 1)
+
+    # 법정 특별휴가 사용 현황 (올해)
+    import json as _json
+    year = date.today().year
+    special_used = {}
+    for lt in ('maternity','paternity','parental','family_care','bereavement','military','compensation'):
+        row = db.execute(
+            "SELECT COALESCE(SUM(days),0) FROM leave_requests "
+            "WHERE user_id=? AND type=? AND status!='cancelled' "
+            "AND strftime('%Y',start_date)=?",
+            (uid, lt, str(year))
+        ).fetchone()
+        special_used[lt] = row[0]
+
+    return render_template('leave/new.html', error=error,
+                           leave_meta=LEAVE_META,
+                           annual_remain=annual_remain,
+                           annual_total=annual_total,
+                           special_used=_json.dumps(special_used),
                            active_page='leave_new')
 
 @app.route('/leave/<int:req_id>/cancel', methods=['POST'])

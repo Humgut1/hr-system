@@ -1,16 +1,87 @@
 {% extends 'base.html' %}
-{% block title %}Request Leave{% endblock %}
+{% block title %}휴가 신청{% endblock %}
 {% block page_title %}Attendance{% endblock %}
 
+{% block extra_css %}
+<style>
+  .leave-form-wrap { max-width: 580px; }
+
+  /* 그룹 선택 */
+  .leave-type-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .leave-type-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--r);
+    background: var(--surface);
+    cursor: pointer;
+    transition: all .15s;
+    text-align: left;
+  }
+  .leave-type-btn:hover { border-color: var(--primary); background: #f0f4ff; }
+  .leave-type-btn.selected { border-color: var(--primary); background: #eff6ff; }
+  .leave-type-btn .lt-icon {
+    width: 34px; height: 34px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+  }
+  .leave-type-btn .lt-name { font-size: 13px; font-weight: 700; color: var(--text); }
+  .leave-type-btn .lt-law  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* 그룹 헤더 */
+  .type-group-label {
+    font-size: 11px; font-weight: 800; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: .08em;
+    margin: 18px 0 8px; grid-column: 1 / -1;
+  }
+
+  /* 선택된 유형 정보 카드 */
+  .leave-info-card {
+    border-radius: var(--r);
+    padding: 16px 18px;
+    margin-bottom: 20px;
+    border: 1.5px solid;
+    display: none;
+  }
+  .leave-info-card.show { display: block; }
+  .leave-info-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .leave-info-title { font-size: 15px; font-weight: 800; }
+  .leave-law-badge {
+    font-size: 11px; font-weight: 700;
+    padding: 3px 8px; border-radius: 20px;
+    background: rgba(0,0,0,.06);
+  }
+  .leave-info-desc { font-size: 13px; line-height: 1.7; margin-bottom: 12px; }
+  .leave-stats { display: flex; gap: 16px; flex-wrap: wrap; }
+  .leave-stat { text-align: center; }
+  .leave-stat-val { font-size: 20px; font-weight: 800; }
+  .leave-stat-lbl { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* 날짜 고정 뱃지 */
+  .fixed-days-note {
+    font-size: 12px; font-weight: 700;
+    background: #fef3c7; color: #92400e;
+    padding: 4px 10px; border-radius: 20px;
+    display: inline-block; margin-bottom: 10px;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div style="max-width:560px;">
+<div class="leave-form-wrap">
   <a href="{{ url_for('leave_my') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
-    <i class="fas fa-arrow-left"></i> My Leave
+    <i class="fas fa-arrow-left"></i> 내 휴가 목록
   </a>
 
   <div class="card">
-    <div class="card-head"><span class="card-title">Request Leave</span></div>
+    <div class="card-head"><span class="card-title">휴가 신청</span></div>
     <div class="card-body">
+
       {% if error %}
       <div class="login-error" style="margin-bottom:18px;">
         <i class="fas fa-exclamation-circle"></i> {{ error }}
@@ -18,87 +89,184 @@
       {% endif %}
 
       <form method="POST" action="{{ url_for('leave_new') }}">
-        <div class="field">
-          <label class="form-label">Type <span style="color:var(--red);">*</span></label>
-          <select name="type" id="leaveType" class="input" required>
-            <option value="">Select type</option>
-            {% for val, label in labels.items() %}
-            <option value="{{ val }}">{{ label }}</option>
-            {% endfor %}
-          </select>
+        <input type="hidden" name="type" id="leaveTypeVal">
+
+        <!-- ── 휴가 유형 선택 ── -->
+        <div class="field" style="margin-bottom:6px;">
+          <label class="form-label">휴가 유형 <span style="color:var(--red);">*</span></label>
         </div>
 
-        <div id="dayInfo" style="display:none; margin-bottom:14px; padding:10px 14px;
-             background:#eff6ff; border-radius:var(--r-sm); font-size:13px;
-             color:var(--primary); font-weight:600;"></div>
+        <div class="leave-type-grid" id="typeGrid">
+          {% set groups = {} %}
+          {% for key, m in leave_meta.items() %}
+            {% if m.group not in groups %}
+              {% set _ = groups.update({m.group: []}) %}
+            {% endif %}
+            {% set _ = groups[m.group].append((key, m)) %}
+          {% endfor %}
 
-        <div class="grid-2" style="gap:14px;">
-          <div class="field">
-            <label class="form-label">Start Date <span style="color:var(--red);">*</span></label>
-            <input type="date" name="start_date" id="startDate" class="input" required>
-          </div>
-          <div class="field">
-            <label class="form-label">End Date <span style="color:var(--red);">*</span></label>
-            <input type="date" name="end_date" id="endDate" class="input" required>
-          </div>
-        </div>
-
-        <div class="field">
-          <label class="form-label">Reason (optional)</label>
-          <textarea name="reason" class="input" rows="3"
-                    placeholder="Briefly describe the reason"></textarea>
-        </div>
-
-        <div style="display:flex; gap:10px;">
-          <button type="submit" class="btn btn-primary">
-            <i class="fas fa-paper-plane"></i> Submit Request
+          {% for group, items in groups.items() %}
+          <div class="type-group-label">{{ group }}</div>
+          {% for key, m in items %}
+          <button type="button" class="leave-type-btn" data-type="{{ key }}"
+                  onclick="selectType('{{ key }}')">
+            <div class="lt-icon" style="background:{{ m.color }}18; color:{{ m.color }};">
+              <i class="fas {{ m.icon }}"></i>
+            </div>
+            <div>
+              <div class="lt-name">{{ m.label }}</div>
+              <div class="lt-law">{{ m.law }}</div>
+            </div>
           </button>
-          <a href="{{ url_for('leave_my') }}" class="btn btn-ghost">Cancel</a>
+          {% endfor %}
+          {% endfor %}
         </div>
+
+        <!-- ── 선택된 유형 정보 카드 ── -->
+        <div class="leave-info-card" id="infoCard">
+          <div class="leave-info-top">
+            <div class="leave-info-title" id="infoTitle"></div>
+            <div class="leave-law-badge" id="infoLaw"></div>
+          </div>
+          <div class="leave-info-desc" id="infoDesc"></div>
+          <div id="fixedNote" style="display:none;">
+            <span class="fixed-days-note" id="fixedNoteText"></span>
+          </div>
+          <div class="leave-stats" id="infoStats"></div>
+        </div>
+
+        <!-- ── 날짜 선택 ── -->
+        <div id="dateSection" style="display:none;">
+          <div class="grid-2" style="gap:14px; margin-bottom:14px;">
+            <div class="field">
+              <label class="form-label">시작일 <span style="color:var(--red);">*</span></label>
+              <input type="date" name="start_date" id="startDate" class="input" required
+                     onchange="onStartChange()">
+            </div>
+            <div class="field" id="endDateField">
+              <label class="form-label">종료일 <span style="color:var(--red);">*</span></label>
+              <input type="date" name="end_date" id="endDate" class="input" required>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="form-label">사유 <span style="font-weight:400; color:var(--text-muted);">(선택)</span></label>
+            <textarea name="reason" class="input" rows="3"
+                      id="reasonField"
+                      placeholder="간략한 사유를 입력하세요."></textarea>
+          </div>
+
+          <div style="display:flex; gap:10px; margin-top:4px;">
+            <button type="submit" class="btn btn-primary" id="submitBtn">
+              <i class="fas fa-paper-plane"></i> 신청하기
+            </button>
+            <a href="{{ url_for('leave_my') }}" class="btn btn-ghost">취소</a>
+          </div>
+        </div>
+
       </form>
     </div>
   </div>
 </div>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 <script>
 (function () {
-  var infoMap = {
-    annual:  '1 annual leave day will be deducted.',
-    half_am: '0.5 days (AM half-day) will be deducted.',
-    half_pm: '0.5 days (PM half-day) will be deducted.',
-    sick:    '1 sick leave day will be deducted.',
-    remote:  'Remote work does not deduct from leave balance.',
-    outing:  'Outing does not deduct from leave balance.'
-  };
-  var halfTypes = new Set(['half_am', 'half_pm']);
+  var META = {{ leave_meta | tojson }};
+  var ANNUAL_REMAIN = {{ annual_remain }};
+  var ANNUAL_TOTAL  = {{ annual_total }};
+  var SPECIAL_USED  = {{ special_used }};
+  var selected = null;
 
-  var typeEl  = document.getElementById('leaveType');
-  var startEl = document.getElementById('startDate');
-  var endEl   = document.getElementById('endDate');
-  var infoEl  = document.getElementById('dayInfo');
+  window.selectType = function (key) {
+    selected = key;
+    document.getElementById('leaveTypeVal').value = key;
 
-  function onStartChange() {
-    if (halfTypes.has(typeEl.value)) {
-      endEl.value = startEl.value;
+    // 버튼 활성화
+    document.querySelectorAll('.leave-type-btn').forEach(function (b) {
+      b.classList.toggle('selected', b.dataset.type === key);
+    });
+
+    var m = META[key];
+    var card = document.getElementById('infoCard');
+
+    // 카드 색상
+    card.style.borderColor  = m.color + '44';
+    card.style.background   = m.color + '0a';
+    document.getElementById('infoTitle').textContent = m.label;
+    document.getElementById('infoTitle').style.color = m.color;
+    document.getElementById('infoLaw').textContent   = m.law;
+    document.getElementById('infoDesc').textContent  = m.desc;
+
+    // 고정 일수 안내
+    var fixedNote = document.getElementById('fixedNote');
+    if (m.fixed_days && m.fixed_days >= 1) {
+      document.getElementById('fixedNoteText').textContent =
+        '📅 이 휴가는 ' + m.fixed_days + '일 고정입니다. 시작일을 선택하면 종료일이 자동 설정됩니다.';
+      fixedNote.style.display = 'block';
+    } else {
+      fixedNote.style.display = 'none';
     }
+
+    // 통계 표시
+    var stats = document.getElementById('infoStats');
+    stats.innerHTML = '';
+    if (m.deduct === 'annual') {
+      stats.innerHTML =
+        statBox(ANNUAL_TOTAL + '일', '연간 부여') +
+        statBox(ANNUAL_REMAIN + '일', '잔여 연차', ANNUAL_REMAIN < 3 ? '#ef4444' : m.color);
+    } else if (m.max_days) {
+      var used = SPECIAL_USED[key] || 0;
+      var remain = m.max_days - used;
+      stats.innerHTML =
+        statBox(m.max_days + '일', '법정 최대') +
+        statBox(used + '일', '올해 사용') +
+        statBox(remain + '일', '사용 가능', remain <= 0 ? '#ef4444' : m.color);
+    }
+
+    card.classList.add('show');
+    document.getElementById('dateSection').style.display = 'block';
+
+    // 반차: 종료일 = 시작일 고정
+    var endField = document.getElementById('endDateField');
+    if (key === 'half_am' || key === 'half_pm') {
+      endField.style.display = 'none';
+      document.getElementById('endDate').removeAttribute('required');
+    } else {
+      endField.style.display = '';
+      document.getElementById('endDate').setAttribute('required', '');
+    }
+  };
+
+  function statBox(val, lbl, color) {
+    color = color || '#1e3a8a';
+    return '<div class="leave-stat">' +
+      '<div class="leave-stat-val" style="color:' + color + '">' + val + '</div>' +
+      '<div class="leave-stat-lbl">' + lbl + '</div>' +
+      '</div>';
   }
 
-  typeEl.addEventListener('change', function () {
-    var val = typeEl.value;
-    if (infoMap[val]) {
-      infoEl.textContent = infoMap[val];
-      infoEl.style.display = 'block';
-    } else {
-      infoEl.style.display = 'none';
-    }
-    if (halfTypes.has(val) && startEl.value) {
-      endEl.value = startEl.value;
-    }
-  });
+  window.onStartChange = function () {
+    if (!selected) return;
+    var m = META[selected];
+    var startEl = document.getElementById('startDate');
+    var endEl   = document.getElementById('endDate');
+    if (!startEl.value) return;
 
-  startEl.addEventListener('change', onStartChange);
+    // 반차: 종료일 = 시작일
+    if (selected === 'half_am' || selected === 'half_pm') {
+      endEl.value = startEl.value;
+      return;
+    }
+
+    // 고정 일수: 종료일 자동 계산 (달력일 기준)
+    if (m.fixed_days && m.fixed_days >= 1) {
+      var s = new Date(startEl.value);
+      s.setDate(s.getDate() + m.fixed_days - 1);
+      endEl.value = s.toISOString().slice(0, 10);
+    }
+  };
 }());
 </script>
 {% endblock %}

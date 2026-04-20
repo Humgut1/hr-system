@@ -81,7 +81,11 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id     INTEGER NOT NULL REFERENCES users(id),
                 type        TEXT NOT NULL
-                                CHECK(type IN ('annual','half_am','half_pm','sick','remote','outing')),
+                                CHECK(type IN (
+                                    'annual','half_am','half_pm','sick','remote','outing',
+                                    'maternity','paternity','parental','family_care',
+                                    'bereavement','military','compensation'
+                                )),
                 start_date  DATE NOT NULL,
                 end_date    DATE NOT NULL,
                 days        REAL NOT NULL DEFAULT 1,
@@ -262,6 +266,38 @@ def init_db():
             c.execute('ALTER TABLE users ADD COLUMN onboarded INTEGER NOT NULL DEFAULT 0')
         if 'features_enabled' not in existing:
             c.execute('ALTER TABLE users ADD COLUMN features_enabled TEXT NOT NULL DEFAULT ""')
+        # leave_requests.type CHECK 확장 (새 휴가 유형 추가)
+        lr_sql = c.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='leave_requests'"
+        ).fetchone()
+        if lr_sql and 'maternity' not in lr_sql[0]:
+            c.executescript('''
+                PRAGMA foreign_keys = OFF;
+                ALTER TABLE leave_requests RENAME TO _lr_old;
+                CREATE TABLE leave_requests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id     INTEGER NOT NULL REFERENCES users(id),
+                    type        TEXT NOT NULL
+                                    CHECK(type IN (
+                                        'annual','half_am','half_pm','sick','remote','outing',
+                                        'maternity','paternity','parental','family_care',
+                                        'bereavement','military','compensation'
+                                    )),
+                    start_date  DATE NOT NULL,
+                    end_date    DATE NOT NULL,
+                    days        REAL NOT NULL DEFAULT 1,
+                    reason      TEXT,
+                    status      TEXT NOT NULL DEFAULT 'pending'
+                                    CHECK(status IN ('pending','approved','rejected','cancelled')),
+                    approver_id INTEGER REFERENCES users(id),
+                    reject_reason TEXT,
+                    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT INTO leave_requests SELECT * FROM _lr_old;
+                DROP TABLE _lr_old;
+                PRAGMA foreign_keys = ON;
+            ''')
+
         if 'emp_no' not in existing:
             c.execute('ALTER TABLE users ADD COLUMN emp_no TEXT')
             c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_emp_no ON users(emp_no) WHERE emp_no IS NOT NULL")
