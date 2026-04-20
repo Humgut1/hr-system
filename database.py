@@ -258,6 +258,21 @@ def init_db():
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL DEFAULT ''
             );
+
+            CREATE TABLE IF NOT EXISTS severance_payments (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id          INTEGER NOT NULL REFERENCES users(id),
+                hire_date        DATE    NOT NULL,
+                termination_date DATE    NOT NULL,
+                tenure_days      INTEGER NOT NULL,
+                basis_total_pay  INTEGER NOT NULL DEFAULT 0,
+                basis_days       INTEGER NOT NULL DEFAULT 92,
+                avg_daily_wage   INTEGER NOT NULL DEFAULT 0,
+                severance_amount INTEGER NOT NULL,
+                note             TEXT,
+                processed_by     INTEGER NOT NULL REFERENCES users(id),
+                processed_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         ''')
 
         # 컬럼 마이그레이션: 기존 DB에 없을 수 있는 컬럼 추가

@@ -6,7 +6,8 @@ from functools import wraps
 from flask import (Flask, abort, flash, g, redirect, render_template,
                    request, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
-from payroll_utils import calc_payslip, calc_annual_leave, fmt_krw
+from payroll_utils import (calc_payslip, calc_annual_leave, fmt_krw,
+                           calc_severance, check_min_wage, MIN_WAGE_MONTHLY)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('HR_SECRET_KEY', 'dev-only-change-in-prod')
@@ -656,7 +657,63 @@ def employee_resign(emp_id):
         (reason, emp_id)
     )
     db.commit()
-    return redirect(url_for('employees'))
+    return redirect(url_for('employee_severance', emp_id=emp_id))
+
+
+@app.route('/employees/<int:emp_id>/severance', methods=['GET', 'POST'])
+@admin_required
+def employee_severance(emp_id):
+    db  = get_db()
+    emp = db.execute(
+        'SELECT u.*, d.name dept_name, p.name pos_name '
+        'FROM users u '
+        'LEFT JOIN departments d ON u.department_id=d.id '
+        'LEFT JOIN positions   p ON u.position_id=p.id '
+        'WHERE u.id=?', (emp_id,)
+    ).fetchone()
+    if not emp:
+        abort(404)
+
+    # 기존 퇴직금 지급 내역
+    existing = db.execute(
+        'SELECT * FROM severance_payments WHERE user_id=? ORDER BY processed_at DESC LIMIT 1',
+        (emp_id,)
+    ).fetchone()
+
+    # 최근 3개월 payslip 조회
+    recent_payslips = db.execute(
+        'SELECT year, month, gross_pay FROM payslips '
+        'WHERE user_id=? ORDER BY year DESC, month DESC LIMIT 3',
+        (emp_id,)
+    ).fetchall()
+    payslip_list = [dict(r) for r in recent_payslips]
+
+    term_date = emp['termination_date'] or date.today().isoformat()
+    result    = calc_severance(
+        emp['hire_date'] or '', term_date, payslip_list
+    )
+
+    if request.method == 'POST':
+        note = request.form.get('note', '').strip() or None
+        if result.get('eligible'):
+            db.execute(
+                'INSERT INTO severance_payments '
+                '(user_id, hire_date, termination_date, tenure_days, '
+                ' basis_total_pay, basis_days, avg_daily_wage, severance_amount, note, processed_by) '
+                'VALUES (?,?,?,?,?,?,?,?,?,?)',
+                (emp_id, emp['hire_date'], term_date,
+                 result['tenure_days'], result.get('basis_total_pay', 0),
+                 result.get('basis_days', 92), result.get('avg_daily_wage', 0),
+                 result['severance_amount'], note, session['user_id'])
+            )
+            db.commit()
+            flash(f'퇴직금 {fmt_krw(result["severance_amount"])}원 처리가 완료되었습니다.', 'success')
+        return redirect(url_for('employees'))
+
+    return render_template('employees/severance.html',
+                           emp=emp, result=result, existing=existing,
+                           term_date=term_date,
+                           active_page='employees')
 
 
 # ── Departments & Positions ──────────────────────────────────
@@ -1239,6 +1296,7 @@ def admin_payroll():
             base  = int(request.form.get('base_salary', 0))
             meal  = int(request.form.get('meal_allowance', 0))
             trans = int(request.form.get('transport_allowance', 0))
+            mw    = check_min_wage(base)
             db.execute(
                 'INSERT INTO employee_salary (user_id, base_salary, meal_allowance, transport_allowance) '
                 'VALUES (?, ?, ?, ?) '
@@ -1250,7 +1308,12 @@ def admin_payroll():
                 (uid, base, meal, trans)
             )
             db.commit()
-            msg = '급여 정보가 저장되었습니다.'
+            if not mw['ok']:
+                msg = (f'급여가 저장되었으나 ⚠️ 최저임금 미달입니다. '
+                       f'(기본급 {fmt_krw(base)}원 < 최저임금 {fmt_krw(mw["min_monthly"])}원, '
+                       f'부족액 {fmt_krw(mw["shortage"])}원)')
+            else:
+                msg = '급여 정보가 저장되었습니다.'
 
         # 월 급여 일괄 생성
         elif action == 'generate':

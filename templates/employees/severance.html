@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+{% block title %}퇴직금 계산{% endblock %}
+{% block page_title %}Employees{% endblock %}
+
+{% block extra_css %}
+<style>
+  .sev-wrap { max-width: 640px; }
+  .sev-profile {
+    display: flex; align-items: center; gap: 16px;
+    padding: 20px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--r-lg);
+    margin-bottom: 20px;
+  }
+  .sev-avatar {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 20px; font-weight: 800; flex-shrink: 0;
+  }
+  .sev-name  { font-size: 17px; font-weight: 800; color: var(--text); }
+  .sev-sub   { font-size: 13px; color: var(--text-muted); margin-top: 3px; }
+
+  .calc-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-lg); overflow: hidden; margin-bottom: 20px;
+  }
+  .calc-head {
+    padding: 14px 20px; background: #1e3a8a; color: #fff;
+    font-size: 13px; font-weight: 700;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .calc-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 13px 20px; border-bottom: 1px solid var(--border);
+    font-size: 13.5px;
+  }
+  .calc-row:last-child { border-bottom: none; }
+  .calc-row .lbl { color: var(--text-muted); font-weight: 600; }
+  .calc-row .val { font-weight: 700; color: var(--text); }
+  .calc-row.total { background: #eff6ff; }
+  .calc-row.total .lbl { color: #1e3a8a; font-weight: 800; }
+  .calc-row.total .val { color: #1e3a8a; font-size: 20px; font-weight: 900; }
+
+  .formula-box {
+    background: #f8fafc; border: 1px solid var(--border);
+    border-radius: var(--r); padding: 14px 18px;
+    font-size: 12.5px; color: var(--text-muted);
+    line-height: 1.9; margin-bottom: 20px;
+  }
+  .formula-box strong { color: var(--text); }
+
+  .ineligible-box {
+    background: #fff7ed; border: 1px solid #fed7aa;
+    border-radius: var(--r-lg); padding: 20px 24px;
+    color: #c2410c; font-size: 14px; font-weight: 700;
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .already-box {
+    background: #f0fdf4; border: 1px solid #86efac;
+    border-radius: var(--r); padding: 14px 18px;
+    font-size: 13px; color: #15803d; font-weight: 600;
+    margin-bottom: 16px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sev-wrap">
+  <a href="{{ url_for('employees') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
+    <i class="fas fa-arrow-left"></i> 직원 목록
+  </a>
+
+  <!-- 직원 프로필 -->
+  <div class="sev-profile">
+    <div class="sev-avatar">{{ emp.name[0] }}</div>
+    <div>
+      <div class="sev-name">{{ emp.name }}
+        {% if emp.emp_no %}<span style="font-size:13px; color:var(--text-muted); font-weight:600; margin-left:6px;">{{ emp.emp_no }}</span>{% endif %}
+      </div>
+      <div class="sev-sub">{{ emp.dept_name or '—' }} · {{ emp.pos_name or '—' }} · 퇴사일 {{ term_date }}</div>
+    </div>
+    <span style="margin-left:auto; padding:5px 12px; background:#fee2e2; color:#b91c1c;
+                 border-radius:20px; font-size:12px; font-weight:800;">퇴직</span>
+  </div>
+
+  {% if existing %}
+  <div class="already-box">
+    <i class="fas fa-check-circle"></i>
+    이미 처리됨 — {{ existing.processed_at[:10] }}에 <strong>{{ "{:,}원".format(existing.severance_amount) }}</strong> 지급 기록이 있습니다.
+  </div>
+  {% endif %}
+
+  {% if result.eligible %}
+  <!-- 계산 결과 -->
+  <div class="calc-box">
+    <div class="calc-head">
+      <i class="fas fa-calculator"></i> 퇴직금 계산 결과 (근로기준법 §34)
+    </div>
+    <div class="calc-row">
+      <span class="lbl">입사일</span>
+      <span class="val">{{ emp.hire_date or '—' }}</span>
+    </div>
+    <div class="calc-row">
+      <span class="lbl">퇴직일</span>
+      <span class="val">{{ term_date }}</span>
+    </div>
+    <div class="calc-row">
+      <span class="lbl">근속일수</span>
+      <span class="val">{{ result.tenure_days }}일 ({{ result.tenure_years }}년)</span>
+    </div>
+    <div class="calc-row">
+      <span class="lbl">최근 3개월 총임금</span>
+      <span class="val">{{ "{:,}원".format(result.basis_total_pay) }}
+        <span style="font-size:11px; color:var(--text-muted); font-weight:500;">
+          ({{ result.payslip_months }}개월 기준)
+        </span>
+      </span>
+    </div>
+    <div class="calc-row">
+      <span class="lbl">3개월 총일수</span>
+      <span class="val">{{ result.basis_days }}일</span>
+    </div>
+    <div class="calc-row">
+      <span class="lbl">평균임금 (일)</span>
+      <span class="val">{{ "{:,}원".format(result.avg_daily_wage) }}</span>
+    </div>
+    <div class="calc-row total">
+      <span class="lbl">퇴직금</span>
+      <span class="val">{{ "{:,}원".format(result.severance_amount) }}</span>
+    </div>
+  </div>
+
+  <!-- 산식 설명 -->
+  <div class="formula-box">
+    <strong>산식 (근로기준법 §34)</strong><br>
+    평균임금 = 퇴직 전 3개월 총임금 ÷ 3개월 총일수<br>
+    퇴직금 = 평균임금 × <strong>30일</strong> × (근속일수 ÷ 365)<br>
+    = {{ "{:,}".format(result.avg_daily_wage) }}원 × 30 × ({{ result.tenure_days }} ÷ 365)<br>
+    = <strong>{{ "{:,}원".format(result.severance_amount) }}</strong><br><br>
+    ※ 근속 1년 이상, 퇴직금 300만원 초과 시 IRP 계좌로 의무 이전 (근로자퇴직급여보장법 §9)
+  </div>
+
+  {% if not existing %}
+  <form method="POST">
+    <div class="field" style="margin-bottom:14px;">
+      <label class="form-label">처리 메모 <span style="font-weight:400; color:var(--text-muted);">(선택)</span></label>
+      <input type="text" name="note" class="input"
+             placeholder="예: IRP 계좌 이전 완료, 계좌번호 XXX-XXX">
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-check"></i> 퇴직금 처리 완료로 기록
+      </button>
+      <a href="{{ url_for('employees') }}" class="btn btn-ghost">건너뛰기</a>
+    </div>
+  </form>
+  {% else %}
+  <a href="{{ url_for('employees') }}" class="btn btn-ghost">
+    <i class="fas fa-arrow-left"></i> 직원 목록으로
+  </a>
+  {% endif %}
+
+  {% else %}
+  <!-- 지급 대상 아님 -->
+  <div class="ineligible-box">
+    <i class="fas fa-circle-xmark" style="font-size:20px;"></i>
+    <div>
+      퇴직금 지급 대상이 아닙니다.<br>
+      <span style="font-size:12.5px; font-weight:500;">{{ result.get('reason', '1년 미만 근속') }}</span>
+    </div>
+  </div>
+  <a href="{{ url_for('employees') }}" class="btn btn-ghost">
+    <i class="fas fa-arrow-left"></i> 직원 목록으로
+  </a>
+  {% endif %}
+
+</div>
+{% endblock %}
