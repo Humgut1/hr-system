@@ -10,14 +10,11 @@ A full-featured HR platform built with Flask, designed for startups and small-to
 
 **[hr-system-production-5c51.up.railway.app](https://hr-system-production-5c51.up.railway.app)**
 
-| Role | Email |
-|------|-------|
-| HR Admin | admin@company.com |
-| Manager | manager@company.com |
-| Employee | employee@company.com |
-| Recruiter | recruiter@company.com |
+| Role | Email | Password |
+|------|-------|----------|
+| Guest (read-only) | guest@talentcore.com | guest1234! |
 
-> 비밀번호는 `HR_DEV_PASSWORD` 환경변수로 설정합니다. (기본값은 별도 문의)
+> 전체 기능 체험은 게스트 계정으로 가능합니다. 데이터 수정은 불가합니다.
 
 ---
 
