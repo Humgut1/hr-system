@@ -56,11 +56,13 @@
       </thead>
       <tbody>
         {% for emp in employees %}
-        <tr>
+        <tr class="emp-row" style="cursor:pointer;" data-href="{{ url_for('employee_detail', emp_id=emp.id) }}">
           <td>
             <div class="u-cell">
               <div class="avatar-xs">{{ emp.name[0] }}</div>
-              <div class="u-name">{{ emp.name }}</div>
+              <div class="u-name">{{ emp.name }}
+                {% if emp.emp_no %}<span style="font-size:11px; color:var(--tx-3); margin-left:4px;">{{ emp.emp_no }}</span>{% endif %}
+              </div>
             </div>
           </td>
           <td style="color:var(--tx-3);">{{ emp.email }}</td>
@@ -75,17 +77,17 @@
           <td style="color:var(--tx-3);">{{ emp.hire_date or '—' }}</td>
           <td><span class="badge badge-active">Active</span></td>
           {% if session.user_role == 'admin' %}
-          <td>
+          <td onclick="event.stopPropagation();">
             <div style="display:flex; gap:6px;">
-              <a href="{{ url_for('employee_edit', emp_id=emp.id) }}" class="btn btn-ghost btn-sm">
+              <a href="{{ url_for('employee_edit', emp_id=emp.id) }}" class="btn btn-ghost btn-sm"
+                 title="정보 수정">
                 <i class="fas fa-pencil-alt"></i>
               </a>
-              <button type="button" class="btn btn-sm resign-btn"
-                      data-action="{{ url_for('employee_resign', emp_id=emp.id) }}"
-                      data-name="{{ emp.name }}"
-                      style="background:#fef2f2; color:var(--red); border:1px solid #fecaca;">
-                <i class="fas fa-user-times"></i>
-              </button>
+              <a href="{{ url_for('employee_offboard', emp_id=emp.id) }}" class="btn btn-sm"
+                 title="퇴직 처리"
+                 style="background:#fef2f2; color:#b91c1c; border:1px solid #fecaca;">
+                <i class="fas fa-user-minus"></i>
+              </a>
             </div>
           </td>
           {% endif %}
@@ -102,20 +104,17 @@
   </div>
 </div>
 
-<form id="resignForm" method="POST" style="display:none;"></form>
-
 {% endblock %}
 
 {% block scripts %}
 <script>
-document.querySelectorAll('.resign-btn').forEach(function(btn) {
-  btn.addEventListener('click', function() {
-    var name   = btn.dataset.name;
-    var action = btn.dataset.action;
-    if (confirm('Terminate ' + name + '? This cannot be undone.')) {
-      var form = document.getElementById('resignForm');
-      form.action = action;
-      form.submit();
+document.querySelectorAll('.emp-row').forEach(function(row) {
+  row.addEventListener('click', function(e) {
+    if (e.target.closest('a, button')) return;
+    var href = row.dataset.href;
+    // 반드시 내부 상대경로만 허용
+    if (href && href.startsWith('/')) {
+      location.href = href;
     }
   });
 });

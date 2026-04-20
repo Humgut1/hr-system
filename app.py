@@ -531,6 +531,69 @@ def employees():
                            employees=emp_list, depts=depts, q=q, dept_id=dept_id,
                            active_page='employees')
 
+@app.route('/employees/<int:emp_id>')
+@login_required
+def employee_detail(emp_id):
+    # 관리자/매니저는 전체 조회 가능, 직원은 본인만
+    if session['user_role'] not in ('admin', 'manager') and session['user_id'] != emp_id:
+        abort(403)
+    db  = get_db()
+    emp = db.execute(
+        'SELECT u.*, d.name dept_name, p.name pos_name, '
+        '       jf.name jf_name, m.name manager_name '
+        'FROM users u '
+        'LEFT JOIN departments d  ON u.department_id = d.id '
+        'LEFT JOIN positions   p  ON u.position_id   = p.id '
+        'LEFT JOIN job_families jf ON u.job_family_id = jf.id '
+        'LEFT JOIN users       m  ON u.manager_id    = m.id '
+        'WHERE u.id=?', (emp_id,)
+    ).fetchone()
+    if not emp:
+        abort(404)
+
+    payslips = db.execute(
+        'SELECT year, month, gross_pay, net_pay, base_salary '
+        'FROM payslips WHERE user_id=? ORDER BY year DESC, month DESC LIMIT 6',
+        (emp_id,)
+    ).fetchall()
+
+    leaves = db.execute(
+        'SELECT * FROM leave_requests WHERE user_id=? ORDER BY created_at DESC LIMIT 8',
+        (emp_id,)
+    ).fetchall()
+
+    cycle = db.execute(
+        "SELECT * FROM performance_cycles WHERE status='active' ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    goals = []
+    if cycle:
+        goals = db.execute(
+            'SELECT * FROM performance_goals WHERE user_id=? AND cycle_id=? ORDER BY id',
+            (emp_id, cycle['id'])
+        ).fetchall()
+
+    annual_leave = calc_annual_leave(emp['hire_date']) if emp['hire_date'] else 15.0
+    used_leave   = db.execute(
+        "SELECT COALESCE(SUM(days),0) FROM leave_requests "
+        "WHERE user_id=? AND type='annual' AND status='approved' "
+        "AND strftime('%Y',start_date)=strftime('%Y','now')",
+        (emp_id,)
+    ).fetchone()[0]
+
+    severance = db.execute(
+        'SELECT * FROM severance_payments WHERE user_id=? ORDER BY processed_at DESC LIMIT 1',
+        (emp_id,)
+    ).fetchone()
+
+    return render_template('employees/detail.html',
+                           emp=emp, payslips=payslips, leaves=leaves,
+                           goals=goals, cycle=cycle,
+                           annual_leave=annual_leave, used_leave=used_leave,
+                           severance=severance,
+                           leave_labels=LEAVE_LABELS,
+                           active_page='employees')
+
+
 @app.route('/employees/new', methods=['GET', 'POST'])
 @admin_required
 def employee_new():
@@ -640,24 +703,69 @@ def employee_edit(emp_id):
                 )
             db.commit()
             flash('직원 정보가 저장되었습니다.', 'success')
-            return redirect(url_for('employees'))
+            return redirect(url_for('employee_detail', emp_id=emp_id))
 
     return render_template('employees/form.html',
                            mode='edit', depts=depts, poses=poses, jfs=jfs,
                            managers=managers, error=error, emp=emp,
                            active_page='employees')
 
-@app.route('/employees/<int:emp_id>/resign', methods=['POST'])
+@app.route('/employees/<int:emp_id>/offboard', methods=['GET', 'POST'])
 @admin_required
-def employee_resign(emp_id):
-    db     = get_db()
-    reason = request.form.get('termination_reason', '').strip() or None
-    db.execute(
-        "UPDATE users SET status='resigned', termination_date=DATE('now'), termination_reason=? WHERE id=?",
-        (reason, emp_id)
-    )
-    db.commit()
-    return redirect(url_for('employee_severance', emp_id=emp_id))
+def employee_offboard(emp_id):
+    db  = get_db()
+    emp = db.execute(
+        'SELECT u.*, d.name dept_name, p.name pos_name '
+        'FROM users u '
+        'LEFT JOIN departments d ON u.department_id=d.id '
+        'LEFT JOIN positions   p ON u.position_id=p.id '
+        "WHERE u.id=? AND u.status='active'", (emp_id,)
+    ).fetchone()
+    if not emp:
+        flash('이미 퇴직 처리된 직원이거나 존재하지 않는 직원입니다.', 'error')
+        return redirect(url_for('employees'))
+
+    recent_payslips = db.execute(
+        'SELECT year, month, gross_pay FROM payslips '
+        'WHERE user_id=? ORDER BY year DESC, month DESC LIMIT 3',
+        (emp_id,)
+    ).fetchall()
+    payslip_list = [dict(r) for r in recent_payslips]
+    preview = calc_severance(emp['hire_date'] or '', date.today().isoformat(), payslip_list)
+
+    if request.method == 'POST':
+        term_type   = request.form.get('term_type', 'voluntary')
+        term_date   = request.form.get('term_date') or date.today().isoformat()
+        term_reason = request.form.get('term_reason', '').strip() or TERMINATE_TYPES.get(term_type, '')
+        note        = request.form.get('note', '').strip() or None
+
+        db.execute(
+            "UPDATE users SET status='resigned', termination_date=?, termination_reason=? WHERE id=?",
+            (term_date, term_reason, emp_id)
+        )
+        result = calc_severance(emp['hire_date'] or '', term_date, payslip_list)
+        if result.get('eligible'):
+            db.execute(
+                'INSERT INTO severance_payments '
+                '(user_id, hire_date, termination_date, tenure_days, '
+                ' basis_total_pay, basis_days, avg_daily_wage, severance_amount, note, processed_by) '
+                'VALUES (?,?,?,?,?,?,?,?,?,?)',
+                (emp_id, emp['hire_date'], term_date,
+                 result['tenure_days'], result.get('basis_total_pay', 0),
+                 result.get('basis_days', 92), result.get('avg_daily_wage', 0),
+                 result['severance_amount'], note, session['user_id'])
+            )
+            flash(f'{emp["name"]} 퇴직 처리 완료 — 퇴직금 {fmt_krw(result["severance_amount"])}원 기록됨', 'success')
+        else:
+            flash(f'{emp["name"]} 퇴직 처리 완료 (근속 1년 미만, 퇴직금 미발생)', 'success')
+        db.commit()
+        return redirect(url_for('employees'))
+
+    return render_template('employees/offboard.html',
+                           emp=emp, preview=preview,
+                           terminate_types=TERMINATE_TYPES,
+                           today=date.today().isoformat(),
+                           active_page='employees')
 
 
 @app.route('/employees/<int:emp_id>/severance', methods=['GET', 'POST'])
@@ -860,6 +968,15 @@ LEAVE_META = {
 }
 
 LEAVE_LABELS = {k: v['label'] for k, v in LEAVE_META.items()}
+
+TERMINATE_TYPES = {
+    'voluntary':  '자발적 퇴직 (사직)',
+    'mutual':     '합의 퇴직',
+    'dismissal':  '권고사직',
+    'contract':   '계약 만료',
+    'retirement': '정년퇴직',
+}
+
 LEAVE_DAYS   = {
     'annual': 1.0, 'half_am': 0.5, 'half_pm': 0.5, 'sick': 1.0,
     'remote': 0.0, 'outing': 0.0,

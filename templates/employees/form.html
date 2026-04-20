@@ -4,9 +4,15 @@
 
 {% block content %}
 <div style="max-width:720px;">
+  {% if mode == 'edit' and emp %}
+  <a href="{{ url_for('employee_detail', emp_id=emp.id) }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
+    <i class="fas fa-arrow-left"></i> 프로필로 돌아가기
+  </a>
+  {% else %}
   <a href="{{ url_for('employees') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
     <i class="fas fa-arrow-left"></i> Back to list
   </a>
+  {% endif %}
 
   <div class="card">
     <div class="card-head">
