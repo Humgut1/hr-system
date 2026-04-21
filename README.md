@@ -1,402 +1,162 @@
-# TalentCore — HR Management System
+# TalentCore HR Management System
 
-A full-featured HR platform built with Flask, designed for startups and small-to-mid sized companies. Built as a portfolio project by a non-CS-major using Claude Code.
-
-> 비전공자가 Claude Code로 만든 HR 통합 시스템 제작기
-
----
+Flask 기반 HR 통합 시스템입니다. 스타트업과 중소 규모 조직을 기준으로 인사, 근태, 급여, 성과, 증명서, 조직도, 채용 기능을 하나의 앱으로 묶었습니다.
 
 ## Live Demo
 
-**[hr-system-production-5c51.up.railway.app](https://hr-system-production-5c51.up.railway.app)**
+- URL: https://hr-system-production-5c51.up.railway.app
+- Guest account:
+  - Email: `guest@talentcore.com`
+  - Password: `guest1234!`
 
-| Role | Email | Password |
-|------|-------|----------|
-| Guest (read-only) | guest@talentcore.com | guest1234! |
-
-> 전체 기능 체험은 게스트 계정으로 가능합니다. 데이터 수정은 불가합니다.
-
----
-
-## Features
+## Core Features
 
 ### People Management
-- Employee directory with add / edit / deactivate
-- Department & position hierarchy (Division → Group → Department → Team, up to 4 levels)
-- Job family system (12 families) with grade-based salary table (CL1–CL9)
-- Org chart visualization with expand/collapse per node
-- Role-based access control — 4 roles (Admin / Manager / Employee / Recruiter) with route-level enforcement
+- 직원 등록, 수정, 비활성화
+- 부문-그룹-부서-팀 계층 구조
+- 직군(Job Family) 및 급여 테이블
+- 직원 상세 프로필
+- 인사발령 이력 관리
+  - 부서 이동
+  - 직급 변경
+  - 역할 변경
+  - 고용형태 변경
+  - 직속상관 변경
+  - 급여 변경
 
 ### Attendance
-- Leave types: annual, half-day AM/PM, sick, remote, outing
-- Working-day auto-calculation (weekdays only, start–end date)
-- Remaining leave balance calculated per Korean Labor Standards Act (근로기준법) — tenure-based accrual, not hardcoded
-- Duplicate period & over-limit validation on submission
-- Manager approval / rejection workflow with reason field
-- Team calendar with department filter and multi-event per cell
-- Daily check-in / check-out with monthly attendance grid
+- 휴가 신청 / 승인 / 반려
+- 반차, 병가, 재택, 외근, 법정 특별휴가
+- 연차 자동 계산
+- 출퇴근 체크인 / 체크아웃
+- 유연근무 블록 스케줄러 및 승인 화면
 
 ### Payroll
-- Monthly payslip generation per employee
-- **Korean 4대보험 auto-calculation (2026 rates)**
-  - National Pension (국민연금) 4.5%
-  - Health Insurance (건강보험) 3.545% + Long-term Care (장기요양) 12.95% of health premium
-  - Employment Insurance (고용보험) 0.9%
-- Income tax (소득세) + Local income tax (지방소득세) auto-calculation
-- Non-taxable allowances per 소득세법 시행령 §12 — meal ₩200k, transport ₩100k excluded from tax base
-- Print-optimized payslip layout (all deduction line items visible, 근로기준법 §48 compliant)
-- Donut chart visualization of payroll distribution on admin screen
-- **Employment certificate (재직증명서)** & **Career certificate (경력증명서)** — corporate legal format, print/PDF ready
+- 월별 급여명세서 생성
+- 4대보험 및 세액 자동 계산
+- 최저임금 체크
+- 퇴직금 계산 및 저장
+- 급여 관리 화면 및 급여 차트
 
-### Performance Management
-
-#### Goal Setting & Review Cycles
-- Admin-managed review cycles (active / closed) — opening a new cycle auto-closes the previous one
-- Per-employee goal registration with KPI / OKR category, weight (1–100), and SMART guide
-- Progress tracking (0–100%) with visual progress bar
-- Weighted average score calculation → final grade (S / A / B / C / D)
-
-#### Self-Review
-- Employees submit self-assessment per goal: 1–5 score + written comment
-- Self-scores feed into the calibration data packet
-
-#### 360° Peer Review
-- HR assigns reviewer pairs per cycle (peer assignments management screen)
-- Peers write qualitative reviews: Strengths + Areas for Growth
-- **Upward review** (Google-style) — 5 standardized questions scored 1–5:
-  1. Creates a clear shared vision for the team
-  2. Gives actionable, specific feedback
-  3. Does not micromanage
-  4. Takes interest in my career growth
-  5. Is someone I would want on my next team
-- Review completion status tracked per assignee
-
-#### Calibration
-- Admin-only calibration board showing all employees in a cycle
-- Per-employee data packet: self-score, manager score, peer scores, upward scores
-- **Rule-based AI calibration summary** — auto-generated narrative per employee based on score patterns:
-  - Detects high performer signals (all scores ≥ 4.5)
-  - Flags score divergence between self and manager (gap ≥ 1.5)
-  - Identifies upward feedback concerns (upward avg < 3.0)
-  - Produces plain-language summary without external API calls
-- HR sets final calibrated grade (S / A / B / C / D) with notes
-- Calibration results stored separately from raw scores — audit trail preserved
+### Performance
+- 평가 주기 관리
+- KPI / OKR 목표 관리
+- 자기평가
+- Peer / Upward Review
+- Calibration 보드
 
 ### Recruiting
-- Job posting lifecycle: draft → open → closed
-- Direct applicant registration per posting (name, email, source, resume note)
-- **8-stage pipeline kanban board**: Applied → Screening → Interview 1 → Interview 2 → Final → Offered → Hired / Rejected
-- Drag-free stage change via dropdown — stage history auto-logged
-- Activity log timeline per applicant (who changed what, when)
-- Recruiter + Admin only — Manager / Employee get 403
+- 채용공고 등록 / 수정 / 마감
+- 지원자 등록
+- 단계별 파이프라인
+- 지원자 활동 로그
 
-### Announcements & Org
-- Pinned announcements with notification badge (unread within 3 days)
-- Hierarchical org chart with expandable nodes per department level
-
----
+### Org & Documents
+- 공지사항
+- 부서 조직도
+- `manager_id` 기반 Reporting Line 시각화
+- 재직 / 경력 / 퇴직 / 소득 증명서
+- Excel Export
 
 ## Tech Stack
 
-| Layer | Choice |
-|-------|--------|
-| Backend | Python 3 / Flask |
-| Database | SQLite (direct SQL, no ORM) |
-| Frontend | Jinja2 templates / Vanilla JS |
-| CSS | Custom design system — Editorial Soft-Minimalism |
-| Font | Plus Jakarta Sans |
-| Deployment | Railway + Gunicorn |
-
----
+- Backend: Python, Flask
+- Database: SQLite (`sqlite3`, direct SQL)
+- Frontend: Jinja2, Vanilla JavaScript
+- CSS: Custom design system
+- Deployment: Railway, Gunicorn
 
 ## Local Setup
 
 ```bash
 git clone https://github.com/your-username/hr-system.git
 cd hr-system
-
 pip install -r requirements.txt
-
 python app.py
-# → http://localhost:5000
 ```
 
-DB is auto-initialized on first run with seed accounts and sample data.
+브라우저: `http://localhost:5000`
 
-To reset the database:
+## Database
+
+앱 실행 시 DB가 자동 초기화됩니다.
+
+DB를 초기화하려면:
+
 ```bash
 rm hr_system.db
 python app.py
 ```
 
----
+확장 시드/마이그레이션이 필요하면:
+
+```bash
+python migrate_db.py
+python app.py
+```
 
 ## Project Structure
 
-```
+```text
 hr-system/
-├── app.py              # Flask routes & business logic (~2400 lines)
-├── database.py         # Schema definition & seed data
-├── payroll_utils.py    # Payroll calculation helpers
-├── migrate_db.py       # DB migration script (extended seed data)
-├── static/
-│   ├── css/
-│   │   ├── design-system.css   # Design tokens & base components
-│   │   └── style.css           # App-specific styles
-│   └── js/main.js              # Modal, toast, sidebar helpers
-└── templates/
-    ├── base.html               # App shell & sidebar
-    ├── login.html
-    ├── dashboard/              # Role-specific dashboards (4)
-    ├── employees/
-    ├── attendance/
-    ├── leave/
-    ├── payroll/
-    ├── performance/
-    ├── recruit/
-    ├── announcements/
-    ├── certificate/
-    └── org/
+├─ app.py
+├─ database.py
+├─ migrate_db.py
+├─ payroll_utils.py
+├─ export_utils.py
+├─ templates/
+├─ static/
+├─ README.md
+└─ RELEASE_BODY.md
 ```
-
----
-
-## Design System
-
-Custom CSS design system based on the **Editorial Soft-Minimalism** spec:
-
-- **No-Line rule** — no `1px solid` borders; sections separated by background color layers
-- **Surface hierarchy** — `surface` → `surface-container-low` → `surface-container-lowest`
-- **Large radius** — cards at `2rem (32px)`, modals at `3rem (48px)`
-- **Gradient CTA** — primary buttons use `linear-gradient(135deg, #2b5bff, #6b8eff)`
-- **Color** — `#151c23` for text (never pure black), `#2b5bff` primary blue used sparingly
-
----
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `HR_SECRET_KEY` | `dev-only-change-in-prod` | Flask session secret |
-| `HR_DEV_PASSWORD` | `changeme!` | Seed account password |
-| `FLASK_DEBUG` | `` | Set to `true` to enable debug mode |
-| `COMPANY_NAME` | `주식회사 탤런트코어` | Company name on certificates |
-| `COMPANY_REG_NO` | `000-00-00000` | Business registration number |
-| `COMPANY_CEO` | `대표이사` | CEO name |
-| `COMPANY_ADDRESS` | `서울특별시 강남구 테헤란로 000` | Company address |
-| `COMPANY_TEL` | `02-0000-0000` | Company phone |
+- `HR_SECRET_KEY`
+- `HR_DEV_PASSWORD`
+- `HR_GUEST_PASSWORD`
+- `FLASK_DEBUG`
+- `COMPANY_NAME`
+- `COMPANY_REG_NO`
+- `COMPANY_CEO`
+- `COMPANY_ADDRESS`
+- `COMPANY_TEL`
 
----
+## Deployment
 
-## Deployment (Railway)
+Railway 기준:
 
-1. Connect GitHub repo to Railway
-2. Set **Networking → Public Networking → Port** to `8080`
-3. Add environment variables above as needed
-4. Railway auto-deploys on every `git push`
+1. GitHub 저장소 연결
+2. Public Port `8080` 설정
+3. 환경변수 등록
+4. 태그/푸시 또는 일반 푸시로 배포
 
-Procfile is already configured:
-```
+`Procfile`:
+
+```text
 web: gunicorn app:app --bind 0.0.0.0:$PORT
 ```
 
----
-
 ## Changelog
 
-### v0.22.0 — 2026-04-21
-**회사 설정 마법사 + Guest 체험 모드**
+### v0.23.0 - 2026-04-22
+- 인사발령 이력 기능 추가
+- 직원 상세 페이지에 리포팅 체인 / 직속 부하 표시 추가
+- 직원 상세 페이지에 관리자용 발령 처리 모달 추가
+- 조직도 페이지에 `manager_id` 기반 Reporting Line 추가
+- 검증:
+  - `python -m py_compile app.py database.py payroll_utils.py export_utils.py migrate_db.py`
+  - Flask test client로 `GET /employees/1`, `GET /org` 응답 `200` 확인
 
-#### Added
-- 회사 설정 마법사 (`/admin/setup`) — admin 첫 로그인 시 자동 표시되는 5단계 JS 위자드
-  - 1단계: 회사 기본정보 (회사명, 사업자등록번호, 대표이사, 주소, 대표번호, 설립일, 산업, 직원 수)
-  - 2단계: 근무 제도 — 일반/선택근로제(§52)/탄력근로제(§51)/재량근로제(§58) 라디오 카드 선택
-    - 선택근로제: 코어타임(기본 10:00~16:00) + 정산 기간 설정
-    - 탄력근로제: 2주/3개월 단위 선택
-    - 재택근무 허용 여부 + 주간 최대 일수
-  - 3단계: 휴가 정책 — 법정/고정/법정+추가 방식, 반차·반의반차 허용, 병가 정책
-  - 4단계: 급여 기본 설정 — 급여일(매월 N일/말일), 식대·교통비 기본값 (비과세 안내 포함)
-  - 5단계: 성과관리 — 연간/반기/분기 평가 주기, 자기·다면평가 ON/OFF, 등급 체계(S/A/B/C/D, 1~5점, EE/ME/NI, OKR)
-- 회사 설정 재구성 (`/admin/settings`) — 5개 탭(회사정보/근무제도/휴가/급여/성과)으로 언제든 재설정 가능
-- Guest 체험 모드
-  - 로그인 직후 온보딩 위자드 5단계 체험 가능 (저장 버튼 → "대시보드로 이동"으로 대체)
-  - 모든 페이지 상단에 보라색 "게스트 체험 모드" 배너 표시
+### v0.22.0 - 2026-04-21
+- 회사 설정 마법사 추가
+- Guest 체험 모드 추가
 
-#### Fixed
-- `migrate_db.py` — `DELETE FROM users` 이후 guest 계정 자동 재생성 누락 버그 수정
-- Railway 배포 시 매 재시작마다 guest 계정 증발하던 문제 해결
+### v0.21.0 - 2026-04-20
+- 연장 / 야간 수당 자동 계산
+- 유연근무 블록 스케줄러 추가
 
----
+## Notes
 
-### v0.16.0 — 2026-04-20
-**Data Export & Certificate Hub**
-
-#### Added
-- **Excel Export** (`/export`) — 7 download endpoints for HR data
-  - Employee directory (name, dept, position, job family, hire date, status)
-  - Monthly payroll detail (all deduction line items + totals row)
-  - Annual payroll summary (per-employee annual gross / net / tax totals)
-  - Attendance log (leave requests by year or month)
-  - Performance goals by review cycle (progress, self-score, comment)
-  - Applicant pipeline (all postings × all stages)
-- **Certificate Hub** (`/certificates`) — unified document issuance center
-  - Admin can issue certificates on behalf of any employee
-  - TalentCore-issued: 재직증명서, 경력증명서, 퇴직확인서, 급여명세서, 근로소득 원천징수영수증
-  - External-only notice: 건강보험, 국민연금, 고용보험 (links to issuing agencies)
-- **퇴직확인서** — corporate legal format with company seal block
-- **근로소득 원천징수영수증** — annual income summary + monthly breakdown table
-
-#### Changed
-- Sidebar: added **Reports** section (admin-only) with export link
-- Sidebar: Documents section consolidated to single Certificate Hub link
-
----
-
-### v0.18.0 — 2026-04-20
-**특별휴가 + 스마트 휴가 신청 UI**
-
-#### Added
-- 휴가 유형 6 → 13종 확장
-  - 출산전후휴가 (근로기준법 §74, 90일 고정)
-  - 배우자출산휴가 (남녀고용평등법 §18의2, 10일 고정)
-  - 육아휴직 (남녀고용평등법 §19, 최대 365일)
-  - 가족돌봄휴직 (남녀고용평등법 §22의2, 최대 90일)
-  - 경조사휴가, 예비군·민방위, 대체휴무
-- 휴가 신청 폼 전면 개편: 유형 카드 선택 UI
-  - 선택 시 법령 근거 + 설명 즉시 표시
-  - 연차 유형: 잔여 연차 실시간 표시
-  - 법정 특별휴가: 올해 사용일 / 남은 한도 표시
-  - 고정일수 유형: 시작일 선택 시 종료일 자동 계산
-
----
-
-### v0.21.0 — 2026-04-21
-**연장·야간 수당 자동계산 + 유연근무 블록 스케줄러**
-
-#### Added
-- 연장·야간 수당 자동계산 (근로기준법 §56)
-  - 체크아웃 시 정규/연장/야간 근무 분 자동 분리 저장
-  - 시급 = 월 기본급 ÷ 209시간, 가산율 50%
-  - 근태 홈에 이번 달 연장·야간 누적 통계 표시
-- 유연근무 블록 스케줄러 (`/attendance/flex-schedule`)
-  - 시간×요일 그리드 (07:00~22:00 세로, 월~금 가로)
-  - 1시간 단위 셀 클릭 → 팝업에서 15분 단위 시작/종료·유형 설정
-  - 블록 유형: 오피스 / 재택 / 점심시간
-  - 코어타임(10:00~16:00) 구간 하이라이트, 미충족 경고
-  - 초안 저장 / 매니저 제출 / 주 단위 네비게이션
-- 유연근무 승인 (`/attendance/flex-approvals`)
-  - 미니 그리드로 팀원 스케줄 한눈에 확인
-  - 승인 / 반려(사유 입력) 처리
-- 직원 근무제 유형 설정: 일반근무 / 선택근로제 / 탄력근로제 / 재량근로제
-
----
-
-### v0.20.0 — 2026-04-20
-**직원 프로필 상세 페이지 + 퇴직 3단계 마법사**
-
-#### Added
-- 직원 프로필 상세 페이지 (`/employees/<id>`)
-  - 5개 탭: 기본정보 / 인사정보 / 급여 / 근태·휴가 / 성과
-  - 연차 잔여 현황 바, 최근 급여·휴가·목표 요약 표시
-  - 정보 수정 / 퇴직 처리 버튼 프로필 페이지에 집중 (목록에서 제거)
-- 퇴직 3단계 마법사 (`/employees/<id>/offboard`)
-  - 1단계: 퇴직 유형(5종) + 최종 근무일 + 상세 사유
-  - 2단계: 퇴직금 미리보기 (근로기준법 §34, IRP 안내)
-  - 3단계: 오프보딩 체크리스트 (시스템 접근 해제, 장비 반납, 인수인계 등) + 처리 메모
-  - 최종 제출 시 퇴직 처리 + 퇴직금 기록 한 번에 완료
-
-#### Changed
-- 직원 목록: 행 전체 클릭 → 프로필 상세 이동
-- 직원 정보 수정 후 → 직원 목록 대신 프로필 상세 페이지로 이동
-
----
-
-### v0.19.0 — 2026-04-20
-**퇴직금 자동 계산 + 최저임금 체크**
-
-#### Added
-- 퇴직금 계산 페이지 (`/employee/<id>/severance`)
-  - 근로기준법 §34 산식: 평균임금 × 30일 × (근속일수 ÷ 365)
-  - 최근 3개월 급여명세서 기준 평균임금 자동 계산 (달력 일수 적용)
-  - 1년 미만 근속 시 퇴직금 미발생 안내
-  - 퇴직금 지급 기록 저장 (`severance_payments` 테이블)
-  - IRP 의무 이전 안내 (300만원 초과 시, 근로자퇴직급여보장법 §9)
-- 최저임금 체크 (2026년 기준: 월 2,096,270원)
-  - 급여 수정 시 기본급이 최저임금 미달이면 경고 플래시 메시지
-
-#### Changed
-- 퇴사 처리(`/employee/<id>/resign`) 완료 후 퇴직금 계산 페이지로 자동 이동
-
----
-
-### v0.17.0 — 2026-04-20
-**직원 데이터 Workday 양식 + 사번(emp_no)**
-
-#### Added
-- 사번 (`TC-00001` 형식) 자동 부여 — 직원 추가 시 자동 생성
-- 직원 폼 신규 필드: 직군, 직속상관, 고용형태(정규직/계약직/인턴), 퇴사일, 퇴사사유
-- 직원 엑셀 export: 10개 → 19개 컬럼 Workday 양식
-  - 사번, 고용형태, 직속상관, 기본급(월), 근속연수, 최근성과등급, 최근급여변경일 추가
-- GitHub Actions 자동 릴리즈: `v*` 태그 push 시 GitHub Release 자동 생성
-
----
-
-### v0.15.0 — 2026-04-19
-**Guest Account & Onboarding Tutorial**
-
-#### Added
-- **Guest account** (`guest@talentcore.com`) — read-only, all GET routes accessible, POST blocked with flash message
-- **2-step onboarding** for first admin login
-  - Step 1: Feature selection (9 toggleable modules — Attendance, Payroll, Performance, etc.)
-  - Step 2: Company info input (name, reg no., CEO, address, phone) — persisted to DB
-- `company_settings` table — DB-backed company info overrides env vars on certificates
-- Feature gating in sidebar — sections hide/show based on enabled features per tenant
-- `features_enabled` column on users — comma-separated feature keys
-
----
-
-### v0.14.0 — 2026-04-18
-**360° Peer Review & Calibration**
-
-#### Added
-- Peer review assignments — HR assigns reviewer pairs per cycle
-- Peer review writing — Strengths + Areas for Growth (qualitative)
-- Upward review — 5 Google-style questions scored 1–5
-- **Calibration board** — per-employee score packet (self / manager / peer / upward)
-- Rule-based calibration summary — auto-generated narrative, no external API
-- HR sets final calibrated grade (S–D) with notes; results stored separately from raw scores
-
----
-
-### v0.13.0 — 2026-04-17
-**Attendance Home & Performance UX**
-
-#### Added
-- Attendance home (`/attendance/home`) — daily check-in/out, leave balance bar, monthly grid
-- Self-review per goal — 1–5 score + written comment
-- Progress tracking per goal (0–100%) with visual bar
-- Weighted average → final grade (S / A / B / C / D) result card
-
----
-
-### v0.12.0 — 2026-04-16
-**Payroll & Certificates**
-
-#### Added
-- Korean 4대보험 auto-calculation (2026 rates) — NPS, Health, LTC, Employment Insurance
-- Income tax + local income tax auto-calculation
-- Non-taxable allowances per 소득세법 시행령 §12 (meal ₩200k, transport ₩100k)
-- 재직증명서 & 경력증명서 — corporate legal format, print/PDF ready
-- Grade-based salary table (CL1–CL9 × 12 job families)
-- 100-employee seed data with realistic department/grade distribution
-
----
-
-## About
-
-This project was built as a portfolio piece documenting what a non-CS-major can build with AI-assisted development (Claude Code). The full build log is on my blog.
-
-**Stack decisions:**
-- SQLite over PostgreSQL — simplicity first, SaaS migration planned later
-- No ORM — direct SQL for full control and learning
-- No frontend framework — Vanilla JS + Jinja2 to keep the stack minimal
+- ORM 없이 direct SQL만 사용합니다.
+- 새 UI 라이브러리 없이 기존 Jinja2 + Vanilla JS 구조를 유지합니다.

@@ -4,14 +4,13 @@
 
 {% block head %}
 <style>
-/* ── Tree wrapper ─────────────────────────────────────── */
 .org-wrap { overflow-x: auto; }
 
-.tree-root-card {
+.tree-root-card,
+.report-root-card {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  background: linear-gradient(135deg, #0f2544, #1e40af);
   color: #fff;
   border-radius: var(--r);
   padding: 14px 24px;
@@ -19,23 +18,28 @@
   font-weight: 800;
   font-size: 15px;
 }
-.tree-root-card .root-count {
+.tree-root-card { background: linear-gradient(135deg, #0f2544, #1e40af); }
+.report-root-card { background: linear-gradient(135deg, #14532d, #16a34a); }
+.tree-root-card .root-count,
+.report-root-card .root-count {
   font-size: 12px;
   font-weight: 600;
   opacity: .75;
   margin-left: 4px;
 }
 
-/* ── Tree nodes ─────────────────────────────────────── */
-.tree-children {
+.tree-children,
+.report-children {
   margin-left: 24px;
   border-left: 2px solid #e2e8f0;
   padding-left: 0;
 }
 
-.tree-node { position: relative; }
+.tree-node,
+.report-node { position: relative; }
 
-.tree-row {
+.tree-row,
+.report-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -46,8 +50,8 @@
   transition: background .12s;
   position: relative;
 }
-/* Left connector line */
-.tree-row::before {
+.tree-row::before,
+.report-row::before {
   content: '';
   position: absolute;
   left: -22px;
@@ -56,9 +60,9 @@
   height: 2px;
   background: #e2e8f0;
 }
-.tree-row:hover { background: #f1f5f9; }
+.tree-row:hover,
+.report-row:hover { background: #f1f5f9; }
 
-/* Toggle icon */
 .toggle-icon {
   font-size: 10px;
   color: #94a3b8;
@@ -72,8 +76,8 @@
   font-size: 7px;
 }
 
-/* Level badge */
-.level-badge {
+.level-badge,
+.report-badge {
   font-size: 10px;
   font-weight: 700;
   padding: 2px 7px;
@@ -85,8 +89,9 @@
 .lv1 { background: #1e40af; color: #fff; }
 .lv2 { background: #0891b2; color: #fff; }
 .lv3 { background: #475569; color: #fff; }
+.report-badge.manager { background: #dcfce7; color: #166534; }
+.report-badge.ic { background: #e0f2fe; color: #075985; }
 
-/* Node name */
 .node-name {
   font-size: 13.5px;
   font-weight: 600;
@@ -94,26 +99,54 @@
   flex: 1;
 }
 .lv3-name { color: #334155; font-weight: 500; }
+.report-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.report-name strong {
+  font-size: 13.5px;
+  color: #0f172a;
+}
+.report-name span {
+  font-size: 12px;
+  color: #64748b;
+}
 
-/* Member count badge */
-.node-count {
+.node-count,
+.report-count {
   font-size: 12px;
   font-weight: 700;
-  color: #1e40af;
-  background: #eff6ff;
   padding: 2px 9px;
   border-radius: 20px;
   white-space: nowrap;
 }
-.node-count.zero { color: #94a3b8; background: #f8fafc; }
+.node-count {
+  color: #1e40af;
+  background: #eff6ff;
+}
+.node-count.zero {
+  color: #94a3b8;
+  background: #f8fafc;
+}
+.report-count {
+  color: #166534;
+  background: #dcfce7;
+}
+.report-count.zero {
+  color: #94a3b8;
+  background: #f8fafc;
+}
 
-/* Team summary grid */
-.team-grid {
+.team-grid,
+.report-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 8px;
 }
-.team-card {
+.team-card,
+.report-summary-card {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
@@ -122,37 +155,37 @@
   justify-content: space-between;
   align-items: center;
 }
-.team-card-name { font-size: 12.5px; font-weight: 600; color: var(--tx-1); }
-.team-card-count { font-size: 13px; font-weight: 800; color: var(--primary); }
+.team-card-name,
+.report-summary-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--tx-1);
+}
+.team-card-count,
+.report-summary-count {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--primary);
+}
 </style>
 {% endblock %}
 
-{# ── Recursive macro: render all levels ────────────────────── #}
 {% macro render_node(node, depth) %}
 {% set labels = ['Division', 'Group', 'Department', 'Team'] %}
-{% set label  = labels[depth] if depth < labels|length else 'Team' %}
+{% set label = labels[depth] if depth < labels|length else 'Team' %}
 {% set lv_cls = 'lv' ~ (depth if depth < 4 else 3) %}
 
 <div class="tree-node">
   <div class="tree-row" onclick="toggleNode({{ node.id }})">
-
     {% if node.children %}
-      <span class="toggle-icon" id="toggle-{{ node.id }}">▼</span>
+    <span class="toggle-icon" id="toggle-{{ node.id }}">▾</span>
     {% else %}
-      <span class="toggle-icon leaf">●</span>
+    <span class="toggle-icon leaf">●</span>
     {% endif %}
-
     <span class="level-badge {{ lv_cls }}">{{ label }}</span>
-
-    <span class="node-name {% if depth == 3 %}lv3-name{% endif %}">
-      {{ node.name }}
-    </span>
-
+    <span class="node-name {% if depth == 3 %}lv3-name{% endif %}">{{ node.name }}</span>
     {% set cnt = node.total_count %}
-    <span class="node-count {% if cnt == 0 %}zero{% endif %}">
-      {{ cnt }} members
-    </span>
-
+    <span class="node-count {% if cnt == 0 %}zero{% endif %}">{{ cnt }} members</span>
   </div>
 
   {% if node.children %}
@@ -165,8 +198,35 @@
 </div>
 {% endmacro %}
 
-{% block content %}
+{% macro render_report(node) %}
+<div class="report-node">
+  <div class="report-row" onclick="toggleReportNode({{ node.id }})">
+    {% if node.children %}
+    <span class="toggle-icon" id="report-toggle-{{ node.id }}">▾</span>
+    {% else %}
+    <span class="toggle-icon leaf">●</span>
+    {% endif %}
+    <span class="report-badge {% if node.report_count > 0 %}manager{% else %}ic{% endif %}">
+      {% if node.report_count > 0 %}Manager{% else %}IC{% endif %}
+    </span>
+    <div class="report-name">
+      <strong>{{ node.name }}</strong>
+      <span>{{ node.dept_name or '—' }} · {{ node.pos_name or '—' }}</span>
+    </div>
+    <span class="report-count {% if node.report_count == 0 %}zero{% endif %}">{{ node.report_count }} direct</span>
+  </div>
 
+  {% if node.children %}
+  <div class="report-children" id="report-children-{{ node.id }}">
+    {% for child in node.children %}
+      {{ render_report(child) }}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
 <div class="stat-grid" style="margin-bottom:22px;">
   <div class="stat-card">
     <div class="stat-ico ico-blue"><i class="fas fa-users"></i></div>
@@ -184,7 +244,6 @@
   </div>
 </div>
 
-<!-- Org tree -->
 <div class="card">
   <div class="card-head">
     <span class="card-title">Organization Structure</span>
@@ -200,7 +259,6 @@
   </div>
   <div class="card-body">
     <div class="org-wrap">
-
       <div class="tree-root-card" style="margin-left:16px;">
         <i class="fas fa-building"></i>
         TalentCore
@@ -212,12 +270,35 @@
           {{ render_node(node, 0) }}
         {% endfor %}
       </div>
-
     </div>
   </div>
 </div>
 
-<!-- Team headcount grid -->
+<div class="card" style="margin-top:20px;">
+  <div class="card-head">
+    <span class="card-title">Reporting Line</span>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-ghost btn-sm" onclick="expandReportingAll()">Expand All</button>
+      <button class="btn btn-ghost btn-sm" onclick="collapseReportingAll()">Collapse All</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="org-wrap">
+      <div class="report-root-card" style="margin-left:16px;">
+        <i class="fas fa-diagram-project"></i>
+        Manager Hierarchy
+        <span class="root-count">{{ total }} people</span>
+      </div>
+
+      <div style="margin-left:16px; border-left:2px solid #e2e8f0; padding-left:0; margin-top:0;">
+        {% for node in reporting_tree %}
+          {{ render_report(node) }}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="card" style="margin-top:20px;">
   <div class="card-head">
     <span class="card-title">Team Headcount</span>
@@ -243,25 +324,53 @@
   </div>
 </div>
 
+<div class="card" style="margin-top:20px;">
+  <div class="card-head">
+    <span class="card-title">Managers With Direct Reports</span>
+    <span style="font-size:12px; color:var(--tx-3);">Current line managers and direct span</span>
+  </div>
+  <div class="card-body">
+    <div class="report-summary-grid">
+      {% for node in reporting_tree recursive %}
+        {% if node.report_count > 0 %}
+        <div class="report-summary-card">
+          <span class="report-summary-name">{{ node.name }}</span>
+          <span class="report-summary-count">{{ node.report_count }}</span>
+        </div>
+        {% endif %}
+        {% if node.children %}{{ loop(node.children) }}{% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 function toggleNode(id) {
   var children = document.getElementById('children-' + id);
-  var toggle   = document.getElementById('toggle-' + id);
+  var toggle = document.getElementById('toggle-' + id);
   if (!children) return;
   var isOpen = children.style.display !== 'none';
   children.style.display = isOpen ? 'none' : '';
-  if (toggle) toggle.textContent = isOpen ? '▶' : '▼';
+  if (toggle) toggle.textContent = isOpen ? '▸' : '▾';
+}
+
+function toggleReportNode(id) {
+  var children = document.getElementById('report-children-' + id);
+  var toggle = document.getElementById('report-toggle-' + id);
+  if (!children) return;
+  var isOpen = children.style.display !== 'none';
+  children.style.display = isOpen ? 'none' : '';
+  if (toggle) toggle.textContent = isOpen ? '▸' : '▾';
 }
 
 function expandAll() {
   document.querySelectorAll('.tree-children').forEach(function(el) {
     el.style.display = '';
   });
-  document.querySelectorAll('.toggle-icon:not(.leaf)').forEach(function(el) {
-    el.textContent = '▼';
+  document.querySelectorAll('[id^="toggle-"]').forEach(function(el) {
+    el.textContent = '▾';
   });
 }
 
@@ -269,8 +378,26 @@ function collapseAll() {
   document.querySelectorAll('.tree-children').forEach(function(el) {
     el.style.display = 'none';
   });
-  document.querySelectorAll('.toggle-icon:not(.leaf)').forEach(function(el) {
-    el.textContent = '▶';
+  document.querySelectorAll('[id^="toggle-"]').forEach(function(el) {
+    el.textContent = '▸';
+  });
+}
+
+function expandReportingAll() {
+  document.querySelectorAll('.report-children').forEach(function(el) {
+    el.style.display = '';
+  });
+  document.querySelectorAll('[id^="report-toggle-"]').forEach(function(el) {
+    el.textContent = '▾';
+  });
+}
+
+function collapseReportingAll() {
+  document.querySelectorAll('.report-children').forEach(function(el) {
+    el.style.display = 'none';
+  });
+  document.querySelectorAll('[id^="report-toggle-"]').forEach(function(el) {
+    el.textContent = '▸';
   });
 }
 </script>

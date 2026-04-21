@@ -1,20 +1,26 @@
-## 회사 설정 마법사 + Guest 체험 모드
+## Personnel Action History + Reporting Line
 
 ### Added
-- **회사 설정 마법사** (`/admin/setup`) — admin 첫 로그인 시 자동 표시되는 5단계 JS 위자드
-  - 1단계: 회사 기본정보 (회사명, 사업자등록번호, 대표이사, 주소, 대표번호, 설립일, 산업, 직원 수)
-  - 2단계: 근무 제도 — 일반/선택근로제(§52)/탄력근로제(§51)/재량근로제(§58) 라디오 카드 선택
-    - 선택근로제: 코어타임(기본 10:00~16:00) + 정산 기간 설정
-    - 탄력근로제: 2주/3개월 단위 선택
-    - 재택근무 허용 여부 + 주간 최대 일수
-  - 3단계: 휴가 정책 — 법정/고정/법정+추가 방식, 반차·반의반차 허용, 병가 정책
-  - 4단계: 급여 기본 설정 — 급여일(매월 N일/말일), 식대·교통비 기본값 (비과세 안내 포함)
-  - 5단계: 성과관리 — 연간/반기/분기 평가 주기, 자기·다면평가 ON/OFF, 등급 체계(S/A/B/C/D, 1~5점, EE/ME/NI, OKR)
-- **회사 설정 재구성** (`/admin/settings`) — 5개 탭(회사정보/근무제도/휴가/급여/성과)으로 언제든 재설정 가능
-- **Guest 체험 모드**
-  - 로그인 직후 온보딩 위자드 5단계 체험 가능 (저장 버튼 → "대시보드로 이동"으로 대체)
-  - 모든 페이지 상단에 보라색 "게스트 체험 모드" 배너 표시
+- `personnel_actions` table for HR actions:
+  - department move
+  - position / promotion change
+  - role change
+  - employment type change
+  - manager reassignment
+  - salary change
+- Employee detail page improvements:
+  - reporting chain for upper managers
+  - direct reports list
+  - personnel action history table
+  - admin-only personnel action modal
+- Organization chart improvements:
+  - reporting-line hierarchy based on `manager_id`
+  - direct-report count badges
+  - manager summary cards
 
-### Fixed
-- `migrate_db.py` — `DELETE FROM users` 이후 guest 계정 자동 재생성 누락 버그 수정
-- Railway 배포 시 매 재시작마다 guest 계정 증발하던 문제 해결
+### Verified
+- `python -m py_compile app.py database.py payroll_utils.py export_utils.py migrate_db.py`
+- Flask test client:
+  - admin login success
+  - `GET /employees/1` -> `200`
+  - `GET /org` -> `200`

@@ -322,6 +322,21 @@ def init_db():
                 updated_at                 TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS personnel_actions (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id        INTEGER NOT NULL REFERENCES users(id),
+                action_type    TEXT NOT NULL CHECK(action_type IN (
+                                   'dept_change','position_change','role_change',
+                                   'employment_type_change','manager_change','salary_change'
+                               )),
+                from_value     TEXT,
+                to_value       TEXT,
+                effective_date DATE NOT NULL,
+                reason         TEXT,
+                processed_by   INTEGER REFERENCES users(id),
+                created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS severance_payments (
                 id               INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id          INTEGER NOT NULL REFERENCES users(id),

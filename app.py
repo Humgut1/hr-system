@@ -172,6 +172,23 @@ def build_dept_tree(depts, parent_id=None):
     return nodes
 
 
+def build_reporting_tree(users, manager_id=None, seen=None):
+    if seen is None:
+        seen = set()
+    nodes = []
+    for user in users:
+        if user['manager_id'] == manager_id and user['id'] not in seen:
+            node = dict(user)
+            branch_seen = seen | {user['id']}
+            node['children'] = build_reporting_tree(users, user['id'], branch_seen)
+            node['report_count'] = len(node['children'])
+            node['total_reports'] = node['report_count'] + sum(
+                c['total_reports'] for c in node['children']
+            )
+            nodes.append(node)
+    return nodes
+
+
 # ── Auth Routes ──────────────────────────────────────────────
 @app.route('/')
 def index():
@@ -669,8 +686,20 @@ def org_chart():
         'GROUP BY d.id'
     ).fetchall()
     tree = build_dept_tree([dict(d) for d in depts])
+    people = [dict(r) for r in db.execute(
+        'SELECT u.id, u.name, u.manager_id, d.name AS dept_name, p.name AS pos_name '
+        'FROM users u '
+        'LEFT JOIN departments d ON u.department_id = d.id '
+        'LEFT JOIN positions p ON u.position_id = p.id '
+        "WHERE u.status='active' ORDER BY u.name"
+    ).fetchall()]
+    active_ids = {u['id'] for u in people}
+    for user in people:
+        if user['manager_id'] not in active_ids:
+            user['manager_id'] = None
+    reporting_tree = build_reporting_tree(people, None)
     total = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
-    return render_template('org/index.html', tree=tree, total=total,
+    return render_template('org/index.html', tree=tree, reporting_tree=reporting_tree, total=total,
                            active_page='org')
 
 
@@ -756,11 +785,60 @@ def employee_detail(emp_id):
         (emp_id,)
     ).fetchone()
 
+    actions = db.execute(
+        'SELECT pa.*, u.name AS processed_by_name '
+        'FROM personnel_actions pa '
+        'LEFT JOIN users u ON pa.processed_by = u.id '
+        'WHERE pa.user_id=? ORDER BY pa.effective_date DESC',
+        (emp_id,)
+    ).fetchall()
+
+    # 리포팅 라인: 상위 관리자 체인
+    reporting_chain = []
+    mgr_id = emp['manager_id']
+    seen   = {emp_id}
+    while mgr_id and mgr_id not in seen:
+        seen.add(mgr_id)
+        mgr = db.execute(
+            'SELECT u.id, u.name, d.name dept_name, p.name pos_name '
+            'FROM users u '
+            'LEFT JOIN departments d ON u.department_id=d.id '
+            'LEFT JOIN positions   p ON u.position_id=p.id '
+            'WHERE u.id=?', (mgr_id,)
+        ).fetchone()
+        if not mgr:
+            break
+        reporting_chain.append(mgr)
+        mgr_row = db.execute('SELECT manager_id FROM users WHERE id=?', (mgr_id,)).fetchone()
+        mgr_id  = mgr_row['manager_id'] if mgr_row else None
+
+    # 직속 부하직원
+    direct_reports = db.execute(
+        'SELECT u.id, u.name, d.name dept_name, p.name pos_name '
+        'FROM users u '
+        'LEFT JOIN departments d ON u.department_id=d.id '
+        'LEFT JOIN positions   p ON u.position_id=p.id '
+        "WHERE u.manager_id=? AND u.status='active'",
+        (emp_id,)
+    ).fetchall()
+    action_departments = db.execute('SELECT id, name FROM departments ORDER BY name').fetchall()
+    action_positions = db.execute('SELECT id, name FROM positions ORDER BY level').fetchall()
+    action_managers = db.execute(
+        "SELECT id, name FROM users WHERE role IN ('admin','manager') AND status='active' AND id!=? ORDER BY name",
+        (emp_id,)
+    ).fetchall()
+
     return render_template('employees/detail.html',
                            emp=emp, payslips=payslips, leaves=leaves,
                            goals=goals, cycle=cycle,
                            annual_leave=annual_leave, used_leave=used_leave,
-                           severance=severance,
+                           severance=severance, actions=actions,
+                           reporting_chain=reporting_chain,
+                           direct_reports=direct_reports,
+                           action_departments=action_departments,
+                           action_positions=action_positions,
+                           action_managers=action_managers,
+                           today=date.today().isoformat(),
                            leave_labels=LEAVE_LABELS,
                            active_page='employees')
 
@@ -881,6 +959,121 @@ def employee_edit(emp_id):
                            mode='edit', depts=depts, poses=poses, jfs=jfs,
                            managers=managers, error=error, emp=emp,
                            active_page='employees')
+
+ACTION_LABELS = {
+    'dept_change':             '부서 이동',
+    'position_change':         '직급 변경',
+    'role_change':             '역할 변경',
+    'employment_type_change':  '고용형태 변경',
+    'manager_change':          '직속상관 변경',
+    'salary_change':           '급여 변경',
+}
+
+@app.route('/employees/<int:emp_id>/action', methods=['POST'])
+@admin_required
+def employee_action(emp_id):
+    from datetime import datetime as dt
+    db   = get_db()
+    emp  = db.execute('SELECT * FROM users WHERE id=?', (emp_id,)).fetchone()
+    if not emp:
+        abort(404)
+
+    action_type    = request.form.get('action_type')
+    effective_date = request.form.get('effective_date', date.today().isoformat())
+    reason         = request.form.get('reason', '').strip()
+
+    if action_type not in ACTION_LABELS:
+        flash('올바르지 않은 발령 유형입니다.', 'error')
+        return redirect(url_for('employee_detail', emp_id=emp_id))
+
+    from_value = to_value = None
+
+    if action_type == 'dept_change':
+        new_dept_id = request.form.get('new_dept_id')
+        if not new_dept_id:
+            flash('변경할 부서를 선택해주세요.', 'error')
+            return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
+        old = db.execute('SELECT name FROM departments WHERE id=?', (emp['department_id'],)).fetchone()
+        new = db.execute('SELECT name FROM departments WHERE id=?', (new_dept_id,)).fetchone()
+        if not new:
+            flash('유효하지 않은 부서입니다.', 'error')
+            return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
+        from_value = old['name'] if old else '—'
+        to_value   = new['name'] if new else '—'
+        db.execute('UPDATE users SET department_id=? WHERE id=?', (new_dept_id, emp_id))
+
+    elif action_type == 'position_change':
+        new_pos_id = request.form.get('new_pos_id')
+        if not new_pos_id:
+            flash('변경할 직급을 선택해주세요.', 'error')
+            return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
+        old = db.execute('SELECT name FROM positions WHERE id=?', (emp['position_id'],)).fetchone()
+        new = db.execute('SELECT name FROM positions WHERE id=?', (new_pos_id,)).fetchone()
+        if not new:
+            flash('유효하지 않은 직급입니다.', 'error')
+            return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
+        from_value = old['name'] if old else '—'
+        to_value   = new['name'] if new else '—'
+        db.execute('UPDATE users SET position_id=? WHERE id=?', (new_pos_id, emp_id))
+
+    elif action_type == 'role_change':
+        role_labels = {'employee':'Employee','manager':'Manager','recruiter':'Recruiter','admin':'HR Admin'}
+        new_role   = request.form.get('new_role')
+        if new_role not in role_labels:
+            flash('유효하지 않은 역할입니다.', 'error')
+            return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
+        from_value = role_labels.get(emp['role'], emp['role'])
+        to_value   = role_labels.get(new_role, new_role)
+        db.execute('UPDATE users SET role=? WHERE id=?', (new_role, emp_id))
+
+    elif action_type == 'employment_type_change':
+        et_labels  = {'full_time':'정규직','part_time':'시간제','contract':'계약직','intern':'인턴'}
+        new_et     = request.form.get('new_employment_type')
+        if new_et not in et_labels:
+            flash('유효하지 않은 고용형태입니다.', 'error')
+            return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
+        from_value = et_labels.get(emp['employment_type'], emp['employment_type'])
+        to_value   = et_labels.get(new_et, new_et)
+        db.execute('UPDATE users SET employment_type=? WHERE id=?', (new_et, emp_id))
+
+    elif action_type == 'manager_change':
+        new_mgr_id = request.form.get('new_manager_id') or None
+        if new_mgr_id and str(new_mgr_id) == str(emp_id):
+            flash('본인을 직속상관으로 지정할 수 없습니다.', 'error')
+            return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
+        old = db.execute('SELECT name FROM users WHERE id=?', (emp['manager_id'],)).fetchone() if emp['manager_id'] else None
+        new = db.execute('SELECT name FROM users WHERE id=?', (new_mgr_id,)).fetchone() if new_mgr_id else None
+        if new_mgr_id and not new:
+            flash('유효하지 않은 직속상관입니다.', 'error')
+            return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
+        from_value = old['name'] if old else '없음'
+        to_value   = new['name'] if new else '없음'
+        db.execute('UPDATE users SET manager_id=? WHERE id=?', (new_mgr_id, emp_id))
+
+    elif action_type == 'salary_change':
+        new_salary = int(request.form.get('new_salary', 0) or 0)
+        if new_salary <= 0:
+            flash('급여는 0보다 커야 합니다.', 'error')
+            return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
+        old_row    = db.execute('SELECT base_salary FROM employee_salary WHERE user_id=?', (emp_id,)).fetchone()
+        from_value = '{:,}원'.format(old_row['base_salary']) if old_row else '—'
+        to_value   = '{:,}원'.format(new_salary)
+        if old_row:
+            db.execute('UPDATE employee_salary SET base_salary=?, updated_at=? WHERE user_id=?',
+                       (new_salary, dt.now().isoformat(), emp_id))
+        else:
+            db.execute('INSERT INTO employee_salary (user_id, base_salary) VALUES (?,?)', (emp_id, new_salary))
+
+    db.execute(
+        'INSERT INTO personnel_actions '
+        '(user_id, action_type, from_value, to_value, effective_date, reason, processed_by) '
+        'VALUES (?,?,?,?,?,?,?)',
+        (emp_id, action_type, from_value, to_value, effective_date, reason, session['user_id'])
+    )
+    db.commit()
+    flash(f'인사발령({ACTION_LABELS[action_type]})이 처리되었습니다.', 'success')
+    return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
+
 
 @app.route('/employees/<int:emp_id>/offboard', methods=['GET', 'POST'])
 @admin_required

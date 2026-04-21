@@ -1,10 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}{{ emp.name }} — 직원 프로필{% endblock %}
+{% block title %}{{ emp.name }} Employee Profile{% endblock %}
 {% block page_title %}Employees{% endblock %}
 
 {% block extra_css %}
 <style>
-  /* ── 프로필 헤더 ─────────────────────────────── */
   .prof-header {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -16,31 +15,45 @@
     margin-bottom: 20px;
   }
   .prof-avatar {
-    width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    flex-shrink: 0;
     background: linear-gradient(135deg, #1e3a8a, #3b82f6);
-    display: flex; align-items: center; justify-content: center;
-    color: #fff; font-size: 24px; font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 24px;
+    font-weight: 800;
   }
-  .prof-name   { font-size: 20px; font-weight: 800; color: var(--text); }
-  .prof-sub    { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
-  .prof-meta   { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
-  .prof-tag    {
-    font-size: 12px; font-weight: 600; padding: 3px 10px;
-    border-radius: 20px; background: #eff6ff; color: #1e40af;
+  .prof-name { font-size: 20px; font-weight: 800; color: var(--text); }
+  .prof-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+  .prof-meta { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+  .prof-tag {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: #eff6ff;
+    color: #1e40af;
   }
   .prof-actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
 
-  /* ── 탭 ─────────────────────────────────────── */
   .tab-nav {
-    display: flex; gap: 0;
+    display: flex;
+    gap: 0;
     border-bottom: 2px solid var(--border);
     margin-bottom: 20px;
   }
   .tab-btn {
     padding: 10px 18px;
-    font-size: 13.5px; font-weight: 600;
+    font-size: 13.5px;
+    font-weight: 600;
     color: var(--text-muted);
-    border: none; background: none; cursor: pointer;
+    border: none;
+    background: none;
+    cursor: pointer;
     border-bottom: 2px solid transparent;
     margin-bottom: -2px;
     transition: color .15s, border-color .15s;
@@ -52,7 +65,6 @@
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
 
-  /* ── 정보 그리드 ────────────────────────────── */
   .info-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -62,9 +74,7 @@
     overflow: hidden;
     margin-bottom: 20px;
   }
-  .info-row {
-    display: contents;
-  }
+  .info-row { display: contents; }
   .info-row .lbl,
   .info-row .val {
     padding: 13px 18px;
@@ -74,46 +84,55 @@
   .info-row:last-child .lbl,
   .info-row:last-child .val { border-bottom: none; }
   .info-row .lbl {
-    color: var(--text-muted); font-weight: 600;
-    background: #f8fafc; border-right: 1px solid var(--border);
+    color: var(--text-muted);
+    font-weight: 600;
+    background: #f8fafc;
+    border-right: 1px solid var(--border);
   }
   .info-row .val { color: var(--text); font-weight: 500; }
 
-  /* ── 급여 이력 ─────────────────────────────── */
   .pay-row {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 13px 18px; border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--border);
     font-size: 13.5px;
   }
   .pay-row:last-child { border-bottom: none; }
   .pay-period { font-weight: 700; color: var(--text); }
-  .pay-amounts { display: flex; gap: 24px; }
+  .pay-amounts { display: flex; gap: 24px; flex-wrap: wrap; }
   .pay-amounts span { color: var(--text-muted); font-size: 13px; }
   .pay-amounts strong { color: var(--text); font-weight: 700; }
 
-  /* ── 연차 바 ─────────────────────────────────── */
   .leave-bar-wrap { margin-bottom: 20px; }
   .leave-bar-label {
-    display: flex; justify-content: space-between;
-    font-size: 13px; margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    margin-bottom: 6px;
   }
   .leave-bar-track {
-    height: 8px; background: var(--border);
-    border-radius: 4px; overflow: hidden;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
   }
   .leave-bar-fill {
-    height: 100%; background: #1e3a8a; border-radius: 4px;
+    height: 100%;
+    background: #1e3a8a;
+    border-radius: 4px;
   }
-
-  /* ── 휴가 목록 ─────────────────────────────── */
   .leave-row {
-    display: flex; align-items: center; gap: 12px;
-    padding: 12px 18px; border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
     font-size: 13.5px;
   }
   .leave-row:last-child { border-bottom: none; }
 
-  /* ── 목표 카드 ─────────────────────────────── */
   .goal-row {
     padding: 14px 18px;
     border-bottom: 1px solid var(--border);
@@ -122,17 +141,53 @@
   .goal-row:last-child { border-bottom: none; }
   .goal-title { font-weight: 700; color: var(--text); margin-bottom: 6px; }
   .goal-bar-track {
-    height: 6px; background: var(--border);
-    border-radius: 3px; overflow: hidden; margin-top: 6px;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 6px;
   }
   .goal-bar-fill { height: 100%; background: #3b82f6; border-radius: 3px; }
 
-  /* ── 섹션 헤더 ─────────────────────────────── */
   .section-head {
-    padding: 13px 18px; background: #f8fafc;
+    padding: 13px 18px;
+    background: #f8fafc;
     border-bottom: 1px solid var(--border);
-    font-size: 12px; font-weight: 700;
-    color: var(--text-muted); letter-spacing: .05em; text-transform: uppercase;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .report-line {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .report-node {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .report-chip-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .report-chip {
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: #f1f5f9;
+    color: var(--text);
+    text-decoration: none;
   }
 
   @media (max-width: 640px) {
@@ -140,20 +195,16 @@
     .prof-actions { margin-left: 0; width: 100%; }
     .info-grid { grid-template-columns: 1fr; }
     .info-row .lbl { border-right: none; }
-    .info-row .val { border-top: none; }
     .tab-btn { padding: 9px 12px; font-size: 13px; }
   }
 </style>
 {% endblock %}
 
 {% block content %}
-
-<!-- 뒤로 가기 -->
 <a href="{{ url_for('employees') }}" class="btn btn-ghost btn-sm" style="margin-bottom:16px;">
   <i class="fas fa-arrow-left"></i> 직원 목록
 </a>
 
-<!-- 프로필 헤더 -->
 <div class="prof-header">
   <div class="prof-avatar">{{ emp.name[0] }}</div>
   <div style="flex:1; min-width:0;">
@@ -163,7 +214,7 @@
       <span style="font-size:13px; font-weight:600; color:var(--text-muted); margin-left:8px;">{{ emp.emp_no }}</span>
       {% endif %}
     </div>
-    <div class="prof-sub">{{ emp.dept_name or '부서 미지정' }} · {{ emp.pos_name or '직급 미지정' }}</div>
+    <div class="prof-sub">{{ emp.dept_name or '미지정 부서' }} · {{ emp.pos_name or '미지정 직급' }}</div>
     <div class="prof-meta">
       {% if emp.role == 'admin' %}<span class="prof-tag" style="background:#eff6ff; color:#1e40af;">Admin</span>
       {% elif emp.role == 'manager' %}<span class="prof-tag" style="background:#f0fdf4; color:#15803d;">Manager</span>
@@ -172,6 +223,7 @@
 
       {% if emp.employment_type == 'contract' %}<span class="prof-tag" style="background:#fff7ed; color:#c2410c;">계약직</span>
       {% elif emp.employment_type == 'intern' %}<span class="prof-tag" style="background:#fdf4ff; color:#7e22ce;">인턴</span>
+      {% elif emp.employment_type == 'part_time' %}<span class="prof-tag" style="background:#fef3c7; color:#92400e;">시간제</span>
       {% else %}<span class="prof-tag" style="background:#f0fdf4; color:#15803d;">정규직</span>{% endif %}
 
       {% if emp.status == 'resigned' %}
@@ -198,46 +250,29 @@
   {% endif %}
 </div>
 
-<!-- 탭 네비게이션 -->
 <div class="tab-nav">
   <button class="tab-btn active" data-tab="basic">기본정보</button>
   <button class="tab-btn" data-tab="hr">인사정보</button>
   <button class="tab-btn" data-tab="pay">급여</button>
-  <button class="tab-btn" data-tab="leave">근태·휴가</button>
+  <button class="tab-btn" data-tab="leave">근태/휴가</button>
   <button class="tab-btn" data-tab="perf">성과</button>
 </div>
 
-<!-- ── 탭 1: 기본정보 ────────────────────────────────────── -->
 <div class="tab-panel active" id="tab-basic">
   <div class="card">
     <div class="section-head">개인 정보</div>
     <div class="info-grid">
-      <div class="info-row">
-        <div class="lbl">이름</div>
-        <div class="val">{{ emp.name }}</div>
-      </div>
-      <div class="info-row">
-        <div class="lbl">이메일</div>
-        <div class="val">{{ emp.email }}</div>
-      </div>
-      <div class="info-row">
-        <div class="lbl">전화번호</div>
-        <div class="val">{{ emp.phone or '—' }}</div>
-      </div>
-      <div class="info-row">
-        <div class="lbl">생년월일</div>
-        <div class="val">{{ emp.birth_date or '—' }}</div>
-      </div>
+      <div class="info-row"><div class="lbl">이름</div><div class="val">{{ emp.name }}</div></div>
+      <div class="info-row"><div class="lbl">이메일</div><div class="val">{{ emp.email }}</div></div>
+      <div class="info-row"><div class="lbl">전화번호</div><div class="val">{{ emp.phone or '—' }}</div></div>
+      <div class="info-row"><div class="lbl">생년월일</div><div class="val">{{ emp.birth_date or '—' }}</div></div>
     </div>
 
-    <div class="section-head" style="margin-top:0; border-top: 1px solid var(--border);">계정 정보</div>
+    <div class="section-head" style="margin-top:0; border-top:1px solid var(--border);">계정 정보</div>
     <div class="info-grid">
+      <div class="info-row"><div class="lbl">사번</div><div class="val">{{ emp.emp_no or '—' }}</div></div>
       <div class="info-row">
-        <div class="lbl">사번</div>
-        <div class="val">{{ emp.emp_no or '—' }}</div>
-      </div>
-      <div class="info-row">
-        <div class="lbl">시스템 권한</div>
+        <div class="lbl">권한</div>
         <div class="val">
           {% if emp.role == 'admin' %}HR Admin
           {% elif emp.role == 'manager' %}Manager
@@ -246,95 +281,135 @@
         </div>
       </div>
       <div class="info-row">
-        <div class="lbl">계정 상태</div>
+        <div class="lbl">상태</div>
         <div class="val">
           {% if emp.status == 'active' %}<span style="color:#15803d; font-weight:700;">재직 중</span>
-          {% else %}<span style="color:#b91c1c; font-weight:700;">퇴직</span>{% endif %}
+          {% elif emp.status == 'resigned' %}<span style="color:#b91c1c; font-weight:700;">퇴직</span>
+          {% else %}<span style="color:#92400e; font-weight:700;">비활성</span>{% endif %}
         </div>
       </div>
-      <div class="info-row">
-        <div class="lbl">가입일</div>
-        <div class="val">{{ (emp.created_at or '')[:10] or '—' }}</div>
-      </div>
+      <div class="info-row"><div class="lbl">계정 생성일</div><div class="val">{{ (emp.created_at or '')[:10] or '—' }}</div></div>
     </div>
   </div>
 </div>
 
-<!-- ── 탭 2: 인사정보 ────────────────────────────────────── -->
 <div class="tab-panel" id="tab-hr">
   <div class="card">
-    <div class="section-head">소속 · 직무</div>
+    <div class="section-head">소속 및 직무</div>
     <div class="info-grid">
-      <div class="info-row">
-        <div class="lbl">부서</div>
-        <div class="val">{{ emp.dept_name or '—' }}</div>
-      </div>
-      <div class="info-row">
-        <div class="lbl">직급</div>
-        <div class="val">{{ emp.pos_name or '—' }}</div>
-      </div>
-      <div class="info-row">
-        <div class="lbl">직군</div>
-        <div class="val">{{ emp.jf_name or '—' }}</div>
-      </div>
-      <div class="info-row">
-        <div class="lbl">직속상관</div>
-        <div class="val">{{ emp.manager_name or '—' }}</div>
-      </div>
+      <div class="info-row"><div class="lbl">부서</div><div class="val">{{ emp.dept_name or '—' }}</div></div>
+      <div class="info-row"><div class="lbl">직급</div><div class="val">{{ emp.pos_name or '—' }}</div></div>
+      <div class="info-row"><div class="lbl">직군</div><div class="val">{{ emp.jf_name or '—' }}</div></div>
+      <div class="info-row"><div class="lbl">직속상관</div><div class="val">{{ emp.manager_name or '없음' }}</div></div>
     </div>
 
-    <div class="section-head" style="margin-top:0; border-top: 1px solid var(--border);">고용 정보</div>
+    <div class="section-head" style="margin-top:0; border-top:1px solid var(--border);">고용 정보</div>
     <div class="info-grid">
       <div class="info-row">
         <div class="lbl">고용형태</div>
         <div class="val">
           {% if emp.employment_type == 'contract' %}계약직
           {% elif emp.employment_type == 'intern' %}인턴
+          {% elif emp.employment_type == 'part_time' %}시간제
           {% else %}정규직{% endif %}
         </div>
       </div>
-      <div class="info-row">
-        <div class="lbl">입사일</div>
-        <div class="val">{{ emp.hire_date or '—' }}</div>
-      </div>
+      <div class="info-row"><div class="lbl">입사일</div><div class="val">{{ emp.hire_date or '—' }}</div></div>
       {% if emp.termination_date %}
-      <div class="info-row">
-        <div class="lbl">퇴사일</div>
-        <div class="val">{{ emp.termination_date }}</div>
+      <div class="info-row"><div class="lbl">퇴사일</div><div class="val">{{ emp.termination_date }}</div></div>
+      <div class="info-row"><div class="lbl">퇴사 사유</div><div class="val">{{ emp.termination_reason or '—' }}</div></div>
+      {% endif %}
+    </div>
+
+    <div class="section-head" style="margin-top:0; border-top:1px solid var(--border);">리포팅 라인</div>
+    <div style="padding:16px 18px;">
+      {% if reporting_chain %}
+      <div class="report-line">
+        {% for mgr in reporting_chain %}
+        <div class="report-node">
+          <span style="color:var(--text-muted); font-size:11px; width:14px; text-align:center;">{{ '↑' * loop.index }}</span>
+          <a href="{{ url_for('employee_detail', emp_id=mgr.id) }}" style="font-weight:600; color:var(--primary); text-decoration:none;">{{ mgr.name }}</a>
+          <span style="color:var(--text-muted); font-size:12px;">{{ mgr.dept_name or '—' }} · {{ mgr.pos_name or '—' }}</span>
+        </div>
+        {% endfor %}
       </div>
-      <div class="info-row">
-        <div class="lbl">퇴사 사유</div>
-        <div class="val">{{ emp.termination_reason or '—' }}</div>
+      {% else %}
+      <p style="font-size:13px; color:var(--text-muted); margin:0 0 12px;">상위 리포팅 라인 없음</p>
+      {% endif %}
+
+      {% if direct_reports %}
+      <div style="font-size:12px; font-weight:700; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.05em;">직속 부하 {{ direct_reports|length }}명</div>
+      <div class="report-chip-wrap">
+        {% for r in direct_reports %}
+        <a href="{{ url_for('employee_detail', emp_id=r.id) }}" class="report-chip">{{ r.name }}</a>
+        {% endfor %}
       </div>
       {% endif %}
     </div>
 
+    <div class="section-head" style="margin-top:0; border-top:1px solid var(--border);">
+      인사발령 이력
+      {% if session.user_role == 'admin' and emp.status == 'active' %}
+      <button type="button" onclick="openActionModal()" class="btn btn-primary btn-sm" style="margin-left:auto; font-size:11px;">
+        <i class="fas fa-plus"></i> 발령 처리
+      </button>
+      {% endif %}
+    </div>
+    {% if actions %}
+    <table style="width:100%; border-collapse:collapse; font-size:13px;">
+      <thead>
+        <tr style="background:#f8fafc;">
+          <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">발령일</th>
+          <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">유형</th>
+          <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">변경 내용</th>
+          <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">사유</th>
+          <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">처리자</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in actions %}
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:11px 16px; white-space:nowrap;">{{ a.effective_date }}</td>
+          <td style="padding:11px 16px;">
+            <span style="font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:20px; background:#ede9fe; color:#6d28d9;">
+              {{ {'dept_change':'부서이동','position_change':'직급변경','role_change':'역할변경',
+                  'employment_type_change':'고용형태','manager_change':'상관변경','salary_change':'급여변경'}.get(a.action_type, a.action_type) }}
+            </span>
+          </td>
+          <td style="padding:11px 16px;">
+            <span style="color:var(--text-muted);">{{ a.from_value or '—' }}</span>
+            <i class="fas fa-arrow-right" style="margin:0 6px; color:var(--text-muted); font-size:10px;"></i>
+            <span style="font-weight:600; color:var(--text);">{{ a.to_value or '—' }}</span>
+          </td>
+          <td style="padding:11px 16px; color:var(--text-muted);">{{ a.reason or '—' }}</td>
+          <td style="padding:11px 16px; color:var(--text-muted);">{{ a.processed_by_name or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:32px; text-align:center; color:var(--text-muted); font-size:13.5px;">
+      <i class="fas fa-history" style="font-size:24px; margin-bottom:8px; display:block; opacity:.3;"></i>
+      인사발령 이력이 없습니다.
+    </div>
+    {% endif %}
+
     {% if severance %}
-    <div class="section-head" style="margin-top:0; border-top: 1px solid var(--border);">퇴직금 처리 이력</div>
+    <div class="section-head" style="margin-top:0; border-top:1px solid var(--border);">퇴직금 처리 이력</div>
     <div class="info-grid">
-      <div class="info-row">
-        <div class="lbl">처리일</div>
-        <div class="val">{{ severance.processed_at[:10] }}</div>
-      </div>
-      <div class="info-row">
-        <div class="lbl">퇴직금</div>
-        <div class="val" style="color:#1e3a8a; font-weight:800;">{{ "{:,}원".format(severance.severance_amount) }}</div>
-      </div>
+      <div class="info-row"><div class="lbl">처리일</div><div class="val">{{ severance.processed_at[:10] }}</div></div>
+      <div class="info-row"><div class="lbl">퇴직금</div><div class="val" style="color:#1e3a8a; font-weight:800;">{{ "{:,}원".format(severance.severance_amount) }}</div></div>
       {% if severance.note %}
-      <div class="info-row">
-        <div class="lbl">메모</div>
-        <div class="val">{{ severance.note }}</div>
-      </div>
+      <div class="info-row"><div class="lbl">메모</div><div class="val">{{ severance.note }}</div></div>
       {% endif %}
     </div>
     {% endif %}
   </div>
 </div>
 
-<!-- ── 탭 3: 급여 ─────────────────────────────────────────── -->
 <div class="tab-panel" id="tab-pay">
   <div class="card">
-    <div class="section-head">최근 급여 내역 (최대 6개월)</div>
+    <div class="section-head">최근 급여 이력 (최대 6개월)</div>
     {% if payslips %}
     {% for p in payslips %}
     <div class="pay-row">
@@ -344,8 +419,7 @@
         <span>총지급 <strong>{{ "{:,}원".format(p.gross_pay) }}</strong></span>
         <span>실수령 <strong style="color:#1e3a8a;">{{ "{:,}원".format(p.net_pay) }}</strong></span>
       </div>
-      <a href="{{ url_for('payroll_detail', year=p.year, month=p.month) }}"
-         class="btn btn-ghost btn-sm" style="margin-left:12px;">
+      <a href="{{ url_for('payroll_detail', year=p.year, month=p.month) }}" class="btn btn-ghost btn-sm" style="margin-left:12px;">
         <i class="fas fa-file-alt"></i>
       </a>
     </div>
@@ -359,29 +433,27 @@
   </div>
 </div>
 
-<!-- ── 탭 4: 근태·휴가 ────────────────────────────────────── -->
 <div class="tab-panel" id="tab-leave">
   <div class="card" style="margin-bottom:16px;">
     <div class="section-head">연차 현황</div>
-    <div style="padding: 16px 18px;">
+    <div style="padding:16px 18px;">
       <div class="leave-bar-wrap">
         <div class="leave-bar-label">
           <span style="font-weight:700; color:var(--text);">연차 사용 현황</span>
           <span style="color:var(--text-muted);">{{ used_leave|int }} / {{ annual_leave|int }}일 사용</span>
         </div>
         <div class="leave-bar-track">
-          <div class="leave-bar-fill"
-               style="width:{{ [(used_leave / annual_leave * 100) if annual_leave > 0 else 0, 100]|min }}%;"></div>
+          <div class="leave-bar-fill" style="width:{{ [(used_leave / annual_leave * 100) if annual_leave > 0 else 0, 100]|min }}%;"></div>
         </div>
         <div style="font-size:12px; color:var(--text-muted); margin-top:5px;">
-          잔여 {{ (annual_leave - used_leave)|int }}일 · 입사일 기준 자동계산 (근로기준법 §60)
+          잔여 {{ (annual_leave - used_leave)|int }}일 · 입사일 기준 자동 계산
         </div>
       </div>
     </div>
   </div>
 
   <div class="card">
-    <div class="section-head">최근 휴가·근태 신청 (최대 8건)</div>
+    <div class="section-head">최근 근태/휴가 요청 (최대 8건)</div>
     {% if leaves %}
     {% for lv in leaves %}
     <div class="leave-row">
@@ -391,12 +463,9 @@
         {% else %}<span class="badge badge-pending">대기</span>{% endif %}
       </div>
       <div style="flex:1;">
-        <div style="font-weight:600; color:var(--text);">
-          {{ leave_labels.get(lv.type, lv.type) }}
-        </div>
+        <div style="font-weight:600; color:var(--text);">{{ leave_labels.get(lv.type, lv.type) }}</div>
         <div style="font-size:12px; color:var(--text-muted);">
-          {{ lv.start_date }} ~ {{ lv.end_date }}
-          {% if lv.days %} · {{ lv.days }}일{% endif %}
+          {{ lv.start_date }} ~ {{ lv.end_date }}{% if lv.days %} · {{ lv.days }}일{% endif %}
         </div>
       </div>
     </div>
@@ -404,35 +473,28 @@
     {% else %}
     <div style="padding:40px; text-align:center; color:var(--text-muted); font-size:14px;">
       <i class="fas fa-calendar" style="font-size:28px; margin-bottom:10px; display:block; opacity:.3;"></i>
-      신청 내역이 없습니다.
+      요청 이력이 없습니다.
     </div>
     {% endif %}
   </div>
 </div>
 
-<!-- ── 탭 5: 성과 ────────────────────────────────────────── -->
 <div class="tab-panel" id="tab-perf">
   <div class="card">
     {% if cycle %}
-    <div class="section-head">{{ cycle.name }} — 현재 목표</div>
+    <div class="section-head">{{ cycle.name }} · 현재 목표</div>
     {% if goals %}
     {% for g in goals %}
     <div class="goal-row">
       <div style="display:flex; justify-content:space-between; align-items:flex-start;">
         <div class="goal-title">{{ g.title }}</div>
-        <span style="font-size:12px; font-weight:600; padding:2px 8px; border-radius:20px;
-                     background:#eff6ff; color:#1e40af;">{{ g.category or 'KPI' }}</span>
+        <span style="font-size:12px; font-weight:600; padding:2px 8px; border-radius:20px; background:#eff6ff; color:#1e40af;">{{ g.category or 'KPI' }}</span>
       </div>
       <div style="font-size:12.5px; color:var(--text-muted); margin-top:2px;">
-        가중치 {{ g.weight }}%
-        {% if g.self_score %} · 자기평가 {{ g.self_score }}점{% endif %}
+        가중치 {{ g.weight }}%{% if g.self_score %} · 자기평가 {{ g.self_score }}점{% endif %}
       </div>
-      <div class="goal-bar-track">
-        <div class="goal-bar-fill" style="width:{{ g.progress or 0 }}%;"></div>
-      </div>
-      <div style="font-size:12px; color:var(--text-muted); margin-top:4px; text-align:right;">
-        {{ g.progress or 0 }}% 달성
-      </div>
+      <div class="goal-bar-track"><div class="goal-bar-fill" style="width:{{ g.progress or 0 }}%;"></div></div>
+      <div style="font-size:12px; color:var(--text-muted); margin-top:4px; text-align:right;">{{ g.progress or 0 }}% 달성</div>
     </div>
     {% endfor %}
     {% else %}
@@ -450,13 +512,114 @@
   </div>
 </div>
 
+{% if session.user_role == 'admin' and emp.status == 'active' %}
+<div class="overlay" id="actionModal" style="display:none;" onclick="if(event.target===this)closeActionModal()">
+  <div class="modal" style="width:min(640px, 92vw);">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px;">
+      <div>
+        <div class="label">Personnel Action</div>
+        <h3 style="margin:6px 0 0; font-size:22px;">{{ emp.name }} 인사발령 처리</h3>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="closeActionModal()"><i class="fas fa-times"></i></button>
+    </div>
+
+    <form method="POST" action="{{ url_for('employee_action', emp_id=emp.id) }}">
+      <div class="field" style="margin-bottom:16px;">
+        <label class="form-label">발령 유형</label>
+        <select name="action_type" id="actionType" class="input" required>
+          <option value="">선택하세요</option>
+          <option value="dept_change">부서 이동</option>
+          <option value="position_change">직급 변경</option>
+          <option value="role_change">역할 변경</option>
+          <option value="employment_type_change">고용형태 변경</option>
+          <option value="manager_change">직속상관 변경</option>
+          <option value="salary_change">급여 변경</option>
+        </select>
+      </div>
+
+      <div id="field-dept_change" class="action-field" style="display:none; margin-bottom:16px;">
+        <label class="form-label">변경할 부서</label>
+        <select name="new_dept_id" class="input">
+          <option value="">선택하세요</option>
+          {% for dept in action_departments %}
+          <option value="{{ dept.id }}">{{ dept.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div id="field-position_change" class="action-field" style="display:none; margin-bottom:16px;">
+        <label class="form-label">변경할 직급</label>
+        <select name="new_pos_id" class="input">
+          <option value="">선택하세요</option>
+          {% for pos in action_positions %}
+          <option value="{{ pos.id }}">{{ pos.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div id="field-role_change" class="action-field" style="display:none; margin-bottom:16px;">
+        <label class="form-label">변경할 역할</label>
+        <select name="new_role" class="input">
+          <option value="">선택하세요</option>
+          <option value="employee">Employee</option>
+          <option value="manager">Manager</option>
+          <option value="recruiter">Recruiter</option>
+          <option value="admin">HR Admin</option>
+        </select>
+      </div>
+
+      <div id="field-employment_type_change" class="action-field" style="display:none; margin-bottom:16px;">
+        <label class="form-label">변경할 고용형태</label>
+        <select name="new_employment_type" class="input">
+          <option value="">선택하세요</option>
+          <option value="full_time">정규직</option>
+          <option value="part_time">시간제</option>
+          <option value="contract">계약직</option>
+          <option value="intern">인턴</option>
+        </select>
+      </div>
+
+      <div id="field-manager_change" class="action-field" style="display:none; margin-bottom:16px;">
+        <label class="form-label">변경할 직속상관</label>
+        <select name="new_manager_id" class="input">
+          <option value="">없음</option>
+          {% for manager in action_managers %}
+          <option value="{{ manager.id }}">{{ manager.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div id="field-salary_change" class="action-field" style="display:none; margin-bottom:16px;">
+        <label class="form-label">변경할 기본급</label>
+        <input type="number" name="new_salary" class="input" min="1" step="10000" placeholder="예: 4200000">
+      </div>
+
+      <div class="field" style="margin-bottom:16px;">
+        <label class="form-label">발령일</label>
+        <input type="date" name="effective_date" class="input" value="{{ today }}">
+      </div>
+
+      <div class="field" style="margin-bottom:20px;">
+        <label class="form-label">사유</label>
+        <textarea name="reason" class="input" rows="3" placeholder="조직 개편, 승진, 보직 변경 등"></textarea>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button type="button" class="btn btn-ghost" onclick="closeActionModal()">취소</button>
+        <button type="submit" class="btn btn-primary">발령 저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
 (function() {
-  var btns   = document.querySelectorAll('.tab-btn');
+  var btns = document.querySelectorAll('.tab-btn');
   var panels = document.querySelectorAll('.tab-panel');
+  var actionType = document.getElementById('actionType');
 
   btns.forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -468,12 +631,35 @@
     });
   });
 
-  // URL hash로 탭 유지
+  function syncActionFields() {
+    document.querySelectorAll('.action-field').forEach(function(el) {
+      el.style.display = 'none';
+    });
+    if (!actionType || !actionType.value) return;
+    var active = document.getElementById('field-' + actionType.value);
+    if (active) active.style.display = 'block';
+  }
+
+  if (actionType) {
+    actionType.addEventListener('change', syncActionFields);
+    syncActionFields();
+  }
+
   var hash = window.location.hash.replace('#', '');
   if (hash) {
     var targetBtn = document.querySelector('[data-tab="' + hash + '"]');
     if (targetBtn) targetBtn.click();
   }
 })();
+
+function openActionModal() {
+  var modal = document.getElementById('actionModal');
+  if (modal) modal.style.display = 'grid';
+}
+
+function closeActionModal() {
+  var modal = document.getElementById('actionModal');
+  if (modal) modal.style.display = 'none';
+}
 </script>
 {% endblock %}
