@@ -23,8 +23,8 @@ jobs:
           TAG=${GITHUB_REF#refs/tags/}
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-          # README.md에서 해당 버전 섹션 추출 (날짜 suffix 허용: v0.18.0 — 2026-04-20)
-          VERSION_SECTION=$(awk "/^### ${TAG}/{found=1} found && /^---$/{if(found>1)exit; found++} found{print}" README.md | head -n -1)
+          # README.md에서 해당 버전 섹션 추출 (다음 ### v 헤더 전까지)
+          VERSION_SECTION=$(awk "/^### ${TAG}/{found=1; next} found && /^### v/{exit} found{print}" README.md | sed '/^[[:space:]]*$/d;/^---$/d' | sed -e 's/^[[:space:]]*//')
           if [ -z "$VERSION_SECTION" ]; then
             VERSION_SECTION="릴리즈 노트: https://github.com/${{ github.repository }}/blob/main/README.md#changelog"
           fi
