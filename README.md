@@ -204,6 +204,26 @@ web: gunicorn app:app --bind 0.0.0.0:$PORT
 
 ## Changelog
 
+### v0.22.0 — 2026-04-21
+**회사 설정 마법사 + Guest 체험 모드**
+
+#### Added
+- **Company Setup Wizard** (`/admin/setup`) — 5단계 JS 마법사
+  - Step 1: 회사 기본정보 (회사명, 사업자번호, 대표이사, 주소 등)
+  - Step 2: 근무 제도 (일반/선택/탄력/재량근로제, 코어타임, 재택 정책)
+  - Step 3: 휴가 정책 (연차 부여 방식, 반차/반의반차, 병가 정책)
+  - Step 4: 급여 기본 설정 (급여일, 식대·교통비 기본값)
+  - Step 5: 성과관리 (평가 주기, 자기·다면평가, 등급 체계)
+- **Company Settings** (`/admin/settings`) — 탭형 설정 재구성 페이지
+- **Guest 체험 모드** — 로그인 시 보라색 배너 표시, 모든 메뉴 조회 가능
+- **온보딩 위자드 guest 공개** — guest/employee도 위자드 5단계 체험 가능
+
+#### Fixed
+- `migrate_db.py` — DELETE FROM users 이후 guest 계정 자동 재생성
+- `database.py` — company_config 초기 row 시드 안정화
+
+---
+
 ### v0.16.0 — 2026-04-20
 **Data Export & Certificate Hub**
 
