@@ -400,6 +400,27 @@ def run():
             [(t, body, pin, admin_id) for t, body, pin in announcements]
         )
 
+    # ── guest 계정 보장 (DELETE FROM users 이후 재생성) ─────────
+    if c.execute("SELECT COUNT(*) FROM users WHERE role='guest'").fetchone()[0] == 0:
+        import os
+        from werkzeug.security import generate_password_hash as gph
+        gpw = gph(os.environ.get('HR_GUEST_PASSWORD', 'guest1234!'))
+        ALL_F = ('attendance,payroll,performance,peer_review,calibration,'
+                 'recruiting,announcements,org_chart,certificates')
+        # guest는 HR팀 소속, CL3 직위
+        hr_dept = c.execute("SELECT id FROM departments WHERE name='인사팀'").fetchone()
+        cl3_pos = c.execute("SELECT id FROM positions WHERE name LIKE '%CL3%'").fetchone()
+        dept_id = hr_dept[0] if hr_dept else 1
+        pos_id  = cl3_pos[0] if cl3_pos else 3
+        c.execute(
+            "INSERT INTO users (email, password_hash, name, role, department_id, "
+            " position_id, hire_date, onboarded, features_enabled) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            ('guest@talentcore.com', gpw, 'Guest', 'guest',
+             dept_id, pos_id, '2024-01-01', 1, ALL_F)
+        )
+        c.execute("UPDATE users SET emp_no='TC-GUEST' WHERE email='guest@talentcore.com'")
+
     conn.commit()
     c.execute('PRAGMA foreign_keys = ON')
     conn.close()

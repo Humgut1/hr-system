@@ -1,0 +1,713 @@
+{% extends 'base.html' %}
+{% block title %}회사 설정 마법사{% endblock %}
+{% block page_title %}TalentCore 설정{% endblock %}
+
+{% block extra_css %}
+<style>
+  .wizard-wrap { max-width: 760px; margin: 0 auto; }
+
+  /* ── 스텝 인디케이터 ── */
+  .wizard-steps {
+    display: flex; align-items: center; margin-bottom: 32px;
+    gap: 0;
+  }
+  .wizard-step {
+    display: flex; flex-direction: column; align-items: center;
+    flex: 1; position: relative; gap: 6px;
+  }
+  .wizard-step:not(:last-child)::after {
+    content: '';
+    position: absolute; top: 16px; left: calc(50% + 16px);
+    width: calc(100% - 32px); height: 2px;
+    background: var(--border);
+    transition: background .3s;
+  }
+  .wizard-step.done::after  { background: var(--primary); }
+  .step-circle {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    border: 2px solid var(--border);
+    background: #fff; color: var(--text-muted);
+    transition: all .3s; z-index: 1;
+  }
+  .wizard-step.active  .step-circle { border-color: var(--primary); background: var(--primary); color: #fff; }
+  .wizard-step.done    .step-circle { border-color: var(--primary); background: var(--primary); color: #fff; }
+  .step-label { font-size: 11px; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+  .wizard-step.active .step-label  { color: var(--primary); }
+  .wizard-step.done   .step-label  { color: var(--primary); }
+
+  /* ── 패널 ── */
+  .wizard-panel { display: none; }
+  .wizard-panel.active { display: block; }
+
+  /* ── 섹션 헤더 ── */
+  .setup-section-head {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 20px;
+  }
+  .setup-section-icon {
+    width: 38px; height: 38px; border-radius: 10px;
+    background: var(--primary-tint, #ede9fe);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: var(--primary);
+  }
+  .setup-section-title { font-size: 18px; font-weight: 800; color: var(--text); }
+  .setup-section-desc  { font-size: 13px; color: var(--text-muted); margin-top: 1px; }
+
+  /* ── 라디오 카드 ── */
+  .radio-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .radio-card  { position: relative; cursor: pointer; }
+  .radio-card input[type=radio] { position: absolute; opacity: 0; pointer-events: none; }
+  .radio-card-body {
+    border: 2px solid var(--border); border-radius: var(--r);
+    padding: 14px 16px; transition: all .2s;
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .radio-card input:checked + .radio-card-body {
+    border-color: var(--primary); background: var(--primary-tint, #ede9fe);
+  }
+  .radio-card-icon { font-size: 22px; line-height: 1; margin-top: 1px; }
+  .radio-card-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+  .radio-card-desc { font-size: 11.5px; color: var(--text-muted); margin-top: 3px; line-height: 1.5; }
+
+  /* ── 체크 카드 ── */
+  .check-cards { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .check-card  { position: relative; cursor: pointer; }
+  .check-card input[type=checkbox] { position: absolute; opacity: 0; pointer-events: none; }
+  .check-card-body {
+    border: 2px solid var(--border); border-radius: var(--r);
+    padding: 10px 14px; font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+    transition: all .2s;
+  }
+  .check-card input:checked + .check-card-body {
+    border-color: var(--primary); background: var(--primary-tint, #ede9fe); color: var(--primary);
+  }
+
+  /* ── 조건부 영역 ── */
+  .cond-block {
+    background: #f8fafc; border: 1px solid var(--border);
+    border-radius: var(--r); padding: 16px 18px; margin-top: 12px;
+  }
+  .cond-block[hidden] { display: none; }
+
+  /* ── 네비 버튼 ── */
+  .wizard-nav {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 28px; padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+  .wizard-progress-text { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wizard-wrap">
+  <div class="card">
+    <div class="card-body" style="padding: 32px;">
+
+      <!-- 스텝 인디케이터 -->
+      <div class="wizard-steps" id="wizardSteps">
+        <div class="wizard-step active" data-step="1">
+          <div class="step-circle">1</div>
+          <span class="step-label">회사 정보</span>
+        </div>
+        <div class="wizard-step" data-step="2">
+          <div class="step-circle">2</div>
+          <span class="step-label">근무 제도</span>
+        </div>
+        <div class="wizard-step" data-step="3">
+          <div class="step-circle">3</div>
+          <span class="step-label">휴가 정책</span>
+        </div>
+        <div class="wizard-step" data-step="4">
+          <div class="step-circle">4</div>
+          <span class="step-label">급여 설정</span>
+        </div>
+        <div class="wizard-step" data-step="5">
+          <div class="step-circle"><i class="fas fa-check" style="font-size:10px;"></i></div>
+          <span class="step-label">성과관리</span>
+        </div>
+      </div>
+
+      <form method="POST" id="setupForm">
+
+        <!-- ═══════════ STEP 1: 회사 기본정보 ═══════════ -->
+        <div class="wizard-panel active" id="panel-1">
+          <div class="setup-section-head">
+            <div class="setup-section-icon"><i class="fas fa-building"></i></div>
+            <div>
+              <div class="setup-section-title">회사 기본 정보</div>
+              <div class="setup-section-desc">TalentCore에 표시되는 회사 정보와 법인 정보를 입력하세요.</div>
+            </div>
+          </div>
+
+          <div class="grid-2" style="gap:14px;">
+            <div class="field">
+              <label class="form-label">회사명 <span style="color:var(--red);">*</span></label>
+              <input type="text" name="name" class="input" required
+                     value="{{ company.get('name','') }}" placeholder="(주)탤런트코어">
+            </div>
+            <div class="field">
+              <label class="form-label">사업자등록번호</label>
+              <input type="text" name="reg_no" class="input"
+                     value="{{ company.get('reg_no','') }}" placeholder="000-00-00000">
+            </div>
+          </div>
+
+          <div class="grid-2" style="gap:14px;">
+            <div class="field">
+              <label class="form-label">대표이사</label>
+              <input type="text" name="ceo" class="input"
+                     value="{{ company.get('ceo','') }}" placeholder="홍길동">
+            </div>
+            <div class="field">
+              <label class="form-label">대표번호</label>
+              <input type="tel" name="tel" class="input"
+                     value="{{ company.get('tel','') }}" placeholder="02-0000-0000">
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="form-label">회사 주소</label>
+            <input type="text" name="address" class="input"
+                   value="{{ company.get('address','') }}" placeholder="서울특별시 강남구 테헤란로 00길 00">
+          </div>
+
+          <div class="grid-2" style="gap:14px;">
+            <div class="field">
+              <label class="form-label">설립일</label>
+              <input type="date" name="founded" class="input"
+                     value="{{ company.get('founded','') }}">
+            </div>
+            <div class="field">
+              <label class="form-label">산업 분야</label>
+              <input type="text" name="industry" class="input"
+                     value="{{ company.get('industry','') }}" placeholder="IT / 소프트웨어">
+            </div>
+          </div>
+
+          <div class="field" style="max-width:240px;">
+            <label class="form-label">직원 수 (명)</label>
+            <input type="number" name="employee_count" class="input" min="1"
+                   value="{{ company.get('employee_count','') }}" placeholder="200">
+          </div>
+        </div>
+
+        <!-- ═══════════ STEP 2: 근무 제도 ═══════════ -->
+        <div class="wizard-panel" id="panel-2">
+          <div class="setup-section-head">
+            <div class="setup-section-icon"><i class="fas fa-clock"></i></div>
+            <div>
+              <div class="setup-section-title">근무 제도 설정</div>
+              <div class="setup-section-desc">회사 전체에 적용할 근로시간 제도를 선택하세요. 개인별로 다르게 적용할 수도 있습니다.</div>
+            </div>
+          </div>
+
+          <label class="form-label" style="margin-bottom:10px;">근로시간 제도 선택</label>
+          <div class="radio-cards">
+            <label class="radio-card">
+              <input type="radio" name="work_system" value="standard"
+                     {{ 'checked' if config.get('work_system','standard')=='standard' else '' }}>
+              <div class="radio-card-body">
+                <div class="radio-card-icon">🏢</div>
+                <div>
+                  <div class="radio-card-name">일반 근무제</div>
+                  <div class="radio-card-desc">정해진 출퇴근 시간에 맞춰 근무.<br>하루 8시간, 주 40시간 기준.</div>
+                </div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="work_system" value="flex"
+                     {{ 'checked' if config.get('work_system')=='flex' else '' }}>
+              <div class="radio-card-body">
+                <div class="radio-card-icon">⏰</div>
+                <div>
+                  <div class="radio-card-name">선택근로제 (§52)</div>
+                  <div class="radio-card-desc">코어타임 내 출석 필수.<br>정산 기간 내 총 근로시간만 충족하면 OK.</div>
+                </div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="work_system" value="elastic"
+                     {{ 'checked' if config.get('work_system')=='elastic' else '' }}>
+              <div class="radio-card-body">
+                <div class="radio-card-icon">📅</div>
+                <div>
+                  <div class="radio-card-name">탄력근로제 (§51)</div>
+                  <div class="radio-card-desc">2주 또는 3개월 단위로<br>근로시간을 조정할 수 있습니다.</div>
+                </div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="work_system" value="autonomous"
+                     {{ 'checked' if config.get('work_system')=='autonomous' else '' }}>
+              <div class="radio-card-body">
+                <div class="radio-card-icon">🎯</div>
+                <div>
+                  <div class="radio-card-name">재량근로제 (§58)</div>
+                  <div class="radio-card-desc">연구·창작직 등 전문직에 적용.<br>근로자가 업무 수행 방법을 재량으로 결정.</div>
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <!-- 기본 근무 시간 -->
+          <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 12px;">기본 근무 시간</div>
+          <div class="grid-2" style="gap:14px;">
+            <div class="field">
+              <label class="form-label">출근 시간</label>
+              <input type="time" name="work_start" class="input"
+                     value="{{ config.get('work_start','09:00') }}">
+            </div>
+            <div class="field">
+              <label class="form-label">퇴근 시간</label>
+              <input type="time" name="work_end" class="input"
+                     value="{{ config.get('work_end','18:00') }}">
+            </div>
+            <div class="field">
+              <label class="form-label">점심 시작</label>
+              <input type="time" name="lunch_start" class="input"
+                     value="{{ config.get('lunch_start','12:00') }}">
+            </div>
+            <div class="field">
+              <label class="form-label">점심 종료</label>
+              <input type="time" name="lunch_end" class="input"
+                     value="{{ config.get('lunch_end','13:00') }}">
+            </div>
+          </div>
+
+          <!-- 선택근로제 코어타임 (flex일 때만 표시) -->
+          <div class="cond-block" id="flexOptions" {% if config.get('work_system','standard') not in ('flex',) %}hidden{% endif %}>
+            <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">선택근로제 설정</div>
+            <div class="grid-2" style="gap:14px;">
+              <div class="field">
+                <label class="form-label">코어타임 시작</label>
+                <input type="time" name="core_start" class="input"
+                       value="{{ config.get('core_start','10:00') }}">
+              </div>
+              <div class="field">
+                <label class="form-label">코어타임 종료</label>
+                <input type="time" name="core_end" class="input"
+                       value="{{ config.get('core_end','16:00') }}">
+              </div>
+            </div>
+            <div class="field" style="max-width:240px;">
+              <label class="form-label">정산 기간</label>
+              <select name="flex_settle_months" class="input">
+                <option value="1" {{ 'selected' if config.get('flex_settle_months',1)==1 else '' }}>1개월</option>
+                <option value="3" {{ 'selected' if config.get('flex_settle_months')==3 else '' }}>3개월</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 탄력근로제 단위 (elastic일 때만 표시) -->
+          <div class="cond-block" id="elasticOptions" {% if config.get('work_system') != 'elastic' %}hidden{% endif %}>
+            <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">탄력근로제 설정</div>
+            <div class="field" style="max-width:240px;">
+              <label class="form-label">단위 기간</label>
+              <select name="elastic_unit" class="input">
+                <option value="2weeks" {{ 'selected' if config.get('elastic_unit','2weeks')=='2weeks' else '' }}>2주 단위</option>
+                <option value="3months" {{ 'selected' if config.get('elastic_unit')=='3months' else '' }}>3개월 단위</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 재택 정책 -->
+          <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 12px;">재택근무 정책</div>
+          <label class="check-card" style="display:inline-flex;">
+            <input type="checkbox" name="remote_allowed" value="1"
+                   {{ 'checked' if config.get('remote_allowed') else '' }}>
+            <div class="check-card-body">
+              <i class="fas fa-home"></i> 재택근무 허용
+            </div>
+          </label>
+          <div class="cond-block" id="remoteOptions" {% if not config.get('remote_allowed') %}hidden{% endif %} style="margin-top:10px;">
+            <div class="field" style="max-width:240px;">
+              <label class="form-label">주간 최대 재택 일수</label>
+              <select name="remote_max_days_week" class="input">
+                {% for n in [1,2,3,4,5] %}
+                <option value="{{ n }}" {{ 'selected' if config.get('remote_max_days_week',3)==n else '' }}>{{ n }}일</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════ STEP 3: 휴가 정책 ═══════════ -->
+        <div class="wizard-panel" id="panel-3">
+          <div class="setup-section-head">
+            <div class="setup-section-icon"><i class="fas fa-umbrella-beach"></i></div>
+            <div>
+              <div class="setup-section-title">휴가 정책</div>
+              <div class="setup-section-desc">연차 부여 방식과 병가·반차 정책을 설정합니다.</div>
+            </div>
+          </div>
+
+          <label class="form-label" style="margin-bottom:10px;">연차 부여 방식</label>
+          <div class="radio-cards" style="grid-template-columns:1fr 1fr 1fr;">
+            <label class="radio-card">
+              <input type="radio" name="leave_policy" value="legal"
+                     {{ 'checked' if config.get('leave_policy','legal')=='legal' else '' }}>
+              <div class="radio-card-body" style="flex-direction:column; gap:4px;">
+                <div class="radio-card-icon">⚖️</div>
+                <div>
+                  <div class="radio-card-name">법정 기준</div>
+                  <div class="radio-card-desc">1년 미만 월 1일, 이후 15일~25일</div>
+                </div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="leave_policy" value="fixed"
+                     {{ 'checked' if config.get('leave_policy')=='fixed' else '' }}>
+              <div class="radio-card-body" style="flex-direction:column; gap:4px;">
+                <div class="radio-card-icon">📌</div>
+                <div>
+                  <div class="radio-card-name">고정 부여</div>
+                  <div class="radio-card-desc">입사일 기준 매년 동일 일수 부여</div>
+                </div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="leave_policy" value="generous"
+                     {{ 'checked' if config.get('leave_policy')=='generous' else '' }}>
+              <div class="radio-card-body" style="flex-direction:column; gap:4px;">
+                <div class="radio-card-icon">🎁</div>
+                <div>
+                  <div class="radio-card-name">법정 + 추가</div>
+                  <div class="radio-card-desc">법정 기준 + 회사 추가 제공</div>
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <div class="field" style="max-width:240px; margin-top:4px;">
+            <label class="form-label">추가 연차 일수 <span style="color:var(--text-muted);font-weight:400;">(법정 + N일)</span></label>
+            <input type="number" name="leave_extra_days" class="input" min="0" max="30"
+                   value="{{ config.get('leave_extra_days',0) }}" placeholder="0">
+          </div>
+
+          <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 12px;">연차 사용 단위</div>
+          <div class="check-cards">
+            <label class="check-card">
+              <input type="checkbox" name="allow_half_day" value="1"
+                     {{ 'checked' if config.get('allow_half_day') else '' }}>
+              <div class="check-card-body"><i class="fas fa-adjust"></i> 반차 허용 (0.5일)</div>
+            </label>
+            <label class="check-card">
+              <input type="checkbox" name="allow_quarter_day" value="1"
+                     {{ 'checked' if config.get('allow_quarter_day') else '' }}>
+              <div class="check-card-body"><i class="fas fa-circle-quarter-stroke"></i> 반의반차 허용 (0.25일)</div>
+            </label>
+          </div>
+
+          <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 12px;">병가 정책</div>
+          <div class="radio-cards" style="grid-template-columns:1fr 1fr 1fr;">
+            <label class="radio-card">
+              <input type="radio" name="sick_policy" value="annual"
+                     {{ 'checked' if config.get('sick_policy','annual')=='annual' else '' }}>
+              <div class="radio-card-body" style="flex-direction:column; gap:4px;">
+                <div class="radio-card-icon">📋</div>
+                <div>
+                  <div class="radio-card-name">연차에서 차감</div>
+                  <div class="radio-card-desc">별도 병가 없음</div>
+                </div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="sick_policy" value="separate"
+                     {{ 'checked' if config.get('sick_policy')=='separate' else '' }}>
+              <div class="radio-card-body" style="flex-direction:column; gap:4px;">
+                <div class="radio-card-icon">🏥</div>
+                <div>
+                  <div class="radio-card-name">별도 병가 제공</div>
+                  <div class="radio-card-desc">연차와 별도로 유급 병가</div>
+                </div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="sick_policy" value="unpaid"
+                     {{ 'checked' if config.get('sick_policy')=='unpaid' else '' }}>
+              <div class="radio-card-body" style="flex-direction:column; gap:4px;">
+                <div class="radio-card-icon">📝</div>
+                <div>
+                  <div class="radio-card-name">무급 병가</div>
+                  <div class="radio-card-desc">연차 소진 후 무급 처리</div>
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <div class="field" style="max-width:240px; margin-top:4px;" id="sickDaysField"
+               {% if config.get('sick_policy','annual') != 'separate' %}style="display:none;"{% endif %}>
+            <label class="form-label">연간 유급 병가 일수</label>
+            <input type="number" name="sick_days_year" class="input" min="0" max="60"
+                   value="{{ config.get('sick_days_year',0) }}" placeholder="0">
+          </div>
+        </div>
+
+        <!-- ═══════════ STEP 4: 급여 설정 ═══════════ -->
+        <div class="wizard-panel" id="panel-4">
+          <div class="setup-section-head">
+            <div class="setup-section-icon"><i class="fas fa-won-sign"></i></div>
+            <div>
+              <div class="setup-section-title">급여 기본 설정</div>
+              <div class="setup-section-desc">급여일과 전 직원 공통으로 적용되는 기본 수당을 설정합니다.</div>
+            </div>
+          </div>
+
+          <div class="field" style="max-width:280px;">
+            <label class="form-label">급여일 <span style="color:var(--red);">*</span></label>
+            <select name="pay_day" class="input">
+              {% for d in range(1, 29) %}
+              <option value="{{ d }}" {{ 'selected' if config.get('pay_day',25)==d else '' }}>매월 {{ d }}일</option>
+              {% endfor %}
+              <option value="last" {{ 'selected' if config.get('pay_day')=='last' else '' }}>말일</option>
+            </select>
+            <span style="font-size:11.5px;color:var(--text-muted);margin-top:4px;display:block;">
+              급여일이 주말·공휴일이면 전 영업일 지급으로 처리됩니다.
+            </span>
+          </div>
+
+          <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 12px;">기본 수당 (전 직원 공통)</div>
+          <div class="grid-2" style="gap:14px;">
+            <div class="field">
+              <label class="form-label">식대</label>
+              <div style="position:relative;">
+                <input type="number" name="default_meal_allowance" class="input" min="0" step="10000"
+                       value="{{ config.get('default_meal_allowance',200000) }}"
+                       style="padding-right: 34px;">
+                <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text-muted);">원</span>
+              </div>
+              <span style="font-size:11.5px;color:var(--text-muted);margin-top:4px;display:block;">월 200,000원까지 비과세</span>
+            </div>
+            <div class="field">
+              <label class="form-label">교통비</label>
+              <div style="position:relative;">
+                <input type="number" name="default_transport_allowance" class="input" min="0" step="10000"
+                       value="{{ config.get('default_transport_allowance',100000) }}"
+                       style="padding-right: 34px;">
+                <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text-muted);">원</span>
+              </div>
+              <span style="font-size:11.5px;color:var(--text-muted);margin-top:4px;display:block;">월 200,000원까지 비과세</span>
+            </div>
+          </div>
+
+          <div class="cond-block" style="margin-top:16px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+              <i class="fas fa-info-circle" style="color:var(--primary);"></i>
+              <span style="font-size:13px;font-weight:700;">수당 안내</span>
+            </div>
+            <p style="font-size:12.5px;color:var(--text-muted);margin:0;line-height:1.7;">
+              여기서 설정한 금액은 <strong>기본값</strong>이며, 개별 직원 급여 설정에서 조정할 수 있습니다.<br>
+              연장·야간·휴일 수당은 실제 근태 기록을 기반으로 <strong>자동 계산</strong>됩니다.
+            </p>
+          </div>
+        </div>
+
+        <!-- ═══════════ STEP 5: 성과관리 ═══════════ -->
+        <div class="wizard-panel" id="panel-5">
+          <div class="setup-section-head">
+            <div class="setup-section-icon"><i class="fas fa-chart-line"></i></div>
+            <div>
+              <div class="setup-section-title">성과관리 설정</div>
+              <div class="setup-section-desc">평가 주기와 평가 방식을 설정합니다. 나중에 언제든지 변경할 수 있습니다.</div>
+            </div>
+          </div>
+
+          <label class="form-label" style="margin-bottom:10px;">평가 주기</label>
+          <div class="radio-cards" style="grid-template-columns:1fr 1fr 1fr;">
+            <label class="radio-card">
+              <input type="radio" name="perf_cycle" value="annual"
+                     {{ 'checked' if config.get('perf_cycle')=='annual' else '' }}>
+              <div class="radio-card-body" style="flex-direction:column; gap:4px;">
+                <div class="radio-card-icon">🗓️</div>
+                <div>
+                  <div class="radio-card-name">연간 (1회)</div>
+                  <div class="radio-card-desc">연말 집중 평가</div>
+                </div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="perf_cycle" value="semiannual"
+                     {{ 'checked' if config.get('perf_cycle','semiannual')=='semiannual' else '' }}>
+              <div class="radio-card-body" style="flex-direction:column; gap:4px;">
+                <div class="radio-card-icon">📆</div>
+                <div>
+                  <div class="radio-card-name">반기 (2회)</div>
+                  <div class="radio-card-desc">상반기 + 하반기</div>
+                </div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="perf_cycle" value="quarterly"
+                     {{ 'checked' if config.get('perf_cycle')=='quarterly' else '' }}>
+              <div class="radio-card-body" style="flex-direction:column; gap:4px;">
+                <div class="radio-card-icon">📊</div>
+                <div>
+                  <div class="radio-card-name">분기 (4회)</div>
+                  <div class="radio-card-desc">분기별 수시 평가</div>
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 12px;">평가 방식</div>
+          <div class="check-cards">
+            <label class="check-card">
+              <input type="checkbox" name="use_self_review" value="1"
+                     {{ 'checked' if config.get('use_self_review',1) else '' }}>
+              <div class="check-card-body"><i class="fas fa-user-edit"></i> 자기평가</div>
+            </label>
+            <label class="check-card">
+              <input type="checkbox" name="use_peer_review" value="1"
+                     {{ 'checked' if config.get('use_peer_review',1) else '' }}>
+              <div class="check-card-body"><i class="fas fa-users"></i> 다면평가 (Peer Review)</div>
+            </label>
+          </div>
+
+          <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 12px;">등급 체계</div>
+          <div class="radio-cards" style="grid-template-columns:1fr 1fr;">
+            <label class="radio-card">
+              <input type="radio" name="grade_system" value="SABCD"
+                     {{ 'checked' if config.get('grade_system','SABCD')=='SABCD' else '' }}>
+              <div class="radio-card-body">
+                <div class="radio-card-icon">🏆</div>
+                <div>
+                  <div class="radio-card-name">S / A / B / C / D</div>
+                  <div class="radio-card-desc">국내 대기업 표준 5등급</div>
+                </div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="grade_system" value="15"
+                     {{ 'checked' if config.get('grade_system')=='15' else '' }}>
+              <div class="radio-card-body">
+                <div class="radio-card-icon">⭐</div>
+                <div>
+                  <div class="radio-card-name">1 ~ 5점</div>
+                  <div class="radio-card-desc">숫자 점수제 (1 최하 ~ 5 최상)</div>
+                </div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="grade_system" value="EE_ME_ME_NI"
+                     {{ 'checked' if config.get('grade_system')=='EE_ME_ME_NI' else '' }}>
+              <div class="radio-card-body">
+                <div class="radio-card-icon">🌐</div>
+                <div>
+                  <div class="radio-card-name">EE / ME / NI</div>
+                  <div class="radio-card-desc">글로벌 스타트업 표준</div>
+                </div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="grade_system" value="OKR"
+                     {{ 'checked' if config.get('grade_system')=='OKR' else '' }}>
+              <div class="radio-card-body">
+                <div class="radio-card-icon">🎯</div>
+                <div>
+                  <div class="radio-card-name">OKR 달성률</div>
+                  <div class="radio-card-desc">목표 대비 달성률 0~100%</div>
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <!-- 완료 안내 -->
+          <div class="cond-block" style="margin-top:24px; border-color: #86efac; background: #f0fdf4;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <i class="fas fa-check-circle" style="color:#15803d;font-size:16px;"></i>
+              <span style="font-size:13.5px;font-weight:700;color:#15803d;">설정 완료 준비 완료</span>
+            </div>
+            <p style="font-size:12.5px;color:#166534;margin:0;line-height:1.7;">
+              모든 설정이 완료되면 <strong>TalentCore 시작하기</strong> 버튼을 눌러 대시보드로 이동합니다.<br>
+              이후 <strong>설정 → Company Settings</strong>에서 언제든지 변경할 수 있습니다.
+            </p>
+          </div>
+        </div>
+
+        <!-- ── 네비게이션 버튼 ── -->
+        <div class="wizard-nav">
+          <button type="button" class="btn btn-ghost" id="prevBtn" style="visibility:hidden;" onclick="wizardNav(-1)">
+            <i class="fas fa-arrow-left"></i> 이전
+          </button>
+          <span class="wizard-progress-text" id="progressText">1 / 5</span>
+          <button type="button" class="btn btn-primary" id="nextBtn" onclick="wizardNav(1)">
+            다음 <i class="fas fa-arrow-right"></i>
+          </button>
+          <button type="submit" class="btn btn-primary" id="submitBtn" style="display:none;">
+            <i class="fas fa-check"></i> TalentCore 시작하기
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  let currentStep = 1;
+  const totalSteps = 5;
+
+  function wizardNav(dir) {
+    const newStep = currentStep + dir;
+    if (newStep < 1 || newStep > totalSteps) return;
+
+    // 현재 패널 숨기기
+    document.getElementById('panel-' + currentStep).classList.remove('active');
+    document.querySelector(`.wizard-step[data-step="${currentStep}"]`).classList.remove('active');
+    if (dir > 0) {
+      document.querySelector(`.wizard-step[data-step="${currentStep}"]`).classList.add('done');
+    } else {
+      document.querySelector(`.wizard-step[data-step="${currentStep}"]`).classList.remove('done');
+    }
+
+    currentStep = newStep;
+
+    // 새 패널 보이기
+    document.getElementById('panel-' + currentStep).classList.add('active');
+    document.querySelector(`.wizard-step[data-step="${currentStep}"]`).classList.add('active');
+
+    // 버튼 상태 업데이트
+    document.getElementById('prevBtn').style.visibility = currentStep === 1 ? 'hidden' : 'visible';
+    document.getElementById('progressText').textContent = currentStep + ' / ' + totalSteps;
+
+    if (currentStep === totalSteps) {
+      document.getElementById('nextBtn').style.display = 'none';
+      document.getElementById('submitBtn').style.display = 'inline-flex';
+    } else {
+      document.getElementById('nextBtn').style.display = 'inline-flex';
+      document.getElementById('submitBtn').style.display = 'none';
+    }
+
+    // 스크롤 상단으로
+    document.querySelector('.wizard-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── 조건부 블록 토글 ──
+  document.querySelectorAll('input[name="work_system"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+      document.getElementById('flexOptions').hidden    = this.value !== 'flex';
+      document.getElementById('elasticOptions').hidden = this.value !== 'elastic';
+    });
+  });
+
+  const remoteCheck = document.querySelector('input[name="remote_allowed"]');
+  if (remoteCheck) {
+    remoteCheck.addEventListener('change', function() {
+      document.getElementById('remoteOptions').hidden = !this.checked;
+    });
+  }
+
+  document.querySelectorAll('input[name="sick_policy"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+      const field = document.getElementById('sickDaysField');
+      if (field) field.style.display = this.value === 'separate' ? 'block' : 'none';
+    });
+  });
+</script>
+{% endblock %}

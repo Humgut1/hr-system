@@ -51,6 +51,39 @@ def get_company_info():
     return info
 
 
+def get_company_config():
+    """company_config 테이블에서 정책 설정을 dict로 반환"""
+    db  = get_db()
+    row = db.execute('SELECT * FROM company_config WHERE id=1').fetchone()
+    if row:
+        return dict(row)
+    # 테이블이 비어있으면 기본값 dict 반환
+    return {
+        'work_system': 'standard', 'work_start': '09:00', 'work_end': '18:00',
+        'lunch_start': '12:00',    'lunch_end':  '13:00',
+        'core_start':  '10:00',    'core_end':   '16:00',
+        'flex_settle_months': 1,   'elastic_unit': '2weeks',
+        'remote_allowed': 1,       'remote_max_days_week': 3,
+        'leave_policy': 'legal',   'leave_extra_days': 0,
+        'allow_half_day': 1,       'allow_quarter_day': 0,
+        'sick_policy': 'annual',   'sick_days_year': 0,
+        'pay_day': 25,
+        'default_meal_allowance': 200000, 'default_transport_allowance': 100000,
+        'perf_cycle': 'semiannual','use_peer_review': 1,
+        'use_self_review': 1,      'grade_system': 'SABCD',
+        'setup_completed': 0,      'setup_step': 0,
+    }
+
+
+@app.context_processor
+def inject_company_config():
+    """모든 템플릿에 company_config 주입"""
+    try:
+        return {'company_config': get_company_config()}
+    except Exception:
+        return {'company_config': {}}
+
+
 # ── DB ──────────────────────────────────────────────────────
 def get_db():
     db = getattr(g, '_database', None)
@@ -201,42 +234,174 @@ FEATURE_DEFS = [
 @app.route('/onboarding', methods=['GET', 'POST'])
 @admin_required
 def onboarding():
-    db = get_db()
-    if request.method == 'POST':
-        selected = request.form.getlist('features')
-        if not selected:
-            flash('최소 하나 이상의 기능을 선택해주세요.', 'error')
-            return redirect(url_for('onboarding'))
-        features_str = ','.join(f for f in selected if f in [fd[0] for fd in FEATURE_DEFS])
-        db.execute(
-            'UPDATE users SET onboarded=1, features_enabled=? WHERE id=?',
-            (features_str, session['user_id'])
-        )
-        db.commit()
-        # 1단계 완료 → 2단계 회사 정보 입력으로 이동
-        return redirect(url_for('onboarding_company'))
-    return render_template('onboarding.html', feature_defs=FEATURE_DEFS, step=1)
+    """기존 호환성 유지 — 새 셋업 마법사로 리다이렉트"""
+    return redirect(url_for('admin_setup'))
 
 
 @app.route('/onboarding/company', methods=['GET', 'POST'])
 @admin_required
 def onboarding_company():
+    """기존 호환성 유지 — 새 셋업 마법사 3단계로 리다이렉트"""
+    return redirect(url_for('admin_setup', step=3))
+
+
+@app.route('/admin/setup', methods=['GET', 'POST'])
+@admin_required
+def admin_setup():
+    from datetime import datetime as dt
     db = get_db()
+
     if request.method == 'POST':
-        fields = ['name', 'reg_no', 'ceo', 'address', 'tel']
-        for key in fields:
-            val = request.form.get(key, '').strip()
-            db.execute(
-                'INSERT INTO company_settings (key, value) VALUES (?, ?) '
-                'ON CONFLICT(key) DO UPDATE SET value=excluded.value',
-                (key, val)
-            )
+        s = request.form
+
+        # ── Step 1: 회사 기본정보 ─────────────────────────────
+        for key in ['name', 'reg_no', 'ceo', 'address', 'tel', 'founded', 'industry', 'employee_count']:
+            val = s.get(key, '').strip()
+            db.execute('INSERT INTO company_settings (key,value) VALUES (?,?) '
+                       'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (key, val))
+
+        # ── Step 2: 근무 제도 ─────────────────────────────────
+        work_system         = s.get('work_system', 'standard')
+        work_start          = s.get('work_start', '09:00')
+        work_end            = s.get('work_end',   '18:00')
+        lunch_start         = s.get('lunch_start','12:00')
+        lunch_end           = s.get('lunch_end',  '13:00')
+        core_start          = s.get('core_start', '10:00')
+        core_end            = s.get('core_end',   '16:00')
+        flex_settle_months  = int(s.get('flex_settle_months', 1))
+        elastic_unit        = s.get('elastic_unit', '2weeks')
+        remote_allowed      = 1 if s.get('remote_allowed') else 0
+        remote_max_days_week = int(s.get('remote_max_days_week', 3))
+
+        # ── Step 3: 휴가 정책 ─────────────────────────────────
+        leave_policy        = s.get('leave_policy', 'legal')
+        leave_extra_days    = int(s.get('leave_extra_days', 0) or 0)
+        allow_half_day      = 1 if s.get('allow_half_day') else 0
+        allow_quarter_day   = 1 if s.get('allow_quarter_day') else 0
+        sick_policy         = s.get('sick_policy', 'annual')
+        sick_days_year      = int(s.get('sick_days_year', 0) or 0)
+
+        # ── Step 4: 급여 기본 설정 ───────────────────────────
+        pay_day                     = int(s.get('pay_day', 25) or 25)
+        default_meal_allowance      = int(s.get('default_meal_allowance', 200000) or 0)
+        default_transport_allowance = int(s.get('default_transport_allowance', 100000) or 0)
+
+        # ── Step 5: 성과관리 ─────────────────────────────────
+        perf_cycle       = s.get('perf_cycle', 'semiannual')
+        use_peer_review  = 1 if s.get('use_peer_review') else 0
+        use_self_review  = 1 if s.get('use_self_review') else 0
+        grade_system     = s.get('grade_system', 'SABCD')
+
+        db.execute('''
+            INSERT INTO company_config (
+                id, work_system, work_start, work_end, lunch_start, lunch_end,
+                core_start, core_end, flex_settle_months, elastic_unit,
+                remote_allowed, remote_max_days_week,
+                leave_policy, leave_extra_days, allow_half_day, allow_quarter_day,
+                sick_policy, sick_days_year,
+                pay_day, default_meal_allowance, default_transport_allowance,
+                perf_cycle, use_peer_review, use_self_review, grade_system,
+                setup_completed, setup_step, updated_at
+            ) VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,5,?)
+            ON CONFLICT(id) DO UPDATE SET
+                work_system=excluded.work_system,
+                work_start=excluded.work_start, work_end=excluded.work_end,
+                lunch_start=excluded.lunch_start, lunch_end=excluded.lunch_end,
+                core_start=excluded.core_start, core_end=excluded.core_end,
+                flex_settle_months=excluded.flex_settle_months,
+                elastic_unit=excluded.elastic_unit,
+                remote_allowed=excluded.remote_allowed,
+                remote_max_days_week=excluded.remote_max_days_week,
+                leave_policy=excluded.leave_policy,
+                leave_extra_days=excluded.leave_extra_days,
+                allow_half_day=excluded.allow_half_day,
+                allow_quarter_day=excluded.allow_quarter_day,
+                sick_policy=excluded.sick_policy, sick_days_year=excluded.sick_days_year,
+                pay_day=excluded.pay_day,
+                default_meal_allowance=excluded.default_meal_allowance,
+                default_transport_allowance=excluded.default_transport_allowance,
+                perf_cycle=excluded.perf_cycle,
+                use_peer_review=excluded.use_peer_review,
+                use_self_review=excluded.use_self_review,
+                grade_system=excluded.grade_system,
+                setup_completed=1, setup_step=5,
+                updated_at=excluded.updated_at
+        ''', (
+            work_system, work_start, work_end, lunch_start, lunch_end,
+            core_start, core_end, flex_settle_months, elastic_unit,
+            remote_allowed, remote_max_days_week,
+            leave_policy, leave_extra_days, allow_half_day, allow_quarter_day,
+            sick_policy, sick_days_year,
+            pay_day, default_meal_allowance, default_transport_allowance,
+            perf_cycle, use_peer_review, use_self_review, grade_system,
+            dt.now().isoformat()
+        ))
         db.commit()
         session['onboarded'] = 1
-        flash('설정이 완료되었습니다! TalentCore에 오신 것을 환영합니다.', 'success')
+        flash('회사 설정이 완료되었습니다! TalentCore에 오신 것을 환영합니다. 🎉', 'success')
         return redirect(url_for('dashboard'))
-    current = get_company_info()
-    return render_template('onboarding_company.html', company=current, step=2)
+
+    config  = get_company_config()
+    company = get_company_info()
+    return render_template('admin/setup.html', config=config, company=company)
+
+
+@app.route('/admin/settings', methods=['GET', 'POST'])
+@admin_required
+def admin_settings():
+    from datetime import datetime as dt
+    db = get_db()
+
+    if request.method == 'POST':
+        s = request.form
+        for key in ['name', 'reg_no', 'ceo', 'address', 'tel', 'founded', 'industry', 'employee_count']:
+            val = s.get(key, '').strip()
+            db.execute('INSERT INTO company_settings (key,value) VALUES (?,?) '
+                       'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (key, val))
+
+        db.execute('''
+            UPDATE company_config SET
+                work_system=?, work_start=?, work_end=?, lunch_start=?, lunch_end=?,
+                core_start=?, core_end=?, flex_settle_months=?, elastic_unit=?,
+                remote_allowed=?, remote_max_days_week=?,
+                leave_policy=?, leave_extra_days=?, allow_half_day=?, allow_quarter_day=?,
+                sick_policy=?, sick_days_year=?,
+                pay_day=?, default_meal_allowance=?, default_transport_allowance=?,
+                perf_cycle=?, use_peer_review=?, use_self_review=?, grade_system=?,
+                updated_at=?
+            WHERE id=1
+        ''', (
+            s.get('work_system','standard'),
+            s.get('work_start','09:00'), s.get('work_end','18:00'),
+            s.get('lunch_start','12:00'), s.get('lunch_end','13:00'),
+            s.get('core_start','10:00'), s.get('core_end','16:00'),
+            int(s.get('flex_settle_months',1) or 1),
+            s.get('elastic_unit','2weeks'),
+            1 if s.get('remote_allowed') else 0,
+            int(s.get('remote_max_days_week',3) or 3),
+            s.get('leave_policy','legal'),
+            int(s.get('leave_extra_days',0) or 0),
+            1 if s.get('allow_half_day') else 0,
+            1 if s.get('allow_quarter_day') else 0,
+            s.get('sick_policy','annual'),
+            int(s.get('sick_days_year',0) or 0),
+            int(s.get('pay_day',25) or 25),
+            int(s.get('default_meal_allowance',200000) or 0),
+            int(s.get('default_transport_allowance',100000) or 0),
+            s.get('perf_cycle','semiannual'),
+            1 if s.get('use_peer_review') else 0,
+            1 if s.get('use_self_review') else 0,
+            s.get('grade_system','SABCD'),
+            dt.now().isoformat()
+        ))
+        db.commit()
+        flash('설정이 저장되었습니다.', 'success')
+        return redirect(url_for('admin_settings'))
+
+    config  = get_company_config()
+    company = get_company_info()
+    return render_template('admin/settings.html', config=config, company=company,
+                           active_page='settings')
 
 
 # ── Dashboard helpers ─────────────────────────────────────────
@@ -276,8 +441,9 @@ def dashboard():
     LEAVE_LABELS = {'annual':'Annual','half_am':'Half AM','half_pm':'Half PM','sick':'Sick','etc':'Other'}
 
     if role == 'admin':
-        if not session.get('onboarded'):
-            return redirect(url_for('onboarding'))
+        cfg = get_company_config()
+        if not cfg.get('setup_completed'):
+            return redirect(url_for('admin_setup'))
         total_employees   = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
         total_departments = db.execute("SELECT COUNT(*) FROM departments").fetchone()[0]
         pending_leave     = db.execute("SELECT COUNT(*) FROM leave_requests WHERE status='pending'").fetchone()[0]

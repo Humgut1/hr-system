@@ -182,6 +182,9 @@
 
     <div class="sidebar-footer">
       {% if session.user_role == 'admin' %}
+      <a href="{{ url_for('admin_settings') }}" class="nav-item{% if active_page == 'company_settings' %} active{% endif %}">
+        <i class="fas fa-building"></i><span>Company Settings</span>
+      </a>
       <a href="{{ url_for('onboarding') }}" class="nav-item{% if active_page == 'feature_settings' %} active{% endif %}">
         <i class="fas fa-sliders"></i><span>Features</span>
       </a>
@@ -234,6 +237,21 @@
     </header>
 
     <main class="page-content">
+      {% if session.user_role == 'guest' %}
+      <div style="
+        background: linear-gradient(90deg, #7c3aed 0%, #a855f7 100%);
+        color: #fff; padding: 10px 20px;
+        display: flex; align-items: center; justify-content: space-between;
+        font-size: 13px; font-weight: 600;
+        border-radius: var(--r); margin-bottom: 16px; gap: 12px;
+      ">
+        <span>
+          <i class="fas fa-eye" style="margin-right:7px; opacity:.85;"></i>
+          게스트 체험 모드 — 모든 메뉴를 둘러볼 수 있습니다. 데이터 변경(저장·삭제)은 제한됩니다.
+        </span>
+        <span style="opacity:.7; font-size:12px; white-space:nowrap;">guest@talentcore.com</span>
+      </div>
+      {% endif %}
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           {% for category, message in messages %}

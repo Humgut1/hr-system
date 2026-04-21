@@ -285,6 +285,43 @@ def init_db():
                 value TEXT NOT NULL DEFAULT ''
             );
 
+            CREATE TABLE IF NOT EXISTS company_config (
+                id                         INTEGER PRIMARY KEY DEFAULT 1,
+                -- 근무 제도
+                work_system                TEXT NOT NULL DEFAULT 'standard',
+                work_start                 TEXT NOT NULL DEFAULT '09:00',
+                work_end                   TEXT NOT NULL DEFAULT '18:00',
+                lunch_start                TEXT NOT NULL DEFAULT '12:00',
+                lunch_end                  TEXT NOT NULL DEFAULT '13:00',
+                core_start                 TEXT NOT NULL DEFAULT '10:00',
+                core_end                   TEXT NOT NULL DEFAULT '16:00',
+                flex_settle_months         INTEGER NOT NULL DEFAULT 1,
+                elastic_unit               TEXT NOT NULL DEFAULT '2weeks',
+                -- 재택 정책
+                remote_allowed             INTEGER NOT NULL DEFAULT 1,
+                remote_max_days_week       INTEGER NOT NULL DEFAULT 3,
+                -- 휴가 정책
+                leave_policy               TEXT NOT NULL DEFAULT 'legal',
+                leave_extra_days           INTEGER NOT NULL DEFAULT 0,
+                allow_half_day             INTEGER NOT NULL DEFAULT 1,
+                allow_quarter_day          INTEGER NOT NULL DEFAULT 0,
+                sick_policy                TEXT NOT NULL DEFAULT 'annual',
+                sick_days_year             INTEGER NOT NULL DEFAULT 0,
+                -- 급여 기본 설정
+                pay_day                    INTEGER NOT NULL DEFAULT 25,
+                default_meal_allowance     INTEGER NOT NULL DEFAULT 200000,
+                default_transport_allowance INTEGER NOT NULL DEFAULT 100000,
+                -- 성과관리
+                perf_cycle                 TEXT NOT NULL DEFAULT 'semiannual',
+                use_peer_review            INTEGER NOT NULL DEFAULT 1,
+                use_self_review            INTEGER NOT NULL DEFAULT 1,
+                grade_system               TEXT NOT NULL DEFAULT 'SABCD',
+                -- 셋업 상태
+                setup_completed            INTEGER NOT NULL DEFAULT 0,
+                setup_step                 INTEGER NOT NULL DEFAULT 0,
+                updated_at                 TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS severance_payments (
                 id               INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id          INTEGER NOT NULL REFERENCES users(id),
@@ -362,6 +399,42 @@ def init_db():
             c.execute('ALTER TABLE checkins ADD COLUMN overtime_min INTEGER DEFAULT 0')
         if 'night_min' not in checkin_cols:
             c.execute('ALTER TABLE checkins ADD COLUMN night_min    INTEGER DEFAULT 0')
+
+        # company_config 기본 row (없으면 데모 데이터로 삽입)
+        if c.execute('SELECT COUNT(*) FROM company_config').fetchone()[0] == 0:
+            c.execute('''
+                INSERT INTO company_config (
+                    id, work_system, work_start, work_end, lunch_start, lunch_end,
+                    core_start, core_end, flex_settle_months, elastic_unit,
+                    remote_allowed, remote_max_days_week,
+                    leave_policy, leave_extra_days, allow_half_day, allow_quarter_day,
+                    sick_policy, sick_days_year,
+                    pay_day, default_meal_allowance, default_transport_allowance,
+                    perf_cycle, use_peer_review, use_self_review, grade_system,
+                    setup_completed, setup_step
+                ) VALUES (1,'standard','09:00','18:00','12:00','13:00',
+                          '10:00','16:00',1,'2weeks',
+                          1,3,
+                          'legal',0,1,0,
+                          'annual',0,
+                          25,200000,100000,
+                          'semiannual',1,1,'SABCD',
+                          1,5)
+            ''')
+        # 기존 row가 있지만 setup_completed=0인 경우 → 데모용으로 완료 처리
+        elif c.execute('SELECT setup_completed FROM company_config WHERE id=1').fetchone()[0] == 0:
+            c.execute('''
+                UPDATE company_config SET
+                    setup_completed=1, setup_step=5,
+                    work_system='standard', work_start='09:00', work_end='18:00',
+                    lunch_start='12:00', lunch_end='13:00',
+                    core_start='10:00', core_end='16:00',
+                    remote_allowed=1, remote_max_days_week=3,
+                    leave_policy='legal', allow_half_day=1,
+                    pay_day=25, default_meal_allowance=200000, default_transport_allowance=100000,
+                    perf_cycle='semiannual', use_peer_review=1, use_self_review=1, grade_system='SABCD'
+                WHERE id=1
+            ''')
 
         if c.execute('SELECT COUNT(*) FROM departments').fetchone()[0] == 0:
             departments = [
