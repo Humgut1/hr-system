@@ -7,7 +7,8 @@ from flask import (Flask, abort, flash, g, redirect, render_template,
                    request, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 from payroll_utils import (calc_payslip, calc_annual_leave, fmt_krw,
-                           calc_severance, check_min_wage, MIN_WAGE_MONTHLY)
+                           calc_severance, check_min_wage, MIN_WAGE_MONTHLY,
+                           calc_day_hours, calc_extra_pay)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('HR_SECRET_KEY', 'dev-only-change-in-prod')
@@ -671,6 +672,7 @@ def employee_edit(emp_id):
         hire_date        = request.form.get('hire_date') or None
         birth_date       = request.form.get('birth_date') or None
         employment_type  = request.form.get('employment_type', 'full_time')
+        work_type        = request.form.get('work_type', 'standard')
         manager_id       = request.form.get('manager_id') or None
         termination_date = request.form.get('termination_date') or None
         term_reason      = request.form.get('termination_reason', '').strip() or None
@@ -685,20 +687,20 @@ def employee_edit(emp_id):
                 db.execute(
                     'UPDATE users SET name=?, email=?, password_hash=?, role=?, '
                     'department_id=?, position_id=?, job_family_id=?, phone=?, '
-                    'hire_date=?, birth_date=?, employment_type=?, manager_id=?, '
+                    'hire_date=?, birth_date=?, employment_type=?, work_type=?, manager_id=?, '
                     'termination_date=?, termination_reason=? WHERE id=?',
                     (name, email, generate_password_hash(new_pw), role,
                      dept_id, pos_id, jf_id, phone, hire_date, birth_date,
-                     employment_type, manager_id, termination_date, term_reason, emp_id)
+                     employment_type, work_type, manager_id, termination_date, term_reason, emp_id)
                 )
             else:
                 db.execute(
                     'UPDATE users SET name=?, email=?, role=?, '
                     'department_id=?, position_id=?, job_family_id=?, phone=?, '
-                    'hire_date=?, birth_date=?, employment_type=?, manager_id=?, '
+                    'hire_date=?, birth_date=?, employment_type=?, work_type=?, manager_id=?, '
                     'termination_date=?, termination_reason=? WHERE id=?',
                     (name, email, role, dept_id, pos_id, jf_id, phone,
-                     hire_date, birth_date, employment_type, manager_id,
+                     hire_date, birth_date, employment_type, work_type, manager_id,
                      termination_date, term_reason, emp_id)
                 )
             db.commit()
@@ -2246,6 +2248,23 @@ def attendance_home():
         (uid,)
     ).fetchone()[0]
 
+    ot_row = db.execute(
+        'SELECT COALESCE(SUM(regular_min),0), COALESCE(SUM(overtime_min),0), '
+        'COALESCE(SUM(night_min),0) '
+        'FROM checkins WHERE user_id=? AND date>=? AND date<=?',
+        (uid, first_day.isoformat(), last_day.isoformat())
+    ).fetchone()
+    month_regular_min  = ot_row[0]
+    month_overtime_min = ot_row[1]
+    month_night_min    = ot_row[2]
+
+    base_row = db.execute(
+        'SELECT base_salary FROM employee_salary WHERE user_id=? ORDER BY updated_at DESC LIMIT 1',
+        (uid,)
+    ).fetchone()
+    base_salary = base_row['base_salary'] if base_row else 0
+    extra_pay   = calc_extra_pay(month_overtime_min, month_night_min, base_salary)
+
     return render_template('attendance/home.html',
                            today=today,
                            checkin=checkin,
@@ -2256,7 +2275,223 @@ def attendance_home():
                            checkins_month=checkins_month,
                            pending=pending,
                            labels=LEAVE_LABELS,
+                           month_regular_min=month_regular_min,
+                           month_overtime_min=month_overtime_min,
+                           month_night_min=month_night_min,
+                           extra_pay=extra_pay,
                            active_page='attendance_home')
+
+
+WORK_TYPES = {
+    'standard':   '일반근무',
+    'flex':       '선택근로제 (§52)',
+    'elastic':    '탄력근로제 (§51)',
+    'autonomous': '재량근로제 (§58)',
+}
+
+BLOCK_TYPES = {
+    'office': '오피스 근무',
+    'remote': '재택 근무',
+    'lunch':  '점심시간',
+}
+
+
+def _week_monday(d):
+    """주어진 date의 해당 주 월요일 반환"""
+    from datetime import timedelta
+    return d - timedelta(days=d.weekday())
+
+
+@app.route('/attendance/flex-schedule')
+@login_required
+def flex_schedule():
+    from datetime import date, timedelta
+    db  = get_db()
+    uid = session['user_id']
+
+    # 주 선택 (기본: 이번 주 월요일)
+    week_str = request.args.get('week', '')
+    try:
+        week_start = date.fromisoformat(week_str)
+        week_start = _week_monday(week_start)
+    except ValueError:
+        week_start = _week_monday(date.today())
+
+    week_end   = week_start + timedelta(days=4)
+    prev_week  = (week_start - timedelta(days=7)).isoformat()
+    next_week  = (week_start + timedelta(days=7)).isoformat()
+    week_days  = [week_start + timedelta(days=i) for i in range(5)]
+
+    # 해당 주 스케줄 조회
+    sched = db.execute(
+        'SELECT * FROM flex_schedules WHERE user_id=? AND week_start=?',
+        (uid, week_start.isoformat())
+    ).fetchone()
+
+    blocks = []
+    if sched:
+        blocks = db.execute(
+            'SELECT * FROM flex_blocks WHERE schedule_id=? ORDER BY work_date, start_time',
+            (sched['id'],)
+        ).fetchall()
+
+    # 사용자 근무제 유형
+    emp = db.execute('SELECT work_type FROM users WHERE id=?', (uid,)).fetchone()
+    work_type = emp['work_type'] if emp else 'standard'
+
+    return render_template('attendance/flex_schedule.html',
+                           week_start=week_start,
+                           week_end=week_end,
+                           week_days=week_days,
+                           prev_week=prev_week,
+                           next_week=next_week,
+                           sched=sched,
+                           blocks=blocks,
+                           work_type=work_type,
+                           work_type_label=WORK_TYPES.get(work_type, '일반근무'),
+                           block_types=BLOCK_TYPES,
+                           active_page='flex_schedule')
+
+
+@app.route('/attendance/flex-schedule/submit', methods=['POST'])
+@login_required
+def flex_schedule_submit():
+    from datetime import date, datetime
+    db   = get_db()
+    uid  = session['user_id']
+
+    week_start  = request.form.get('week_start', '')
+    note        = request.form.get('note', '').strip() or None
+    blocks_json = request.form.get('blocks_json', '[]')
+
+    try:
+        week_date = date.fromisoformat(week_start)
+    except ValueError:
+        flash('올바르지 않은 주 정보입니다.', 'error')
+        return redirect(url_for('flex_schedule'))
+
+    import json
+    try:
+        raw_blocks = json.loads(blocks_json)
+    except (ValueError, TypeError):
+        raw_blocks = []
+
+    # 기존 스케줄 upsert
+    existing = db.execute(
+        'SELECT id, status FROM flex_schedules WHERE user_id=? AND week_start=?',
+        (uid, week_start)
+    ).fetchone()
+
+    action = request.form.get('action', 'draft')
+    status = 'pending' if action == 'submit' else 'draft'
+    now    = datetime.now().isoformat()
+
+    if existing:
+        if existing['status'] in ('approved', 'pending') and action == 'submit':
+            flash('이미 제출되었거나 승인된 스케줄입니다.', 'error')
+            return redirect(url_for('flex_schedule', week=week_start))
+        db.execute(
+            'UPDATE flex_schedules SET note=?, status=?, submitted_at=? WHERE id=?',
+            (note, status, now if action == 'submit' else None, existing['id'])
+        )
+        sched_id = existing['id']
+        db.execute('DELETE FROM flex_blocks WHERE schedule_id=?', (sched_id,))
+    else:
+        cur = db.execute(
+            'INSERT INTO flex_schedules (user_id, week_start, status, note, submitted_at) '
+            'VALUES (?,?,?,?,?)',
+            (uid, week_start, status, note, now if action == 'submit' else None)
+        )
+        sched_id = cur.lastrowid
+
+    for blk in raw_blocks:
+        work_date  = blk.get('date', '')
+        start_time = blk.get('start', '')
+        end_time   = blk.get('end', '')
+        block_type = blk.get('type', 'office')
+        if work_date and start_time and end_time and block_type in BLOCK_TYPES:
+            db.execute(
+                'INSERT INTO flex_blocks (schedule_id, work_date, start_time, end_time, block_type) '
+                'VALUES (?,?,?,?,?)',
+                (sched_id, work_date, start_time, end_time, block_type)
+            )
+
+    db.commit()
+
+    if action == 'submit':
+        flash('근무 계획이 매니저에게 제출되었습니다.', 'success')
+    else:
+        flash('초안이 저장되었습니다.', 'success')
+
+    return redirect(url_for('flex_schedule', week=week_start))
+
+
+@app.route('/attendance/flex-approvals')
+@manager_or_admin
+def flex_approvals():
+    db  = get_db()
+    uid = session['user_id']
+
+    if session['user_role'] == 'manager':
+        rows = db.execute(
+            "SELECT fs.*, u.name user_name, u.emp_no, d.name dept_name "
+            "FROM flex_schedules fs "
+            "JOIN users u ON fs.user_id = u.id "
+            "LEFT JOIN departments d ON u.department_id = d.id "
+            "WHERE u.department_id = (SELECT department_id FROM users WHERE id=?) "
+            "AND fs.status = 'pending' ORDER BY fs.submitted_at DESC",
+            (uid,)
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT fs.*, u.name user_name, u.emp_no, d.name dept_name "
+            "FROM flex_schedules fs "
+            "JOIN users u ON fs.user_id = u.id "
+            "LEFT JOIN departments d ON u.department_id = d.id "
+            "WHERE fs.status = 'pending' ORDER BY fs.submitted_at DESC"
+        ).fetchall()
+
+    # 각 스케줄의 블록도 함께 조회
+    schedules = []
+    for row in rows:
+        blocks = db.execute(
+            'SELECT * FROM flex_blocks WHERE schedule_id=? ORDER BY work_date, start_time',
+            (row['id'],)
+        ).fetchall()
+        schedules.append({'sched': row, 'blocks': blocks})
+
+    return render_template('attendance/flex_approvals.html',
+                           schedules=schedules,
+                           active_page='flex_approvals')
+
+
+@app.route('/attendance/flex-approvals/<int:sched_id>/approve', methods=['POST'])
+@manager_or_admin
+def flex_approve(sched_id):
+    from datetime import datetime
+    db  = get_db()
+    uid = session['user_id']
+    db.execute(
+        "UPDATE flex_schedules SET status='approved', approved_by=?, approved_at=? WHERE id=?",
+        (uid, datetime.now().isoformat(), sched_id)
+    )
+    db.commit()
+    flash('근무 계획을 승인했습니다.', 'success')
+    return redirect(url_for('flex_approvals'))
+
+
+@app.route('/attendance/flex-approvals/<int:sched_id>/reject', methods=['POST'])
+@manager_or_admin
+def flex_reject(sched_id):
+    db     = get_db()
+    reason = request.form.get('reason', '').strip() or None
+    db.execute(
+        "UPDATE flex_schedules SET status='rejected', reject_reason=? WHERE id=?",
+        (reason, sched_id)
+    )
+    db.commit()
+    flash('근무 계획을 반려했습니다.', 'success')
+    return redirect(url_for('flex_approvals'))
 
 
 @app.route('/attendance/checkin', methods=['POST'])
@@ -2285,12 +2520,14 @@ def do_checkout():
     today = date.today().isoformat()
     now   = datetime.now().strftime('%H:%M')
     row = db.execute(
-        'SELECT id FROM checkins WHERE user_id=? AND date=?', (uid, today)
+        'SELECT id, check_in FROM checkins WHERE user_id=? AND date=?', (uid, today)
     ).fetchone()
     if row:
+        hrs = calc_day_hours(today, row['check_in'] or '09:00', now)
         db.execute(
-            'UPDATE checkins SET check_out=? WHERE user_id=? AND date=?',
-            (now, uid, today)
+            'UPDATE checkins SET check_out=?, regular_min=?, overtime_min=?, night_min=? '
+            'WHERE user_id=? AND date=?',
+            (now, hrs['regular_min'], hrs['overtime_min'], hrs['night_min'], uid, today)
         )
         db.commit()
     return redirect(url_for('attendance_home'))

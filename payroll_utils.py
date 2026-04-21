@@ -3,6 +3,7 @@
 
 적용 법령:
   - 근로기준법 제34조  : 퇴직급여 (퇴직금)
+  - 근로기준법 제56조  : 연장·야간·휴일 근로 가산수당
   - 근로기준법 제60조  : 연차유급휴가
   - 근로기준법 제48조  : 임금명세서 필수 기재사항
   - 최저임금법         : 2026년 시간급 최저임금
@@ -14,7 +15,7 @@
   - 소득세법           : 근로소득세 누진세율 + 지방소득세 10%
 """
 
-from datetime import date
+from datetime import date, datetime, time as dtime, timedelta
 
 # ── 최저임금 (최저임금법, 2026년) ─────────────────────────────
 MIN_WAGE_HOURLY  = 10_030          # 시간급 (원) — 2025년 고시, 2026년 예상치
@@ -233,3 +234,93 @@ def calc_payslip(
 def fmt_krw(amount: int) -> str:
     """정수를 한국 원화 형식으로 포매팅"""
     return f"{amount:,}"
+
+
+# ── 연장·야간 근로 계산 (근로기준법 §56) ─────────────────────
+def _calc_night_overlap(start_dt: datetime, end_dt: datetime) -> int:
+    """
+    주어진 구간 중 야간(22:00~06:00) 해당 분 계산.
+    날짜를 넘기는 경우도 처리.
+    """
+    night_min = 0
+    day = start_dt.date()
+    end_day = end_dt.date()
+
+    while day <= end_day:
+        night_windows = [
+            (datetime.combine(day, dtime(0, 0)),
+             datetime.combine(day, dtime(6, 0))),
+            (datetime.combine(day, dtime(22, 0)),
+             datetime.combine(day + timedelta(days=1), dtime(0, 0))),
+        ]
+        for ws, we in night_windows:
+            s = max(start_dt, ws)
+            e = min(end_dt, we)
+            if e > s:
+                night_min += int((e - s).total_seconds() / 60)
+        day += timedelta(days=1)
+
+    return night_min
+
+
+def calc_day_hours(date_str: str, check_in_str: str, check_out_str: str) -> dict:
+    """
+    하루 체크인/아웃에서 정규·연장·야간 근무 분 계산.
+
+    Args:
+        date_str      : 'YYYY-MM-DD'
+        check_in_str  : 'HH:MM'
+        check_out_str : 'HH:MM'
+
+    Returns dict:
+        total_min, regular_min (≤480), overtime_min (>480), night_min
+    """
+    try:
+        ci = datetime.strptime(f'{date_str} {check_in_str}',  '%Y-%m-%d %H:%M')
+        co = datetime.strptime(f'{date_str} {check_out_str}', '%Y-%m-%d %H:%M')
+    except (ValueError, TypeError):
+        return {'total_min': 0, 'regular_min': 0, 'overtime_min': 0, 'night_min': 0}
+
+    # 퇴근이 출근보다 이르면 자정을 넘긴 것으로 처리
+    if co <= ci:
+        co += timedelta(days=1)
+
+    total_min   = int((co - ci).total_seconds() / 60)
+    night_min   = _calc_night_overlap(ci, co)
+    DAILY_MAX   = 480  # 8시간 = 480분
+    regular_min = min(total_min, DAILY_MAX)
+    overtime_min = max(0, total_min - DAILY_MAX)
+
+    return {
+        'total_min':    total_min,
+        'regular_min':  regular_min,
+        'overtime_min': overtime_min,
+        'night_min':    night_min,
+    }
+
+
+def calc_extra_pay(overtime_min: int, night_min: int, base_salary: int) -> dict:
+    """
+    연장·야간 수당 금액 계산 (근로기준법 §56).
+
+    가산율:
+      연장근로  : 통상임금의 50% 추가 (×1.5 중 0.5 가산분)
+      야간근로  : 통상임금의 50% 추가 (×1.5 중 0.5 가산분)
+      → 연장+야간 중복 시 각각 가산 (합산 ×2.0)
+
+    시급 산정: 월 기본급 ÷ 209시간 (주 40h 기준 월 환산, 최저임금법 시행령)
+    """
+    if base_salary <= 0:
+        return {'overtime_pay': 0, 'night_pay': 0, 'total_extra_pay': 0, 'hourly_wage': 0}
+    overtime_min = max(0, overtime_min)
+    night_min    = max(0, night_min)
+    minute_wage  = base_salary / 209 / 60
+    overtime_pay = int(minute_wage * overtime_min * 0.5)   # 가산분 50%만
+    night_pay    = int(minute_wage * night_min    * 0.5)   # 가산분 50%만
+
+    return {
+        'overtime_pay':    overtime_pay,
+        'night_pay':       night_pay,
+        'total_extra_pay': overtime_pay + night_pay,
+        'hourly_wage':     round(base_salary / 209),
+    }

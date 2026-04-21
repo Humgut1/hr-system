@@ -76,9 +76,15 @@
         <a href="{{ url_for('leave_my') }}" class="nav-item{% if active_page == 'leave' %} active{% endif %}">
           <i class="fas fa-list"></i><span>My Leaves</span>
         </a>
+        <a href="{{ url_for('flex_schedule') }}" class="nav-item{% if active_page == 'flex_schedule' %} active{% endif %}">
+          <i class="fas fa-th"></i><span>유연근무 계획</span>
+        </a>
         {% if session.user_role in ('admin', 'manager') %}
         <a href="{{ url_for('attendance') }}" class="nav-item{% if active_page == 'attendance' %} active{% endif %}">
           <i class="fas fa-check-circle"></i><span>Approvals</span>
+        </a>
+        <a href="{{ url_for('flex_approvals') }}" class="nav-item{% if active_page == 'flex_approvals' %} active{% endif %}">
+          <i class="fas fa-calendar-check"></i><span>유연근무 승인</span>
         </a>
         {% endif %}
       </div>

@@ -162,7 +162,26 @@
           </div>
         </div>
 
-        <div class="grid-2" style="gap:14px;">
+        <div class="grid-2" style="gap:14px; margin-top:14px;">
+          <div class="field">
+            <label class="form-label">근무제 유형</label>
+            <select name="work_type" class="input">
+              {% for val, label in [('standard','일반근무'),('flex','선택근로제 (§52)'),('elastic','탄력근로제 (§51)'),('autonomous','재량근로제 (§58)')] %}
+              <option value="{{ val }}"
+                {% if emp and emp.work_type == val %}selected{% elif not emp and val == 'standard' %}selected{% endif %}>
+                {{ label }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field" style="display:flex; align-items:flex-end; padding-bottom:2px;">
+            <span style="font-size:12px; color:var(--text-muted); line-height:1.6;">
+              선택근로제·탄력근로제 선택 시<br>유연근무 계획표 메뉴가 활성화됩니다.
+            </span>
+          </div>
+        </div>
+
+        <div class="grid-2" style="gap:14px; margin-top:14px;">
           <div class="field">
             <label class="form-label">입사일</label>
             <input type="date" name="hire_date" class="input"

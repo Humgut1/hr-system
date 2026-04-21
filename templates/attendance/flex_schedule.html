@@ -1,0 +1,666 @@
+{% extends 'base.html' %}
+{% block title %}유연근무 계획표{% endblock %}
+{% block page_title %}Attendance{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ── 레이아웃 ─────────────────────────────────── */
+  .fs-wrap { max-width: 960px; }
+
+  .fs-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 18px; flex-wrap: wrap; gap: 10px;
+  }
+  .fs-nav { display: flex; align-items: center; gap: 8px; }
+  .fs-nav .week-label { font-size: 15px; font-weight: 800; color: var(--text); }
+
+  /* ── 상태 배지 ───────────────────────────────── */
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: 700;
+  }
+  .status-draft    { background: #f1f5f9; color: #64748b; }
+  .status-pending  { background: #fefce8; color: #854d0e; }
+  .status-approved { background: #f0fdf4; color: #15803d; }
+  .status-rejected { background: #fef2f2; color: #b91c1c; }
+
+  /* ── 요약 바 ─────────────────────────────────── */
+  .summary-bar {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    padding: 12px 18px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-lg); margin-bottom: 16px;
+    align-items: center;
+  }
+  .sum-item { font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .sum-dot  { width: 10px; height: 10px; border-radius: 50%; }
+  .sum-val  { font-weight: 800; color: var(--text); }
+  .sum-warn { color: #dc2626; font-weight: 700; }
+  .sum-ok   { color: #15803d; font-weight: 700; }
+
+  /* ── 그리드 ──────────────────────────────────── */
+  .grid-outer {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-lg); overflow: hidden; margin-bottom: 16px;
+  }
+  .grid-head {
+    display: grid;
+    grid-template-columns: 56px repeat(5, 1fr);
+    border-bottom: 2px solid var(--border);
+  }
+  .grid-head-cell {
+    padding: 10px 6px; text-align: center;
+    font-size: 13px; font-weight: 700; color: var(--text);
+    border-right: 1px solid var(--border);
+  }
+  .grid-head-cell:last-child { border-right: none; }
+  .grid-head-cell .day-sub { font-size: 11px; font-weight: 500; color: var(--text-muted); }
+
+  .grid-body {
+    display: grid;
+    grid-template-columns: 56px repeat(5, 1fr);
+  }
+
+  /* 시간 라벨 열 */
+  .time-col {
+    display: flex; flex-direction: column;
+    border-right: 1px solid var(--border);
+  }
+  .time-label {
+    height: 48px; display: flex; align-items: flex-start;
+    justify-content: flex-end; padding: 4px 6px 0 0;
+    font-size: 11px; color: var(--text-muted); font-weight: 500;
+    border-bottom: 1px solid #f1f5f9;
+    flex-shrink: 0;
+  }
+
+  /* 요일 열 */
+  .day-col {
+    position: relative;
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .day-col:last-child { border-right: none; }
+
+  /* 시간 슬롯 (배경) */
+  .hour-slot {
+    height: 48px;
+    border-bottom: 1px solid #f1f5f9;
+    box-sizing: border-box;
+  }
+  .hour-slot.core-time {
+    background: #f0f9ff;
+    border-bottom-color: #bae6fd;
+  }
+  .hour-slot.core-boundary-start { border-top: 2px solid #38bdf8; }
+  .hour-slot.core-boundary-end   { border-bottom: 2px solid #38bdf8; }
+
+  /* 블록 오버레이 */
+  .block-overlay {
+    position: absolute;
+    left: 3px; right: 3px;
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    cursor: pointer; z-index: 2;
+    overflow: hidden;
+    border: 1px solid transparent;
+    transition: opacity .1s;
+  }
+  .block-overlay:hover { opacity: .85; }
+  .block-overlay.office { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+  .block-overlay.remote { background: #dcfce7; color: #15803d; border-color: #86efac; }
+  .block-overlay.lunch  { background: #f3f4f6; color: #6b7280; border-color: #d1d5db; }
+
+  .core-badge {
+    position: absolute; left: 0; right: 0;
+    top: 50%; transform: translateY(-50%);
+    text-align: center; font-size: 10px; font-weight: 700;
+    color: #38bdf8; pointer-events: none; z-index: 1;
+    letter-spacing: .05em;
+  }
+
+  /* ── 팝업 ────────────────────────────────────── */
+  .popup-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.35);
+    z-index: 100; display: none;
+    align-items: center; justify-content: center;
+  }
+  .popup-overlay.open { display: flex; }
+  .popup-box {
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    padding: 20px 22px;
+    width: 300px; max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  }
+  .popup-title {
+    font-size: 15px; font-weight: 800; color: var(--text);
+    margin-bottom: 16px;
+  }
+  .type-row {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 6px; margin-bottom: 16px;
+  }
+  .type-btn {
+    padding: 8px 4px; border: 2px solid var(--border);
+    border-radius: var(--r); cursor: pointer; text-align: center;
+    font-size: 12px; font-weight: 700; color: var(--text);
+    background: none; transition: border-color .1s, background .1s;
+  }
+  .type-btn.sel-office { border-color: #3b82f6; background: #dbeafe; color: #1e40af; }
+  .type-btn.sel-remote { border-color: #22c55e; background: #dcfce7; color: #15803d; }
+  .type-btn.sel-lunch  { border-color: #9ca3af; background: #f3f4f6; color: #6b7280; }
+  .time-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 16px;
+  }
+  .time-row select { flex: 1; }
+  .time-preview {
+    font-size: 12px; color: var(--text-muted);
+    margin-bottom: 14px; min-height: 16px;
+  }
+  .popup-btns { display: flex; gap: 8px; }
+
+  /* ── 코어타임 범례 ───────────────────────────── */
+  .legend {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    font-size: 12px; color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fs-wrap">
+
+  <!-- 헤더 -->
+  <div class="fs-header">
+    <div>
+      <h2 style="font-size:18px; font-weight:800; margin-bottom:4px;">유연근무 계획표</h2>
+      <div style="font-size:13px; color:var(--text-muted);">
+        근무제: <strong>{{ work_type_label }}</strong>
+        {% if sched %}
+        &nbsp;·&nbsp;
+        {% if sched.status == 'draft' %}<span class="status-badge status-draft">초안</span>
+        {% elif sched.status == 'pending' %}<span class="status-badge status-pending">승인 대기</span>
+        {% elif sched.status == 'approved' %}<span class="status-badge status-approved">승인됨</span>
+        {% elif sched.status == 'rejected' %}
+          <span class="status-badge status-rejected">반려됨</span>
+          {% if sched.reject_reason %}
+          <span style="font-size:12px; color:#dc2626;"> — {{ sched.reject_reason }}</span>
+          {% endif %}
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+    <div class="fs-nav">
+      <a href="{{ url_for('flex_schedule', week=prev_week) }}" class="btn btn-ghost btn-sm">
+        <i class="fas fa-chevron-left"></i>
+      </a>
+      <span class="week-label">
+        {{ week_start.strftime('%m/%d') }} — {{ week_end.strftime('%m/%d') }}
+      </span>
+      <a href="{{ url_for('flex_schedule', week=next_week) }}" class="btn btn-ghost btn-sm">
+        <i class="fas fa-chevron-right"></i>
+      </a>
+      <a href="{{ url_for('flex_schedule') }}" class="btn btn-ghost btn-sm">오늘</a>
+    </div>
+  </div>
+
+  <!-- 범례 -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#dbeafe; border:1px solid #93c5fd;"></div> 오피스 근무
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#dcfce7; border:1px solid #86efac;"></div> 재택 근무
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#f3f4f6; border:1px solid #d1d5db;"></div> 점심시간
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#f0f9ff; border:1px solid #bae6fd;"></div>
+      코어타임 (10:00~16:00)
+    </div>
+  </div>
+
+  <!-- 요약 바 -->
+  <div class="summary-bar">
+    <div class="sum-item">
+      <div class="sum-dot" style="background:#3b82f6;"></div>
+      오피스 <span class="sum-val" id="sumOffice">0h</span>
+    </div>
+    <div class="sum-item">
+      <div class="sum-dot" style="background:#22c55e;"></div>
+      재택 <span class="sum-val" id="sumRemote">0h</span>
+    </div>
+    <div class="sum-item">
+      <div class="sum-dot" style="background:#9ca3af;"></div>
+      점심 <span class="sum-val" id="sumLunch">0h</span>
+    </div>
+    <div class="sum-item" style="margin-left:auto;">
+      총 근무 <span class="sum-val" id="sumTotal">0h</span>
+      <span id="sumStatus" style="margin-left:4px;"></span>
+    </div>
+  </div>
+
+  <!-- 그리드 -->
+  <div class="grid-outer">
+    <!-- 헤더 행 -->
+    <div class="grid-head">
+      <div class="grid-head-cell" style="background:#f8fafc;"></div>
+      {% for d in week_days %}
+      <div class="grid-head-cell">
+        {{ ['월','화','수','목','금'][loop.index0] }}
+        <div class="day-sub">{{ d.strftime('%m/%d') }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- 바디 (시간 라벨 + 요일 열) -->
+    <div class="grid-body" id="gridBody">
+      <!-- 시간 라벨 열 -->
+      <div class="time-col" id="timeCol">
+        {% for h in range(7, 23) %}
+        <div class="time-label">{{ '%02d:00'|format(h) }}</div>
+        {% endfor %}
+      </div>
+
+      <!-- 요일 열 (5개) -->
+      {% for d in week_days %}
+      <div class="day-col" id="col-{{ loop.index0 }}" data-date="{{ d.isoformat() }}"
+           onclick="handleColClick(event, {{ loop.index0 }}, '{{ d.isoformat() }}')">
+        {% for h in range(7, 23) %}
+        <div class="hour-slot
+          {% if h >= 10 and h < 16 %} core-time{% endif %}
+          {% if h == 10 %} core-boundary-start{% endif %}
+          {% if h == 15 %} core-boundary-end{% endif %}"
+          data-hour="{{ h }}"></div>
+        {% endfor %}
+        {% if loop.index0 == 2 %}{# 수요일에만 코어타임 레이블 #}{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 제출 폼 -->
+  {% if not sched or sched.status in ('draft', 'rejected') %}
+  <form method="POST" action="{{ url_for('flex_schedule_submit') }}" id="schedForm">
+    <input type="hidden" name="week_start" value="{{ week_start.isoformat() }}">
+    <input type="hidden" name="blocks_json" id="blocksJson" value="[]">
+    <div class="field" style="margin-bottom:12px;">
+      <label class="form-label">메모 <span style="font-weight:400; color:var(--text-muted);">(선택)</span></label>
+      <input type="text" name="note" class="input" style="max-width:480px;"
+             placeholder="예: 수요일 오후 병원 예약으로 재택"
+             value="{{ sched.note if sched and sched.note else '' }}">
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button type="submit" name="action" value="draft" class="btn btn-ghost">
+        <i class="fas fa-save"></i> 초안 저장
+      </button>
+      <button type="submit" name="action" value="submit" class="btn btn-primary"
+              onclick="return confirmSubmit()">
+        <i class="fas fa-paper-plane"></i> 매니저에게 제출
+      </button>
+    </div>
+  </form>
+  {% elif sched.status == 'pending' %}
+  <div style="padding:12px 16px; background:#fefce8; border:1px solid #fde68a;
+              border-radius:var(--r); font-size:13px; color:#854d0e; font-weight:600;">
+    <i class="fas fa-clock"></i> 매니저 승인 대기 중입니다.
+  </div>
+  {% elif sched.status == 'approved' %}
+  <div style="padding:12px 16px; background:#f0fdf4; border:1px solid #86efac;
+              border-radius:var(--r); font-size:13px; color:#15803d; font-weight:600;">
+    <i class="fas fa-check-circle"></i> 승인된 스케줄입니다.
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- ── 팝업 ───────────────────────────────────────────────── -->
+<div class="popup-overlay" id="popupOverlay" onclick="closePopup(event)">
+  <div class="popup-box" onclick="event.stopPropagation()">
+    <div class="popup-title" id="popupTitle">블록 설정</div>
+
+    <div class="type-row">
+      <button type="button" class="type-btn" data-type="office"
+              onclick="selectType('office')">
+        🏢<br>오피스
+      </button>
+      <button type="button" class="type-btn" data-type="remote"
+              onclick="selectType('remote')">
+        🏠<br>재택
+      </button>
+      <button type="button" class="type-btn" data-type="lunch"
+              onclick="selectType('lunch')">
+        🍱<br>점심
+      </button>
+    </div>
+
+    <div class="time-row">
+      <label style="font-size:12px; font-weight:600; width:32px;">시작</label>
+      <select id="popStartTime" class="input" onchange="updateTimePreview()"></select>
+    </div>
+    <div class="time-row">
+      <label style="font-size:12px; font-weight:600; width:32px;">종료</label>
+      <select id="popEndTime" class="input" onchange="updateTimePreview()"></select>
+    </div>
+    <div class="time-preview" id="timePreview"></div>
+
+    <div class="popup-btns">
+      <button type="button" class="btn btn-ghost btn-sm" style="flex:1;"
+              id="popDeleteBtn" onclick="deleteBlock()">
+        <i class="fas fa-trash"></i> 삭제
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="closePopup()">취소</button>
+      <button type="button" class="btn btn-primary btn-sm" onclick="confirmBlock()">확인</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── 상수 ──────────────────────────────────────────────────────
+var GRID_START  = 7;   // 07:00
+var GRID_END    = 23;  // 23:00 (16 hours)
+var CELL_H      = 48;  // px per hour
+var CORE_START  = 10;
+var CORE_END    = 16;
+var TARGET_H    = 8;   // 목표 근무시간
+
+// 서버에서 전달된 기존 블록 데이터
+var savedBlocks = {{ blocks | tojson }};
+
+// JS 블록 배열: { date, start, end, type }
+var blocks = [];
+
+// 팝업 상태
+var popup = {
+  open:    false,
+  date:    null,
+  hour:    null,
+  editIdx: null,
+};
+
+// ── 초기화 ────────────────────────────────────────────────────
+(function init() {
+  buildTimeOptions();
+
+  // 서버 블록 로드
+  if (savedBlocks && savedBlocks.length) {
+    savedBlocks.forEach(function(b) {
+      blocks.push({ date: b.work_date, start: b.start_time, end: b.end_time, type: b.block_type });
+    });
+  }
+
+  renderAllBlocks();
+  updateSummary();
+})();
+
+// ── 시간 옵션 빌드 (15분 단위, 07:00~23:00) ──────────────────
+function buildTimeOptions() {
+  var opts = '';
+  for (var h = GRID_START; h <= GRID_END; h++) {
+    for (var m = 0; m < 60; m += 15) {
+      if (h === GRID_END && m > 0) break;
+      var val = pad(h) + ':' + pad(m);
+      opts += '<option value="' + val + '">' + val + '</option>';
+    }
+  }
+  document.getElementById('popStartTime').innerHTML = opts;
+  document.getElementById('popEndTime').innerHTML   = opts;
+}
+
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+function timeToMin(t) {
+  var p = t.split(':');
+  return parseInt(p[0]) * 60 + parseInt(p[1]);
+}
+
+function minToTime(m) {
+  return pad(Math.floor(m / 60)) + ':' + pad(m % 60);
+}
+
+// ── 열 클릭 핸들러 ────────────────────────────────────────────
+function handleColClick(e, colIdx, date) {
+  // 블록 클릭인지 확인 (블록은 stopPropagation 사용)
+  if (e.target.classList.contains('block-overlay') ||
+      e.target.closest('.block-overlay')) return;
+
+  var col  = document.getElementById('col-' + colIdx);
+  var rect = col.getBoundingClientRect();
+  var relY = e.clientY - rect.top + col.scrollTop;
+  var hour = Math.floor(relY / CELL_H) + GRID_START;
+  hour = Math.max(GRID_START, Math.min(hour, GRID_END - 1));
+
+  openPopup(date, hour, null);
+}
+
+// ── 팝업 열기 ─────────────────────────────────────────────────
+function openPopup(date, hour, editIdx) {
+  popup.date    = date;
+  popup.hour    = hour;
+  popup.editIdx = editIdx;
+
+  var startDefault, endDefault, typeDefault;
+
+  if (editIdx !== null) {
+    var blk    = blocks[editIdx];
+    startDefault = blk.start;
+    endDefault   = blk.end;
+    typeDefault  = blk.type;
+    document.getElementById('popDeleteBtn').style.display = '';
+    document.getElementById('popupTitle').textContent = '블록 수정';
+  } else {
+    startDefault = pad(hour) + ':00';
+    endDefault   = pad(hour + 1 <= GRID_END ? hour + 1 : GRID_END) + ':00';
+    typeDefault  = 'office';
+    document.getElementById('popDeleteBtn').style.display = 'none';
+    document.getElementById('popupTitle').textContent = dateLabelKo(date) + ' ' + pad(hour) + ':00';
+  }
+
+  setSelectValue('popStartTime', startDefault);
+  setSelectValue('popEndTime',   endDefault);
+  selectType(typeDefault);
+  updateTimePreview();
+
+  document.getElementById('popupOverlay').classList.add('open');
+}
+
+function dateLabelKo(dateStr) {
+  var days = ['일','월','화','수','목','금','토'];
+  var d = new Date(dateStr + 'T00:00:00');
+  return (d.getMonth()+1) + '/' + d.getDate() + '(' + days[d.getDay()] + ')';
+}
+
+function closePopup(e) {
+  if (e && e.target !== document.getElementById('popupOverlay')) return;
+  document.getElementById('popupOverlay').classList.remove('open');
+}
+
+// ── 타입 선택 ─────────────────────────────────────────────────
+var selectedType = 'office';
+function selectType(t) {
+  selectedType = t;
+  document.querySelectorAll('.type-btn').forEach(function(btn) {
+    btn.className = 'type-btn';
+    if (btn.dataset.type === t) btn.classList.add('sel-' + t);
+  });
+}
+
+// ── 시간 미리보기 ─────────────────────────────────────────────
+function updateTimePreview() {
+  var s    = document.getElementById('popStartTime').value;
+  var e    = document.getElementById('popEndTime').value;
+  var sMin = timeToMin(s);
+  var eMin = timeToMin(e);
+  var diff = eMin - sMin;
+  var el   = document.getElementById('timePreview');
+  if (diff <= 0) {
+    el.innerHTML = '<span style="color:#dc2626;">종료 시간이 시작보다 빠릅니다</span>';
+  } else {
+    var h = Math.floor(diff / 60), m = diff % 60;
+    el.textContent = s + ' ~ ' + e + '  (' + h + '시간' + (m ? ' ' + m + '분' : '') + ')';
+  }
+}
+
+function setSelectValue(id, val) {
+  var sel = document.getElementById(id);
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === val) { sel.selectedIndex = i; break; }
+  }
+}
+
+// ── 블록 확인 / 삭제 ─────────────────────────────────────────
+function confirmBlock() {
+  var start = document.getElementById('popStartTime').value;
+  var end   = document.getElementById('popEndTime').value;
+  if (timeToMin(end) <= timeToMin(start)) {
+    alert('종료 시간이 시작 시간보다 빨라요.');
+    return;
+  }
+
+  var blk = { date: popup.date, start: start, end: end, type: selectedType };
+
+  if (popup.editIdx !== null) {
+    blocks[popup.editIdx] = blk;
+  } else {
+    // 기존 블록과 겹치는지 간단히 체크
+    var conflict = blocks.some(function(b, idx) {
+      if (b.date !== blk.date) return false;
+      return timeToMin(b.end) > timeToMin(blk.start) &&
+             timeToMin(b.start) < timeToMin(blk.end);
+    });
+    if (conflict) {
+      if (!confirm('다른 블록과 겹칩니다. 그래도 추가할까요?')) return;
+    }
+    blocks.push(blk);
+  }
+
+  document.getElementById('popupOverlay').classList.remove('open');
+  renderAllBlocks();
+  updateSummary();
+  syncForm();
+}
+
+function deleteBlock() {
+  if (popup.editIdx !== null) {
+    blocks.splice(popup.editIdx, 1);
+    document.getElementById('popupOverlay').classList.remove('open');
+    renderAllBlocks();
+    updateSummary();
+    syncForm();
+  }
+}
+
+// ── 렌더링 ────────────────────────────────────────────────────
+function renderAllBlocks() {
+  // 기존 오버레이 제거
+  document.querySelectorAll('.block-overlay').forEach(function(el) { el.remove(); });
+
+  // 날짜별 열 찾기
+  var cols = document.querySelectorAll('.day-col');
+
+  blocks.forEach(function(blk, idx) {
+    var colEl = null;
+    cols.forEach(function(c) {
+      if (c.dataset.date === blk.date) colEl = c;
+    });
+    if (!colEl) return;
+
+    var sMin   = timeToMin(blk.start);
+    var eMin   = timeToMin(blk.end);
+    var gridS  = GRID_START * 60;
+    var topPx  = ((sMin - gridS) / 60) * CELL_H;
+    var htPx   = ((eMin - sMin)  / 60) * CELL_H;
+
+    var div = document.createElement('div');
+    div.className   = 'block-overlay ' + blk.type;
+    div.style.top   = topPx + 'px';
+    div.style.height = Math.max(htPx - 2, 10) + 'px';
+
+    var label = { office:'🏢', remote:'🏠', lunch:'🍱' }[blk.type] || '';
+    if (htPx >= 20) div.textContent = label;
+
+    (function(i) {
+      div.addEventListener('click', function(e) {
+        e.stopPropagation();
+        openPopup(blk.date, null, i);
+      });
+    })(idx);
+
+    colEl.appendChild(div);
+  });
+}
+
+// ── 요약 업데이트 ────────────────────────────────────────────
+function updateSummary() {
+  var office = 0, remote = 0, lunch = 0;
+  blocks.forEach(function(b) {
+    var min = timeToMin(b.end) - timeToMin(b.start);
+    if (b.type === 'office') office += min;
+    else if (b.type === 'remote') remote += min;
+    else if (b.type === 'lunch')  lunch  += min;
+  });
+  var workMin = office + remote;
+
+  function fmtH(min) {
+    var h = Math.floor(min/60), m = min%60;
+    return m ? h + 'h ' + m + 'm' : h + 'h';
+  }
+
+  document.getElementById('sumOffice').textContent = fmtH(office);
+  document.getElementById('sumRemote').textContent = fmtH(remote);
+  document.getElementById('sumLunch').textContent  = fmtH(lunch);
+  document.getElementById('sumTotal').textContent  = fmtH(workMin);
+
+  var statusEl = document.getElementById('sumStatus');
+  var targetMin = TARGET_H * 5 * 60;
+  if (workMin >= targetMin) {
+    statusEl.innerHTML = '<span class="sum-ok">✓ 목표 달성</span>';
+  } else {
+    var short = targetMin - workMin;
+    statusEl.innerHTML = '<span class="sum-warn">▲ ' + fmtH(short) + ' 부족</span>';
+  }
+}
+
+// ── 폼 직렬화 ────────────────────────────────────────────────
+function syncForm() {
+  document.getElementById('blocksJson').value = JSON.stringify(blocks);
+}
+
+function confirmSubmit() {
+  // 코어타임 미충족 체크
+  var days = {};
+  blocks.forEach(function(b) {
+    if (!days[b.date]) days[b.date] = [];
+    if (b.type !== 'lunch') days[b.date].push(b);
+  });
+  var coreStart = CORE_START * 60;
+  var coreEnd   = CORE_END   * 60;
+  var missing = [];
+  Object.keys(days).forEach(function(d) {
+    var covered = days[d].some(function(b) {
+      return timeToMin(b.start) <= coreStart && timeToMin(b.end) >= coreEnd;
+    });
+    if (!covered) missing.push(d);
+  });
+  if (missing.length) {
+    return confirm('코어타임(10:00~16:00)이 설정되지 않은 날이 있습니다.\n그래도 제출할까요?');
+  }
+  syncForm();
+  return true;
+}
+
+// 폼 제출 직전 항상 syncForm
+document.getElementById('schedForm') && document.getElementById('schedForm').addEventListener('submit', syncForm);
+</script>
+{% endblock %}

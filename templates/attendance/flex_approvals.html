@@ -1,0 +1,234 @@
+{% extends 'base.html' %}
+{% block title %}유연근무 승인{% endblock %}
+{% block page_title %}Attendance{% endblock %}
+
+{% block extra_css %}
+<style>
+  .appr-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-lg); margin-bottom: 16px; overflow: hidden;
+  }
+  .appr-head {
+    display: flex; align-items: center; gap: 14px;
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+  }
+  .appr-avatar {
+    width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg,#1e3a8a,#3b82f6);
+    display: flex; align-items: center; justify-content: center;
+    color:#fff; font-size:15px; font-weight:800;
+  }
+  .appr-name  { font-size:14px; font-weight:800; color:var(--text); }
+  .appr-meta  { font-size:12px; color:var(--text-muted); margin-top:2px; }
+  .appr-badge {
+    margin-left:auto; padding:4px 10px; border-radius:20px;
+    font-size:11px; font-weight:700;
+    background:#fefce8; color:#854d0e;
+  }
+
+  /* 미니 그리드 */
+  .mini-grid-wrap { padding: 16px 20px; overflow-x: auto; }
+  .mini-grid {
+    display: grid;
+    grid-template-columns: 40px repeat(5, 1fr);
+    min-width: 480px;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    overflow: hidden;
+  }
+  .mini-head {
+    padding: 6px 4px; text-align: center;
+    font-size: 11px; font-weight: 700; color: var(--text-muted);
+    background: #f8fafc; border-right: 1px solid var(--border);
+    border-bottom: 2px solid var(--border);
+  }
+  .mini-head:last-child { border-right: none; }
+  .mini-time-col { display: flex; flex-direction: column; }
+  .mini-time-lbl {
+    height: 24px; display: flex; align-items: center;
+    justify-content: flex-end; padding-right: 5px;
+    font-size: 10px; color: var(--text-muted);
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .mini-day-col { position: relative; border-right: 1px solid var(--border); }
+  .mini-day-col:last-child { border-right: none; }
+  .mini-slot {
+    height: 24px; border-bottom: 1px solid #f1f5f9;
+  }
+  .mini-slot.core { background: #f0f9ff; }
+  .mini-block {
+    position: absolute; left: 2px; right: 2px;
+    border-radius: 2px; font-size: 9px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .mini-block.office { background: #dbeafe; color: #1e40af; }
+  .mini-block.remote { background: #dcfce7; color: #15803d; }
+  .mini-block.lunch  { background: #f3f4f6; color: #6b7280; }
+
+  /* 요약 + 버튼 */
+  .appr-footer {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 20px; background: #f8fafc;
+    border-top: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .appr-summary { font-size:12.5px; color:var(--text-muted); flex:1; }
+  .appr-summary strong { color:var(--text); }
+  .reject-input {
+    display: none; flex: 1; min-width: 200px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:900px;">
+  <h2 style="font-size:18px; font-weight:800; margin-bottom:18px;">
+    유연근무 승인 관리
+    {% if schedules %}
+    <span style="font-size:13px; font-weight:600; color:var(--text-muted); margin-left:8px;">
+      {{ schedules|length }}건 대기
+    </span>
+    {% endif %}
+  </h2>
+
+  {% if not schedules %}
+  <div class="card">
+    <div style="padding:60px; text-align:center; color:var(--text-muted);">
+      <i class="fas fa-calendar-check" style="font-size:32px; opacity:.3; display:block; margin-bottom:12px;"></i>
+      승인 대기 중인 근무 계획이 없습니다.
+    </div>
+  </div>
+  {% endif %}
+
+  {% for item in schedules %}
+  {% set s = item.sched %}
+  {% set blks = item.blocks %}
+  <div class="appr-card">
+    <!-- 직원 정보 헤더 -->
+    <div class="appr-head">
+      <div class="appr-avatar">{{ s.user_name[0] }}</div>
+      <div>
+        <div class="appr-name">{{ s.user_name }}
+          {% if s.emp_no %}<span style="font-size:11px; color:var(--text-muted); font-weight:600; margin-left:4px;">{{ s.emp_no }}</span>{% endif %}
+        </div>
+        <div class="appr-meta">
+          {{ s.dept_name or '—' }} &nbsp;·&nbsp;
+          {{ s.week_start }} 주 &nbsp;·&nbsp;
+          제출 {{ (s.submitted_at or '')[:10] }}
+        </div>
+      </div>
+      <span class="appr-badge"><i class="fas fa-clock"></i> 승인 대기</span>
+    </div>
+
+    <!-- 미니 그리드 -->
+    <div class="mini-grid-wrap">
+      {% set dates = blks | map(attribute='work_date') | unique | list | sort %}
+      {% if blks %}
+      <div class="mini-grid" id="minigrid-{{ s.id }}">
+        <!-- 헤더 -->
+        <div class="mini-head"></div>
+        {% for d in dates %}
+        <div class="mini-head">{{ d[5:] }}</div>
+        {% endfor %}
+        {% for extra in range(5 - dates|length) %}
+        <div class="mini-head" style="color:transparent;">—</div>
+        {% endfor %}
+
+        <!-- 시간 라벨 (07~22) -->
+        <div class="mini-time-col">
+          {% for h in range(7, 23) %}
+          <div class="mini-time-lbl">{{ '%02d'|format(h) }}</div>
+          {% endfor %}
+        </div>
+
+        <!-- 요일 열 -->
+        {% for d in dates %}
+        <div class="mini-day-col" data-date="{{ d }}" style="height:{{ 16*24 }}px;">
+          {% for h in range(7, 23) %}
+          <div class="mini-slot{% if h >= 10 and h < 16 %} core{% endif %}"></div>
+          {% endfor %}
+          {% for b in blks if b.work_date == d %}
+          {% set smin = b.start_time.split(':')[0]|int * 60 + b.start_time.split(':')[1]|int %}
+          {% set emin = b.end_time.split(':')[0]|int * 60 + b.end_time.split(':')[1]|int %}
+          {% set topPx = ((smin - 420) / 60 * 24)|round|int %}
+          {% set htPx = ((emin - smin) / 60 * 24)|round|int %}
+          <div class="mini-block {{ b.block_type }}"
+               style="top:{{ topPx }}px; height:{{ [htPx - 1, 6]|max }}px;">
+            {% if htPx >= 14 %}{{ {'office':'🏢','remote':'🏠','lunch':'🍱'}[b.block_type] }}{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+        {% for extra in range(5 - dates|length) %}
+        <div class="mini-day-col" style="height:{{ 16*24 }}px;">
+          {% for h in range(7, 23) %}
+          <div class="mini-slot{% if h >= 10 and h < 16 %} core{% endif %}"></div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="color:var(--text-muted); font-size:13px; padding:8px 0;">블록 없음</div>
+      {% endif %}
+
+      {% if s.note %}
+      <div style="margin-top:10px; font-size:13px; color:var(--text-muted);">
+        <i class="fas fa-comment-alt"></i> {{ s.note }}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- 요약 + 승인/반려 버튼 -->
+    <div class="appr-footer">
+      <div class="appr-summary">
+        {% set office_min = namespace(v=0) %}
+        {% set remote_min = namespace(v=0) %}
+        {% for b in blks %}
+          {% set sm = b.start_time.split(':')[0]|int*60 + b.start_time.split(':')[1]|int %}
+          {% set em = b.end_time.split(':')[0]|int*60 + b.end_time.split(':')[1]|int %}
+          {% if b.block_type == 'office' %}{% set office_min.v = office_min.v + (em - sm) %}
+          {% elif b.block_type == 'remote' %}{% set remote_min.v = remote_min.v + (em - sm) %}
+          {% endif %}
+        {% endfor %}
+        오피스 <strong>{{ (office_min.v / 60)|round(1) }}h</strong> &nbsp;
+        재택 <strong>{{ (remote_min.v / 60)|round(1) }}h</strong> &nbsp;
+        총 근무 <strong>{{ ((office_min.v + remote_min.v) / 60)|round(1) }}h</strong>
+      </div>
+
+      <form method="POST" action="{{ url_for('flex_reject', sched_id=s.id) }}"
+            style="display:flex; gap:6px; align-items:center;" id="rejectForm-{{ s.id }}">
+        <input type="text" name="reason" class="input reject-input" id="rejectInput-{{ s.id }}"
+               placeholder="반려 사유 입력...">
+        <button type="button" class="btn btn-ghost btn-sm"
+                onclick="toggleReject({{ s.id }})">
+          <i class="fas fa-times"></i> 반려
+        </button>
+        <button type="submit" class="btn btn-sm" id="rejectSubmit-{{ s.id }}"
+                style="display:none; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca;">
+          반려 확정
+        </button>
+      </form>
+
+      <form method="POST" action="{{ url_for('flex_approve', sched_id=s.id) }}">
+        <button type="submit" class="btn btn-primary btn-sm">
+          <i class="fas fa-check"></i> 승인
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleReject(id) {
+  var inp = document.getElementById('rejectInput-' + id);
+  var sub = document.getElementById('rejectSubmit-' + id);
+  var isOpen = inp.style.display === 'block';
+  inp.style.display = isOpen ? 'none' : 'block';
+  sub.style.display = isOpen ? 'none' : 'inline-flex';
+  if (!isOpen) inp.focus();
+}
+</script>
+{% endblock %}

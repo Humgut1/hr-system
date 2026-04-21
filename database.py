@@ -206,13 +206,39 @@ def init_db():
             );
 
             CREATE TABLE IF NOT EXISTS checkins (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id    INTEGER NOT NULL REFERENCES users(id),
-                date       DATE    NOT NULL,
-                check_in   TIME,
-                check_out  TIME,
-                note       TEXT,
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id      INTEGER NOT NULL REFERENCES users(id),
+                date         DATE    NOT NULL,
+                check_in     TIME,
+                check_out    TIME,
+                note         TEXT,
+                regular_min  INTEGER DEFAULT 0,
+                overtime_min INTEGER DEFAULT 0,
+                night_min    INTEGER DEFAULT 0,
                 UNIQUE(user_id, date)
+            );
+
+            CREATE TABLE IF NOT EXISTS flex_schedules (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id      INTEGER NOT NULL REFERENCES users(id),
+                week_start   DATE    NOT NULL,
+                status       TEXT    NOT NULL DEFAULT 'draft',
+                note         TEXT,
+                submitted_at TIMESTAMP,
+                approved_by  INTEGER REFERENCES users(id),
+                approved_at  TIMESTAMP,
+                reject_reason TEXT,
+                created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, week_start)
+            );
+
+            CREATE TABLE IF NOT EXISTS flex_blocks (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                schedule_id INTEGER NOT NULL REFERENCES flex_schedules(id) ON DELETE CASCADE,
+                work_date   DATE    NOT NULL,
+                start_time  TEXT    NOT NULL,
+                end_time    TEXT    NOT NULL,
+                block_type  TEXT    NOT NULL DEFAULT 'office'
             );
 
             CREATE TABLE IF NOT EXISTS peer_assignments (
@@ -325,6 +351,17 @@ def init_db():
             c.execute('ALTER TABLE users ADD COLUMN termination_date DATE')
         if 'termination_reason' not in existing:
             c.execute('ALTER TABLE users ADD COLUMN termination_reason TEXT')
+        if 'work_type' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN work_type TEXT NOT NULL DEFAULT "standard"')
+
+        # checkins 컬럼 마이그레이션
+        checkin_cols = {r[1] for r in c.execute('PRAGMA table_info(checkins)').fetchall()}
+        if 'regular_min' not in checkin_cols:
+            c.execute('ALTER TABLE checkins ADD COLUMN regular_min  INTEGER DEFAULT 0')
+        if 'overtime_min' not in checkin_cols:
+            c.execute('ALTER TABLE checkins ADD COLUMN overtime_min INTEGER DEFAULT 0')
+        if 'night_min' not in checkin_cols:
+            c.execute('ALTER TABLE checkins ADD COLUMN night_min    INTEGER DEFAULT 0')
 
         if c.execute('SELECT COUNT(*) FROM departments').fetchone()[0] == 0:
             departments = [
