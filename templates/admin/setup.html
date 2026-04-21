@@ -637,9 +637,15 @@
           <button type="button" class="btn btn-primary" id="nextBtn" onclick="wizardNav(1)">
             다음 <i class="fas fa-arrow-right"></i>
           </button>
+          {% if session.user_role == 'admin' %}
           <button type="submit" class="btn btn-primary" id="submitBtn" style="display:none;">
             <i class="fas fa-check"></i> TalentCore 시작하기
           </button>
+          {% else %}
+          <a href="{{ url_for('dashboard') }}" class="btn btn-ghost" id="submitBtn" style="display:none;">
+            <i class="fas fa-arrow-right"></i> 대시보드로 이동
+          </a>
+          {% endif %}
         </div>
 
       </form>

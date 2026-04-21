@@ -246,12 +246,15 @@ def onboarding_company():
 
 
 @app.route('/admin/setup', methods=['GET', 'POST'])
-@admin_required
+@login_required
 def admin_setup():
     from datetime import datetime as dt
     db = get_db()
 
     if request.method == 'POST':
+        if session.get('user_role') != 'admin':
+            flash('설정 저장은 관리자만 가능합니다.', 'error')
+            return redirect(url_for('admin_setup'))
         s = request.form
 
         # ── Step 1: 회사 기본정보 ─────────────────────────────
@@ -440,10 +443,11 @@ def dashboard():
     first_name = (session.get('user_name') or '').split()[0]
     LEAVE_LABELS = {'annual':'Annual','half_am':'Half AM','half_pm':'Half PM','sick':'Sick','etc':'Other'}
 
+    cfg = get_company_config()
+    if not cfg.get('setup_completed'):
+        return redirect(url_for('admin_setup'))
+
     if role == 'admin':
-        cfg = get_company_config()
-        if not cfg.get('setup_completed'):
-            return redirect(url_for('admin_setup'))
         total_employees   = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
         total_departments = db.execute("SELECT COUNT(*) FROM departments").fetchone()[0]
         pending_leave     = db.execute("SELECT COUNT(*) FROM leave_requests WHERE status='pending'").fetchone()[0]
