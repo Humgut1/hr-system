@@ -23,20 +23,11 @@ jobs:
           TAG=${GITHUB_REF#refs/tags/}
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-          # README.md에서 해당 버전 섹션 추출 (다음 ### v 헤더 전까지)
-          VERSION_SECTION=$(awk "/^### ${TAG}/{found=1; next} found && /^### v/{exit} found{print}" README.md | sed '/^[[:space:]]*$/d;/^---$/d' | sed -e 's/^[[:space:]]*//')
-          if [ -z "$VERSION_SECTION" ]; then
-            VERSION_SECTION="릴리즈 노트: https://github.com/${{ github.repository }}/blob/main/README.md#changelog"
-          fi
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$VERSION_SECTION" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.info.outputs.tag }}
           name: ${{ steps.info.outputs.tag }}
-          body: ${{ steps.info.outputs.notes }}
+          body_path: RELEASE_BODY.md
           draft: false
           prerelease: false
