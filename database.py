@@ -423,6 +423,24 @@ def init_db():
                 processed_by     INTEGER NOT NULL REFERENCES users(id),
                 processed_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS notifications (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id      INTEGER NOT NULL REFERENCES users(id),
+                type         TEXT NOT NULL CHECK(type IN ('action','info')),
+                category     TEXT NOT NULL, -- 'leave', 'action', 'cert', 'term', 'perf'
+                title        TEXT NOT NULL,
+                content      TEXT,
+                link         TEXT,
+                is_read      INTEGER DEFAULT 0,
+                created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS holidays (
+                id   INTEGER PRIMARY KEY AUTOINCREMENT,
+                date DATE UNIQUE NOT NULL,
+                name TEXT NOT NULL
+            );
         ''')
 
         # 컬럼 마이그레이션: 기존 DB에 없을 수 있는 컬럼 추가
@@ -568,6 +586,23 @@ def init_db():
                 'INSERT INTO announcements (title, content, pinned, author_id) VALUES (?, ?, ?, ?)',
                 announcements
             )
+
+        # 2026년 한국 공휴일 데이터 보장
+        if c.execute('SELECT COUNT(*) FROM holidays').fetchone()[0] == 0:
+            holidays_2026 = [
+                ('2026-01-01', '신정'),
+                ('2026-02-16', '설날'), ('2026-02-17', '설날'), ('2026-02-18', '설날'),
+                ('2026-03-01', '삼일절'),
+                ('2026-05-05', '어린이날'),
+                ('2026-05-24', '부처님오신날'),
+                ('2026-06-06', '현충일'),
+                ('2026-08-15', '광복절'),
+                ('2026-09-24', '추석'), ('2026-09-25', '추석'), ('2026-09-26', '추석'),
+                ('2026-10-03', '개천절'),
+                ('2026-10-09', '한글날'),
+                ('2026-12-25', '크리스마스')
+            ]
+            c.executemany('INSERT OR IGNORE INTO holidays (date, name) VALUES (?, ?)', holidays_2026)
 
         conn.commit()
     finally:

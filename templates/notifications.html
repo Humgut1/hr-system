@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}Notifications{% endblock %}
+{% block page_title %}Notifications{% endblock %}
+
+{% block extra_css %}
+<style>
+  .notif-list { display: flex; flex-direction: column; gap: 12px; }
+  .notif-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 16px 20px;
+    display: flex;
+    gap: 16px;
+    text-decoration: none;
+    color: inherit;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .notif-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary);
+  }
+  .notif-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 1.1rem;
+  }
+  .notif-icon.action { background: #fff7ed; color: #ea580c; }
+  .notif-icon.info { background: #eff6ff; color: #2563eb; }
+  
+  .notif-body { flex: 1; }
+  .notif-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+  .notif-title { font-weight: 700; font-size: 15px; color: var(--text); }
+  .notif-time { font-size: 12px; color: var(--text-muted); }
+  .notif-content { font-size: 13.5px; color: var(--text-muted); line-height: 1.5; }
+  .notif-link-hint { font-size: 11px; font-weight: 700; color: var(--primary); margin-top: 8px; text-transform: uppercase; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="notif-list">
+  {% for n in notifications %}
+  <a href="{{ n.link or '#' }}" class="notif-card">
+    <div class="notif-icon {{ n.type }}">
+      {% if n.category == 'leave' %}<i class="fas fa-calendar-check"></i>
+      {% elif n.category == 'action' %}<i class="fas fa-user-tag"></i>
+      {% elif n.category == 'cert' %}<i class="fas fa-file-contract"></i>
+      {% elif n.category == 'term' %}<i class="fas fa-user-minus"></i>
+      {% elif n.category == 'perf' %}<i class="fas fa-chart-line"></i>
+      {% else %}<i class="fas fa-bell"></i>{% endif %}
+    </div>
+    <div class="notif-body">
+      <div class="notif-header">
+        <div class="notif-title">{{ n.title }}</div>
+        <div class="notif-time">{{ n.created_at[:16] }}</div>
+      </div>
+      <div class="notif-content">{{ n.content }}</div>
+      {% if n.link %}
+      <div class="notif-link-hint"><i class="fas fa-external-link-alt"></i> 바로가기</div>
+      {% endif %}
+    </div>
+  </a>
+  {% else %}
+  <div class="card" style="padding:48px; text-align:center; color:var(--text-muted);">
+    <i class="fas fa-bell-slash" style="font-size:32px; margin-bottom:12px; opacity:.3;"></i>
+    <p>새로운 알림이 없습니다.</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

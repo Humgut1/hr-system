@@ -100,21 +100,63 @@ def close_connection(exception):
         db.close()
 
 
+def add_notification(user_id, n_type, category, title, content, link=None):
+    db = get_db()
+    db.execute(
+        'INSERT INTO notifications (user_id, type, category, title, content, link) '
+        'VALUES (?,?,?,?,?,?)',
+        (user_id, n_type, category, title, content, link)
+    )
+    db.commit()
+
+
 @app.context_processor
 def inject_user_features():
     uid = session.get('user_id')
     if not uid:
-        return {'user_features': set()}
-    row = get_db().execute(
+        return {'user_features': set(), 'unread_notifications': 0}
+    
+    db = get_db()
+    row = db.execute(
         'SELECT features_enabled FROM users WHERE id=?', (uid,)
     ).fetchone()
     features = set()
     if row and row['features_enabled']:
         features = set(row['features_enabled'].split(','))
-    return {'user_features': features}
+    
+    # 미읽음 알림 개수
+    unread_row = db.execute(
+        'SELECT COUNT(*) FROM notifications WHERE user_id=? AND is_read=0', (uid,)
+    ).fetchone()
+    unread_notifications = unread_row[0] if unread_row else 0
+    
+    return {
+        'user_features': features, 
+        'unread_notifications': unread_notifications,
+        'FEATURE_DEFS': FEATURE_DEFS,
+        'today': date.today().isoformat()
+    }
 
 
-# ── Auth Decorators ──────────────────────────────────────────
+@app.route('/notifications')
+@login_required
+def notifications():
+    db  = get_db()
+    uid = session['user_id']
+    
+    # 읽음 처리 (페이지 접속 시 모든 알림 읽음 처리 혹은 개별 처리 선택 가능)
+    # 여기서는 페이지 접속 시 현재 목록을 모두 읽음 처리함
+    db.execute('UPDATE notifications SET is_read=1 WHERE user_id=?', (uid,))
+    db.commit()
+    
+    notifs = db.execute(
+        'SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 50',
+        (uid,)
+    ).fetchall()
+    
+    return render_template('notifications.html', notifications=notifs, active_page='notifications')
+
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -1058,6 +1100,17 @@ def employee_action(emp_id):
         (emp_id, action_type, from_value, to_value, effective_date, reason, 'pending', session['user_id'])
     )
     db.commit()
+
+    # 알림 발송: HR 전체에게 승인 대기 알림
+    admins = db.execute("SELECT id FROM users WHERE role='admin'").fetchall()
+    for admin in admins:
+        add_notification(
+            admin['id'], 'action', 'action',
+            f"인사발령 기안: {emp['name']}",
+            f"{emp['name']}님에 대한 {ACTION_LABELS[action_type]} 기안이 생성되었습니다.",
+            url_for('employee_detail', emp_id=emp_id) + '#hr'
+        )
+
     flash(f'인사발령({ACTION_LABELS[action_type]}) 기안이 완료되었습니다. 최종 승인 후 반영됩니다.', 'success')
     return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
 
@@ -1099,6 +1152,15 @@ def personnel_action_approve(action_id):
 
     db.execute("UPDATE personnel_actions SET status='approved', processed_by=? WHERE id=?", (session['user_id'], action_id))
     db.commit()
+
+    # 알림 발송: 본인에게 발령 완료 알림
+    add_notification(
+        emp_id, 'info', 'action',
+        "인사발령 처리 완료",
+        f"귀하에 대한 {ACTION_LABELS[a_type]} 처리가 승인 및 반영되었습니다.",
+        url_for('employee_detail', emp_id=emp_id)
+    )
+
     flash('인사발령이 최종 승인 및 반영되었습니다.', 'success')
     return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
 
@@ -1107,14 +1169,25 @@ def personnel_action_approve(action_id):
 @admin_required
 def personnel_action_reject(action_id):
     db = get_db()
+    pa = db.execute('SELECT * FROM personnel_actions WHERE id=?', (action_id,)).fetchone()
+    if not pa: abort(404)
     reason = request.form.get('reason', '').strip()
     db.execute(
         "UPDATE personnel_actions SET status='rejected', rejection_reason=?, processed_by=? WHERE id=?",
         (reason, session['user_id'], action_id)
     )
     db.commit()
+
+    # 알림 발송: 본인(대상자)에게는 상황에 따라 필요 없을 수 있으나, 기안자에게 알리는 것이 Workday 표준
+    # 여기서는 대상자에게도 반려 알림을 보냄
+    add_notification(
+        pa['user_id'], 'info', 'action',
+        "인사발령 기안 반려",
+        f"귀하에 대한 인사발령 기안이 반려되었습니다. (사유: {reason or '미기재'})",
+        url_for('employee_detail', emp_id=pa['user_id'])
+    )
+
     flash('인사발령 기안이 반려되었습니다.', 'warning')
-    pa = db.execute('SELECT user_id FROM personnel_actions WHERE id=?', (action_id,)).fetchone()
     return redirect(url_for('employee_detail', emp_id=pa['user_id']) + '#hr')
 
 
@@ -1989,6 +2062,17 @@ def leave_new():
                     (uid, leave_type, start_date, end_date, days, reason or None)
                 )
                 db.commit()
+
+                # 알림 발송: 매니저에게
+                emp = db.execute('SELECT name, manager_id FROM users WHERE id=?', (uid,)).fetchone()
+                if emp and emp['manager_id']:
+                    add_notification(
+                        emp['manager_id'], 'action', 'leave',
+                        f"근태 신청: {emp['name']}",
+                        f"{emp['name']}님이 {meta['label']}을(를) 신청했습니다. ({start_date} ~ {end_date})",
+                        url_for('attendance', status='pending')
+                    )
+
                 flash(f'{meta["label"]} 신청이 완료되었습니다.', 'success')
                 return redirect(url_for('leave_my'))
 
@@ -2095,6 +2179,17 @@ def attendance_approve(req_id):
             (uid, req_id)
         )
         db.commit()
+
+        # 알림 발송: HR(Admin)에게 최종 승인 요청
+        admins = db.execute("SELECT id FROM users WHERE role='admin'").fetchall()
+        for admin in admins:
+            add_notification(
+                admin['id'], 'action', 'leave',
+                f"근태 검토 완료: {req['user_id']}",
+                f"매니저가 신청 건을 검토했습니다. 최종 승인이 필요합니다.",
+                url_for('attendance', status='reviewed')
+            )
+
         flash('매니저 검토 승인이 완료되었습니다. HR 최종 승인을 대기합니다.', 'success')
 
     # HR(Admin) 최종 승인 단계
@@ -2108,6 +2203,15 @@ def attendance_approve(req_id):
             (uid, uid, req_id)
         )
         db.commit()
+
+        # 알림 발송: 본인에게 승인 알림
+        add_notification(
+            req['user_id'], 'info', 'leave',
+            "근태 승인 완료",
+            f"신청하신 근태가 최종 승인되었습니다.",
+            url_for('leave_my')
+        )
+
         flash('HR 최종 승인이 완료되었습니다.', 'success')
 
     return redirect(url_for('attendance'))
@@ -2136,6 +2240,15 @@ def attendance_reject(req_id):
         (session['user_id'], reason, req_id)
     )
     db.commit()
+
+    # 알림 발송: 본인에게 반려 알림
+    add_notification(
+        req['user_id'], 'info', 'leave',
+        "근태 반려 안내",
+        f"신청하신 근태가 반려되었습니다. (사유: {reason or '미기재'})",
+        url_for('leave_my')
+    )
+
     flash('신청이 반려되었습니다.', 'warning')
     return redirect(url_for('attendance'))
 
@@ -2356,43 +2469,69 @@ def admin_payroll():
             else:
                 msg = '급여 정보가 저장되었습니다.'
 
-        # 월 급여 일괄 생성
+        # 월 급여 일괄 생성 (근태 연동)
         elif action == 'generate':
             year  = int(request.form.get('year', 2026))
             month = int(request.form.get('month', 1))
             if not (1 <= month <= 12):
                 error = '올바른 월을 입력해주세요.'
             else:
+                import calendar as cal_mod
+                first_day = f"{year}-{month:02d}-01"
+                last_day  = f"{year}-{month:02d}-{cal_mod.monthrange(year, month)[1]}"
+                
+                # 해당 월의 공휴일 목록 가져오기
+                holiday_rows = db.execute('SELECT date FROM holidays WHERE date BETWEEN ? AND ?', (first_day, last_day)).fetchall()
+                month_holidays = {h['date'] for h in holiday_rows}
+
                 emps = db.execute(
                     "SELECT u.id, s.base_salary, s.meal_allowance, s.transport_allowance "
                     "FROM users u "
                     "JOIN employee_salary s ON u.id = s.user_id "
                     "WHERE u.status = 'active'"
                 ).fetchall()
+                
                 count = 0
                 for e in emps:
-                    # 이미 생성된 명세서는 건너뜀
-                    exists = db.execute(
-                        'SELECT id FROM payslips WHERE user_id=? AND year=? AND month=?',
-                        (e['id'], year, month)
-                    ).fetchone()
-                    if exists:
+                    if db.execute('SELECT 1 FROM payslips WHERE user_id=? AND year=? AND month=?', (e['id'], year, month)).fetchone():
                         continue
+                    
+                    # 해당 직원의 월간 근태 기록 기반 수당 합계 계산
+                    checkins = db.execute(
+                        'SELECT * FROM checkins WHERE user_id=? AND date BETWEEN ? AND ?',
+                        (e['id'], first_day, last_day)
+                    ).fetchall()
+                    
+                    total_ot_pay = 0
+                    for c in checkins:
+                        is_h = c['date'] in month_holidays
+                        # calc_extra_pay(overtime_min, night_min, base_salary, is_holiday, holiday_regular_min)
+                        res = calc_extra_pay(
+                            c['overtime_min'], 
+                            c['night_min'], 
+                            e['base_salary'],
+                            is_holiday=is_h,
+                            holiday_regular_min=c['regular_min'] if is_h else 0
+                        )
+                        total_ot_pay += res['total_extra_pay']
+
                     result = calc_payslip(
                         e['base_salary'],
                         e['meal_allowance'],
-                        e['transport_allowance']
+                        e['transport_allowance'],
+                        overtime_pay=total_ot_pay
                     )
+                    
                     db.execute(
                         'INSERT INTO payslips '
                         '(user_id, year, month, base_salary, meal_allowance, transport_allowance, '
                         'overtime_pay, national_pension, health_insurance, long_term_care, '
                         'employment_insurance, income_tax, local_income_tax, '
                         'gross_pay, total_deduction, net_pay) '
-                        'VALUES (?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?)',
+                        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                         (e['id'], year, month,
                          result['base_salary'], result['meal_allowance'],
-                         result['transport_allowance'],
+                         result['transport_allowance'], result['overtime_pay'],
                          result['national_pension'], result['health_insurance'],
                          result['long_term_care'], result['employment_insurance'],
                          result['income_tax'], result['local_income_tax'],
@@ -2400,7 +2539,7 @@ def admin_payroll():
                     )
                     count += 1
                 db.commit()
-                msg = f'{year}년 {month}월 급여명세서 {count}건이 생성되었습니다.'
+                msg = f'{year}년 {month}월 급여명세서 {count}건이 생성되었습니다. (근태 수당 자동 포함)'
 
     emps = db.execute(
         'SELECT u.id, u.name, d.name AS dept_name, p.name AS pos_name, '
@@ -2520,6 +2659,17 @@ def certificate_request():
         (uid, cert_type, purpose)
     )
     db.commit()
+
+    # 알림 발송: HR 전체에게 신청 알림
+    admins = db.execute("SELECT id FROM users WHERE role='admin'").fetchall()
+    for admin in admins:
+        add_notification(
+            admin['id'], 'action', 'cert',
+            f"증명서 신청: {session['user_name']}",
+            f"{session['user_name']}님이 {cert_type} 발급을 신청했습니다.",
+            url_for('certificates_hub')
+        )
+
     flash('증명서 발급 신청이 완료되었습니다. HR 승인을 기다려 주세요.', 'success')
     return redirect(url_for('certificates_hub'))
 
@@ -2527,11 +2677,22 @@ def certificate_request():
 @admin_required
 def certificate_approve(req_id):
     db = get_db()
+    req = db.execute('SELECT user_id, cert_type FROM certificate_requests WHERE id=?', (req_id,)).fetchone()
+    
     db.execute(
         "UPDATE certificate_requests SET status='approved', approver_id=?, approved_at=CURRENT_TIMESTAMP WHERE id=?",
         (session['user_id'], req_id)
     )
     db.commit()
+
+    # 알림 발송: 본인에게 승인 알림
+    add_notification(
+        req['user_id'], 'info', 'cert',
+        "증명서 승인 완료",
+        f"신청하신 증명서 발급이 승인되었습니다. 지금 출력하실 수 있습니다.",
+        url_for('certificates_hub')
+    )
+
     flash('증명서 발급을 승인했습니다.', 'success')
     return redirect(url_for('certificates_hub'))
 
@@ -2539,12 +2700,23 @@ def certificate_approve(req_id):
 @admin_required
 def certificate_reject(req_id):
     db = get_db()
+    req = db.execute('SELECT user_id FROM certificate_requests WHERE id=?', (req_id,)).fetchone()
     reason = request.form.get('reason', '').strip()
+    
     db.execute(
         "UPDATE certificate_requests SET status='rejected', reject_reason=?, approver_id=? WHERE id=?",
         (reason, session['user_id'], req_id)
     )
     db.commit()
+
+    # 알림 발송: 본인에게 반려 알림
+    add_notification(
+        req['user_id'], 'info', 'cert',
+        "증명서 반려 안내",
+        f"증명서 발급 신청이 반려되었습니다. (사유: {reason or '미기재'})",
+        url_for('certificates_hub')
+    )
+
     flash('증명서 발급 신청을 반려했습니다.', 'warning')
     return redirect(url_for('certificates_hub'))
 
@@ -3199,32 +3371,49 @@ def attendance_home():
     else:
         last_day = date(today.year, today.month + 1, 1) - timedelta(days=1)
 
-    checkins_month = db.execute(
-        'SELECT * FROM checkins WHERE user_id=? AND date>=? AND date<=? ORDER BY date DESC',
-        (uid, first_day.isoformat(), last_day.isoformat())
-    ).fetchall()
-
     pending = db.execute(
         "SELECT COUNT(*) FROM leave_requests WHERE user_id=? AND status='pending'",
         (uid,)
     ).fetchone()[0]
 
-    ot_row = db.execute(
-        'SELECT COALESCE(SUM(regular_min),0), COALESCE(SUM(overtime_min),0), '
-        'COALESCE(SUM(night_min),0) '
-        'FROM checkins WHERE user_id=? AND date>=? AND date<=?',
+    # 해당 월의 근태 기록 기반 수당 합계 계산 (공휴일 반영)
+    checkins_month = db.execute(
+        'SELECT * FROM checkins WHERE user_id=? AND date>=? AND date<=? ORDER BY date DESC',
         (uid, first_day.isoformat(), last_day.isoformat())
-    ).fetchone()
-    month_regular_min  = ot_row[0]
-    month_overtime_min = ot_row[1]
-    month_night_min    = ot_row[2]
+    ).fetchall()
+
+    # 해당 월의 공휴일 목록
+    holiday_rows = db.execute('SELECT date FROM holidays WHERE date BETWEEN ? AND ?', (first_day.isoformat(), last_day.isoformat())).fetchall()
+    month_holidays = {h['date'] for h in holiday_rows}
 
     base_row = db.execute(
         'SELECT base_salary FROM employee_salary WHERE user_id=? ORDER BY updated_at DESC LIMIT 1',
         (uid,)
     ).fetchone()
     base_salary = base_row['base_salary'] if base_row else 0
-    extra_pay   = calc_extra_pay(month_overtime_min, month_night_min, base_salary)
+
+    month_regular_min = 0
+    month_overtime_min = 0
+    month_night_min = 0
+    total_extra_pay_amount = 0
+
+    for c in checkins_month:
+        month_regular_min  += c['regular_min']
+        month_overtime_min += c['overtime_min']
+        month_night_min    += c['night_min']
+        
+        is_h = c['date'] in month_holidays
+        res = calc_extra_pay(
+            c['overtime_min'], 
+            c['night_min'], 
+            base_salary,
+            is_holiday=is_h,
+            holiday_regular_min=c['regular_min'] if is_h else 0
+        )
+        total_extra_pay_amount += res['total_extra_pay']
+
+    # 템플릿 호환성을 위해 dict 구조 생성
+    extra_pay = {'total_extra_pay': total_extra_pay_amount}
 
     return render_template('attendance/home.html',
                            today=today,

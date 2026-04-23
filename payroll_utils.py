@@ -299,28 +299,51 @@ def calc_day_hours(date_str: str, check_in_str: str, check_out_str: str) -> dict
     }
 
 
-def calc_extra_pay(overtime_min: int, night_min: int, base_salary: int) -> dict:
+def calc_extra_pay(overtime_min: int, night_min: int, base_salary: int, 
+                   is_holiday: bool = False, holiday_regular_min: int = 0) -> dict:
     """
-    연장·야간 수당 금액 계산 (근로기준법 §56).
+    연장·야간·휴일 수당 금액 계산 (근로기준법 §56).
 
     가산율:
-      연장근로  : 통상임금의 50% 추가 (×1.5 중 0.5 가산분)
-      야간근로  : 통상임금의 50% 추가 (×1.5 중 0.5 가산분)
-      → 연장+야간 중복 시 각각 가산 (합산 ×2.0)
+      연장근로  : 통상임금의 50% 가산 (×1.5 중 0.5 가산분)
+      야간근로  : 통상임금의 50% 가산 (×1.5 중 0.5 가산분)
+      휴일근로 (§56②):
+        - 8시간 이내: 50% 가산 (총 1.5배)
+        - 8시간 초과: 100% 가산 (총 2.0배)
+      
+      → 모든 가산은 중복 적용됨 (예: 휴일 8시간 초과이면서 야간이면 휴일가산 100% + 야간가산 50% = 150% 가산)
 
-    시급 산정: 월 기본급 ÷ 209시간 (주 40h 기준 월 환산, 최저임금법 시행령)
+    시급 산정: 월 기본급 ÷ 209시간 (주 40h 기준 월 환산)
     """
     if base_salary <= 0:
-        return {'overtime_pay': 0, 'night_pay': 0, 'total_extra_pay': 0, 'hourly_wage': 0}
+        return {'overtime_pay': 0, 'night_pay': 0, 'holiday_pay': 0, 'total_extra_pay': 0, 'hourly_wage': 0}
+    
     overtime_min = max(0, overtime_min)
     night_min    = max(0, night_min)
     minute_wage  = base_salary / 209 / 60
-    overtime_pay = int(minute_wage * overtime_min * 0.5)   # 가산분 50%만
-    night_pay    = int(minute_wage * night_min    * 0.5)   # 가산분 50%만
+    
+    # 1. 연장 가산분 (50%)
+    # 휴일이 아닌 날의 8시간 초과분 혹은 휴일의 8시간 초과분(연장) 처리
+    overtime_pay = int(minute_wage * overtime_min * 0.5)
+    
+    # 2. 야간 가산분 (50%)
+    night_pay    = int(minute_wage * night_min * 0.5)
+    
+    # 3. 휴일 가산분 (50% or 100%)
+    holiday_pay = 0
+    if is_holiday:
+        # 휴일근로 전체 시간에 대해 일단 50% 가산 (8시간 이내분 포함)
+        total_holiday_min = holiday_regular_min + overtime_min
+        holiday_pay += int(minute_wage * total_holiday_min * 0.5)
+        
+        # 8시간 초과분(overtime_min)에 대해서는 추가로 50% 더 가산 (총 100% 가산분)
+        if overtime_min > 0:
+            holiday_pay += int(minute_wage * overtime_min * 0.5)
 
     return {
         'overtime_pay':    overtime_pay,
         'night_pay':       night_pay,
-        'total_extra_pay': overtime_pay + night_pay,
+        'holiday_pay':     holiday_pay,
+        'total_extra_pay': overtime_pay + night_pay + holiday_pay,
         'hourly_wage':     round(base_salary / 209),
     }
