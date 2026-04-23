@@ -9,7 +9,7 @@
 | Employee | employee@company.com |
 | Recruiter | recruiter@company.com |
 
-## Completed Through Step 23
+## Completed Through v0.24.0
 
 ### Step 20
 - Employee detail page
@@ -29,6 +29,13 @@
 - Employee detail reporting chain / direct reports
 - Manager-based Reporting Line section on org chart
 
+### v0.24.0
+- Employee self-service termination request page
+- Manager / HR termination queue
+- Manager review and HR approval flow
+- Offboarding task generation and completion tracking
+- Final termination completion with severance linkage
+
 ## Verification
 
 - `python -m py_compile app.py database.py payroll_utils.py export_utils.py migrate_db.py`
@@ -36,10 +43,16 @@
   - admin login success
   - `GET /employees/1` -> `200`
   - `GET /org` -> `200`
+  - `GET /termination/my` -> `200`
+  - `GET /termination/requests` -> `200`
+  - `GET /termination/requests/new/1` -> `200`
+  - employee request submission -> manager review -> HR approval
+  - `offboarding_tasks` generated: `5`
+  - request status moved to `in_progress`
 
 ## Next
 
-1. Step 24 - People Analytics dashboard
+1. People Analytics dashboard
 2. Holiday overtime pay with holiday DB integration
 3. Mobile responsiveness review
 4. Deployment readiness

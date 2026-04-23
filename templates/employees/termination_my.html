@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+{% block title %}퇴직 신청{% endblock %}
+{% block page_title %}My Termination{% endblock %}
+
+{% block extra_css %}
+<style>
+  .tw-wrap { max-width: 1100px; }
+  .tw-grid { display:grid; grid-template-columns: 1.2fr .8fr; gap:20px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+  }
+  .card-head {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: #f8fafc;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .card-body { padding: 18px; }
+  .summary-grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; }
+  .summary-box {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: #fcfdff;
+  }
+  .summary-box .label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .summary-box .value { font-size: 14px; font-weight: 700; color: var(--text); }
+  .status-chip {
+    display:inline-flex; align-items:center;
+    padding: 4px 10px; border-radius: 999px;
+    background: #eff6ff; color: #1d4ed8;
+    font-size: 12px; font-weight: 700;
+  }
+  .history-table { width:100%; border-collapse: collapse; font-size: 13px; }
+  .history-table th, .history-table td {
+    padding: 11px 12px; border-bottom: 1px solid var(--border); text-align:left;
+  }
+  .history-table th { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .muted { color: var(--text-muted); }
+  @media (max-width: 900px) {
+    .tw-grid { grid-template-columns: 1fr; }
+    .summary-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tw-wrap">
+  <div class="tw-grid">
+    <div>
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-head">Current Request</div>
+        <div class="card-body">
+          {% if open_request %}
+          <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+            <div>
+              <div style="font-size:18px; font-weight:800; color:var(--text); margin-bottom:6px;">
+                {{ terminate_types.get(open_request.request_type, open_request.request_type) }}
+              </div>
+              <div class="muted" style="font-size:13px; line-height:1.7;">
+                Notice date: {{ open_request.notice_date }}<br>
+                Last work date: {{ open_request.requested_last_work_date }}<br>
+                Termination date: {{ open_request.requested_termination_date }}
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <span class="status-chip">{{ status_labels.get(open_request.status, open_request.status) }}</span>
+              <div style="margin-top:10px;">
+                <a href="{{ url_for('termination_request_detail', req_id=open_request.id) }}" class="btn btn-primary btn-sm">
+                  View Request
+                </a>
+              </div>
+            </div>
+          </div>
+          {% else %}
+          <div class="muted" style="font-size:13px;">No open termination request.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Submit Termination Request</div>
+        <div class="card-body">
+          {% if open_request %}
+          <div class="muted" style="font-size:13px;">You can submit a new request after the current process is closed.</div>
+          {% else %}
+          <form method="POST">
+            <div class="field" style="margin-bottom:14px;">
+              <label class="form-label">Request Type</label>
+              <select name="request_type" class="input" required>
+                {% for key, label in terminate_types.items() %}
+                <option value="{{ key }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="field" style="margin-bottom:14px;">
+              <label class="form-label">Reason Code</label>
+              <select name="reason_code" class="input">
+                {% for key, label in reason_codes.items() %}
+                <option value="{{ key }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+              <div class="field">
+                <label class="form-label">Requested Last Work Date</label>
+                <input type="date" name="requested_last_work_date" class="input" value="{{ today }}" required>
+              </div>
+              <div class="field">
+                <label class="form-label">Requested Termination Date</label>
+                <input type="date" name="requested_termination_date" class="input" value="{{ today }}" required>
+              </div>
+            </div>
+
+            <div class="field" style="margin-bottom:14px;">
+              <label class="form-label">Reason Detail</label>
+              <textarea name="reason_detail" class="input" rows="4" placeholder="Add any context HR should review."></textarea>
+            </div>
+
+            <div class="field" style="margin-bottom:16px;">
+              <label class="form-label">Handover Note</label>
+              <textarea name="handover_note" class="input" rows="4" placeholder="Team impact, transition plan, open tasks."></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-paper-plane"></i> Submit Request
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-head">Employee Summary</div>
+        <div class="card-body">
+          <div class="summary-grid">
+            <div class="summary-box">
+              <div class="label">Employee</div>
+              <div class="value">{{ employee.name }}</div>
+            </div>
+            <div class="summary-box">
+              <div class="label">Department</div>
+              <div class="value">{{ employee.dept_name or '-' }}</div>
+            </div>
+            <div class="summary-box">
+              <div class="label">Position</div>
+              <div class="value">{{ employee.pos_name or '-' }}</div>
+            </div>
+            <div class="summary-box">
+              <div class="label">Manager</div>
+              <div class="value">{{ employee.manager_name or '-' }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Request History</div>
+        <div class="card-body" style="padding:0;">
+          {% if history %}
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Created</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in history %}
+              <tr>
+                <td>{{ row.created_at[:10] }}</td>
+                <td>{{ terminate_types.get(row.request_type, row.request_type) }}</td>
+                <td>{{ status_labels.get(row.status, row.status) }}</td>
+                <td style="text-align:right;">
+                  <a href="{{ url_for('termination_request_detail', req_id=row.id) }}" class="btn btn-ghost btn-sm">Open</a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="card-body muted" style="font-size:13px;">No request history.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

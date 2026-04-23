@@ -56,6 +56,9 @@
         <a href="{{ url_for('employees') }}" class="nav-item{% if active_page == 'employees' %} active{% endif %}">
           <i class="fas fa-users"></i><span>Employees</span>
         </a>
+        <a href="{{ url_for('termination_requests') }}" class="nav-item{% if active_page == 'termination_requests' %} active{% endif %}">
+          <i class="fas fa-user-clock"></i><span>Termination Queue</span>
+        </a>
         {% if session.user_role == 'admin' %}
         <a href="{{ url_for('departments') }}" class="nav-item{% if active_page == 'departments' %} active{% endif %}">
           <i class="fas fa-layer-group"></i><span>Dept & Grade</span>
@@ -113,6 +116,12 @@
       {% if not user_features or 'certificates' in user_features %}
       <div class="nav-section">
         <span class="nav-section-label">Documents</span>
+        {% if session.user_role != 'guest' %}
+        <a href="{{ url_for('termination_my') }}"
+           class="nav-item{% if active_page == 'termination_my' %} active{% endif %}">
+          <i class="fas fa-door-open"></i><span>My Termination</span>
+        </a>
+        {% endif %}
         <a href="{{ url_for('certificates_hub') }}"
            class="nav-item{% if active_page == 'certificates' %} active{% endif %}">
           <i class="fas fa-folder-open"></i><span>증명서 발급</span>

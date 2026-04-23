@@ -1,5 +1,14 @@
 # TalentCore HR Management System
 
+## Recent Update
+
+- `v0.24.0` adds a practical termination workflow:
+  - employee self-service request
+  - manager review
+  - HR approval
+  - offboarding task tracking
+  - final completion with severance linkage
+
 Flask 기반 HR 통합 시스템입니다. 스타트업과 중소 규모 조직을 기준으로 인사, 근태, 급여, 성과, 증명서, 조직도, 채용 기능을 하나의 앱으로 묶었습니다.
 
 ## Live Demo
@@ -138,6 +147,13 @@ web: gunicorn app:app --bind 0.0.0.0:$PORT
 ```
 
 ## Changelog
+
+### v0.24.0 - 2026-04-22
+- Employee self-service termination request page
+- Manager / HR termination queue
+- Manager review and HR approval flow
+- Offboarding task generation and completion tracking
+- Final termination completion with severance linkage
 
 ### v0.23.0 - 2026-04-22
 - 인사발령 이력 기능 추가

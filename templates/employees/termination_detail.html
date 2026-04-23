@@ -1,0 +1,303 @@
+{% extends 'base.html' %}
+{% block title %}퇴직 요청 상세{% endblock %}
+{% block page_title %}Termination Request{% endblock %}
+
+{% block extra_css %}
+<style>
+  .td-grid { display:grid; grid-template-columns: 1.1fr .9fr; gap:20px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .card-head {
+    padding: 14px 18px;
+    background: #f8fafc;
+    border-bottom: 1px solid var(--border);
+    display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
+  }
+  .card-title { font-size: 13px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .card-body { padding: 18px; }
+  .status-chip {
+    display:inline-flex; align-items:center;
+    padding:4px 10px; border-radius:999px;
+    background:#eff6ff; color:#1d4ed8; font-size:12px; font-weight:700;
+  }
+  .meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .meta-box {
+    border:1px solid var(--border); border-radius:var(--r); padding:14px; background:#fcfdff;
+  }
+  .meta-box .label { font-size:12px; color:var(--text-muted); margin-bottom:4px; }
+  .meta-box .value { font-size:14px; font-weight:700; color:var(--text); }
+  .task-row {
+    border:1px solid var(--border); border-radius:var(--r); padding:14px; margin-bottom:12px;
+    display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap;
+  }
+  .task-title { font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px; }
+  .timeline { display:flex; flex-direction:column; gap:10px; }
+  .timeline-item {
+    padding:12px 14px; border:1px solid var(--border); border-radius:var(--r); background:#fcfdff;
+  }
+  .timeline-item strong { display:block; color:var(--text); margin-bottom:4px; }
+  @media (max-width: 900px) {
+    .td-grid { grid-template-columns: 1fr; }
+    .meta-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="td-grid">
+  <div>
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Request Summary</div>
+          <div style="font-size:20px; font-weight:800; color:var(--text); margin-top:4px;">{{ termination.employee_name }}</div>
+          <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">{{ termination.dept_name or '-' }} / {{ termination.pos_name or '-' }}</div>
+        </div>
+        <span class="status-chip">{{ status_labels.get(termination.status, termination.status) }}</span>
+      </div>
+      <div class="card-body">
+        <div class="meta-grid">
+          <div class="meta-box">
+            <div class="label">Request Type</div>
+            <div class="value">{{ terminate_types.get(termination.request_type, termination.request_type) }}</div>
+          </div>
+          <div class="meta-box">
+            <div class="label">Reason Code</div>
+            <div class="value">{{ reason_codes.get(termination.reason_code, termination.reason_code or '-') }}</div>
+          </div>
+          <div class="meta-box">
+            <div class="label">Requested Last Work Date</div>
+            <div class="value">{{ termination.requested_last_work_date }}</div>
+          </div>
+          <div class="meta-box">
+            <div class="label">Requested Termination Date</div>
+            <div class="value">{{ termination.requested_termination_date }}</div>
+          </div>
+          <div class="meta-box">
+            <div class="label">Final Last Work Date</div>
+            <div class="value">{{ termination.final_last_work_date or '-' }}</div>
+          </div>
+          <div class="meta-box">
+            <div class="label">Final Termination Date</div>
+            <div class="value">{{ termination.final_termination_date or '-' }}</div>
+          </div>
+        </div>
+
+        {% if termination.reason_detail %}
+        <div style="margin-top:16px;">
+          <div class="form-label">Reason Detail</div>
+          <div style="font-size:13px; color:var(--text); line-height:1.7;">{{ termination.reason_detail }}</div>
+        </div>
+        {% endif %}
+        {% if termination.handover_note %}
+        <div style="margin-top:16px;">
+          <div class="form-label">Handover Note</div>
+          <div style="font-size:13px; color:var(--text); line-height:1.7;">{{ termination.handover_note }}</div>
+        </div>
+        {% endif %}
+        {% if termination.rejection_reason %}
+        <div style="margin-top:16px; padding:12px 14px; border:1px solid #fecaca; background:#fef2f2; border-radius:var(--r); color:#991b1b; font-size:13px;">
+          <strong>Rejection reason</strong><br>
+          {{ termination.rejection_reason }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Offboarding Tasks</div>
+      </div>
+      <div class="card-body">
+        {% if tasks %}
+          {% for task in tasks %}
+          <div class="task-row">
+            <div>
+              <div class="task-title">{{ task.title }}</div>
+              <div style="font-size:12px; color:var(--text-muted);">
+                Owner: {{ task.owner_role }} | Due: {{ task.due_date or '-' }} | Status: {{ task.status }}
+              </div>
+              {% if task.note %}
+              <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">Note: {{ task.note }}</div>
+              {% endif %}
+            </div>
+            <div>
+              {% if task.status == 'completed' %}
+              <span class="status-chip" style="background:#f0fdf4; color:#15803d;">Completed</span>
+              {% elif session.user_role == 'admin' or (task.owner_role == 'employee' and termination.user_id == session.user_id) or (task.owner_role == 'manager' and can_manage) %}
+              <form method="POST" style="min-width:220px;">
+                <input type="hidden" name="action" value="complete_task">
+                <input type="hidden" name="task_id" value="{{ task.id }}">
+                <input type="text" name="task_note" class="input" placeholder="Completion note" style="margin-bottom:8px;">
+                <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">Mark Complete</button>
+              </form>
+              {% else %}
+              <span class="status-chip" style="background:#f8fafc; color:var(--text-muted);">Pending</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+        <div style="font-size:13px; color:var(--text-muted);">Tasks will be created after HR approval.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Approval Timeline</div>
+      </div>
+      <div class="card-body">
+        <div class="timeline">
+          <div class="timeline-item">
+            <strong>Submitted</strong>
+            <div style="font-size:13px; color:var(--text-muted);">{{ termination.created_at[:16] }} by {{ termination.created_by_name or '-' }}</div>
+          </div>
+          <div class="timeline-item">
+            <strong>Manager Review</strong>
+            <div style="font-size:13px; color:var(--text-muted);">
+              {% if termination.manager_approved_at %}
+              {{ termination.manager_approved_at[:16] }} by {{ termination.manager_approved_name or termination.manager_name or '-' }}
+              {% else %}
+              Pending
+              {% endif %}
+            </div>
+          </div>
+          <div class="timeline-item">
+            <strong>HR Approval</strong>
+            <div style="font-size:13px; color:var(--text-muted);">
+              {% if termination.hr_approved_at %}
+              {{ termination.hr_approved_at[:16] }} by {{ termination.hr_approved_name or '-' }}
+              {% else %}
+              Pending
+              {% endif %}
+            </div>
+          </div>
+          <div class="timeline-item">
+            <strong>Completion</strong>
+            <div style="font-size:13px; color:var(--text-muted);">
+              {% if termination.completed_at %}
+              {{ termination.completed_at[:16] }}
+              {% else %}
+              Pending
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Severance Preview</div>
+      </div>
+      <div class="card-body">
+        {% if preview.eligible %}
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+          <span class="muted">Tenure</span>
+          <strong>{{ preview.tenure_days }} days</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+          <span class="muted">Average Daily Wage</span>
+          <strong>{{ "{:,}원".format(preview.avg_daily_wage) }}</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span class="muted">Estimated Severance</span>
+          <strong style="font-size:18px; color:#1e40af;">{{ "{:,}원".format(preview.severance_amount) }}</strong>
+        </div>
+        {% else %}
+        <div style="font-size:13px; color:var(--text-muted);">{{ preview.get('reason', 'No severance preview available.') }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if termination.user_id == session.user_id and termination.status in ('submitted', 'under_review') %}
+    <div class="card">
+      <div class="card-head"><div class="card-title">Employee Action</div></div>
+      <div class="card-body">
+        <form method="POST">
+          <input type="hidden" name="action" value="cancel_request">
+          <button type="submit" class="btn btn-ghost" style="color:#b91c1c; border-color:#fecaca;">Cancel Request</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if can_manage and not termination.manager_approved_by and termination.status in ('submitted', 'under_review') %}
+    <div class="card">
+      <div class="card-head"><div class="card-title">Manager Review</div></div>
+      <div class="card-body" style="display:flex; gap:10px; flex-wrap:wrap;">
+        <form method="POST">
+          <input type="hidden" name="action" value="manager_approve">
+          <button type="submit" class="btn btn-primary">Manager Approve</button>
+        </form>
+        <form method="POST" style="flex:1; min-width:240px;">
+          <input type="hidden" name="action" value="reject_request">
+          <input type="text" name="rejection_reason" class="input" placeholder="Reason for rejection" style="margin-bottom:8px;">
+          <button type="submit" class="btn btn-ghost" style="color:#b91c1c; border-color:#fecaca;">Reject</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if session.user_role == 'admin' and termination.manager_approved_by and not termination.hr_approved_by and termination.status in ('under_review', 'submitted') %}
+    <div class="card">
+      <div class="card-head"><div class="card-title">HR Approval</div></div>
+      <div class="card-body">
+        <form method="POST">
+          <input type="hidden" name="action" value="hr_approve">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+            <div class="field">
+              <label class="form-label">Final Last Work Date</label>
+              <input type="date" name="final_last_work_date" class="input" value="{{ termination.requested_last_work_date }}">
+            </div>
+            <div class="field">
+              <label class="form-label">Final Termination Date</label>
+              <input type="date" name="final_termination_date" class="input" value="{{ termination.requested_termination_date }}">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Approve and Create Tasks</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if session.user_role == 'admin' and termination.status == 'in_progress' %}
+    <div class="card">
+      <div class="card-head"><div class="card-title">Finalize Termination</div></div>
+      <div class="card-body">
+        <form method="POST">
+          <input type="hidden" name="action" value="finalize_termination">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+            <div class="field">
+              <label class="form-label">Final Last Work Date</label>
+              <input type="date" name="final_last_work_date" class="input" value="{{ termination.final_last_work_date or termination.requested_last_work_date }}">
+            </div>
+            <div class="field">
+              <label class="form-label">Final Termination Date</label>
+              <input type="date" name="final_termination_date" class="input" value="{{ termination.final_termination_date or termination.requested_termination_date }}">
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:12px;">
+            <label class="form-label">Final Termination Reason</label>
+            <input type="text" name="termination_reason" class="input" value="{{ terminate_types.get(termination.request_type, termination.request_type) }}">
+          </div>
+          <div class="field" style="margin-bottom:14px;">
+            <label class="form-label">Completion Note</label>
+            <textarea name="completion_note" class="input" rows="3"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Finalize</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -337,6 +337,57 @@ def init_db():
                 created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS termination_requests (
+                id                           INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id                      INTEGER NOT NULL REFERENCES users(id),
+                request_type                 TEXT NOT NULL CHECK(request_type IN (
+                                               'voluntary','mutual','dismissal','contract','retirement'
+                                           )),
+                request_source               TEXT NOT NULL DEFAULT 'employee'
+                                               CHECK(request_source IN ('employee','manager','hr')),
+                status                       TEXT NOT NULL DEFAULT 'submitted'
+                                               CHECK(status IN (
+                                                   'draft','submitted','under_review','approved',
+                                                   'in_progress','completed','rejected','cancelled'
+                                               )),
+                notice_date                  DATE NOT NULL,
+                requested_last_work_date     DATE NOT NULL,
+                requested_termination_date   DATE NOT NULL,
+                final_last_work_date         DATE,
+                final_termination_date       DATE,
+                reason_code                  TEXT,
+                reason_detail                TEXT,
+                handover_note                TEXT,
+                manager_approved_by          INTEGER REFERENCES users(id),
+                manager_approved_at          TIMESTAMP,
+                hr_approved_by               INTEGER REFERENCES users(id),
+                hr_approved_at               TIMESTAMP,
+                rejection_reason             TEXT,
+                completed_by                 INTEGER REFERENCES users(id),
+                completed_at                 TIMESTAMP,
+                created_by                   INTEGER NOT NULL REFERENCES users(id),
+                created_at                   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at                   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS offboarding_tasks (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_id     INTEGER NOT NULL REFERENCES termination_requests(id) ON DELETE CASCADE,
+                task_type      TEXT NOT NULL CHECK(task_type IN (
+                                   'handover','asset_return','account_disable',
+                                   'payroll_close','documents'
+                               )),
+                title          TEXT NOT NULL,
+                owner_role     TEXT NOT NULL CHECK(owner_role IN ('employee','manager','hr','admin')),
+                status         TEXT NOT NULL DEFAULT 'pending'
+                                   CHECK(status IN ('pending','completed')),
+                due_date       DATE,
+                note           TEXT,
+                completed_by   INTEGER REFERENCES users(id),
+                completed_at   TIMESTAMP,
+                created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS severance_payments (
                 id               INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id          INTEGER NOT NULL REFERENCES users(id),

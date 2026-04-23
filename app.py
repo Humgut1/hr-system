@@ -1075,10 +1075,446 @@ def employee_action(emp_id):
     return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
 
 
+@app.route('/termination/my', methods=['GET', 'POST'])
+@login_required
+def termination_my():
+    if session.get('user_role') == 'guest':
+        abort(403)
+
+    db = get_db()
+    uid = session['user_id']
+    employee = db.execute(
+        'SELECT u.*, d.name AS dept_name, p.name AS pos_name, m.name AS manager_name '
+        'FROM users u '
+        'LEFT JOIN departments d ON u.department_id = d.id '
+        'LEFT JOIN positions p ON u.position_id = p.id '
+        'LEFT JOIN users m ON u.manager_id = m.id '
+        'WHERE u.id=?',
+        (uid,)
+    ).fetchone()
+    if not employee:
+        abort(404)
+
+    open_request = db.execute(
+        "SELECT * FROM termination_requests "
+        "WHERE user_id=? AND status IN ('submitted','under_review','approved','in_progress') "
+        'ORDER BY created_at DESC LIMIT 1',
+        (uid,)
+    ).fetchone()
+
+    if request.method == 'POST':
+        if open_request:
+            flash('An open termination request already exists.', 'error')
+            return redirect(url_for('termination_my'))
+
+        request_type = request.form.get('request_type', 'voluntary')
+        reason_code = request.form.get('reason_code') or 'other'
+        requested_last_work_date = request.form.get('requested_last_work_date') or date.today().isoformat()
+        requested_termination_date = request.form.get('requested_termination_date') or requested_last_work_date
+        reason_detail = request.form.get('reason_detail', '').strip() or None
+        handover_note = request.form.get('handover_note', '').strip() or None
+
+        if request_type not in TERMINATE_TYPES:
+            flash('Invalid termination type.', 'error')
+            return redirect(url_for('termination_my'))
+        if reason_code not in TERMINATION_REASON_CODES:
+            reason_code = 'other'
+        if requested_termination_date < requested_last_work_date:
+            flash('Termination date must be on or after the last work date.', 'error')
+            return redirect(url_for('termination_my'))
+
+        db.execute(
+            'INSERT INTO termination_requests '
+            '(user_id, request_type, request_source, status, notice_date, '
+            ' requested_last_work_date, requested_termination_date, reason_code, reason_detail, '
+            ' handover_note, created_by) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+            (
+                uid, request_type, 'employee', 'submitted', date.today().isoformat(),
+                requested_last_work_date, requested_termination_date, reason_code,
+                reason_detail, handover_note, uid
+            )
+        )
+        db.commit()
+        flash('Termination request submitted.', 'success')
+        return redirect(url_for('termination_my'))
+
+    history = db.execute(
+        'SELECT tr.*, u.name AS created_by_name '
+        'FROM termination_requests tr '
+        'LEFT JOIN users u ON tr.created_by = u.id '
+        'WHERE tr.user_id=? ORDER BY tr.created_at DESC',
+        (uid,)
+    ).fetchall()
+    return render_template(
+        'employees/termination_my.html',
+        employee=employee,
+        open_request=open_request,
+        history=history,
+        terminate_types=TERMINATE_TYPES,
+        status_labels=TERMINATION_STATUS_LABELS,
+        reason_codes=TERMINATION_REASON_CODES,
+        today=date.today().isoformat(),
+        active_page='termination_my'
+    )
+
+
+@app.route('/termination/requests')
+@manager_or_admin
+def termination_requests():
+    db = get_db()
+    status = request.args.get('status', '')
+    params = []
+    sql = (
+        'SELECT tr.*, '
+        'u.name AS employee_name, u.manager_id AS employee_manager_id, '
+        'd.name AS dept_name, p.name AS pos_name, m.name AS manager_name '
+        'FROM termination_requests tr '
+        'JOIN users u ON tr.user_id = u.id '
+        'LEFT JOIN departments d ON u.department_id = d.id '
+        'LEFT JOIN positions p ON u.position_id = p.id '
+        'LEFT JOIN users m ON u.manager_id = m.id '
+    )
+    where = []
+    if session.get('user_role') == 'manager':
+        where.append('u.manager_id = ?')
+        params.append(session['user_id'])
+    if status and status in TERMINATION_STATUS_LABELS:
+        where.append('tr.status = ?')
+        params.append(status)
+    if where:
+        sql += 'WHERE ' + ' AND '.join(where) + ' '
+    sql += (
+        "ORDER BY CASE tr.status "
+        "WHEN 'submitted' THEN 1 "
+        "WHEN 'under_review' THEN 2 "
+        "WHEN 'approved' THEN 3 "
+        "WHEN 'in_progress' THEN 4 "
+        "WHEN 'completed' THEN 5 "
+        "ELSE 6 END, tr.created_at DESC"
+    )
+    requests = db.execute(sql, params).fetchall()
+    return render_template(
+        'employees/termination_requests.html',
+        requests=requests,
+        status=status,
+        status_labels=TERMINATION_STATUS_LABELS,
+        terminate_types=TERMINATE_TYPES,
+        active_page='termination_requests'
+    )
+
+
+@app.route('/termination/requests/new/<int:emp_id>', methods=['GET', 'POST'])
+@manager_or_admin
+def termination_request_new(emp_id):
+    db = get_db()
+    employee = db.execute(
+        'SELECT u.*, d.name AS dept_name, p.name AS pos_name, m.name AS manager_name '
+        'FROM users u '
+        'LEFT JOIN departments d ON u.department_id = d.id '
+        'LEFT JOIN positions p ON u.position_id = p.id '
+        'LEFT JOIN users m ON u.manager_id = m.id '
+        "WHERE u.id=? AND u.status='active'",
+        (emp_id,)
+    ).fetchone()
+    if not employee:
+        abort(404)
+    if session.get('user_role') == 'manager' and employee['manager_id'] != session.get('user_id'):
+        abort(403)
+
+    open_request = db.execute(
+        "SELECT id FROM termination_requests "
+        "WHERE user_id=? AND status IN ('submitted','under_review','approved','in_progress') "
+        'ORDER BY created_at DESC LIMIT 1',
+        (emp_id,)
+    ).fetchone()
+    if open_request:
+        return redirect(url_for('termination_request_detail', req_id=open_request['id']))
+
+    if request.method == 'POST':
+        request_type = request.form.get('request_type', 'mutual')
+        reason_code = request.form.get('reason_code') or 'other'
+        requested_last_work_date = request.form.get('requested_last_work_date') or date.today().isoformat()
+        requested_termination_date = request.form.get('requested_termination_date') or requested_last_work_date
+        reason_detail = request.form.get('reason_detail', '').strip() or None
+        handover_note = request.form.get('handover_note', '').strip() or None
+
+        if request_type not in TERMINATE_TYPES:
+            flash('Invalid termination type.', 'error')
+            return redirect(url_for('termination_request_new', emp_id=emp_id))
+        if requested_termination_date < requested_last_work_date:
+            flash('Termination date must be on or after the last work date.', 'error')
+            return redirect(url_for('termination_request_new', emp_id=emp_id))
+
+        db.execute(
+            'INSERT INTO termination_requests '
+            '(user_id, request_type, request_source, status, notice_date, '
+            ' requested_last_work_date, requested_termination_date, reason_code, reason_detail, '
+            ' handover_note, created_by) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+            (
+                emp_id, request_type,
+                'hr' if session.get('user_role') == 'admin' else 'manager',
+                'under_review',
+                date.today().isoformat(),
+                requested_last_work_date, requested_termination_date,
+                reason_code if reason_code in TERMINATION_REASON_CODES else 'other',
+                reason_detail, handover_note, session['user_id']
+            )
+        )
+        db.commit()
+        new_id = db.execute('SELECT last_insert_rowid()').fetchone()[0]
+        flash('Termination process started.', 'success')
+        return redirect(url_for('termination_request_detail', req_id=new_id))
+
+    return render_template(
+        'employees/termination_new.html',
+        employee=employee,
+        terminate_types=TERMINATE_TYPES,
+        reason_codes=TERMINATION_REASON_CODES,
+        today=date.today().isoformat(),
+        active_page='termination_requests'
+    )
+
+
+@app.route('/termination/requests/<int:req_id>', methods=['GET', 'POST'])
+@login_required
+def termination_request_detail(req_id):
+    db = get_db()
+    termination = db.execute(
+        'SELECT tr.*, '
+        'u.name AS employee_name, u.email AS employee_email, u.hire_date, u.status AS employee_status, '
+        'u.manager_id AS employee_manager_id, d.name AS dept_name, p.name AS pos_name, '
+        'm.name AS manager_name, c.name AS created_by_name, '
+        'ma.name AS manager_approved_name, ha.name AS hr_approved_name '
+        'FROM termination_requests tr '
+        'JOIN users u ON tr.user_id = u.id '
+        'LEFT JOIN departments d ON u.department_id = d.id '
+        'LEFT JOIN positions p ON u.position_id = p.id '
+        'LEFT JOIN users m ON u.manager_id = m.id '
+        'LEFT JOIN users c ON tr.created_by = c.id '
+        'LEFT JOIN users ma ON tr.manager_approved_by = ma.id '
+        'LEFT JOIN users ha ON tr.hr_approved_by = ha.id '
+        'WHERE tr.id=?',
+        (req_id,)
+    ).fetchone()
+    if not termination:
+        abort(404)
+
+    can_manage = can_manage_termination_request(termination)
+    can_view = can_manage or termination['user_id'] == session.get('user_id')
+    if not can_view:
+        abort(403)
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        if action == 'cancel_request' and termination['user_id'] == session['user_id']:
+            if termination['status'] not in ('submitted', 'under_review'):
+                flash('This request can no longer be cancelled.', 'error')
+            else:
+                db.execute(
+                    "UPDATE termination_requests SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    (req_id,)
+                )
+                db.commit()
+                flash('Termination request cancelled.', 'success')
+            return redirect(url_for('termination_request_detail', req_id=req_id))
+
+        if action == 'manager_approve':
+            if not can_manage:
+                abort(403)
+            if termination['manager_approved_by']:
+                flash('Manager approval is already recorded.', 'error')
+            else:
+                next_status = 'under_review' if session.get('user_role') == 'manager' else termination['status']
+                db.execute(
+                    'UPDATE termination_requests '
+                    'SET manager_approved_by=?, manager_approved_at=CURRENT_TIMESTAMP, '
+                    'status=?, updated_at=CURRENT_TIMESTAMP '
+                    'WHERE id=?',
+                    (session['user_id'], next_status, req_id)
+                )
+                db.commit()
+                flash('Manager review completed.', 'success')
+            return redirect(url_for('termination_request_detail', req_id=req_id))
+
+        if action == 'reject_request':
+            if not can_manage:
+                abort(403)
+            rejection_reason = request.form.get('rejection_reason', '').strip() or 'Rejected during review.'
+            db.execute(
+                "UPDATE termination_requests "
+                "SET status='rejected', rejection_reason=?, updated_at=CURRENT_TIMESTAMP "
+                'WHERE id=?',
+                (rejection_reason, req_id)
+            )
+            db.commit()
+            flash('Termination request rejected.', 'success')
+            return redirect(url_for('termination_request_detail', req_id=req_id))
+
+        if action == 'hr_approve':
+            if session.get('user_role') != 'admin':
+                abort(403)
+            if not termination['manager_approved_by']:
+                flash('Manager review is required before HR approval.', 'error')
+                return redirect(url_for('termination_request_detail', req_id=req_id))
+
+            final_last_work_date = request.form.get('final_last_work_date') or termination['requested_last_work_date']
+            final_termination_date = request.form.get('final_termination_date') or termination['requested_termination_date']
+            if final_termination_date < final_last_work_date:
+                flash('Final termination date must be on or after the last work date.', 'error')
+                return redirect(url_for('termination_request_detail', req_id=req_id))
+
+            db.execute(
+                "UPDATE termination_requests "
+                "SET hr_approved_by=?, hr_approved_at=CURRENT_TIMESTAMP, "
+                "final_last_work_date=?, final_termination_date=?, "
+                "status='in_progress', updated_at=CURRENT_TIMESTAMP "
+                'WHERE id=?',
+                (session['user_id'], final_last_work_date, final_termination_date, req_id)
+            )
+            create_offboarding_tasks(db, req_id, final_last_work_date)
+            db.commit()
+            flash('HR approval completed. Offboarding tasks created.', 'success')
+            return redirect(url_for('termination_request_detail', req_id=req_id))
+
+        if action == 'complete_task':
+            task_id = request.form.get('task_id')
+            task = db.execute(
+                'SELECT * FROM offboarding_tasks WHERE id=? AND request_id=?',
+                (task_id, req_id)
+            ).fetchone()
+            if not task:
+                abort(404)
+
+            allowed = (
+                session.get('user_role') == 'admin' or
+                (task['owner_role'] == 'employee' and termination['user_id'] == session['user_id']) or
+                (task['owner_role'] == 'manager' and session.get('user_role') == 'manager' and can_manage)
+            )
+            if not allowed:
+                abort(403)
+
+            db.execute(
+                "UPDATE offboarding_tasks "
+                "SET status='completed', note=?, completed_by=?, completed_at=CURRENT_TIMESTAMP "
+                'WHERE id=?',
+                (request.form.get('task_note', '').strip() or None, session['user_id'], task_id)
+            )
+            db.commit()
+            flash('Task marked as completed.', 'success')
+            return redirect(url_for('termination_request_detail', req_id=req_id))
+
+        if action == 'finalize_termination':
+            if session.get('user_role') != 'admin':
+                abort(403)
+            if termination['status'] != 'in_progress':
+                flash('This request is not ready for finalization.', 'error')
+                return redirect(url_for('termination_request_detail', req_id=req_id))
+
+            pending_tasks = db.execute(
+                "SELECT COUNT(*) FROM offboarding_tasks WHERE request_id=? AND status='pending'",
+                (req_id,)
+            ).fetchone()[0]
+            if pending_tasks:
+                flash('Complete all offboarding tasks before finalization.', 'error')
+                return redirect(url_for('termination_request_detail', req_id=req_id))
+
+            term_date = request.form.get('final_termination_date') or termination['final_termination_date'] or termination['requested_termination_date']
+            last_work_date = request.form.get('final_last_work_date') or termination['final_last_work_date'] or termination['requested_last_work_date']
+            payslips = db.execute(
+                'SELECT year, month, gross_pay FROM payslips '
+                'WHERE user_id=? ORDER BY year DESC, month DESC LIMIT 3',
+                (termination['user_id'],)
+            ).fetchall()
+            preview = calc_severance(termination['hire_date'] or '', term_date, [dict(r) for r in payslips])
+            severance_note = request.form.get('completion_note', '').strip() or None
+
+            db.execute(
+                "UPDATE users "
+                "SET status='resigned', termination_date=?, termination_reason=? "
+                'WHERE id=?',
+                (
+                    term_date,
+                    request.form.get('termination_reason', '').strip() or TERMINATE_TYPES.get(termination['request_type'], ''),
+                    termination['user_id']
+                )
+            )
+
+            existing = db.execute(
+                'SELECT id FROM severance_payments WHERE user_id=? AND termination_date=?',
+                (termination['user_id'], term_date)
+            ).fetchone()
+            if preview.get('eligible') and not existing:
+                db.execute(
+                    'INSERT INTO severance_payments '
+                    '(user_id, hire_date, termination_date, tenure_days, '
+                    ' basis_total_pay, basis_days, avg_daily_wage, severance_amount, note, processed_by) '
+                    'VALUES (?,?,?,?,?,?,?,?,?,?)',
+                    (
+                        termination['user_id'], termination['hire_date'], term_date,
+                        preview['tenure_days'], preview.get('basis_total_pay', 0),
+                        preview.get('basis_days', 92), preview.get('avg_daily_wage', 0),
+                        preview['severance_amount'], severance_note, session['user_id']
+                    )
+                )
+
+            db.execute(
+                "UPDATE termination_requests "
+                "SET status='completed', final_last_work_date=?, final_termination_date=?, "
+                "completed_by=?, completed_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP "
+                'WHERE id=?',
+                (last_work_date, term_date, session['user_id'], req_id)
+            )
+            db.commit()
+            flash('Termination completed.', 'success')
+            return redirect(url_for('termination_request_detail', req_id=req_id))
+
+    tasks = db.execute(
+        'SELECT t.*, u.name AS completed_by_name '
+        'FROM offboarding_tasks t '
+        'LEFT JOIN users u ON t.completed_by = u.id '
+        'WHERE t.request_id=? ORDER BY t.id',
+        (req_id,)
+    ).fetchall()
+    recent_payslips = db.execute(
+        'SELECT year, month, gross_pay FROM payslips '
+        'WHERE user_id=? ORDER BY year DESC, month DESC LIMIT 3',
+        (termination['user_id'],)
+    ).fetchall()
+    preview = calc_severance(
+        termination['hire_date'] or '',
+        termination['final_termination_date'] or termination['requested_termination_date'],
+        [dict(r) for r in recent_payslips]
+    )
+    return render_template(
+        'employees/termination_detail.html',
+        termination=termination,
+        tasks=tasks,
+        preview=preview,
+        can_manage=can_manage,
+        status_labels=TERMINATION_STATUS_LABELS,
+        terminate_types=TERMINATE_TYPES,
+        reason_codes=TERMINATION_REASON_CODES,
+        today=date.today().isoformat(),
+        active_page='termination_requests' if can_manage else 'termination_my'
+    )
+
+
 @app.route('/employees/<int:emp_id>/offboard', methods=['GET', 'POST'])
 @admin_required
 def employee_offboard(emp_id):
     db  = get_db()
+    open_request = db.execute(
+        "SELECT id FROM termination_requests "
+        "WHERE user_id=? AND status IN ('submitted','under_review','approved','in_progress') "
+        'ORDER BY created_at DESC LIMIT 1',
+        (emp_id,)
+    ).fetchone()
+    if open_request:
+        return redirect(url_for('termination_request_detail', req_id=open_request['id']))
+
     emp = db.execute(
         'SELECT u.*, d.name dept_name, p.name pos_name '
         'FROM users u '
@@ -1334,6 +1770,36 @@ LEAVE_META = {
 
 LEAVE_LABELS = {k: v['label'] for k, v in LEAVE_META.items()}
 
+TERMINATION_STATUS_LABELS = {
+    'draft': 'Draft',
+    'submitted': 'Submitted',
+    'under_review': 'Under Review',
+    'approved': 'Approved',
+    'in_progress': 'Offboarding',
+    'completed': 'Completed',
+    'rejected': 'Rejected',
+    'cancelled': 'Cancelled',
+}
+
+TERMINATION_REASON_CODES = {
+    'career': 'Career Move',
+    'compensation': 'Compensation',
+    'culture': 'Culture / Team Fit',
+    'performance': 'Performance',
+    'contract_end': 'Contract End',
+    'retirement': 'Retirement',
+    'personal': 'Personal',
+    'other': 'Other',
+}
+
+OFFBOARDING_TASK_BLUEPRINTS = [
+    ('handover', 'Handover plan and knowledge transfer', 'employee'),
+    ('asset_return', 'Return company assets and corporate card', 'employee'),
+    ('account_disable', 'Disable accounts and revoke permissions', 'admin'),
+    ('payroll_close', 'Finalize payroll, unused leave, severance', 'admin'),
+    ('documents', 'Prepare resignation and employment certificates', 'admin'),
+]
+
 TERMINATE_TYPES = {
     'voluntary':  '자발적 퇴직 (사직)',
     'mutual':     '합의 퇴직',
@@ -1365,6 +1831,30 @@ def calc_working_days(start_str, end_str):
             days += 1.0
         cur += timedelta(days=1)
     return max(days, 0.0)
+
+
+def create_offboarding_tasks(db, request_id, due_date):
+    existing = db.execute(
+        'SELECT COUNT(*) FROM offboarding_tasks WHERE request_id=?',
+        (request_id,)
+    ).fetchone()[0]
+    if existing:
+        return
+    for task_type, title, owner_role in OFFBOARDING_TASK_BLUEPRINTS:
+        db.execute(
+            'INSERT INTO offboarding_tasks (request_id, task_type, title, owner_role, due_date) '
+            'VALUES (?,?,?,?,?)',
+            (request_id, task_type, title, owner_role, due_date)
+        )
+
+
+def can_manage_termination_request(req):
+    if session.get('user_role') == 'admin':
+        return True
+    return (
+        session.get('user_role') == 'manager' and
+        req['employee_manager_id'] == session.get('user_id')
+    )
 
 @app.route('/leave')
 @login_required
