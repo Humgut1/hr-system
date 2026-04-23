@@ -138,25 +138,6 @@ def inject_user_features():
     }
 
 
-@app.route('/notifications')
-@login_required
-def notifications():
-    db  = get_db()
-    uid = session['user_id']
-    
-    # 읽음 처리 (페이지 접속 시 모든 알림 읽음 처리 혹은 개별 처리 선택 가능)
-    # 여기서는 페이지 접속 시 현재 목록을 모두 읽음 처리함
-    db.execute('UPDATE notifications SET is_read=1 WHERE user_id=?', (uid,))
-    db.commit()
-    
-    notifs = db.execute(
-        'SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 50',
-        (uid,)
-    ).fetchall()
-    
-    return render_template('notifications.html', notifications=notifs, active_page='notifications')
-
-
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -197,6 +178,25 @@ def recruiter_or_admin(f):
             abort(403)
         return f(*args, **kwargs)
     return decorated
+
+
+# ── Notifications ──────────────────────────────────────────
+@app.route('/notifications')
+@login_required
+def notifications():
+    db  = get_db()
+    uid = session['user_id']
+    
+    # 읽음 처리 (페이지 접속 시 모든 알림 읽음 처리 혹은 개별 처리 선택 가능)
+    db.execute('UPDATE notifications SET is_read=1 WHERE user_id=?', (uid,))
+    db.commit()
+    
+    notifs = db.execute(
+        'SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 50',
+        (uid,)
+    ).fetchall()
+    
+    return render_template('notifications.html', notifications=notifs, active_page='notifications')
 
 
 # ── Helper ──────────────────────────────────────────────────
