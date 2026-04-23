@@ -36,6 +36,12 @@
 - Offboarding task generation and completion tracking
 - Final termination completion with severance linkage
 
+### v0.25.0
+- Multi-stage approval workflow expansion (Workday style)
+- Attendance: Employee -> Manager (Review) -> HR (Final Approval)
+- Personnel Actions: Draft -> HR Approval -> Auto-update master data
+- Certificate Requests: Purpose-based request -> HR Review -> Digital Issuance
+
 ## Verification
 
 - `python -m py_compile app.py database.py payroll_utils.py export_utils.py migrate_db.py`

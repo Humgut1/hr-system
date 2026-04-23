@@ -6,13 +6,17 @@
 
 <!-- Status tabs -->
 <div style="display:flex; gap:6px; margin-bottom:18px;">
-  {% for val, label in [('pending','Pending'), ('approved','Approved'), ('rejected','Rejected'), ('cancelled','Cancelled')] %}
+  {% for val, label in [('pending','Pending (L1)'), ('reviewed','Reviewed (L2)'), ('approved','Approved'), ('rejected','Rejected')] %}
   <a href="{{ url_for('attendance', status=val, dept=dept_id) }}"
      class="btn {% if status == val %}btn-primary{% else %}btn-ghost{% endif %}">
     {{ label }}
     {% if val == 'pending' and pending_count > 0 %}
     <span style="background:var(--red); color:#fff; border-radius:20px;
                  padding:1px 7px; font-size:11px; margin-left:4px;">{{ pending_count }}</span>
+    {% endif %}
+    {% if val == 'reviewed' and reviewed_count > 0 %}
+    <span style="background:var(--accent); color:#fff; border-radius:20px;
+                 padding:1px 7px; font-size:11px; margin-left:4px;">{{ reviewed_count }}</span>
     {% endif %}
   </a>
   {% endfor %}
@@ -43,10 +47,11 @@
 <div class="card">
   <div class="card-head">
     <span class="card-title">
-      {% if status == 'pending' %}Pending Requests
-      {% elif status == 'approved' %}Approved
-      {% elif status == 'rejected' %}Rejected
-      {% else %}Cancelled{% endif %}
+      {% if status == 'pending' %}Manager Review Queue (Pending)
+      {% elif status == 'reviewed' %}HR Final Approval Queue (Reviewed)
+      {% elif status == 'approved' %}Approved Records
+      {% elif status == 'rejected' %}Rejected Records
+      {% else %}Records{% endif %}
     </span>
     <span style="font-size:13px; color:var(--tx-3);">{{ reqs|length }} record{{ 's' if reqs|length != 1 else '' }}</span>
   </div>
@@ -61,7 +66,8 @@
           <th>End</th>
           <th>Days</th>
           <th>Reason</th>
-          {% if status == 'pending' %}<th>Action</th>{% endif %}
+          <th>Status</th>
+          {% if status in ['pending', 'reviewed'] %}<th>Action</th>{% endif %}
           {% if status == 'rejected' %}<th>Reject Reason</th>{% endif %}
         </tr>
       </thead>
@@ -84,13 +90,21 @@
           <td>{{ r.days }}d</td>
           <td style="color:var(--tx-3); max-width:140px; white-space:nowrap;
                      overflow:hidden; text-overflow:ellipsis;">{{ r.reason or '—' }}</td>
-          {% if status == 'pending' %}
+          <td>
+            {% if r.status == 'pending' %}<span class="badge badge-warning">Pending (L1)</span>
+            {% elif r.status == 'reviewed' %}<span class="badge badge-accent">Reviewed (L2)</span>
+            {% elif r.status == 'approved' %}<span class="badge badge-success">Approved</span>
+            {% elif r.status == 'rejected' %}<span class="badge badge-danger">Rejected</span>
+            {% endif %}
+          </td>
+          {% if status in ['pending', 'reviewed'] %}
           <td>
             <div style="display:flex; gap:6px; align-items:center;">
+              {% if (status == 'pending' and session.user_role == 'manager') or (session.user_role == 'admin') %}
               <form method="POST" action="{{ url_for('attendance_approve', req_id=r.id) }}">
                 <button type="submit" class="btn btn-sm"
                         style="background:#f0fdf4; color:var(--green); border:1px solid #bbf7d0;">
-                  <i class="fas fa-check"></i> Approve
+                  <i class="fas fa-check"></i> {{ 'Review' if status == 'pending' else 'Approve' }}
                 </button>
               </form>
               <form method="POST" action="{{ url_for('attendance_reject', req_id=r.id) }}"
@@ -103,6 +117,9 @@
                   <i class="fas fa-times"></i> Reject
                 </button>
               </form>
+              {% else %}
+              <span style="font-size:12px; color:var(--tx-3);">Waiting for {{ 'Manager' if status == 'pending' else 'HR' }}</span>
+              {% endif %}
             </div>
           </td>
           {% endif %}

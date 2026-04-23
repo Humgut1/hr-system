@@ -362,8 +362,8 @@
           <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">발령일</th>
           <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">유형</th>
           <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">변경 내용</th>
-          <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">사유</th>
-          <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">처리자</th>
+          <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">상태</th>
+          <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">처리</th>
         </tr>
       </thead>
       <tbody>
@@ -379,10 +379,29 @@
           <td style="padding:11px 16px;">
             <span style="color:var(--text-muted);">{{ a.from_value or '—' }}</span>
             <i class="fas fa-arrow-right" style="margin:0 6px; color:var(--text-muted); font-size:10px;"></i>
-            <span style="font-weight:600; color:var(--text);">{{ a.to_value or '—' }}</span>
+            <span style="font-weight:600; color:var(--text);">{{ a.to_value.split('|')[0] if '|' in a.to_value else a.to_value }}</span>
           </td>
-          <td style="padding:11px 16px; color:var(--text-muted);">{{ a.reason or '—' }}</td>
-          <td style="padding:11px 16px; color:var(--text-muted);">{{ a.processed_by_name or '—' }}</td>
+          <td style="padding:11px 16px;">
+            {% if a.status == 'pending' %}<span class="badge badge-warning">대기</span>
+            {% elif a.status == 'approved' %}<span class="badge badge-success">승인완료</span>
+            {% elif a.status == 'rejected' %}<span class="badge badge-danger">반려</span>{% endif %}
+          </td>
+          <td style="padding:11px 16px;">
+            {% if a.status == 'pending' and session.user_role == 'admin' %}
+            <div style="display:flex; gap:6px;">
+              <form method="POST" action="{{ url_for('personnel_action_approve', action_id=a.id) }}">
+                <button type="submit" class="btn btn-primary btn-sm" style="padding:2px 8px; font-size:11px;">승인</button>
+              </form>
+              <form method="POST" action="{{ url_for('personnel_action_reject', action_id=a.id) }}">
+                <button type="submit" class="btn btn-ghost btn-sm" style="padding:2px 8px; font-size:11px; color:var(--red);">반려</button>
+              </form>
+            </div>
+            {% elif a.status == 'rejected' %}
+            <span style="font-size:12px; color:var(--red);">{{ a.rejection_reason or '사유 없음' }}</span>
+            {% else %}
+            <span style="font-size:12px; color:var(--text-muted);">{{ a.processed_by_name or '—' }}</span>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>

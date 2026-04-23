@@ -66,130 +66,143 @@
 
 {% block content %}
 
-<!-- 대상 직원 선택 (admin only) -->
-{% if session.user_role == 'admin' %}
+<!-- 대상 직원 정보 표시 (본인) -->
+{% if session.user_role != 'admin' %}
 <div class="hub-selector">
-  <label>발급 대상</label>
-  <form method="GET" action="{{ url_for('certificates_hub') }}" style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
-    <select name="user_id" onchange="this.form.submit()">
-      {% for emp in employees %}
-      <option value="{{ emp.id }}" {% if emp.id == selected_uid %}selected{% endif %}>
-        {{ emp.name }}
-      </option>
-      {% endfor %}
-    </select>
-    <noscript><button type="submit" class="cert-btn secondary">선택</button></noscript>
-  </form>
-  {% if target %}
-  <div style="margin-left:auto;">
-    <div class="hub-name">{{ target.name }}</div>
-    <div class="hub-meta">{{ target.dept_name or '—' }} · {{ target.pos_name or '—' }} · 입사 {{ target.hire_date or '—' }}</div>
+  <div style="display:flex; align-items:center; gap:1rem;">
+    <div class="avatar-sm" style="width:44px; height:44px; background:var(--primary); color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800;">{{ session.user_name[0] }}</div>
+    <div>
+      <div class="hub-name">{{ session.user_name }}</div>
+      <div class="hub-meta">귀하의 증명서 발급 신청 및 내역을 관리합니다.</div>
+    </div>
   </div>
-  {% endif %}
 </div>
 {% endif %}
 
-<!-- TalentCore 발급 가능 -->
-<div class="section-title">TalentCore 발급 가능</div>
+<!-- 어드민 전용 신청 큐 -->
+{% if session.user_role == 'admin' %}
+<div class="section-title">증명서 발급 승인 대기열 (Approval Queue)</div>
+<div class="card" style="margin-bottom:2rem;">
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>신청자</th>
+          <th>종류</th>
+          <th>용도</th>
+          <th>신청일</th>
+          <th>상태</th>
+          <th>처리</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in requests if r.status == 'pending' %}
+        <tr>
+          <td><strong>{{ r.user_name }}</strong></td>
+          <td>{{ {'employment':'재직증명서','career':'경력증명서','income':'원천징수영수증','resignation':'퇴직확인서'}.get(r.cert_type, r.cert_type) }}</td>
+          <td>{{ r.purpose or '—' }}</td>
+          <td>{{ r.created_at[:10] }}</td>
+          <td><span class="badge badge-warning">Pending</span></td>
+          <td>
+            <div style="display:flex; gap:6px;">
+              <form method="POST" action="{{ url_for('certificate_approve', req_id=r.id) }}">
+                <button type="submit" class="cert-btn primary" style="padding:4px 10px; font-size:12px;">승인</button>
+              </form>
+              <form method="POST" action="{{ url_for('certificate_reject', req_id=r.id) }}" style="display:flex; gap:4px;">
+                <input type="text" name="reason" placeholder="반려사유" class="year-select" style="width:100px; font-size:11px;">
+                <button type="submit" class="cert-btn secondary" style="padding:4px 10px; font-size:12px; color:var(--red);">반려</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center; padding:2rem; color:var(--on-surface-muted);">대기 중인 신청이 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- 증명서 신청 섹션 -->
+<div class="section-title">증명서 발급 신청</div>
 <div class="cert-grid">
 
-  <!-- 재직증명서 -->
+  {% for key, name, en, icon, color, desc in [
+    ('employment', '재직증명서', 'Employment Certificate', 'fa-id-badge', 'blue', '현재 재직 중임을 증명하는 서류. 금융기관 대출, 비자 신청용.'),
+    ('career', '경력증명서', 'Career Certificate', 'fa-file-alt', 'green', '입사일, 부서, 주요 업무를 기재한 서류. 이직 시 경력 증빙용.'),
+    ('resignation', '퇴직확인서', 'Separation Certificate', 'fa-door-open', 'orange', '퇴직 사실을 증명하는 서류. 실업급여 신청, 이직 경력 증빙용.'),
+    ('income', '원천징수영수증', 'Withholding Tax Receipt', 'fa-receipt', 'purple', '연간 급여 및 원천징수 세액 요약 서류. 금융 심사, 소득 증빙용.')
+  ] %}
   <div class="cert-card">
     <div class="cert-card-top">
-      <div class="cert-icon blue"><i class="fas fa-id-badge"></i></div>
+      <div class="cert-icon {{ color }}"><i class="fas {{ icon }}"></i></div>
       <div>
-        <div class="cert-name">재직증명서</div>
-        <div class="cert-name-en">Employment Certificate</div>
+        <div class="cert-name">{{ name }}</div>
+        <div class="cert-name-en">{{ en }}</div>
       </div>
     </div>
-    <div class="cert-desc">현재 재직 중임을 증명하는 서류. 금융기관 대출, 비자 신청, 각종 공공기관 제출용으로 사용됩니다.</div>
-    <span class="cert-badge available"><i class="fas fa-check-circle"></i> 즉시 발급</span>
-    <div class="cert-actions">
-      <a href="{{ url_for('cert_employment', user_id=selected_uid) }}" target="_blank" class="cert-btn primary">
-        <i class="fas fa-print"></i> 발급하기
-      </a>
-    </div>
+    <div class="cert-desc">{{ desc }}</div>
+    <form method="POST" action="{{ url_for('certificate_request') }}" class="cert-actions">
+      <input type="hidden" name="cert_type" value="{{ key }}">
+      <input type="text" name="purpose" placeholder="용도 (예: 은행 제출용)" class="year-select" style="width:100%; margin-bottom:0.5rem;" required>
+      <button type="submit" class="cert-btn primary" style="width:100%; justify-content:center;">
+        <i class="fas fa-paper-plane"></i> 발급 신청하기
+      </button>
+    </form>
   </div>
+  {% endfor %}
 
-  <!-- 경력증명서 -->
-  <div class="cert-card">
-    <div class="cert-card-top">
-      <div class="cert-icon green"><i class="fas fa-file-alt"></i></div>
-      <div>
-        <div class="cert-name">경력증명서</div>
-        <div class="cert-name-en">Career Certificate</div>
-      </div>
-    </div>
-    <div class="cert-desc">입사일, 부서, 직위, 주요 업무를 기재한 서류. 이직 시 전 직장 경력을 증명하는 데 사용됩니다.</div>
-    <span class="cert-badge available"><i class="fas fa-check-circle"></i> 즉시 발급</span>
-    <div class="cert-actions">
-      <a href="{{ url_for('cert_career', user_id=selected_uid) }}" target="_blank" class="cert-btn primary">
-        <i class="fas fa-print"></i> 발급하기
-      </a>
-    </div>
+</div>
+
+<!-- 내 신청 현황 -->
+<div class="section-title">최근 발급 신청 내역</div>
+<div class="card" style="margin-bottom:2rem;">
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          {% if session.user_role == 'admin' %}<th>신청자</th>{% endif %}
+          <th>종류</th>
+          <th>용도</th>
+          <th>신청일</th>
+          <th>상태</th>
+          <th>처리일/사유</th>
+          <th>발급</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in requests %}
+        <tr>
+          {% if session.user_role == 'admin' %}<td>{{ r.user_name }}</td>{% endif %}
+          <td>{{ {'employment':'재직증명서','career':'경력증명서','income':'원천징수영수증','resignation':'퇴직확인서'}.get(r.cert_type, r.cert_type) }}</td>
+          <td>{{ r.purpose or '—' }}</td>
+          <td>{{ r.created_at[:10] }}</td>
+          <td>
+            {% if r.status == 'pending' %}<span class="badge badge-warning">대기</span>
+            {% elif r.status == 'approved' %}<span class="badge badge-success">승인</span>
+            {% elif r.status == 'rejected' %}<span class="badge badge-danger">반려</span>{% endif %}
+          </td>
+          <td style="font-size:12px; color:var(--on-surface-muted);">
+            {% if r.status == 'approved' %}{{ r.approved_at[:10] }}
+            {% elif r.status == 'rejected' %}{{ r.reject_reason or '사유 미기재' }}{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if r.status == 'approved' %}
+            <a href="{{ url_for('cert_view', req_id=r.id) }}" target="_blank" class="cert-btn primary" style="padding:4px 10px; font-size:12px;">
+              <i class="fas fa-print"></i> 출력
+            </a>
+            {% else %}
+            <button class="cert-btn disabled" style="padding:4px 10px; font-size:12px;">조회 불가</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--on-surface-muted);">신청 내역이 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
-
-  <!-- 퇴직확인서 -->
-  <div class="cert-card">
-    <div class="cert-card-top">
-      <div class="cert-icon orange"><i class="fas fa-door-open"></i></div>
-      <div>
-        <div class="cert-name">퇴직확인서</div>
-        <div class="cert-name-en">Separation Certificate</div>
-      </div>
-    </div>
-    <div class="cert-desc">퇴직 사실과 근무 기간을 증명하는 서류. 실업급여 신청, 이직 경력 증빙 등에 사용됩니다.</div>
-    <span class="cert-badge available"><i class="fas fa-check-circle"></i> 즉시 발급</span>
-    <div class="cert-actions">
-      <a href="{{ url_for('cert_resignation', user_id=selected_uid) }}" target="_blank" class="cert-btn primary">
-        <i class="fas fa-print"></i> 발급하기
-      </a>
-    </div>
-  </div>
-
-  <!-- 급여명세서 -->
-  <div class="cert-card">
-    <div class="cert-card-top">
-      <div class="cert-icon purple"><i class="fas fa-won-sign"></i></div>
-      <div>
-        <div class="cert-name">급여명세서</div>
-        <div class="cert-name-en">Payslip</div>
-      </div>
-    </div>
-    <div class="cert-desc">월별 기본급, 수당, 4대보험·소득세 공제 내역이 담긴 서류. 근로기준법 §48 기준 적용.</div>
-    <span class="cert-badge available"><i class="fas fa-check-circle"></i> 즉시 발급</span>
-    <div class="cert-actions">
-      <a href="{{ url_for('payroll_list') }}" class="cert-btn primary">
-        <i class="fas fa-list"></i> 명세서 목록
-      </a>
-    </div>
-  </div>
-
-  <!-- 근로소득원천징수영수증 -->
-  <div class="cert-card">
-    <div class="cert-card-top">
-      <div class="cert-icon blue"><i class="fas fa-receipt"></i></div>
-      <div>
-        <div class="cert-name">근로소득 원천징수영수증</div>
-        <div class="cert-name-en">Withholding Tax Receipt</div>
-      </div>
-    </div>
-    <div class="cert-desc">연간 급여 총액 및 원천징수된 소득세를 요약한 서류. 연말정산, 금융 심사, 소득 증빙 등에 필요합니다.</div>
-    <span class="cert-badge available"><i class="fas fa-check-circle"></i> 급여 데이터 기반 발급</span>
-    <div class="cert-actions">
-      <form method="GET" action="{{ url_for('cert_income') }}" target="_blank"
-            style="display:flex;gap:.5rem;align-items:center;">
-        <input type="hidden" name="user_id" value="{{ selected_uid }}">
-        <select name="year" class="year-select">
-          {% for y in years %}<option value="{{ y }}">{{ y }}년</option>{% endfor %}
-        </select>
-        <button type="submit" class="cert-btn primary">
-          <i class="fas fa-print"></i> 발급하기
-        </button>
-      </form>
-    </div>
-  </div>
-
 </div>
 
 <!-- 외부 기관 발급 -->

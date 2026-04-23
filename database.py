@@ -91,13 +91,31 @@ def init_db():
                 days        REAL NOT NULL DEFAULT 1,
                 reason      TEXT,
                 status      TEXT NOT NULL DEFAULT 'pending'
-                                CHECK(status IN ('pending','approved','rejected','cancelled')),
-                approver_id INTEGER REFERENCES users(id),
-                reject_reason TEXT,
-                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
+                                    CHECK(status IN ('pending','reviewed','approved','rejected','cancelled')),
+                    approver_id INTEGER REFERENCES users(id),
+                    manager_id  INTEGER REFERENCES users(id),
+                    manager_approved_at TIMESTAMP,
+                    hr_id       INTEGER REFERENCES users(id),
+                    hr_approved_at      TIMESTAMP,
+                    reject_reason TEXT,
+                    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
 
-            CREATE TABLE IF NOT EXISTS employee_salary (
+                CREATE TABLE IF NOT EXISTS certificate_requests (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id      INTEGER NOT NULL REFERENCES users(id),
+                cert_type    TEXT NOT NULL CHECK(cert_type IN ('employment','career','income','resignation')),
+                purpose      TEXT,
+                status       TEXT NOT NULL DEFAULT 'pending'
+                                 CHECK(status IN ('pending','approved','rejected','cancelled')),
+                approver_id  INTEGER REFERENCES users(id),
+                approved_at  TIMESTAMP,
+                reject_reason TEXT,
+                created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS employee_salary (
+
                 id                  INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id             INTEGER UNIQUE NOT NULL REFERENCES users(id),
                 base_salary         INTEGER NOT NULL DEFAULT 3000000,
@@ -333,6 +351,9 @@ def init_db():
                 to_value       TEXT,
                 effective_date DATE NOT NULL,
                 reason         TEXT,
+                status         TEXT NOT NULL DEFAULT 'approved'
+                                   CHECK(status IN ('pending','approved','rejected')),
+                rejection_reason TEXT,
                 processed_by   INTEGER REFERENCES users(id),
                 created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -410,13 +431,17 @@ def init_db():
             c.execute('ALTER TABLE users ADD COLUMN onboarded INTEGER NOT NULL DEFAULT 0')
         if 'features_enabled' not in existing:
             c.execute('ALTER TABLE users ADD COLUMN features_enabled TEXT NOT NULL DEFAULT ""')
-        # leave_requests.type CHECK 확장 (새 휴가 유형 추가)
+        # leave_requests.type CHECK 확장 (새 휴가 유형 추가) 및 다단계 승인 컬럼 추가
+        lr_cols = {r[1] for r in c.execute('PRAGMA table_info(leave_requests)').fetchall()}
         lr_sql = c.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='leave_requests'"
         ).fetchone()
-        if lr_sql and 'maternity' not in lr_sql[0]:
+        
+        # maternity가 없거나 manager_id가 없으면 재생성 마이그레이션
+        if lr_sql and ('maternity' not in lr_sql[0] or 'manager_id' not in lr_cols):
             c.executescript('''
                 PRAGMA foreign_keys = OFF;
+                DROP TABLE IF EXISTS _lr_old;
                 ALTER TABLE leave_requests RENAME TO _lr_old;
                 CREATE TABLE leave_requests (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -432,15 +457,28 @@ def init_db():
                     days        REAL NOT NULL DEFAULT 1,
                     reason      TEXT,
                     status      TEXT NOT NULL DEFAULT 'pending'
-                                    CHECK(status IN ('pending','approved','rejected','cancelled')),
+                                    CHECK(status IN ('pending','reviewed','approved','rejected','cancelled')),
                     approver_id INTEGER REFERENCES users(id),
+                    manager_id  INTEGER REFERENCES users(id),
+                    manager_approved_at TIMESTAMP,
+                    hr_id       INTEGER REFERENCES users(id),
+                    hr_approved_at      TIMESTAMP,
                     reject_reason TEXT,
                     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
-                INSERT INTO leave_requests SELECT * FROM _lr_old;
+                -- 기존 데이터 복구 (컬럼이 일치하는 것만)
+                INSERT INTO leave_requests (id, user_id, type, start_date, end_date, days, reason, status, approver_id, reject_reason, created_at)
+                SELECT id, user_id, type, start_date, end_date, days, reason, status, approver_id, reject_reason, created_at FROM _lr_old;
                 DROP TABLE _lr_old;
                 PRAGMA foreign_keys = ON;
             ''')
+
+        # personnel_actions 컬럼 마이그레이션
+        pa_cols = {r[1] for r in c.execute('PRAGMA table_info(personnel_actions)').fetchall()}
+        if 'status' not in pa_cols:
+            c.execute("ALTER TABLE personnel_actions ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'")
+        if 'rejection_reason' not in pa_cols:
+            c.execute("ALTER TABLE personnel_actions ADD COLUMN rejection_reason TEXT")
 
         if 'emp_no' not in existing:
             c.execute('ALTER TABLE users ADD COLUMN emp_no TEXT')

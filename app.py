@@ -999,8 +999,7 @@ def employee_action(emp_id):
             flash('유효하지 않은 부서입니다.', 'error')
             return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
         from_value = old['name'] if old else '—'
-        to_value   = new['name'] if new else '—'
-        db.execute('UPDATE users SET department_id=? WHERE id=?', (new_dept_id, emp_id))
+        to_value   = f"{new['name']}|{new_dept_id}"
 
     elif action_type == 'position_change':
         new_pos_id = request.form.get('new_pos_id')
@@ -1013,8 +1012,7 @@ def employee_action(emp_id):
             flash('유효하지 않은 직급입니다.', 'error')
             return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
         from_value = old['name'] if old else '—'
-        to_value   = new['name'] if new else '—'
-        db.execute('UPDATE users SET position_id=? WHERE id=?', (new_pos_id, emp_id))
+        to_value   = f"{new['name']}|{new_pos_id}"
 
     elif action_type == 'role_change':
         role_labels = {'employee':'Employee','manager':'Manager','recruiter':'Recruiter','admin':'HR Admin'}
@@ -1023,8 +1021,7 @@ def employee_action(emp_id):
             flash('유효하지 않은 역할입니다.', 'error')
             return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
         from_value = role_labels.get(emp['role'], emp['role'])
-        to_value   = role_labels.get(new_role, new_role)
-        db.execute('UPDATE users SET role=? WHERE id=?', (new_role, emp_id))
+        to_value   = new_role
 
     elif action_type == 'employment_type_change':
         et_labels  = {'full_time':'정규직','part_time':'시간제','contract':'계약직','intern':'인턴'}
@@ -1033,8 +1030,7 @@ def employee_action(emp_id):
             flash('유효하지 않은 고용형태입니다.', 'error')
             return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
         from_value = et_labels.get(emp['employment_type'], emp['employment_type'])
-        to_value   = et_labels.get(new_et, new_et)
-        db.execute('UPDATE users SET employment_type=? WHERE id=?', (new_et, emp_id))
+        to_value   = new_et
 
     elif action_type == 'manager_change':
         new_mgr_id = request.form.get('new_manager_id') or None
@@ -1043,12 +1039,8 @@ def employee_action(emp_id):
             return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
         old = db.execute('SELECT name FROM users WHERE id=?', (emp['manager_id'],)).fetchone() if emp['manager_id'] else None
         new = db.execute('SELECT name FROM users WHERE id=?', (new_mgr_id,)).fetchone() if new_mgr_id else None
-        if new_mgr_id and not new:
-            flash('유효하지 않은 직속상관입니다.', 'error')
-            return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
         from_value = old['name'] if old else '없음'
-        to_value   = new['name'] if new else '없음'
-        db.execute('UPDATE users SET manager_id=? WHERE id=?', (new_mgr_id, emp_id))
+        to_value   = f"{new['name'] if new else '없음'}|{new_mgr_id or ''}"
 
     elif action_type == 'salary_change':
         new_salary = int(request.form.get('new_salary', 0) or 0)
@@ -1056,23 +1048,74 @@ def employee_action(emp_id):
             flash('급여는 0보다 커야 합니다.', 'error')
             return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
         old_row    = db.execute('SELECT base_salary FROM employee_salary WHERE user_id=?', (emp_id,)).fetchone()
-        from_value = '{:,}원'.format(old_row['base_salary']) if old_row else '—'
-        to_value   = '{:,}원'.format(new_salary)
-        if old_row:
-            db.execute('UPDATE employee_salary SET base_salary=?, updated_at=? WHERE user_id=?',
-                       (new_salary, dt.now().isoformat(), emp_id))
-        else:
-            db.execute('INSERT INTO employee_salary (user_id, base_salary) VALUES (?,?)', (emp_id, new_salary))
+        from_value = str(old_row['base_salary']) if old_row else '0'
+        to_value   = str(new_salary)
 
     db.execute(
         'INSERT INTO personnel_actions '
-        '(user_id, action_type, from_value, to_value, effective_date, reason, processed_by) '
-        'VALUES (?,?,?,?,?,?,?)',
-        (emp_id, action_type, from_value, to_value, effective_date, reason, session['user_id'])
+        '(user_id, action_type, from_value, to_value, effective_date, reason, status, processed_by) '
+        'VALUES (?,?,?,?,?,?,?,?)',
+        (emp_id, action_type, from_value, to_value, effective_date, reason, 'pending', session['user_id'])
     )
     db.commit()
-    flash(f'인사발령({ACTION_LABELS[action_type]})이 처리되었습니다.', 'success')
+    flash(f'인사발령({ACTION_LABELS[action_type]}) 기안이 완료되었습니다. 최종 승인 후 반영됩니다.', 'success')
     return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
+
+
+@app.route('/personnel-actions/<int:action_id>/approve', methods=['POST'])
+@admin_required
+def personnel_action_approve(action_id):
+    db = get_db()
+    pa = db.execute('SELECT * FROM personnel_actions WHERE id=?', (action_id,)).fetchone()
+    if not pa: abort(404)
+    if pa['status'] != 'pending':
+        flash('이미 처리된 발령입니다.', 'error')
+        return redirect(url_for('employee_detail', emp_id=pa['user_id']) + '#hr')
+
+    emp_id = pa['user_id']
+    a_type = pa['action_type']
+    to_val = pa['to_value']
+
+    if a_type == 'dept_change':
+        new_id = to_val.split('|')[-1]
+        db.execute('UPDATE users SET department_id=? WHERE id=?', (new_id, emp_id))
+    elif a_type == 'position_change':
+        new_id = to_val.split('|')[-1]
+        db.execute('UPDATE users SET position_id=? WHERE id=?', (new_id, emp_id))
+    elif a_type == 'role_change':
+        db.execute('UPDATE users SET role=? WHERE id=?', (to_val, emp_id))
+    elif a_type == 'employment_type_change':
+        db.execute('UPDATE users SET employment_type=? WHERE id=?', (to_val, emp_id))
+    elif a_type == 'manager_change':
+        new_id = to_val.split('|')[-1] or None
+        db.execute('UPDATE users SET manager_id=? WHERE id=?', (new_id, emp_id))
+    elif a_type == 'salary_change':
+        new_salary = int(to_val)
+        old_row = db.execute('SELECT 1 FROM employee_salary WHERE user_id=?', (emp_id,)).fetchone()
+        if old_row:
+            db.execute('UPDATE employee_salary SET base_salary=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?', (new_salary, emp_id))
+        else:
+            db.execute('INSERT INTO employee_salary (user_id, base_salary) VALUES (?,?)', (emp_id, new_salary))
+
+    db.execute("UPDATE personnel_actions SET status='approved', processed_by=? WHERE id=?", (session['user_id'], action_id))
+    db.commit()
+    flash('인사발령이 최종 승인 및 반영되었습니다.', 'success')
+    return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
+
+
+@app.route('/personnel-actions/<int:action_id>/reject', methods=['POST'])
+@admin_required
+def personnel_action_reject(action_id):
+    db = get_db()
+    reason = request.form.get('reason', '').strip()
+    db.execute(
+        "UPDATE personnel_actions SET status='rejected', rejection_reason=?, processed_by=? WHERE id=?",
+        (reason, session['user_id'], action_id)
+    )
+    db.commit()
+    flash('인사발령 기안이 반려되었습니다.', 'warning')
+    pa = db.execute('SELECT user_id FROM personnel_actions WHERE id=?', (action_id,)).fetchone()
+    return redirect(url_for('employee_detail', emp_id=pa['user_id']) + '#hr')
 
 
 @app.route('/termination/my', methods=['GET', 'POST'])
@@ -2028,22 +2071,45 @@ def attendance():
 def attendance_approve(req_id):
     db  = get_db()
     req = db.execute(
-        'SELECT r.*, u.department_id FROM leave_requests r '
+        'SELECT r.*, u.department_id, u.manager_id AS user_manager_id FROM leave_requests r '
         'JOIN users u ON r.user_id = u.id WHERE r.id=?', (req_id,)
     ).fetchone()
     if not req:
         abort(404)
-    if req['status'] != 'pending':
-        flash('이미 처리된 신청입니다.', 'error')
-        return redirect(url_for('attendance'))
-    mgr_dept = session.get('dept_id', 0)
-    if session.get('user_role') == 'manager' and mgr_dept and req['department_id'] != mgr_dept:
-        abort(403)
-    db.execute(
-        "UPDATE leave_requests SET status='approved', approver_id=? WHERE id=?",
-        (session['user_id'], req_id)
-    )
-    db.commit()
+
+    role = session.get('user_role')
+    uid  = session.get('user_id')
+
+    # 매니저 승인 단계
+    if role == 'manager':
+        if req['status'] != 'pending':
+            flash('매니저 검토가 불가능한 상태입니다.', 'error')
+            return redirect(url_for('attendance'))
+        # 본인의 부서원인지 확인 (또는 직속 부하인지)
+        mgr_dept = session.get('dept_id', 0)
+        if mgr_dept and req['department_id'] != mgr_dept:
+            abort(403)
+        
+        db.execute(
+            "UPDATE leave_requests SET status='reviewed', manager_id=?, manager_approved_at=CURRENT_TIMESTAMP WHERE id=?",
+            (uid, req_id)
+        )
+        db.commit()
+        flash('매니저 검토 승인이 완료되었습니다. HR 최종 승인을 대기합니다.', 'success')
+
+    # HR(Admin) 최종 승인 단계
+    elif role == 'admin':
+        if req['status'] not in ['pending', 'reviewed']:
+            flash('최종 승인이 불가능한 상태입니다.', 'error')
+            return redirect(url_for('attendance'))
+        
+        db.execute(
+            "UPDATE leave_requests SET status='approved', hr_id=?, hr_approved_at=CURRENT_TIMESTAMP, approver_id=? WHERE id=?",
+            (uid, uid, req_id)
+        )
+        db.commit()
+        flash('HR 최종 승인이 완료되었습니다.', 'success')
+
     return redirect(url_for('attendance'))
 
 @app.route('/attendance/<int:req_id>/reject', methods=['POST'])
@@ -2056,18 +2122,21 @@ def attendance_reject(req_id):
     ).fetchone()
     if not req:
         abort(404)
-    if req['status'] != 'pending':
-        flash('이미 처리된 신청입니다.', 'error')
+    if req['status'] not in ['pending', 'reviewed']:
+        flash('반려가 불가능한 상태입니다.', 'error')
         return redirect(url_for('attendance'))
+    
     mgr_dept = session.get('dept_id', 0)
     if session.get('user_role') == 'manager' and mgr_dept and req['department_id'] != mgr_dept:
         abort(403)
+    
     reason = request.form.get('reason', '').strip() or None
     db.execute(
         "UPDATE leave_requests SET status='rejected', approver_id=?, reject_reason=? WHERE id=?",
         (session['user_id'], reason, req_id)
     )
     db.commit()
+    flash('신청이 반려되었습니다.', 'warning')
     return redirect(url_for('attendance'))
 
 @app.route('/attendance/calendar')
@@ -2396,108 +2465,147 @@ def _cert_user(db):
 def certificates_hub():
     db   = get_db()
     role = session.get('user_role')
-    uid  = int(request.args.get('user_id', session['user_id']))
-    if role not in ('admin',) and uid != session['user_id']:
-        uid = session['user_id']
-    employees = []
+    uid  = session['user_id']
+    
+    # 일반 직원은 본인 신청 내역만, 어드민은 전체 내역
     if role == 'admin':
+        requests = db.execute(
+            'SELECT r.*, u.name as user_name FROM certificate_requests r '
+            'JOIN users u ON r.user_id = u.id ORDER BY r.created_at DESC'
+        ).fetchall()
         employees = db.execute(
             "SELECT id, name, department_id FROM users "
             "WHERE status IN ('active','resigned') AND role != 'guest' ORDER BY name"
         ).fetchall()
+    else:
+        requests = db.execute(
+            'SELECT * FROM certificate_requests WHERE user_id=? ORDER BY created_at DESC',
+            (uid,)
+        ).fetchall()
+        employees = []
+
+    # 출력 타겟 (Admin이 직원 대리 발급 시 사용하던 기존 로직 유지)
+    target_id = request.args.get('user_id', uid)
+    if role != 'admin': target_id = uid
     target = db.execute(
+        'SELECT u.*, d.name AS dept_name, p.name AS pos_name '
+        'FROM users u LEFT JOIN departments d ON u.department_id=d.id '
+        'LEFT JOIN positions p ON u.position_id=p.id WHERE u.id=?', (target_id,)
+    ).fetchone()
+
+    cur_year = date.today().year
+    years = list(range(cur_year, cur_year - 5, -1))
+    return render_template('certificate/hub.html',
+                           requests=requests,
+                           employees=employees,
+                           target=target,
+                           selected_uid=target_id,
+                           years=years,
+                           active_page='certificates')
+
+@app.route('/certificate/request', methods=['POST'])
+@login_required
+def certificate_request():
+    db = get_db()
+    cert_type = request.form.get('cert_type')
+    purpose   = request.form.get('purpose')
+    uid       = session['user_id']
+
+    if cert_type not in ('employment','career','income','resignation'):
+        flash('유효하지 않은 증명서 종류입니다.', 'error')
+        return redirect(url_for('certificates_hub'))
+
+    db.execute(
+        'INSERT INTO certificate_requests (user_id, cert_type, purpose) VALUES (?,?,?)',
+        (uid, cert_type, purpose)
+    )
+    db.commit()
+    flash('증명서 발급 신청이 완료되었습니다. HR 승인을 기다려 주세요.', 'success')
+    return redirect(url_for('certificates_hub'))
+
+@app.route('/certificate/<int:req_id>/approve', methods=['POST'])
+@admin_required
+def certificate_approve(req_id):
+    db = get_db()
+    db.execute(
+        "UPDATE certificate_requests SET status='approved', approver_id=?, approved_at=CURRENT_TIMESTAMP WHERE id=?",
+        (session['user_id'], req_id)
+    )
+    db.commit()
+    flash('증명서 발급을 승인했습니다.', 'success')
+    return redirect(url_for('certificates_hub'))
+
+@app.route('/certificate/<int:req_id>/reject', methods=['POST'])
+@admin_required
+def certificate_reject(req_id):
+    db = get_db()
+    reason = request.form.get('reason', '').strip()
+    db.execute(
+        "UPDATE certificate_requests SET status='rejected', reject_reason=?, approver_id=? WHERE id=?",
+        (reason, session['user_id'], req_id)
+    )
+    db.commit()
+    flash('증명서 발급 신청을 반려했습니다.', 'warning')
+    return redirect(url_for('certificates_hub'))
+
+
+# ── Certificate ──────────────────────────────────────────────
+@app.route('/certificate/view/<int:req_id>')
+@login_required
+def cert_view(req_id):
+    db   = get_db()
+    req  = db.execute('SELECT * FROM certificate_requests WHERE id=?', (req_id,)).fetchone()
+    if not req: abort(404)
+    
+    # 본인 혹은 어드민만 조회 가능
+    if session.get('user_role') != 'admin' and req['user_id'] != session['user_id']:
+        abort(403)
+    
+    # 승인된 상태에서만 출력 가능
+    if req['status'] != 'approved':
+        flash('승인되지 않은 증명서는 조회할 수 없습니다.', 'error')
+        return redirect(url_for('certificates_hub'))
+
+    uid   = req['user_id']
+    user  = db.execute(
         'SELECT u.*, d.name AS dept_name, p.name AS pos_name '
         'FROM users u LEFT JOIN departments d ON u.department_id=d.id '
         'LEFT JOIN positions p ON u.position_id=p.id WHERE u.id=?', (uid,)
     ).fetchone()
-    cur_year = date.today().year
-    years = list(range(cur_year, cur_year - 5, -1))
-    return render_template('certificate/hub.html',
-                           employees=employees,
-                           target=target,
-                           selected_uid=uid,
-                           years=years,
-                           active_page='certificates')
+    
+    today = date.today()
+    c_info = get_company_info()
 
-
-# ── Certificate ──────────────────────────────────────────────
-@app.route('/certificate/employment')
-@login_required
-def cert_employment():
-    db      = get_db()
-    user    = _cert_user(db)
-    today   = date.today()
-    cert_no = f"EMP-{today.strftime('%Y%m')}-{user['id']:04d}"
-    return render_template('certificate/employment.html',
-                           user=user,
-                           today=today.strftime('%Y년 %m월 %d일'),
-                           cert_no=cert_no,
-                           company=get_company_info())
-
-@app.route('/certificate/career')
-@login_required
-def cert_career():
-    db      = get_db()
-    user    = _cert_user(db)
-    today   = date.today()
-    cert_no = f"CAR-{today.strftime('%Y%m')}-{user['id']:04d}"
-    return render_template('certificate/career.html',
-                           user=user,
-                           today=today.strftime('%Y년 %m월 %d일'),
-                           cert_no=cert_no,
-                           company=get_company_info())
-
-
-@app.route('/certificate/resignation')
-@login_required
-def cert_resignation():
-    db      = get_db()
-    user    = _cert_user(db)
-    today   = date.today()
-    cert_no = f"RES-{today.strftime('%Y%m')}-{user['id']:04d}"
-    return render_template('certificate/resignation.html',
-                           user=user,
-                           today=today.strftime('%Y년 %m월 %d일'),
-                           cert_no=cert_no,
-                           company=get_company_info())
-
-
-@app.route('/certificate/income')
-@login_required
-def cert_income():
-    db      = get_db()
-    user    = _cert_user(db)
-    year    = int(request.args.get('year', date.today().year))
-    slips   = db.execute(
-        'SELECT * FROM payslips WHERE user_id=? AND year=? ORDER BY month',
-        (user['id'], year)
-    ).fetchall()
-    annual_gross     = sum(s['gross_pay']        for s in slips)
-    annual_tax       = sum(s['income_tax']       for s in slips)
-    annual_local_tax = sum(s['local_income_tax'] for s in slips)
-    annual_pension   = sum(s['national_pension'] for s in slips)
-    annual_health    = sum(s['health_insurance'] for s in slips)
-    annual_ltcare    = sum(s['long_term_care']   for s in slips)
-    annual_emp_ins   = sum(s['employment_insurance'] for s in slips)
-    annual_net       = sum(s['net_pay']          for s in slips)
-    today   = date.today()
-    cert_no = f"INC-{year}-{user['id']:04d}"
-    return render_template('certificate/income.html',
-                           user=user,
-                           year=year,
-                           slips=slips,
-                           annual_gross=annual_gross,
-                           annual_tax=annual_tax,
-                           annual_local_tax=annual_local_tax,
-                           annual_pension=annual_pension,
-                           annual_health=annual_health,
-                           annual_ltcare=annual_ltcare,
-                           annual_emp_ins=annual_emp_ins,
-                           annual_net=annual_net,
-                           today=today.strftime('%Y년 %m월 %d일'),
-                           cert_no=cert_no,
-                           company=get_company_info(),
-                           fmt_krw=fmt_krw)
+    if req['cert_type'] == 'employment':
+        cert_no = f"EMP-{req['approved_at'][:7].replace('-','')}-{uid:04d}"
+        return render_template('certificate/employment.html', user=user, today=today.strftime('%Y년 %m월 %d일'), cert_no=cert_no, company=c_info)
+    
+    elif req['cert_type'] == 'career':
+        cert_no = f"CAR-{req['approved_at'][:7].replace('-','')}-{uid:04d}"
+        return render_template('certificate/career.html', user=user, today=today.strftime('%Y년 %m월 %d일'), cert_no=cert_no, company=c_info)
+    
+    elif req['cert_type'] == 'resignation':
+        cert_no = f"RES-{req['approved_at'][:7].replace('-','')}-{uid:04d}"
+        return render_template('certificate/resignation.html', user=user, today=today.strftime('%Y년 %m월 %d일'), cert_no=cert_no, company=c_info)
+    
+    elif req['cert_type'] == 'income':
+        # 소득증명은 연도 파라미터가 추가로 필요할 수 있음 (기본은 신청일 기준 전년도 혹은 현재년도)
+        year = today.year
+        slips = db.execute('SELECT * FROM payslips WHERE user_id=? AND year=? ORDER BY month', (uid, year)).fetchall()
+        annual_gross = sum(s['gross_pay'] for s in slips)
+        annual_tax = sum(s['income_tax'] for s in slips)
+        annual_local_tax = sum(s['local_income_tax'] for s in slips)
+        annual_pension = sum(s['national_pension'] for s in slips)
+        annual_health = sum(s['health_insurance'] for s in slips)
+        annual_ltcare = sum(s['long_term_care'] for s in slips)
+        annual_emp_ins = sum(s['employment_insurance'] for s in slips)
+        annual_net = sum(s['net_pay'] for s in slips)
+        cert_no = f"INC-{year}-{uid:04d}"
+        return render_template('certificate/income.html', user=user, year=year, slips=slips, annual_gross=annual_gross, annual_tax=annual_tax, annual_local_tax=annual_local_tax,
+                               annual_pension=annual_pension, annual_health=annual_health, annual_ltcare=annual_ltcare, annual_emp_ins=annual_emp_ins, annual_net=annual_net,
+                               today=today.strftime('%Y년 %m월 %d일'), cert_no=cert_no, company=c_info)
+    
+    abort(400)
 
 
 # ── Performance ──────────────────────────────────────────────
