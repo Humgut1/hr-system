@@ -4,102 +4,102 @@
 
 {% block content %}
 
-<!-- Page Head -->
-<div class="page-head">
-  <div>
-    <div class="page-eyebrow">{{ today_str }}</div>
-    <h1 class="headline-lg page-title">{{ greet }}, <span style="color:var(--primary);">{{ first_name }}.</span></h1>
-    <p class="page-sub">{{ team_count }} people on your team
-      {% if pending_count > 0 %}
-      · <a href="{{ url_for('attendance') }}" style="color:var(--primary); font-weight:600;">{{ pending_count }} request{{ 's' if pending_count != 1 else '' }} pending</a>
+<!-- Hero Banner -->
+<div class="welcome-banner" style="margin-bottom:24px;">
+  <div style="z-index:1;">
+    <div style="font-size:12px; font-weight:600; opacity:.6; text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px;">{{ today_str }}</div>
+    <div class="welcome-greeting">{{ greet }}, {{ first_name }}.</div>
+    <div class="welcome-sub">
+      팀원 {{ team_count }}명
+      {% if inbox_count > 0 %}
+      · <span style="color:#fcd34d; font-weight:700;">처리할 항목 {{ inbox_count }}건</span>
+      {% else %}
+      · 처리 대기 항목 없음
       {% endif %}
-    </p>
+    </div>
   </div>
-  <a href="{{ url_for('attendance') }}" class="btn btn-primary">
-    <i class="fas fa-check-circle"></i> Review Requests
-  </a>
+  <i class="fas fa-users welcome-icon"></i>
 </div>
 
 <!-- KPI Cards -->
-<div class="grid-4" style="margin-bottom:28px;">
-  <div class="card" style="padding:20px;">
-    <div class="label">Team Size</div>
-    <div class="headline-lg" style="margin-top:8px;">{{ team_count }}</div>
-    <div class="muted body-sm" style="margin-top:4px;">active members</div>
+<div class="stat-grid" style="margin-bottom:24px;">
+  <div class="stat-card">
+    <div class="stat-ico ico-blue"><i class="fas fa-users"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ team_count }}</div>
+      <div class="stat-lbl">Team Members</div>
+    </div>
   </div>
-  <a href="{{ url_for('attendance') }}" class="card" style="padding:20px; text-decoration:none;">
-    <div class="label">Pending Approval</div>
-    <div class="headline-lg" style="margin-top:8px; {% if pending_count > 0 %}color:#ea580c;{% endif %}">{{ pending_count }}</div>
-    <div class="muted body-sm" style="margin-top:4px;">leave requests</div>
+  <a href="{{ url_for('attendance') }}" class="stat-card" style="text-decoration:none;">
+    <div class="stat-ico ico-orange"><i class="fas fa-clock"></i></div>
+    <div class="stat-body">
+      <div class="stat-val" style="{% if pending_count > 0 %}color:var(--orange);{% endif %}">{{ pending_count }}</div>
+      <div class="stat-lbl">Leave Pending</div>
+    </div>
   </a>
-  <div class="card" style="padding:20px;">
-    <div class="label">Out Today</div>
-    <div class="headline-lg" style="margin-top:8px;">{{ today_leave }}</div>
-    <div class="muted body-sm" style="margin-top:4px;">on approved leave</div>
+  <div class="stat-card">
+    <div class="stat-ico ico-green"><i class="fas fa-door-open"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ today_leave }}</div>
+      <div class="stat-lbl">Out Today</div>
+    </div>
   </div>
-  <a href="{{ url_for('performance') }}" class="card" style="padding:20px; text-decoration:none;">
-    <div class="label">Performance</div>
-    <div class="headline-lg" style="margin-top:8px; font-size:20px;">→ Review</div>
-    <div class="muted body-sm" style="margin-top:4px;">team goals &amp; scores</div>
+  <a href="{{ url_for('performance') }}" class="stat-card" style="text-decoration:none;">
+    <div class="stat-ico ico-purple"><i class="fas fa-chart-line"></i></div>
+    <div class="stat-body">
+      <div class="stat-val" style="font-size:18px;">Goals</div>
+      <div class="stat-lbl">Review team</div>
+    </div>
   </a>
 </div>
 
-<!-- Main grid-dash -->
 <div class="grid-dash">
 
-  <!-- Left column -->
+  <!-- Left: Inbox + Team Performance -->
   <div class="stack">
 
-    <!-- Pending Leave Requests -->
+    <!-- Inbox -->
     <div class="card">
       <div class="card-head">
-        <span class="card-title">Pending Leave Requests</span>
-        {% if pending_count > 0 %}
-        <span class="badge badge-pending" style="font-size:11px;">{{ pending_count }} waiting</span>
+        <span class="card-title">
+          <i class="fas fa-inbox" style="color:var(--primary); margin-right:7px;"></i>
+          Inbox
+          {% if inbox_count > 0 %}<span class="badge badge-pending" style="font-size:11px; margin-left:8px;">{{ inbox_count }}</span>{% endif %}
+        </span>
+      </div>
+      <div class="inbox-widget">
+        {% if not inbox_items %}
+        <div class="inbox-empty">
+          <i class="fas fa-check-circle" style="color:var(--green);"></i>
+          <div class="inbox-empty-text">처리 대기 항목이 없습니다.</div>
+        </div>
+        {% else %}
+        {% for item in inbox_items %}
+        <div class="inbox-item">
+          <div class="inbox-item-ico ico-orange">
+            <i class="fas fa-calendar-times"></i>
+          </div>
+          <div class="inbox-item-body">
+            <div class="inbox-item-title">{{ item.title }}</div>
+            <div class="inbox-item-sub">{{ item.sub }}</div>
+          </div>
+          <div class="inbox-item-actions">
+            <form method="POST" action="{{ url_for('attendance_approve', req_id=item.id) }}" style="display:inline;">
+              <button type="submit" class="btn btn-primary btn-sm" style="font-size:11px;">Approve</button>
+            </form>
+            <form method="POST" action="{{ url_for('attendance_reject', req_id=item.id) }}" style="display:inline;">
+              <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px;">Reject</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+        {% if pending_count > inbox_items|length %}
+        <div style="padding:10px 22px; border-top:1px solid var(--border);">
+          <a href="{{ url_for('attendance') }}" class="btn btn-ghost btn-sm">전체 {{ pending_count }}건 보기</a>
+        </div>
+        {% endif %}
         {% endif %}
       </div>
-      {% if pending_reqs %}
-      <div style="overflow-x:auto;">
-        <table>
-          <thead>
-            <tr><th>Employee</th><th>Type</th><th>Period</th><th>Action</th></tr>
-          </thead>
-          <tbody>
-            {% for r in pending_reqs %}
-            <tr>
-              <td style="font-weight:600; font-size:13px;">{{ r.user_name }}</td>
-              <td>
-                <span class="badge badge-pending" style="font-size:11px;">
-                  {{ labels.get(r.type, r.type) }}
-                </span>
-              </td>
-              <td class="muted" style="font-size:12.5px;">
-                {{ r.start_date }}{% if r.start_date != r.end_date %} – {{ r.end_date }}{% endif %}
-              </td>
-              <td>
-                <div style="display:flex; gap:6px;">
-                  <form method="POST" action="{{ url_for('attendance_approve', req_id=r.id) }}" style="display:inline;">
-                    <button type="submit" class="btn btn-primary btn-sm" style="font-size:11px;">Approve</button>
-                  </form>
-                  <form method="POST" action="{{ url_for('attendance_reject', req_id=r.id) }}" style="display:inline;">
-                    <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px;">Reject</button>
-                  </form>
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      <div style="padding:10px 22px; border-top:1px solid var(--outline-variant);">
-        <a href="{{ url_for('attendance') }}" class="btn btn-ghost btn-sm">View all requests</a>
-      </div>
-      {% else %}
-      <div style="text-align:center; padding:40px;" class="muted">
-        <i class="fas fa-check-circle" style="font-size:28px; color:var(--surface-container-high); margin-bottom:10px; display:block;"></i>
-        No pending requests.
-      </div>
-      {% endif %}
     </div>
 
     <!-- Team Performance -->
@@ -111,7 +111,7 @@
       {% if team_goals %}
       <div>
         {% for g in team_goals %}
-        <div style="padding:14px 22px; border-bottom:1px solid var(--outline-variant); display:flex; align-items:center; gap:12px;">
+        <div style="padding:13px 22px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px;">
           <div class="avatar-xs" style="flex-shrink:0;">{{ g.user_name[0] }}</div>
           <div style="flex:1; min-width:0;">
             <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ g.title }}</div>
@@ -132,7 +132,7 @@
       </div>
       {% else %}
       <div style="text-align:center; padding:40px;" class="muted">
-        <i class="fas fa-chart-line" style="font-size:28px; color:var(--surface-container-high); margin-bottom:10px; display:block;"></i>
+        <i class="fas fa-chart-line" style="font-size:28px; opacity:.3; display:block; margin-bottom:10px;"></i>
         No goals recorded yet.
       </div>
       {% endif %}
@@ -140,32 +140,36 @@
 
   </div><!-- /left -->
 
-  <!-- Right column -->
+  <!-- Right: Quick Actions + Who's Out + Announcements -->
   <div class="stack">
 
     <!-- Quick Actions -->
-    <div class="card inset" style="padding:22px;">
+    <div class="card" style="padding:20px;">
       <div class="label" style="margin-bottom:14px;">Quick Actions</div>
-      <div style="display:flex; flex-direction:column; gap:8px;">
-        <a href="{{ url_for('attendance') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
-          <i class="fas fa-check-circle" style="color:var(--primary); width:18px;"></i> Approve Leave
+      <div class="quick-actions-grid">
+        <a href="{{ url_for('attendance') }}" class="qa-btn">
+          <div class="qa-btn-ico ico-orange"><i class="fas fa-check-circle"></i></div>
+          <span>Approvals</span>
         </a>
-        <a href="{{ url_for('performance') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
-          <i class="fas fa-chart-line" style="color:#9333ea; width:18px;"></i> Team Performance
+        <a href="{{ url_for('performance') }}" class="qa-btn">
+          <div class="qa-btn-ico ico-purple"><i class="fas fa-chart-line"></i></div>
+          <span>Performance</span>
         </a>
-        <a href="{{ url_for('peer_assignments_page') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
-          <i class="fas fa-users" style="color:#0891b2; width:18px;"></i> Peer Assignments
+        <a href="{{ url_for('employees') }}" class="qa-btn">
+          <div class="qa-btn-ico ico-blue"><i class="fas fa-users"></i></div>
+          <span>My Team</span>
         </a>
-        <a href="{{ url_for('calibration') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
-          <i class="fas fa-scale-balanced" style="color:#1e40af; width:18px;"></i> Calibration
+        <a href="{{ url_for('peer_assignments') }}" class="qa-btn">
+          <div class="qa-btn-ico ico-green"><i class="fas fa-user-plus"></i></div>
+          <span>Peer Assign</span>
         </a>
       </div>
     </div>
 
-    <!-- Who's Out Today -->
+    <!-- Who's Out -->
     <div class="card">
-      <div style="padding:20px 22px 0;">
-        <h3 class="headline-sm" style="margin:0 0 14px;">Who's Out Today</h3>
+      <div class="card-head">
+        <span class="card-title">Who's Out Today</span>
       </div>
       {% if who_out %}
       <div style="padding:0 10px 10px;">
@@ -176,46 +180,37 @@
             <div class="body-sm" style="font-weight:600;">{{ p.name }}</div>
             <div class="muted" style="font-size:12px;">Back {{ p.end_date }}</div>
           </div>
-          <span class="chip" style="font-size:11px; white-space:nowrap;">
-            {{ labels.get(p.type, p.type) }}
-          </span>
+          <span class="chip" style="font-size:11px;">{{ labels.get(p.type, p.type) }}</span>
         </div>
         {% endfor %}
       </div>
       {% else %}
-      <div style="padding:24px 22px;" class="muted body-sm">
-        Everyone is in today.
-      </div>
+      <div style="padding:24px 22px;" class="muted body-sm">Everyone is in today.</div>
       {% endif %}
     </div>
 
     <!-- Announcements -->
     <div class="card">
-      <div style="padding:20px 22px 4px;">
-        <h3 class="headline-sm" style="margin:0 0 4px;">Announcements</h3>
+      <div class="card-head">
+        <span class="card-title">Announcements</span>
+        <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">All</a>
       </div>
-      {% if recent_posts %}
-      <div style="padding:0 10px 10px;">
-        {% for post in recent_posts %}
-        <a href="{{ url_for('announcement_detail', post_id=post.id) }}"
-           class="row" style="padding:10px 12px; border-radius:12px; text-decoration:none; display:flex; align-items:center; gap:10px;"
-           onmouseover="this.style.background='var(--surface-container-low)'"
-           onmouseout="this.style.background=''">
-          <div style="flex:1; min-width:0;">
-            <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ post.title }}</div>
-            <div class="muted" style="font-size:11px;">{{ post.created_at[:10] }}</div>
-          </div>
-          {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px; flex-shrink:0;">Pinned</span>{% endif %}
-        </a>
-        {% endfor %}
-      </div>
+      {% for post in recent_posts %}
+      <a href="{{ url_for('announcement_detail', post_id=post.id) }}"
+         style="padding:12px 22px; border-bottom:1px solid rgba(21,28,35,0.05); display:flex; align-items:center; gap:10px; text-decoration:none;"
+         onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+        <div style="flex:1; min-width:0;">
+          <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--tx-1);">{{ post.title }}</div>
+          <div class="muted" style="font-size:11px;">{{ post.created_at[:10] }}</div>
+        </div>
+        {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px; flex-shrink:0;">Pinned</span>{% endif %}
+      </a>
       {% else %}
-      <div style="padding:20px 22px;" class="muted body-sm">No announcements.</div>
-      {% endif %}
+      <div style="padding:24px 22px;" class="muted body-sm">No announcements.</div>
+      {% endfor %}
     </div>
 
   </div><!-- /right -->
 
-</div><!-- /grid-dash -->
-
+</div>
 {% endblock %}

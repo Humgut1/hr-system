@@ -148,6 +148,18 @@ web: gunicorn app:app --bind 0.0.0.0:$PORT
 
 ## Changelog
 
+### v0.26.0 - 2026-04-25
+- Sidebar restructured into Me / Team / Admin collapsible categories
+- Global search bar in header (press `/` to focus)
+- All 4 dashboards rebuilt: Hero Banner + Unified Inbox + Quick Actions grid
+- People Analytics dashboard: Headcount, Turnover trend, Leave utilization, Attrition Risk (Deloitte model), Compa-ratio
+
+### v0.25.0 - 2026-04-22
+- Multi-stage approval workflow (leave → manager → HR)
+- Unified notification system with bell badge
+- Korean public holidays + holiday overtime pay
+- Bug fix: NameError on notifications route
+
 ### v0.24.0 - 2026-04-22
 - Employee self-service termination request page
 - Manager / HR termination queue

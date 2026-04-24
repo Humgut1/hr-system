@@ -4,46 +4,51 @@
 
 {% block content %}
 
-<!-- Page Head -->
-<div class="page-head">
-  <div>
-    <div class="page-eyebrow">{{ today_str }}</div>
-    <h1 class="headline-lg page-title">{{ greet }}, <span style="color:var(--primary);">{{ first_name }}.</span></h1>
-    <p class="page-sub">{{ open_postings }} open posting{{ 's' if open_postings != 1 else '' }} · {{ total_applicants }} applicant{{ 's' if total_applicants != 1 else '' }} in pipeline</p>
+<!-- Hero Banner -->
+<div class="welcome-banner" style="margin-bottom:24px;">
+  <div style="z-index:1;">
+    <div style="font-size:12px; font-weight:600; opacity:.6; text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px;">{{ today_str }}</div>
+    <div class="welcome-greeting">{{ greet }}, {{ first_name }}.</div>
+    <div class="welcome-sub">공개 채용 {{ open_postings }}건 · 파이프라인 {{ total_applicants }}명</div>
   </div>
-  <a href="{{ url_for('recruit_posting_new') }}" class="btn btn-primary">
-    <i class="fas fa-plus"></i> New Posting
-  </a>
+  <i class="fas fa-user-tie welcome-icon"></i>
 </div>
 
 <!-- KPI Cards -->
-<div class="grid-4" style="margin-bottom:28px;">
-  <a href="{{ url_for('recruit_postings', status='open') }}" class="card" style="padding:20px; text-decoration:none;">
-    <div class="label">Open Postings</div>
-    <div class="headline-lg" style="margin-top:8px; color:var(--primary);">{{ open_postings }}</div>
-    <div class="muted body-sm" style="margin-top:4px;">actively hiring</div>
+<div class="stat-grid" style="margin-bottom:24px;">
+  <a href="{{ url_for('recruit_postings', status='open') }}" class="stat-card" style="text-decoration:none;">
+    <div class="stat-ico ico-blue"><i class="fas fa-file-signature"></i></div>
+    <div class="stat-body">
+      <div class="stat-val" style="color:var(--primary);">{{ open_postings }}</div>
+      <div class="stat-lbl">Open Postings</div>
+    </div>
   </a>
-  <a href="{{ url_for('recruit_pipeline') }}" class="card" style="padding:20px; text-decoration:none;">
-    <div class="label">Total Applicants</div>
-    <div class="headline-lg" style="margin-top:8px;">{{ total_applicants }}</div>
-    <div class="muted body-sm" style="margin-top:4px;">across all postings</div>
+  <a href="{{ url_for('recruit_pipeline') }}" class="stat-card" style="text-decoration:none;">
+    <div class="stat-ico ico-purple"><i class="fas fa-users"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ total_applicants }}</div>
+      <div class="stat-lbl">Total Applicants</div>
+    </div>
   </a>
-  <a href="{{ url_for('recruit_pipeline') }}" class="card" style="padding:20px; text-decoration:none;">
-    <div class="label">In Interview</div>
-    <div class="headline-lg" style="margin-top:8px;">{{ interview_count }}</div>
-    <div class="muted body-sm" style="margin-top:4px;">currently interviewing</div>
+  <a href="{{ url_for('recruit_pipeline') }}" class="stat-card" style="text-decoration:none;">
+    <div class="stat-ico ico-orange"><i class="fas fa-comments"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ interview_count }}</div>
+      <div class="stat-lbl">In Interview</div>
+    </div>
   </a>
-  <div class="card" style="padding:20px; background:var(--surface-container-low);">
-    <div class="label">Hired This Month</div>
-    <div class="headline-lg" style="margin-top:8px; {% if hired_month > 0 %}color:#16a34a;{% endif %}">{{ hired_month }}</div>
-    <div class="muted body-sm" style="margin-top:4px;">offers accepted</div>
+  <div class="stat-card">
+    <div class="stat-ico ico-green"><i class="fas fa-check-double"></i></div>
+    <div class="stat-body">
+      <div class="stat-val" style="{% if hired_month > 0 %}color:var(--green);{% endif %}">{{ hired_month }}</div>
+      <div class="stat-lbl">Hired This Month</div>
+    </div>
   </div>
 </div>
 
-<!-- Main grid-dash -->
 <div class="grid-dash">
 
-  <!-- Left column -->
+  <!-- Left: Recent Applicants + Announcements -->
   <div class="stack">
 
     <!-- Recent Applicants -->
@@ -55,9 +60,7 @@
       {% if recent_applicants %}
       <div class="tbl-wrap">
         <table>
-          <thead>
-            <tr><th>Name</th><th>Posting</th><th>Stage</th><th>Applied</th></tr>
-          </thead>
+          <thead><tr><th>Name</th><th>Posting</th><th>Stage</th><th>Applied</th></tr></thead>
           <tbody>
             {% for a in recent_applicants %}
             <tr>
@@ -67,17 +70,10 @@
                   <span class="u-name">{{ a.name }}</span>
                 </div>
               </td>
-              <td class="muted" style="font-size:12.5px; max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                {{ a.posting_title or '—' }}
-              </td>
+              <td class="muted" style="font-size:12.5px; max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.posting_title or '—' }}</td>
               <td>
                 {% set s = a.stage %}
-                <span class="badge
-                  {% if s == 'hired' %}badge-active
-                  {% elif s == 'rejected' %}badge-reject
-                  {% elif s == 'offered' %}badge-info
-                  {% else %}badge-pending{% endif %}"
-                  style="font-size:11px;">
+                <span class="badge {% if s == 'hired' %}badge-active{% elif s == 'rejected' %}badge-reject{% elif s == 'offered' %}badge-info{% else %}badge-pending{% endif %}" style="font-size:11px;">
                   {{ stage_map.get(s, s) }}
                 </span>
               </td>
@@ -89,7 +85,7 @@
       </div>
       {% else %}
       <div style="text-align:center; padding:40px;" class="muted">
-        <i class="fas fa-users" style="font-size:28px; color:var(--surface-container-high); margin-bottom:10px; display:block;"></i>
+        <i class="fas fa-users" style="font-size:28px; opacity:.3; display:block; margin-bottom:10px;"></i>
         No applicants yet.
       </div>
       {% endif %}
@@ -97,69 +93,68 @@
 
     <!-- Announcements -->
     <div class="card">
-      <div style="padding:20px 22px 4px;">
-        <h3 class="headline-sm" style="margin:0 0 4px;">Announcements</h3>
+      <div class="card-head">
+        <span class="card-title">Announcements</span>
+        <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">All</a>
       </div>
-      {% if recent_posts %}
-      <div style="padding:0 10px 10px;">
-        {% for post in recent_posts %}
-        <a href="{{ url_for('announcement_detail', post_id=post.id) }}"
-           class="row" style="padding:10px 12px; border-radius:12px; text-decoration:none; display:flex; align-items:center; gap:10px;"
-           onmouseover="this.style.background='var(--surface-container-low)'"
-           onmouseout="this.style.background=''">
-          <div style="flex:1; min-width:0;">
-            <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ post.title }}</div>
-            <div class="muted" style="font-size:11px;">{{ post.created_at[:10] }}</div>
-          </div>
-          {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px; flex-shrink:0;">Pinned</span>{% endif %}
-        </a>
-        {% endfor %}
-      </div>
+      {% for post in recent_posts %}
+      <a href="{{ url_for('announcement_detail', post_id=post.id) }}"
+         style="padding:12px 22px; border-bottom:1px solid rgba(21,28,35,0.05); display:flex; align-items:center; gap:10px; text-decoration:none;"
+         onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+        <div style="flex:1; min-width:0;">
+          <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--tx-1);">{{ post.title }}</div>
+          <div class="muted" style="font-size:11px;">{{ post.created_at[:10] }}</div>
+        </div>
+        {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px; flex-shrink:0;">Pinned</span>{% endif %}
+      </a>
       {% else %}
-      <div style="padding:20px 22px;" class="muted body-sm">No announcements.</div>
-      {% endif %}
+      <div style="padding:24px 22px;" class="muted body-sm">No announcements.</div>
+      {% endfor %}
     </div>
 
   </div><!-- /left -->
 
-  <!-- Right column -->
+  <!-- Right: Quick Actions + Pipeline Stages -->
   <div class="stack">
 
     <!-- Quick Actions -->
-    <div class="card inset" style="padding:22px;">
+    <div class="card" style="padding:20px;">
       <div class="label" style="margin-bottom:14px;">Quick Actions</div>
-      <div style="display:flex; flex-direction:column; gap:8px;">
-        <a href="{{ url_for('recruit_posting_new') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
-          <i class="fas fa-plus-circle" style="color:var(--primary); width:18px;"></i> New Job Posting
+      <div class="quick-actions-grid">
+        <a href="{{ url_for('recruit_posting_new') }}" class="qa-btn">
+          <div class="qa-btn-ico ico-blue"><i class="fas fa-plus-circle"></i></div>
+          <span>New Posting</span>
         </a>
-        <a href="{{ url_for('recruit_postings') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
-          <i class="fas fa-file-signature" style="color:#0891b2; width:18px;"></i> All Postings
+        <a href="{{ url_for('recruit_postings') }}" class="qa-btn">
+          <div class="qa-btn-ico ico-purple"><i class="fas fa-file-signature"></i></div>
+          <span>All Postings</span>
         </a>
-        <a href="{{ url_for('recruit_pipeline') }}" class="btn btn-ghost" style="justify-content:flex-start; gap:10px; border-radius:12px;">
-          <i class="fas fa-columns" style="color:#9333ea; width:18px;"></i> Full Pipeline
+        <a href="{{ url_for('recruit_pipeline') }}" class="qa-btn">
+          <div class="qa-btn-ico ico-orange"><i class="fas fa-columns"></i></div>
+          <span>Pipeline</span>
+        </a>
+        <a href="{{ url_for('profile') }}" class="qa-btn">
+          <div class="qa-btn-ico" style="background:#f8fafc; color:#64748b;"><i class="fas fa-cog"></i></div>
+          <span>Settings</span>
         </a>
       </div>
     </div>
 
     <!-- Pipeline Stage Breakdown -->
-    <div class="card inset" style="padding:22px;">
+    <div class="card" style="padding:22px;">
       <div class="label" style="margin-bottom:16px;">Pipeline Stages</div>
-      <div style="display:flex; flex-direction:column; gap:10px;">
+      <div style="display:flex; flex-direction:column; gap:12px;">
         <div style="display:flex; align-items:center; justify-content:space-between;">
-          <span class="body-sm">Applied</span>
-          <span class="badge badge-pending" style="font-size:11px;">New</span>
+          <span class="body-sm">Total in Pipeline</span>
+          <span style="font-weight:700; font-size:16px;">{{ total_applicants }}</span>
         </div>
         <div style="display:flex; align-items:center; justify-content:space-between;">
-          <span class="body-sm">Interviewing</span>
-          <span style="font-weight:700; color:var(--primary); font-size:15px;">{{ interview_count }}</span>
+          <span class="body-sm">In Interview</span>
+          <span style="font-weight:700; color:var(--orange); font-size:16px;">{{ interview_count }}</span>
         </div>
         <div style="display:flex; align-items:center; justify-content:space-between;">
-          <span class="body-sm">Hired this month</span>
-          <span style="font-weight:700; color:#16a34a; font-size:15px;">{{ hired_month }}</span>
-        </div>
-        <div style="display:flex; align-items:center; justify-content:space-between;">
-          <span class="body-sm">Total in pipeline</span>
-          <span style="font-weight:700; font-size:15px;">{{ total_applicants }}</span>
+          <span class="body-sm">Hired This Month</span>
+          <span style="font-weight:700; color:var(--green); font-size:16px;">{{ hired_month }}</span>
         </div>
       </div>
       <a href="{{ url_for('recruit_pipeline') }}" class="btn btn-ghost btn-sm" style="margin-top:16px; width:100%; justify-content:center;">
@@ -169,6 +164,5 @@
 
   </div><!-- /right -->
 
-</div><!-- /grid-dash -->
-
+</div>
 {% endblock %}

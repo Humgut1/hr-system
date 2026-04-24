@@ -529,12 +529,71 @@ def dashboard():
             "WHERE lr.status='approved' AND lr.start_date<=? AND lr.end_date>=? "
             'ORDER BY u.name LIMIT 8', (today, today)
         ).fetchall()
+        # ── Inbox: 처리 대기 항목 집계 ──────────────────
+        inbox_items = []
+        # 휴가 pending
+        leave_pending = db.execute(
+            "SELECT lr.id, u.name, lr.type, lr.start_date, lr.end_date "
+            "FROM leave_requests lr JOIN users u ON lr.user_id=u.id "
+            "WHERE lr.status='pending' ORDER BY lr.created_at ASC LIMIT 5"
+        ).fetchall()
+        for r in leave_pending:
+            inbox_items.append({
+                'id': r['id'], 'category': 'leave',
+                'title': f"{r['name']} — {LEAVE_LABELS.get(r['type'], r['type'])} 휴가 신청",
+                'sub': f"{r['start_date']} ~ {r['end_date']}",
+                'link': url_for('attendance')
+            })
+        # 증명서 pending
+        cert_pending = db.execute(
+            "SELECT cr.id, u.name, cr.cert_type, cr.purpose "
+            "FROM certificate_requests cr JOIN users u ON cr.user_id=u.id "
+            "WHERE cr.status='pending' ORDER BY cr.created_at ASC LIMIT 3"
+        ).fetchall()
+        CERT_LABELS = {'employment':'재직증명서','career':'경력증명서','income':'소득증명','resignation':'퇴직확인서'}
+        for r in cert_pending:
+            inbox_items.append({
+                'id': r['id'], 'category': 'certificate',
+                'title': f"{r['name']} — {CERT_LABELS.get(r['cert_type'], r['cert_type'])} 발급 신청",
+                'sub': r['purpose'] or '용도 미기재',
+                'link': url_for('certificates_hub')
+            })
+        # 인사발령 pending
+        pa_pending = db.execute(
+            "SELECT pa.id, u.name, pa.action_type, pa.from_value, pa.to_value "
+            "FROM personnel_actions pa JOIN users u ON pa.user_id=u.id "
+            "WHERE pa.status='pending' ORDER BY pa.created_at ASC LIMIT 3"
+        ).fetchall()
+        ACTION_LABELS2 = {'dept_change':'부서이동','position_change':'직급변경','role_change':'역할변경',
+                         'employment_type_change':'고용형태변경','manager_change':'상관변경','salary_change':'급여변경'}
+        for r in pa_pending:
+            inbox_items.append({
+                'id': r['id'], 'category': 'personnel',
+                'title': f"{r['name']} — {ACTION_LABELS2.get(r['action_type'], r['action_type'])} 기안",
+                'sub': f"{r['from_value'] or '—'} → {r['to_value'] or '—'}",
+                'link': url_for('employees')
+            })
+        # 퇴직 submitted
+        term_pending = db.execute(
+            "SELECT tr.id, u.name, tr.request_type, tr.requested_last_work_date "
+            "FROM termination_requests tr JOIN users u ON tr.user_id=u.id "
+            "WHERE tr.status IN ('submitted','under_review') ORDER BY tr.created_at ASC LIMIT 3"
+        ).fetchall()
+        for r in term_pending:
+            inbox_items.append({
+                'id': r['id'], 'category': 'termination',
+                'title': f"{r['name']} — 퇴직 신청",
+                'sub': f"최종 근무일 요청: {r['requested_last_work_date']}",
+                'link': url_for('termination_requests')
+            })
+        inbox_count = len(inbox_items)
         return render_template('dashboard/admin.html',
             greet=greet, today_str=today_str, first_name=first_name,
             total_employees=total_employees, total_departments=total_departments,
             pending_leave=pending_leave, open_postings=open_postings,
             total_applicants=total_applicants, recent_employees=recent_employees,
             recent_posts=recent_posts, who_out=who_out,
+            inbox_items=inbox_items, inbox_count=inbox_count,
             labels=LEAVE_LABELS, active_page='home')
 
     if role == 'manager':
@@ -551,16 +610,23 @@ def dashboard():
             "WHERE u.department_id=? AND lr.status='approved' "
             "AND lr.start_date<=? AND lr.end_date>=?", (dept_id, today, today)
         ).fetchone()[0]
-        pending_reqs = db.execute(
+        # Inbox: 팀 대기 휴가 신청
+        inbox_rows = db.execute(
             "SELECT lr.id, lr.type, lr.start_date, lr.end_date, u.name as user_name "
             "FROM leave_requests lr JOIN users u ON lr.user_id=u.id "
             "WHERE u.department_id=? AND lr.status='pending' "
-            "ORDER BY lr.created_at DESC LIMIT 5", (dept_id,)
+            "ORDER BY lr.created_at ASC LIMIT 5", (dept_id,)
         ).fetchall()
+        inbox_items = [
+            {'id': r['id'], 'title': r['user_name'] + ' — ' + LEAVE_LABELS.get(r['type'], r['type']),
+             'sub': r['start_date'] + (' ~ ' + r['end_date'] if r['start_date'] != r['end_date'] else '')}
+            for r in inbox_rows
+        ]
+        inbox_count = pending_count
         team_goals = db.execute(
-            "SELECT pg.title, pg.self_score, u.name as user_name, AVG(pe.score) as avg_score "
+            "SELECT pg.title, pg.self_score, u.name as user_name, AVG(pr.score) as avg_score "
             "FROM performance_goals pg JOIN users u ON pg.user_id=u.id "
-            "LEFT JOIN performance_evaluations pe ON pg.id=pe.goal_id "
+            "LEFT JOIN performance_reviews pr ON pg.id=pr.goal_id "
             "WHERE u.department_id=? GROUP BY pg.id ORDER BY u.name LIMIT 8", (dept_id,)
         ).fetchall()
         recent_posts = db.execute(
@@ -576,7 +642,7 @@ def dashboard():
         return render_template('dashboard/manager.html',
             greet=greet, today_str=today_str, first_name=first_name,
             team_count=team_count, pending_count=pending_count,
-            today_leave=today_leave, pending_reqs=pending_reqs,
+            today_leave=today_leave, inbox_items=inbox_items, inbox_count=inbox_count,
             team_goals=team_goals, recent_posts=recent_posts,
             who_out=who_out, labels=LEAVE_LABELS, active_page='home')
 
@@ -4274,6 +4340,145 @@ from export_utils import (make_wb, write_header, write_row, auto_width,
                            freeze_header, to_response, apply_number_format,
                            KRW_FORMAT, NUM_FORMAT)
 import urllib.parse
+
+
+@app.route('/analytics')
+@admin_required
+def people_analytics():
+    db    = get_db()
+    today = date.today()
+
+    # ── 1. Headcount by department ──────────────────
+    dept_headcount = db.execute(
+        "SELECT d.name AS dept, COUNT(u.id) AS cnt "
+        "FROM departments d LEFT JOIN users u ON u.department_id=d.id AND u.status='active' "
+        "GROUP BY d.id, d.name ORDER BY cnt DESC LIMIT 12"
+    ).fetchall()
+
+    # ── 2. Headcount by position (grade) ───────────
+    grade_headcount = db.execute(
+        "SELECT p.name AS grade, COUNT(u.id) AS cnt "
+        "FROM positions p LEFT JOIN users u ON u.position_id=p.id AND u.status='active' "
+        "GROUP BY p.id, p.name ORDER BY p.level ASC LIMIT 10"
+    ).fetchall()
+
+    # ── 3. Monthly turnover (최근 12개월) ───────────
+    monthly_turnover = db.execute(
+        "SELECT strftime('%Y-%m', termination_date) AS ym, COUNT(*) AS cnt "
+        "FROM users WHERE termination_date IS NOT NULL "
+        "AND termination_date >= date('now','-12 months') "
+        "GROUP BY ym ORDER BY ym ASC"
+    ).fetchall()
+
+    # ── 4. Leave utilization by dept ───────────────
+    leave_util = db.execute(
+        "SELECT d.name AS dept, "
+        "  ROUND(AVG(u_leave.used * 100.0 / COALESCE(u_leave.total, 15)), 1) AS pct "
+        "FROM departments d "
+        "JOIN users u ON u.department_id=d.id AND u.status='active' "
+        "JOIN ("
+        "  SELECT user_id, "
+        "    COALESCE(SUM(days),0) AS used, 15 AS total "
+        "  FROM leave_requests WHERE status='approved' "
+        "  AND type IN ('annual','half_am','half_pm') "
+        "  GROUP BY user_id"
+        ") u_leave ON u_leave.user_id=u.id "
+        "GROUP BY d.id, d.name ORDER BY pct DESC LIMIT 8"
+    ).fetchall()
+
+    # ── 5. Compa-ratio distribution ─────────────────
+    # Compa-ratio = 실제 기본급 / 해당 직급·직군 기준 연봉 × 100
+    compa_rows = db.execute(
+        "SELECT u.name, p.name AS grade, jf.name AS job_family, "
+        "  es.base_salary, sg.annual_salary AS grade_salary, "
+        "  ROUND(es.base_salary * 12.0 / NULLIF(sg.annual_salary,0) * 100, 1) AS compa_ratio "
+        "FROM users u "
+        "JOIN employee_salary es ON es.user_id=u.id "
+        "JOIN positions p ON p.id=u.position_id "
+        "LEFT JOIN job_families jf ON jf.id=u.job_family_id "
+        "LEFT JOIN salary_grades sg ON sg.position_id=u.position_id AND sg.job_family_id=u.job_family_id "
+        "WHERE u.status='active' AND sg.annual_salary IS NOT NULL "
+        "ORDER BY compa_ratio DESC LIMIT 20"
+    ).fetchall()
+
+    # ── 6. Attrition Risk (Deloitte 모델 간소화) ────
+    # 팩터: 재직기간, Compa-ratio, 성과등급, 최근 휴가 사용 패턴
+    risk_rows = db.execute(
+        "SELECT u.id, u.name, u.hire_date, "
+        "  d.name AS dept, p.name AS grade, "
+        "  COALESCE(es.base_salary, 0) AS salary, "
+        "  COALESCE(sg.annual_salary, 0) AS grade_salary, "
+        "  COALESCE(cr.final_grade, 'B') AS perf_grade, "
+        "  COALESCE(lv.leave_days, 0) AS leave_days_used "
+        "FROM users u "
+        "LEFT JOIN departments d ON d.id=u.department_id "
+        "LEFT JOIN positions p ON p.id=u.position_id "
+        "LEFT JOIN employee_salary es ON es.user_id=u.id "
+        "LEFT JOIN salary_grades sg ON sg.position_id=u.position_id AND sg.job_family_id=u.job_family_id "
+        "LEFT JOIN ("
+        "  SELECT user_id, final_grade FROM calibration_results "
+        "  WHERE id IN (SELECT MAX(id) FROM calibration_results GROUP BY user_id)"
+        ") cr ON cr.user_id=u.id "
+        "LEFT JOIN ("
+        "  SELECT user_id, COALESCE(SUM(days),0) AS leave_days "
+        "  FROM leave_requests WHERE status='approved' "
+        "  AND start_date >= date('now','-6 months') GROUP BY user_id"
+        ") lv ON lv.user_id=u.id "
+        "WHERE u.status='active' AND u.role='employee' AND u.hire_date IS NOT NULL "
+        "ORDER BY u.hire_date ASC LIMIT 30"
+    ).fetchall()
+
+    def calc_risk_score(row):
+        score = 0
+        # 재직기간 < 1년: +25, 1-2년: +15
+        if row['hire_date']:
+            from datetime import datetime as dt
+            hd = dt.strptime(row['hire_date'], '%Y-%m-%d').date()
+            months = (today.year - hd.year) * 12 + (today.month - hd.month)
+            if months < 12: score += 25
+            elif months < 24: score += 15
+        # Compa-ratio < 80: +30, 80-95: +15
+        if row['grade_salary'] and row['grade_salary'] > 0:
+            compa = row['salary'] * 12 / row['grade_salary'] * 100
+            if compa < 80: score += 30
+            elif compa < 95: score += 15
+        # 성과 등급 C/D: +20
+        if row['perf_grade'] in ('C', 'D'): score += 20
+        # 최근 6개월 휴가 0일: +10 (번아웃 징후)
+        if row['leave_days_used'] == 0: score += 10
+        return min(score, 100)
+
+    risk_employees = []
+    for r in risk_rows:
+        risk = calc_risk_score(r)
+        if risk >= 20:
+            risk_employees.append({
+                'name': r['name'], 'dept': r['dept'] or '—',
+                'grade': r['grade'] or '—', 'risk': risk,
+                'level': 'high' if risk >= 60 else ('medium' if risk >= 35 else 'low')
+            })
+    risk_employees.sort(key=lambda x: x['risk'], reverse=True)
+
+    # ── 7. 핵심 요약 지표 ───────────────────────────
+    total_active = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
+    total_resigned = db.execute("SELECT COUNT(*) FROM users WHERE status='resigned'").fetchone()[0]
+    turnover_rate = round(total_resigned / (total_active + total_resigned) * 100, 1) if (total_active + total_resigned) > 0 else 0
+    avg_tenure_row = db.execute(
+        "SELECT AVG((julianday('now') - julianday(hire_date)) / 365.25) AS avg_tenure "
+        "FROM users WHERE status='active' AND hire_date IS NOT NULL"
+    ).fetchone()
+    avg_tenure = round(avg_tenure_row['avg_tenure'] or 0, 1)
+    open_reqs = db.execute("SELECT COUNT(*) FROM job_postings WHERE status='open'").fetchone()[0]
+    high_risk_count = sum(1 for e in risk_employees if e['level'] == 'high')
+
+    return render_template('analytics/index.html',
+        active_page='analytics',
+        total_active=total_active, turnover_rate=turnover_rate,
+        avg_tenure=avg_tenure, open_reqs=open_reqs, high_risk_count=high_risk_count,
+        dept_headcount=dept_headcount, grade_headcount=grade_headcount,
+        monthly_turnover=monthly_turnover, leave_util=leave_util,
+        compa_rows=compa_rows, risk_employees=risk_employees
+    )
 
 
 @app.route('/export')
