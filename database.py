@@ -441,6 +441,54 @@ def init_db():
                 date DATE UNIQUE NOT NULL,
                 name TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS one_on_ones (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                manager_id   INTEGER NOT NULL REFERENCES users(id),
+                employee_id  INTEGER NOT NULL REFERENCES users(id),
+                scheduled_at TIMESTAMP NOT NULL,
+                status       TEXT NOT NULL DEFAULT 'scheduled'
+                                 CHECK(status IN ('scheduled','done','cancelled')),
+                agenda       TEXT,
+                notes        TEXT,
+                created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS one_on_one_actions (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                meeting_id  INTEGER NOT NULL REFERENCES one_on_ones(id) ON DELETE CASCADE,
+                content     TEXT NOT NULL,
+                owner_id    INTEGER REFERENCES users(id),
+                due_date    DATE,
+                status      TEXT NOT NULL DEFAULT 'open'
+                                CHECK(status IN ('open','done')),
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS contract_templates (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                name         TEXT NOT NULL,
+                contract_type TEXT NOT NULL DEFAULT 'employment'
+                                 CHECK(contract_type IN ('employment','nda','probation','freelance')),
+                content_html TEXT NOT NULL,
+                created_by   INTEGER NOT NULL REFERENCES users(id),
+                created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS contracts (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                template_id  INTEGER REFERENCES contract_templates(id),
+                employee_id  INTEGER NOT NULL REFERENCES users(id),
+                issued_by    INTEGER NOT NULL REFERENCES users(id),
+                title        TEXT NOT NULL,
+                content_html TEXT NOT NULL,
+                status       TEXT NOT NULL DEFAULT 'pending'
+                                 CHECK(status IN ('pending','signed','rejected','cancelled')),
+                signed_at    TIMESTAMP,
+                sign_ip      TEXT,
+                reject_reason TEXT,
+                created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         ''')
 
         # 컬럼 마이그레이션: 기존 DB에 없을 수 있는 컬럼 추가

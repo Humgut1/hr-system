@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}계약서 템플릿 생성{% endblock %}
+{% block page_title %}계약서 템플릿 생성{% endblock %}
+
+{% block content %}
+
+<div style="max-width:800px; margin:0 auto;">
+  <form method="POST">
+    <div class="card" style="padding:28px; margin-bottom:16px;">
+      <div class="label" style="margin-bottom:20px;">템플릿 기본 정보</div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+          <label class="form-label">템플릿 이름 <span style="color:var(--red);">*</span></label>
+          <input type="text" name="name" class="form-control" required
+            placeholder="예: 정규직 근로계약서 기본형"
+            value="{{ request.form.get('name','') }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">계약 유형 <span style="color:var(--red);">*</span></label>
+          <select name="contract_type" class="form-control" id="contract-type" onchange="loadDefault()">
+            <option value="employment" {{ 'selected' if request.form.get('contract_type','employment') == 'employment' }}>근로계약서</option>
+            <option value="nda" {{ 'selected' if request.form.get('contract_type') == 'nda' }}>비밀유지서약서 (NDA)</option>
+            <option value="probation" {{ 'selected' if request.form.get('contract_type') == 'probation' }}>수습근로계약서</option>
+            <option value="freelance" {{ 'selected' if request.form.get('contract_type') == 'freelance' }}>프리랜서 계약서</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:28px; margin-bottom:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div class="label">계약서 내용</div>
+        <button type="button" class="btn btn-sm btn-outline" onclick="loadDefault()">
+          <i class="fas fa-magic" style="margin-right:5px;"></i>기본 양식 불러오기
+        </button>
+      </div>
+      <div class="muted body-sm" style="margin-bottom:12px;">
+        변수: <code>{{employee_name}}</code> <code>{{position}}</code> <code>{{department}}</code>
+        <code>{{start_date}}</code> <code>{{salary}}</code> <code>{{company_name}}</code> 를 사용할 수 있습니다.
+      </div>
+      <textarea name="content_html" id="content-editor" class="form-control" rows="20"
+        style="font-family: 'Courier New', monospace; font-size:13px; line-height:1.6;"
+        placeholder="계약서 내용을 HTML 또는 텍스트로 입력하세요..." required>{{ request.form.get('content_html', default_content) }}</textarea>
+    </div>
+
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <a href="{{ url_for('contracts_list') }}" class="btn btn-outline">취소</a>
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-save" style="margin-right:6px;"></i>템플릿 저장
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+const CONTRACT_DEFAULTS = {{ contract_defaults | tojson }};
+
+function loadDefault() {
+  const type = document.getElementById('contract-type').value;
+  const editor = document.getElementById('content-editor');
+  const content = CONTRACT_DEFAULTS[type] || '';
+  if (!content) return;
+  if (!editor.value.trim() || confirm('기본 양식으로 교체하시겠습니까? 현재 내용이 사라집니다.')) {
+    editor.value = content;
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const editor = document.getElementById('content-editor');
+  if (!editor.value.trim()) loadDefault();
+});
+</script>
+
+{% endblock %}

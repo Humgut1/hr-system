@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+{% block title %}전자계약{% endblock %}
+{% block page_title %}전자계약{% endblock %}
+
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+  <div class="muted body-sm">직원 계약서를 발행하고 전자 서명을 관리합니다.</div>
+  {% if session.role in ('admin','hr') %}
+  <div style="display:flex; gap:8px;">
+    <a href="{{ url_for('contract_template_new') }}" class="btn btn-outline">
+      <i class="fas fa-file-alt" style="margin-right:6px;"></i>템플릿 만들기
+    </a>
+    <a href="{{ url_for('contract_issue') }}" class="btn btn-primary">
+      <i class="fas fa-paper-plane" style="margin-right:6px;"></i>계약서 발행
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- 탭 -->
+<div style="display:flex; gap:16px; margin-bottom:20px; border-bottom:2px solid var(--border);">
+  <button class="tab-btn active" id="tab-contracts" onclick="showTab('contracts')">
+    계약서 <span class="badge badge-info" style="font-size:10px; margin-left:4px;">{{ contracts|length }}</span>
+  </button>
+  {% if session.role in ('admin','hr') %}
+  <button class="tab-btn" id="tab-templates" onclick="showTab('templates')">
+    템플릿 <span class="badge" style="font-size:10px; margin-left:4px; background:var(--bg); color:var(--tx-3);">{{ templates|length }}</span>
+  </button>
+  {% endif %}
+</div>
+
+<!-- 계약서 목록 -->
+<div id="pane-contracts">
+  {% if contracts %}
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>제목</th>
+            {% if session.role in ('admin','hr','manager') %}<th>직원</th>{% endif %}
+            <th>유형</th>
+            <th>발행일</th>
+            <th>상태</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in contracts %}
+          <tr style="cursor:pointer;" onclick="location.href='{{ url_for('contract_view', cid=c.id) }}'">
+            <td>
+              <div style="font-weight:600; font-size:13.5px;">{{ c.title }}</div>
+            </td>
+            {% if session.role in ('admin','hr','manager') %}
+            <td>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div class="avatar-xs" style="font-size:11px; flex-shrink:0;">{{ (c.emp_name or '?')[0] }}</div>
+                <span style="font-size:13px;">{{ c.emp_name }}</span>
+              </div>
+            </td>
+            {% endif %}
+            <td>
+              <span class="badge badge-info" style="font-size:11px;">
+                {% if c.contract_type == 'employment' %}근로계약서
+                {% elif c.contract_type == 'nda' %}비밀유지서약서
+                {% elif c.contract_type == 'probation' %}수습계약서
+                {% elif c.contract_type == 'freelance' %}프리랜서 계약서
+                {% else %}{{ c.contract_type }}{% endif %}
+              </span>
+            </td>
+            <td class="muted body-sm">{{ c.created_at[:10] }}</td>
+            <td>
+              <span class="badge
+                {% if c.status == 'pending' %}badge-pending
+                {% elif c.status == 'signed' %}badge-approve
+                {% elif c.status == 'rejected' %}badge-reject
+                {% else %}badge-info{% endif %}"
+                style="font-size:11px;">
+                {% if c.status == 'pending' %}서명 대기
+                {% elif c.status == 'signed' %}서명 완료
+                {% elif c.status == 'rejected' %}서명 거절
+                {% else %}취소{% endif %}
+              </span>
+            </td>
+            <td onclick="event.stopPropagation()">
+              <a href="{{ url_for('contract_view', cid=c.id) }}" class="btn btn-sm btn-outline">보기</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center; padding:60px 20px;">
+    <i class="fas fa-file-signature" style="font-size:36px; color:var(--tx-4); display:block; margin-bottom:16px;"></i>
+    <div style="font-size:15px; font-weight:600; color:var(--tx-2); margin-bottom:8px;">계약서가 없습니다</div>
+    <div class="muted body-sm" style="margin-bottom:20px;">
+      {% if session.role in ('admin','hr') %}계약서를 발행해보세요.{% else %}발행된 계약서가 없습니다.{% endif %}
+    </div>
+    {% if session.role in ('admin','hr') %}
+    <a href="{{ url_for('contract_issue') }}" class="btn btn-primary">계약서 발행하기</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- 템플릿 목록 -->
+{% if session.role in ('admin','hr') %}
+<div id="pane-templates" style="display:none;">
+  {% if templates %}
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>템플릿 이름</th><th>유형</th><th>생성일</th><th>생성자</th></tr>
+        </thead>
+        <tbody>
+          {% for t in templates %}
+          <tr>
+            <td style="font-weight:600; font-size:13.5px;">{{ t.name }}</td>
+            <td>
+              <span class="badge badge-info" style="font-size:11px;">
+                {% if t.contract_type == 'employment' %}근로계약서
+                {% elif t.contract_type == 'nda' %}비밀유지서약서
+                {% elif t.contract_type == 'probation' %}수습계약서
+                {% elif t.contract_type == 'freelance' %}프리랜서 계약서
+                {% else %}{{ t.contract_type }}{% endif %}
+              </span>
+            </td>
+            <td class="muted body-sm">{{ t.created_at[:10] }}</td>
+            <td class="muted body-sm">{{ t.creator_name or '' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center; padding:60px 20px;">
+    <i class="fas fa-file-alt" style="font-size:36px; color:var(--tx-4); display:block; margin-bottom:16px;"></i>
+    <div style="font-size:15px; font-weight:600; color:var(--tx-2); margin-bottom:8px;">템플릿이 없습니다</div>
+    <div class="muted body-sm" style="margin-bottom:20px;">자주 사용하는 계약서 양식을 템플릿으로 저장해두세요.</div>
+    <a href="{{ url_for('contract_template_new') }}" class="btn btn-primary">템플릿 만들기</a>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<style>
+.tab-btn {
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--tx-3);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+}
+.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+</style>
+
+<script>
+function showTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  ['contracts', 'templates'].forEach(p => {
+    const el = document.getElementById('pane-' + p);
+    if (el) el.style.display = (p === tab) ? '' : 'none';
+  });
+}
+</script>
+
+{% endblock %}

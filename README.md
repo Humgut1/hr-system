@@ -148,6 +148,12 @@ web: gunicorn app:app --bind 0.0.0.0:$PORT
 
 ## Changelog
 
+### v0.28.0 - 2026-04-25
+- Electronic contracts: template system, issue to employee, in-app e-sign with timestamp + IP
+
+### v0.27.0 - 2026-04-25
+- 1:1 meeting scheduler: manager schedules, notes, action items with completion tracking
+
 ### v0.26.0 - 2026-04-25
 - Sidebar restructured into Me / Team / Admin collapsible categories
 - Global search bar in header (press `/` to focus)

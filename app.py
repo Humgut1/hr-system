@@ -4784,6 +4784,335 @@ def not_found(e):
     return render_template('errors/404.html'), 404
 
 
+# ── 1:1 Meeting ─────────────────────────────────────────────
+
+@app.route('/one-on-ones')
+@login_required
+def one_on_ones():
+    db  = get_db()
+    uid = session['user_id']
+    role = session['user_role']
+    if role in ('admin', 'manager'):
+        meetings = db.execute(
+            "SELECT o.*, u.name AS emp_name, m.name AS mgr_name "
+            "FROM one_on_ones o "
+            "JOIN users u ON u.id=o.employee_id "
+            "JOIN users m ON m.id=o.manager_id "
+            "WHERE o.manager_id=? ORDER BY o.scheduled_at DESC LIMIT 50", (uid,)
+        ).fetchall()
+    else:
+        meetings = db.execute(
+            "SELECT o.*, u.name AS emp_name, m.name AS mgr_name "
+            "FROM one_on_ones o "
+            "JOIN users u ON u.id=o.employee_id "
+            "JOIN users m ON m.id=o.manager_id "
+            "WHERE o.employee_id=? ORDER BY o.scheduled_at DESC LIMIT 50", (uid,)
+        ).fetchall()
+    result = []
+    for m in meetings:
+        open_actions = db.execute(
+            "SELECT COUNT(*) FROM one_on_one_actions WHERE meeting_id=? AND status='open'", (m['id'],)
+        ).fetchone()[0]
+        partner_name = m['emp_name'] if role in ('admin', 'manager') else m['mgr_name']
+        result.append(dict(m, partner_name=partner_name, open_actions=open_actions))
+    return render_template('one_on_ones/list.html', meetings=result, active_page='one_on_ones')
+
+
+@app.route('/one-on-ones/new', methods=['GET', 'POST'])
+@login_required
+def one_on_one_new():
+    db   = get_db()
+    uid  = session['user_id']
+    role = session['user_role']
+    if role not in ('admin', 'manager'):
+        abort(403)
+    if request.method == 'POST':
+        emp_id       = int(request.form['employee_id'])
+        scheduled_at = request.form['scheduled_at']
+        agenda       = request.form.get('agenda', '').strip()
+        db.execute(
+            "INSERT INTO one_on_ones (manager_id, employee_id, scheduled_at, agenda) VALUES (?,?,?,?)",
+            (uid, emp_id, scheduled_at, agenda)
+        )
+        db.commit()
+        flash('1:1 미팅이 예약되었습니다.', 'success')
+        # 알림 발송
+        emp = db.execute("SELECT name FROM users WHERE id=?", (emp_id,)).fetchone()
+        if emp:
+            add_notification(emp_id, 'action', 'meeting',
+                f"1:1 미팅 예약 — {session['user_name']}",
+                f"{scheduled_at[:10]} 예약됨",
+                url_for('one_on_ones'))
+        return redirect(url_for('one_on_ones'))
+    dept_id = session.get('dept_id')
+    if role == 'admin':
+        members = db.execute(
+            "SELECT id, name FROM users WHERE status='active' AND role='employee' ORDER BY name"
+        ).fetchall()
+    else:
+        members = db.execute(
+            "SELECT id, name FROM users WHERE status='active' AND department_id=? AND id!=? ORDER BY name",
+            (dept_id, uid)
+        ).fetchall()
+    return render_template('one_on_ones/form.html', members=members, active_page='1on1')
+
+
+@app.route('/one-on-ones/<int:mid>', methods=['GET', 'POST'])
+@login_required
+def one_on_one_detail(mid):
+    db  = get_db()
+    uid = session['user_id']
+    meeting = db.execute(
+        "SELECT o.*, u.name AS emp_name, m.name AS mgr_name "
+        "FROM one_on_ones o JOIN users u ON u.id=o.employee_id JOIN users m ON m.id=o.manager_id "
+        "WHERE o.id=?", (mid,)
+    ).fetchone()
+    if not meeting:
+        abort(404)
+    if uid not in (meeting['manager_id'], meeting['employee_id']) and session['user_role'] != 'admin':
+        abort(403)
+    can_edit = (uid in (meeting['manager_id'], meeting['employee_id'])) or session['user_role'] == 'admin'
+    if request.method == 'POST':
+        action = request.form.get('action', '')
+        if action == 'save_notes':
+            notes = request.form.get('notes', '').strip()
+            status = request.form.get('status', meeting['status'])
+            db.execute("UPDATE one_on_ones SET notes=?, status=? WHERE id=?", (notes, status, mid))
+            db.commit()
+            flash('노트가 저장되었습니다.', 'success')
+        elif action == 'add_action':
+            content  = request.form.get('content', '').strip()
+            owner_id = request.form.get('owner_id') or None
+            due_date = request.form.get('due_date') or None
+            if content:
+                db.execute(
+                    "INSERT INTO one_on_one_actions (meeting_id, content, owner_id, due_date) VALUES (?,?,?,?)",
+                    (mid, content, owner_id, due_date)
+                )
+                db.commit()
+        elif action == 'toggle_action':
+            aid = int(request.form.get('action_id', 0))
+            cur = db.execute("SELECT status FROM one_on_one_actions WHERE id=?", (aid,)).fetchone()
+            if cur:
+                new_status = 'done' if cur['status'] == 'open' else 'open'
+                db.execute("UPDATE one_on_one_actions SET status=? WHERE id=?", (new_status, aid))
+                db.commit()
+        return redirect(url_for('one_on_one_detail', mid=mid))
+    actions = db.execute(
+        "SELECT a.*, u.name AS owner_name FROM one_on_one_actions a "
+        "LEFT JOIN users u ON u.id=a.owner_id WHERE a.meeting_id=? ORDER BY a.created_at ASC",
+        (mid,)
+    ).fetchall()
+    participants = [
+        db.execute("SELECT id, name FROM users WHERE id=?", (meeting['manager_id'],)).fetchone(),
+        db.execute("SELECT id, name FROM users WHERE id=?", (meeting['employee_id'],)).fetchone(),
+    ]
+    return render_template('one_on_ones/detail.html',
+        meeting=meeting, actions=actions, participants=participants,
+        can_edit=can_edit, active_page='one_on_ones')
+
+
+# ── 전자계약 ─────────────────────────────────────────────────
+
+CONTRACT_TYPE_LABELS = {
+    'employment': '근로계약서', 'nda': '비밀유지서약서',
+    'probation': '수습확인서', 'freelance': '프리랜서 계약서'
+}
+
+CONTRACT_DEFAULTS = {
+    'employment': '''<h2>근로계약서</h2>
+<p><strong>사용자</strong>(이하 "회사")와 <strong>{{employee_name}}</strong>(이하 "근로자")는 아래와 같이 근로계약을 체결합니다.</p>
+<h3>제1조 (근무 장소 및 업무 내용)</h3>
+<p>근무 장소: {{company_address}}<br>업무 내용: {{position}}</p>
+<h3>제2조 (근로 기간)</h3>
+<p>입사일: {{hire_date}} / 계약 기간: 정규직 (기간의 정함이 없음)</p>
+<h3>제3조 (근무 시간)</h3>
+<p>1일 8시간, 주 40시간 (09:00~18:00, 점심시간 12:00~13:00)</p>
+<h3>제4조 (임금)</h3>
+<p>월 기본급: {{base_salary}}원 (세전)<br>지급일: 매월 25일</p>
+<h3>제5조 (연차휴가)</h3>
+<p>근로기준법 제60조에 따라 연차유급휴가를 부여합니다.</p>
+<p>본 계약서는 2부 작성하여 사용자와 근로자가 각 1부씩 보관합니다.</p>''',
+    'nda': '''<h2>비밀유지서약서</h2>
+<p>본인 <strong>{{employee_name}}</strong>은(는) {{company_name}}(이하 "회사")에 재직하는 동안 및 퇴직 후에도 업무상 취득한 회사의 영업비밀, 기술정보, 고객정보 등 일체의 기밀정보를 제3자에게 누설하거나 회사의 동의 없이 사용하지 않을 것을 서약합니다.</p>''',
+}
+
+
+@app.route('/contracts')
+@login_required
+def contracts_list():
+    db   = get_db()
+    uid  = session['user_id']
+    role = session['user_role']
+    if role in ('admin', 'manager'):
+        contracts = db.execute(
+            "SELECT c.*, u.name AS emp_name, i.name AS issuer_name "
+            "FROM contracts c JOIN users u ON u.id=c.employee_id "
+            "JOIN users i ON i.id=c.issued_by ORDER BY c.created_at DESC LIMIT 50"
+        ).fetchall()
+    else:
+        contracts = db.execute(
+            "SELECT c.*, u.name AS emp_name, i.name AS issuer_name "
+            "FROM contracts c JOIN users u ON u.id=c.employee_id "
+            "JOIN users i ON i.id=c.issued_by WHERE c.employee_id=? ORDER BY c.created_at DESC",
+            (uid,)
+        ).fetchall()
+    templates = db.execute("SELECT id, name, contract_type FROM contract_templates ORDER BY created_at DESC").fetchall()
+    return render_template('contracts/list.html',
+        contracts=contracts, templates=templates,
+        type_labels=CONTRACT_TYPE_LABELS, active_page='contracts')
+
+
+@app.route('/contracts/templates/new', methods=['GET', 'POST'])
+@admin_required
+def contract_template_new():
+    db = get_db()
+    if request.method == 'POST':
+        name    = request.form['name'].strip()
+        ctype   = request.form.get('contract_type', 'employment')
+        content = request.form.get('content_html', '').strip()
+        if not name or not content:
+            flash('이름과 내용을 입력해주세요.', 'error')
+        else:
+            db.execute(
+                "INSERT INTO contract_templates (name, contract_type, content_html, created_by) VALUES (?,?,?,?)",
+                (name, ctype, content, session['user_id'])
+            )
+            db.commit()
+            flash('템플릿이 저장되었습니다.', 'success')
+            return redirect(url_for('contracts_list'))
+    default_type = request.args.get('type', 'employment')
+    default_content = CONTRACT_DEFAULTS.get(default_type, '')
+    return render_template('contracts/template_form.html',
+        type_labels=CONTRACT_TYPE_LABELS, default_type=default_type,
+        default_content=default_content,
+        contract_defaults=CONTRACT_DEFAULTS, active_page='contracts')
+
+
+@app.route('/contracts/issue', methods=['GET', 'POST'])
+@admin_required
+def contract_issue():
+    db = get_db()
+    if request.method == 'POST':
+        emp_id      = int(request.form['employee_id'])
+        template_id = request.form.get('template_id') or None
+        title       = request.form.get('title', '').strip()
+        content     = request.form.get('content_html', '').strip()
+        if not title or not content:
+            flash('제목과 내용을 입력해주세요.', 'error')
+        else:
+            db.execute(
+                "INSERT INTO contracts (template_id, employee_id, issued_by, title, content_html) VALUES (?,?,?,?,?)",
+                (template_id, emp_id, session['user_id'], title, content)
+            )
+            db.commit()
+            add_notification(emp_id, 'action', 'contract',
+                f"서명 요청 — {title}",
+                '계약서 서명을 요청받았습니다. 확인 후 서명해 주세요.',
+                url_for('contracts_list'))
+            flash('계약서가 발송되었습니다.', 'success')
+            return redirect(url_for('contracts_list'))
+    employees = db.execute(
+        "SELECT id, name FROM users WHERE status='active' AND role='employee' ORDER BY name"
+    ).fetchall()
+    templates = db.execute("SELECT id, name, contract_type, content_html FROM contract_templates ORDER BY created_at DESC").fetchall()
+    company   = get_company_info()
+    return render_template('contracts/issue.html',
+        employees=employees, templates=templates,
+        type_labels=CONTRACT_TYPE_LABELS, company=company, active_page='contracts')
+
+
+@app.route('/contracts/<int:cid>')
+@login_required
+def contract_view(cid):
+    db  = get_db()
+    uid = session['user_id']
+    c   = db.execute(
+        "SELECT ct.*, u.name AS emp_name, u.hire_date, u.email AS emp_email, "
+        "i.name AS issuer_name, p.name AS position "
+        "FROM contracts ct JOIN users u ON u.id=ct.employee_id "
+        "JOIN users i ON i.id=ct.issued_by "
+        "LEFT JOIN positions p ON p.id=u.position_id "
+        "WHERE ct.id=?", (cid,)
+    ).fetchone()
+    if not c:
+        abort(404)
+    if uid != c['employee_id'] and session['user_role'] not in ('admin', 'manager'):
+        abort(403)
+    return render_template('contracts/view.html', contract=c,
+        is_recipient=(uid == c['employee_id']),
+        is_issuer=(uid == c['issued_by']),
+        type_labels=CONTRACT_TYPE_LABELS, active_page='contracts')
+
+
+@app.route('/contracts/<int:cid>/sign', methods=['POST'])
+@login_required
+def contract_sign(cid):
+    db  = get_db()
+    uid = session['user_id']
+    c   = db.execute("SELECT * FROM contracts WHERE id=?", (cid,)).fetchone()
+    if not c or c['employee_id'] != uid:
+        abort(403)
+    if c['status'] != 'pending':
+        flash('이미 처리된 계약서입니다.', 'error')
+        return redirect(url_for('contract_view', cid=cid))
+    sign_ip = request.remote_addr
+    db.execute(
+        "UPDATE contracts SET status='signed', signed_at=datetime('now'), sign_ip=? WHERE id=?",
+        (sign_ip, cid)
+    )
+    db.commit()
+    # 발급자에게 알림
+    add_notification(c['issued_by'], 'info', 'contract',
+        f"계약서 서명 완료 — {c['title']}",
+        f"{session['user_name']}님이 서명했습니다.",
+        url_for('contracts_list'))
+    flash('서명이 완료되었습니다.', 'success')
+    return redirect(url_for('contract_view', cid=cid))
+
+
+@app.route('/contracts/<int:cid>/reject', methods=['POST'])
+@login_required
+def contract_reject(cid):
+    db  = get_db()
+    uid = session['user_id']
+    c   = db.execute("SELECT * FROM contracts WHERE id=?", (cid,)).fetchone()
+    if not c or c['employee_id'] != uid:
+        abort(403)
+    if c['status'] != 'pending':
+        flash('이미 처리된 계약서입니다.', 'error')
+        return redirect(url_for('contract_view', cid=cid))
+    reason = request.form.get('reason', '').strip()
+    db.execute(
+        "UPDATE contracts SET status='rejected', reject_reason=? WHERE id=?",
+        (reason, cid)
+    )
+    db.commit()
+    add_notification(c['issued_by'], 'info', 'contract',
+        f"계약서 서명 거절 — {c['title']}",
+        f"{session['user_name']}님이 거절했습니다. 사유: {reason or '미기재'}",
+        url_for('contracts_list'))
+    flash('계약서를 거절했습니다.', 'success')
+    return redirect(url_for('contracts_list'))
+
+
+@app.route('/contracts/<int:cid>/cancel', methods=['POST'])
+@login_required
+def contract_cancel(cid):
+    db  = get_db()
+    uid = session['user_id']
+    c   = db.execute("SELECT * FROM contracts WHERE id=?", (cid,)).fetchone()
+    if not c or c['issued_by'] != uid:
+        abort(403)
+    if c['status'] != 'pending':
+        flash('이미 처리된 계약서입니다.', 'error')
+        return redirect(url_for('contract_view', cid=cid))
+    db.execute("UPDATE contracts SET status='cancelled' WHERE id=?", (cid,))
+    db.commit()
+    flash('계약서가 취소되었습니다.', 'success')
+    return redirect(url_for('contracts_list'))
+
+
 # ── Run ─────────────────────────────────────────────────────
 if __name__ == '__main__':
     from database import init_db

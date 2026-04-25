@@ -69,6 +69,14 @@
             <i class="fas fa-star"></i><span>Peer Review</span>
           </a>
           {% endif %}
+          {% if session.user_role != 'guest' %}
+          <a href="{{ url_for('one_on_ones') }}" class="nav-item{% if active_page == 'one_on_ones' %} active{% endif %}">
+            <i class="fas fa-comments"></i><span>1:1 Meetings</span>
+          </a>
+          <a href="{{ url_for('contracts_list') }}" class="nav-item{% if active_page == 'contracts' %} active{% endif %}">
+            <i class="fas fa-file-signature"></i><span>Contracts</span>
+          </a>
+          {% endif %}
           {% if not user_features or 'certificates' in user_features %}
           {% if session.user_role != 'guest' %}
           <a href="{{ url_for('termination_my') }}" class="nav-item{% if active_page == 'termination_my' %} active{% endif %}">
@@ -116,6 +124,9 @@
           {% if session.user_role in ('admin', 'manager') %}
           <a href="{{ url_for('peer_assignments') }}" class="nav-item{% if active_page == 'peer_assignments' %} active{% endif %}">
             <i class="fas fa-user-plus"></i><span>Peer Assignments</span>
+          </a>
+          <a href="{{ url_for('one_on_ones') }}" class="nav-item{% if active_page == 'one_on_ones' %} active{% endif %}">
+            <i class="fas fa-comments"></i><span>1:1 Schedule</span>
           </a>
           {% endif %}
         </div>

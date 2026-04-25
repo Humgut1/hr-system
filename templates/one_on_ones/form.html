@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}1:1 미팅 예약{% endblock %}
+{% block page_title %}1:1 미팅 예약{% endblock %}
+
+{% block content %}
+
+<div style="max-width:600px; margin:0 auto;">
+  <div class="card" style="padding:32px;">
+    <div class="label" style="margin-bottom:24px;">미팅 정보 입력</div>
+
+    <form method="POST">
+      <!-- 상대방 선택 -->
+      <div class="form-group">
+        <label class="form-label">미팅 대상 <span style="color:var(--red);">*</span></label>
+        <select name="employee_id" class="form-control" required>
+          <option value="">-- 직원 선택 --</option>
+          {% for emp in members %}
+          <option value="{{ emp.id }}" {{ 'selected' if request.form.get('employee_id')|int == emp.id }}>
+            {{ emp.name }} ({{ emp.dept or '부서 없음' }} · {{ emp.grade or '' }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- 일시 -->
+      <div class="form-group">
+        <label class="form-label">미팅 일시 <span style="color:var(--red);">*</span></label>
+        <input type="datetime-local" name="scheduled_at" class="form-control" required
+          value="{{ request.form.get('scheduled_at', '') }}"
+          min="{{ now[:16] if now else '' }}">
+      </div>
+
+      <!-- 아젠다 -->
+      <div class="form-group">
+        <label class="form-label">아젠다</label>
+        <textarea name="agenda" class="form-control" rows="4"
+          placeholder="미팅에서 다룰 주제를 입력하세요 (선택사항)">{{ request.form.get('agenda', '') }}</textarea>
+        <div class="muted body-sm" style="margin-top:4px;">미팅 전 상대방에게 공유됩니다.</div>
+      </div>
+
+      <!-- 버튼 -->
+      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
+        <a href="{{ url_for('one_on_ones') }}" class="btn btn-outline">취소</a>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-calendar-plus" style="margin-right:6px;"></i>미팅 예약
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- 안내 -->
+  <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:var(--r); padding:16px 20px; margin-top:16px; display:flex; gap:12px; align-items:flex-start;">
+    <i class="fas fa-info-circle" style="color:#0891b2; font-size:16px; margin-top:2px; flex-shrink:0;"></i>
+    <div style="font-size:13px; color:#075985; line-height:1.6;">
+      미팅 예약 시 상대방에게 알림이 전송됩니다.<br>
+      미팅 후 상세 페이지에서 <strong>메모</strong>와 <strong>액션 아이템</strong>을 기록할 수 있습니다.
+    </div>
+  </div>
+</div>
+
+{% endblock %}

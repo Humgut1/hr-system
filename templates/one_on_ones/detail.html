@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+{% block title %}1:1 미팅 상세{% endblock %}
+{% block page_title %}1:1 미팅 상세{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+  <div style="display:flex; align-items:center; gap:14px;">
+    <div class="avatar-sm" style="font-size:15px; flex-shrink:0;">
+      {{ (meeting.emp_name or '?')[0] }}
+    </div>
+    <div>
+      <div style="font-size:18px; font-weight:700; color:var(--tx-1);">{{ meeting.emp_name }}</div>
+      <div class="muted body-sm">{{ meeting.partner_dept or '' }} · {{ meeting.scheduled_at[:16].replace('T',' ') if meeting.scheduled_at else '' }}</div>
+    </div>
+    <span class="badge
+      {% if meeting.status == 'scheduled' %}badge-info
+      {% elif meeting.status == 'done' %}badge-approve
+      {% else %}badge-reject{% endif %}"
+      style="font-size:12px; margin-left:4px;">
+      {% if meeting.status == 'scheduled' %}예정
+      {% elif meeting.status == 'done' %}완료
+      {% else %}취소{% endif %}
+    </span>
+  </div>
+  <div style="display:flex; gap:8px; flex-shrink:0;">
+    <a href="{{ url_for('one_on_ones') }}" class="btn btn-outline btn-sm">목록</a>
+    {% if meeting.status == 'scheduled' and session.role in ('admin','manager') %}
+    <form method="POST" style="display:inline;">
+      <input type="hidden" name="action" value="complete">
+      <button type="submit" class="btn btn-primary btn-sm"
+        onclick="return confirm('미팅을 완료 처리하시겠습니까?')">
+        <i class="fas fa-check" style="margin-right:5px;"></i>완료 처리
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+
+  <!-- 왼쪽: 아젠다 + 노트 -->
+  <div style="display:flex; flex-direction:column; gap:16px;">
+
+    <!-- 아젠다 -->
+    <div class="card" style="padding:22px;">
+      <div class="label" style="margin-bottom:12px;">아젠다</div>
+      {% if meeting.agenda %}
+      <div style="font-size:13.5px; color:var(--tx-1); line-height:1.7; white-space:pre-wrap;">{{ meeting.agenda }}</div>
+      {% else %}
+      <div class="muted body-sm">아젠다가 없습니다.</div>
+      {% endif %}
+    </div>
+
+    <!-- 미팅 노트 -->
+    <div class="card" style="padding:22px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <div class="label">미팅 노트</div>
+        {% if can_edit %}
+        <button class="btn btn-sm btn-outline" onclick="toggleNoteEdit()">
+          <i class="fas fa-edit" style="margin-right:5px;"></i><span id="note-edit-label">편집</span>
+        </button>
+        {% endif %}
+      </div>
+
+      <!-- 노트 보기 -->
+      <div id="note-view">
+        {% if meeting.notes %}
+        <div style="font-size:13.5px; color:var(--tx-1); line-height:1.7; white-space:pre-wrap;">{{ meeting.notes }}</div>
+        {% else %}
+        <div class="muted body-sm">아직 기록된 노트가 없습니다.</div>
+        {% endif %}
+      </div>
+
+      <!-- 노트 편집 -->
+      {% if can_edit %}
+      <form method="POST" id="note-form" style="display:none;">
+        <input type="hidden" name="action" value="save_notes">
+        <textarea name="notes" class="form-control" rows="8"
+          placeholder="미팅 내용, 결정사항, 공유사항을 자유롭게 기록하세요...">{{ meeting.notes or '' }}</textarea>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
+          <button type="button" class="btn btn-sm btn-outline" onclick="toggleNoteEdit()">취소</button>
+          <button type="submit" class="btn btn-sm btn-primary">저장</button>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- 오른쪽: 액션 아이템 -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">
+        <i class="fas fa-tasks" style="margin-right:7px; color:var(--primary);"></i>
+        액션 아이템
+      </span>
+      <span class="badge badge-info" style="font-size:11px;">
+        {{ actions | selectattr('status','eq','open') | list | length }}개 진행중
+      </span>
+    </div>
+    <div style="padding:16px;">
+
+      {% if actions %}
+      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+        {% for ac in actions %}
+        <div style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--r); background:{% if ac.status == 'done' %}var(--bg){% else %}var(--surface){% endif %};">
+          {% if can_edit %}
+          <form method="POST" style="flex-shrink:0; margin-top:1px;">
+            <input type="hidden" name="action" value="toggle_action">
+            <input type="hidden" name="action_id" value="{{ ac.id }}">
+            <button type="submit" style="background:none; border:none; cursor:pointer; padding:0; color:{% if ac.status == 'done' %}var(--green){% else %}var(--tx-4){% endif %}; font-size:16px;">
+              <i class="fas {% if ac.status == 'done' %}fa-check-circle{% else %}fa-circle{% endif %}"></i>
+            </button>
+          </form>
+          {% endif %}
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:13px; font-weight:600; color:var(--tx-1); {% if ac.status == 'done' %}text-decoration:line-through; color:var(--tx-3);{% endif %}">
+              {{ ac.content }}
+            </div>
+            <div class="muted body-sm" style="margin-top:2px;">
+              {% if ac.owner_name %}담당: {{ ac.owner_name }}{% endif %}
+              {% if ac.due_date %} · 기한: {{ ac.due_date }}{% endif %}
+            </div>
+          </div>
+          <span class="badge {% if ac.status == 'done' %}badge-approve{% else %}badge-pending{% endif %}" style="font-size:10px; flex-shrink:0;">
+            {{ '완료' if ac.status == 'done' else '진행중' }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="muted body-sm" style="text-align:center; padding:20px 0 10px;">
+        <i class="fas fa-clipboard-list" style="font-size:22px; opacity:.3; display:block; margin-bottom:8px;"></i>
+        액션 아이템이 없습니다.
+      </div>
+      {% endif %}
+
+      <!-- 액션 아이템 추가 -->
+      {% if can_edit %}
+      <div id="add-action-toggle">
+        <button class="btn btn-sm btn-outline" style="width:100%;" onclick="document.getElementById('add-action-form').style.display='block'; this.style.display='none';">
+          <i class="fas fa-plus" style="margin-right:6px;"></i>액션 아이템 추가
+        </button>
+      </div>
+      <form method="POST" id="add-action-form" style="display:none; margin-top:10px; border:1px solid var(--border); border-radius:var(--r); padding:14px;">
+        <input type="hidden" name="action" value="add_action">
+        <div class="form-group" style="margin-bottom:10px;">
+          <input type="text" name="content" class="form-control" placeholder="액션 아이템 내용" required>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
+          <div>
+            <label class="form-label" style="font-size:12px;">담당자</label>
+            <select name="owner_id" class="form-control" style="font-size:13px; padding:7px 10px;">
+              <option value="">-- 선택 --</option>
+              <option value="{{ meeting.manager_id }}" {{ 'selected' if meeting.manager_id == session.user_id }}>
+                {{ meeting.mgr_name }}
+              </option>
+              {% if meeting.employee_id != meeting.manager_id %}
+              <option value="{{ meeting.employee_id }}" {{ 'selected' if meeting.employee_id == session.user_id }}>
+                {{ meeting.emp_name }}
+              </option>
+              {% endif %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" style="font-size:12px;">기한</label>
+            <input type="date" name="due_date" class="form-control" style="font-size:13px; padding:7px 10px;">
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button type="button" class="btn btn-sm btn-outline"
+            onclick="document.getElementById('add-action-form').style.display='none'; document.getElementById('add-action-toggle').style.display='block';">
+            취소
+          </button>
+          <button type="submit" class="btn btn-sm btn-primary">추가</button>
+        </div>
+      </form>
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+function toggleNoteEdit() {
+  const view = document.getElementById('note-view');
+  const form = document.getElementById('note-form');
+  const label = document.getElementById('note-edit-label');
+  if (form.style.display === 'none') {
+    view.style.display = 'none';
+    form.style.display = 'block';
+    label.textContent = '취소';
+  } else {
+    view.style.display = 'block';
+    form.style.display = 'none';
+    label.textContent = '편집';
+  }
+}
+</script>
+
+{% endblock %}

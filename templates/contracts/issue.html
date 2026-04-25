@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}계약서 발행{% endblock %}
+{% block page_title %}계약서 발행{% endblock %}
+
+{% block content %}
+
+<div style="max-width:800px; margin:0 auto;">
+  <form method="POST">
+    <div class="card" style="padding:28px; margin-bottom:16px;">
+      <div class="label" style="margin-bottom:20px;">발행 기본 정보</div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <!-- 수신 직원 -->
+        <div class="form-group">
+          <label class="form-label">수신 직원 <span style="color:var(--red);">*</span></label>
+          <select name="employee_id" class="form-control" required>
+            <option value="">-- 직원 선택 --</option>
+            {% for emp in employees %}
+            <option value="{{ emp.id }}" {{ 'selected' if request.form.get('employee_id')|int == emp.id }}>
+              {{ emp.name }} ({{ emp.dept or '부서 없음' }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- 계약서 제목 -->
+        <div class="form-group">
+          <label class="form-label">계약서 제목 <span style="color:var(--red);">*</span></label>
+          <input type="text" name="title" class="form-control" required
+            placeholder="예: 2026년 근로계약서"
+            value="{{ request.form.get('title','') }}">
+        </div>
+      </div>
+
+      <!-- 템플릿 선택 -->
+      {% if templates %}
+      <div class="form-group">
+        <label class="form-label">템플릿 불러오기</label>
+        <select id="template-select" class="form-control" onchange="loadTemplate()">
+          <option value="">-- 템플릿 선택 (선택사항) --</option>
+          {% for t in templates %}
+          <option value="{{ t.id }}">{{ t.name }} ({{ t.contract_type }})</option>
+          {% endfor %}
+        </select>
+        <div class="muted body-sm" style="margin-top:4px;">템플릿을 선택하면 아래 내용란에 자동 채워집니다.</div>
+      </div>
+      <script>
+        var TEMPLATE_MAP = {};
+        {% for t in templates %}TEMPLATE_MAP[{{ t.id }}] = {{ t.content_html | tojson }};
+        {% endfor %}
+      </script>
+      {% endif %}
+    </div>
+
+    <div class="card" style="padding:28px; margin-bottom:16px;">
+      <div class="label" style="margin-bottom:12px;">계약서 내용</div>
+      <div class="muted body-sm" style="margin-bottom:12px;">
+        변수: <code>{{employee_name}}</code> <code>{{position}}</code> <code>{{department}}</code>
+        <code>{{start_date}}</code> <code>{{salary}}</code> <code>{{company_name}}</code>
+      </div>
+      <textarea name="content_html" id="content-editor" class="form-control" rows="22"
+        style="font-family:'Courier New',monospace; font-size:13px; line-height:1.6;"
+        placeholder="계약서 내용을 입력하세요..." required>{{ request.form.get('content_html','') }}</textarea>
+    </div>
+
+    <div style="background:#fffbeb; border:1px solid #fed7aa; border-radius:var(--r); padding:14px 18px; margin-bottom:16px;">
+      <div style="font-size:13px; color:#92400e;">
+        <i class="fas fa-info-circle" style="margin-right:6px;"></i>
+        발행 후 직원에게 알림이 전송되며, 직원은 계약서를 검토 후 전자 서명 또는 거절할 수 있습니다.
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <a href="{{ url_for('contracts_list') }}" class="btn btn-outline">취소</a>
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-paper-plane" style="margin-right:6px;"></i>계약서 발행
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+function loadTemplate() {
+  const sel = document.getElementById('template-select');
+  const tid = parseInt(sel.value);
+  if (tid && typeof TEMPLATE_MAP !== 'undefined' && TEMPLATE_MAP[tid]) {
+    const editor = document.getElementById('content-editor');
+    if (!editor.value.trim() || confirm('현재 내용을 템플릿으로 교체하시겠습니까?')) {
+      editor.value = TEMPLATE_MAP[tid];
+    }
+  }
+}
+</script>
+
+{% endblock %}

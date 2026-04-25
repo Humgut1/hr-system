@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% block title %}계약서 보기{% endblock %}
+{% block page_title %}계약서{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+  <div>
+    <div style="font-size:20px; font-weight:700; color:var(--tx-1); margin-bottom:4px;">{{ contract.title }}</div>
+    <div class="muted body-sm">
+      발행: {{ contract.issuer_name }} · {{ contract.created_at[:10] }}
+      {% if contract.signed_at %} · 서명: {{ contract.signed_at[:10] }}{% endif %}
+    </div>
+  </div>
+  <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+    <span class="badge
+      {% if contract.status == 'pending' %}badge-pending
+      {% elif contract.status == 'signed' %}badge-approve
+      {% elif contract.status == 'rejected' %}badge-reject
+      {% else %}badge-info{% endif %}"
+      style="font-size:13px; padding:6px 12px;">
+      {% if contract.status == 'pending' %}서명 대기
+      {% elif contract.status == 'signed' %}서명 완료
+      {% elif contract.status == 'rejected' %}서명 거절
+      {% else %}취소{% endif %}
+    </span>
+    <a href="{{ url_for('contracts_list') }}" class="btn btn-outline btn-sm">목록</a>
+    {% if contract.status == 'signed' %}
+    <button class="btn btn-sm btn-outline" onclick="window.print()">
+      <i class="fas fa-print" style="margin-right:5px;"></i>인쇄
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 320px; gap:20px; align-items:start;">
+
+  <!-- 계약서 본문 -->
+  <div class="card" style="padding:32px;">
+    <div id="contract-body" style="font-size:14px; line-height:1.9; color:var(--tx-1);">
+      {{ contract.content_html | safe }}
+    </div>
+
+    {% if contract.status == 'signed' %}
+    <!-- 서명 스탬프 -->
+    <div style="margin-top:40px; padding-top:24px; border-top:2px solid var(--border); display:flex; justify-content:space-between; align-items:flex-end;">
+      <div>
+        <div style="font-size:12px; color:var(--tx-3); margin-bottom:4px;">서명자</div>
+        <div style="font-size:16px; font-weight:700; color:var(--tx-1);">{{ contract.emp_name }}</div>
+        <div class="muted body-sm">{{ contract.signed_at[:16].replace('T',' ') if contract.signed_at else '' }}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="border:2px solid var(--green); border-radius:8px; padding:12px 20px; display:inline-block;">
+          <i class="fas fa-check-circle" style="color:var(--green); font-size:20px; display:block; margin-bottom:4px;"></i>
+          <div style="font-size:12px; font-weight:700; color:var(--green);">전자서명 완료</div>
+          <div style="font-size:11px; color:var(--tx-3);">{{ contract.signed_at[:10] if contract.signed_at else '' }}</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if contract.status == 'rejected' and contract.reject_reason %}
+    <div style="margin-top:24px; padding:14px 18px; background:#fef2f2; border:1px solid #fecaca; border-radius:var(--r);">
+      <div style="font-size:13px; font-weight:600; color:var(--red); margin-bottom:4px;">
+        <i class="fas fa-times-circle" style="margin-right:6px;"></i>거절 사유
+      </div>
+      <div style="font-size:13px; color:#b91c1c;">{{ contract.reject_reason }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 사이드 패널 -->
+  <div style="display:flex; flex-direction:column; gap:16px;">
+
+    <!-- 계약 정보 -->
+    <div class="card" style="padding:20px;">
+      <div class="label" style="margin-bottom:14px;">계약 정보</div>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div>
+          <div style="font-size:11px; color:var(--tx-3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:2px;">수신자</div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="avatar-xs" style="font-size:11px; flex-shrink:0;">{{ (contract.emp_name or '?')[0] }}</div>
+            <span style="font-size:13.5px; font-weight:600;">{{ contract.emp_name }}</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:var(--tx-3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:2px;">발행자</div>
+          <div style="font-size:13.5px; font-weight:600;">{{ contract.issuer_name }}</div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:var(--tx-3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:2px;">발행일</div>
+          <div style="font-size:13.5px;">{{ contract.created_at[:10] }}</div>
+        </div>
+        {% if contract.signed_at %}
+        <div>
+          <div style="font-size:11px; color:var(--tx-3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:2px;">서명일시</div>
+          <div style="font-size:13.5px;">{{ contract.signed_at[:16].replace('T',' ') }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 서명 액션 (수신자 본인이고 pending일 때) -->
+    {% if is_recipient and contract.status == 'pending' %}
+    <div class="card" style="padding:20px; border:2px solid var(--primary-light);">
+      <div class="label" style="margin-bottom:8px; color:var(--primary);">서명 필요</div>
+      <div class="muted body-sm" style="margin-bottom:16px; line-height:1.5;">
+        위 계약서를 검토하신 후 동의하시면 서명, 거절하시면 거절 사유를 입력해주세요.
+      </div>
+
+      <!-- 서명 버튼 -->
+      <form method="POST" action="{{ url_for('contract_sign', cid=contract.id) }}" style="margin-bottom:10px;">
+        <button type="submit" class="btn btn-primary" style="width:100%;"
+          onclick="return confirm('계약서에 전자 서명하시겠습니까?\n\n서명 후에는 취소할 수 없습니다.')">
+          <i class="fas fa-signature" style="margin-right:7px;"></i>전자 서명하기
+        </button>
+      </form>
+
+      <!-- 거절 -->
+      <button class="btn btn-outline" style="width:100%; color:var(--red); border-color:var(--red);"
+        onclick="document.getElementById('reject-form').style.display='block'; this.style.display='none';">
+        <i class="fas fa-times" style="margin-right:7px;"></i>거절하기
+      </button>
+
+      <form method="POST" action="{{ url_for('contract_reject', cid=contract.id) }}" id="reject-form" style="display:none; margin-top:10px;">
+        <textarea name="reject_reason" class="form-control" rows="3"
+          placeholder="거절 사유를 입력해주세요..." required
+          style="margin-bottom:8px;"></textarea>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn btn-outline btn-sm" style="flex:1;"
+            onclick="document.getElementById('reject-form').style.display='none'; this.closest('div').previousElementSibling.style.display='';">
+            취소
+          </button>
+          <button type="submit" class="btn btn-sm" style="flex:1; background:var(--red); color:#fff; border:none;">
+            거절 확정
+          </button>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+
+    <!-- 취소 (발행자가 pending 상태일 때) -->
+    {% if is_issuer and contract.status == 'pending' %}
+    <form method="POST" action="{{ url_for('contract_cancel', cid=contract.id) }}">
+      <button type="submit" class="btn btn-outline" style="width:100%; color:var(--red); border-color:var(--red);"
+        onclick="return confirm('계약서를 취소하시겠습니까?')">
+        <i class="fas fa-ban" style="margin-right:6px;"></i>계약서 취소
+      </button>
+    </form>
+    {% endif %}
+
+  </div>
+</div>
+
+<style>
+@media print {
+  .sidebar, .header, .btn, .card:last-child { display: none !important; }
+  #contract-body { font-size: 12pt; }
+}
+</style>
+
+{% endblock %}

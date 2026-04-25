@@ -1,25 +1,21 @@
-## v0.26.0 — Workday-style UX Overhaul + People Analytics
+## v0.28.0 — 전자계약 + 1:1 미팅
 
-### UX Redesign (v0.26.1 ~ v0.26.2)
-- Sidebar restructured into **Me / Team / Admin** collapsible categories
-- Each category remembers expand/collapse state via localStorage
-- **Global search bar** in header — press `/` to focus, arrow keys to navigate, searches all menu items
-- All 4 dashboards rebuilt with **Hero Banner** showing today's date and pending action count
+### v0.27.0 — 1:1 미팅 & 액션아이템
+- 매니저가 직원과 1:1 미팅 예약 → 상대방에게 알림 전송
+- 미팅 후 **노트 인라인 편집**, **액션아이템 추가 / 완료 토글**
+- 탭 필터: 전체 / 예정 / 완료 / 취소
+- 사이드바: Me > 1:1 Meetings, Team > 1:1 Schedule
 
-### Inbox & Quick Actions (v0.26.2)
-- **Unified Inbox** on Admin and Manager dashboards — surfaces pending leave, certificate requests, personnel actions, and termination requests in one place with direct action buttons
-- **Quick Actions grid** — icon-style buttons for the most common tasks per role
+### v0.28.0 — 전자계약 워크플로우
+- **계약서 템플릿** 생성 (근로계약서 / NDA / 수습 / 프리랜서 기본 양식 제공)
+- HR Admin이 직원에게 계약서 **발행** → 직원에게 알림
+- 직원이 계약서 검토 후 **전자 서명** (서명 일시 + IP 기록) 또는 **거절** (사유 입력)
+- 발행자에게 서명/거절 결과 알림
+- 서명 완료된 계약서 **인쇄** 지원
+- 사이드바: Me > Contracts
 
-### People Analytics Dashboard (v0.26.3)
-- New `/analytics` route (Admin only)
-- **Headcount by Department and Grade** — horizontal bar charts
-- **Monthly Turnover Trend** — bar chart for last 12 months
-- **Leave Utilization by Department** — color-coded by usage rate
-- **Attrition Risk Table** — simplified Deloitte model (tenure, compa-ratio, performance grade, leave pattern) → risk score 0–100
-- **Compa-ratio Summary** — actual salary vs grade benchmark
-- HR Maturity indicator (Stage 1: Descriptive Analytics)
+### 기타
+- `.claude/settings.json` — 코드 리뷰 훅을 매 수정마다 → 작업 완료 시 1회로 변경
 
 ### Verified
 - `python -m py_compile app.py database.py payroll_utils.py` ✅
-- `GET /dashboard` (admin/manager/employee) → 200 ✅
-- `GET /analytics` → 200 ✅

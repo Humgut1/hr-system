@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block title %}1:1 Meetings{% endblock %}
+{% block page_title %}1:1 Meetings{% endblock %}
+
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+  <div>
+    <div class="body-sm muted">정기 1:1 미팅을 예약하고 메모를 기록하세요.</div>
+  </div>
+  {% if session.role in ('admin','manager') %}
+  <a href="{{ url_for('one_on_one_new') }}" class="btn btn-primary">
+    <i class="fas fa-plus" style="margin-right:6px;"></i>미팅 예약
+  </a>
+  {% endif %}
+</div>
+
+<!-- Tabs -->
+<div style="display:flex; gap:4px; margin-bottom:20px; border-bottom:2px solid var(--border); padding-bottom:0;">
+  <button class="tab-btn active" onclick="filterMeetings('all')" id="tab-all">전체</button>
+  <button class="tab-btn" onclick="filterMeetings('scheduled')" id="tab-scheduled">예정</button>
+  <button class="tab-btn" onclick="filterMeetings('done')" id="tab-done">완료</button>
+  <button class="tab-btn" onclick="filterMeetings('cancelled')" id="tab-cancelled">취소</button>
+</div>
+
+{% if meetings %}
+<div class="card">
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>상대방</th>
+          <th>일시</th>
+          <th>아젠다</th>
+          <th>액션 아이템</th>
+          <th>상태</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in meetings %}
+        <tr class="meeting-row" data-status="{{ m.status }}" style="cursor:pointer;" onclick="location.href='{{ url_for('one_on_one_detail', mid=m.id) }}'">
+          <td>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div class="avatar-xs" style="font-size:11px; flex-shrink:0;">
+                {{ (m.partner_name or '?')[0] }}
+              </div>
+              <div>
+                <div style="font-weight:600; font-size:13.5px;">{{ m.partner_name }}</div>
+                <div class="muted body-sm">{{ m.partner_dept or '' }}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <div style="font-size:13px; font-weight:600;">{{ m.scheduled_at[:10] }}</div>
+            <div class="muted body-sm">{{ m.scheduled_at[11:16] if m.scheduled_at|length > 10 else '' }}</div>
+          </td>
+          <td style="max-width:200px;">
+            {% if m.agenda %}
+            <span style="font-size:13px; color:var(--tx-1); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">{{ m.agenda }}</span>
+            {% else %}
+            <span class="muted body-sm">아젠다 없음</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if m.open_actions > 0 %}
+            <span class="badge badge-pending" style="font-size:11px;">{{ m.open_actions }}개 미완</span>
+            {% else %}
+            <span class="muted body-sm">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge
+              {% if m.status == 'scheduled' %}badge-info
+              {% elif m.status == 'done' %}badge-approve
+              {% else %}badge-reject{% endif %}"
+              style="font-size:11px;">
+              {% if m.status == 'scheduled' %}예정
+              {% elif m.status == 'done' %}완료
+              {% else %}취소{% endif %}
+            </span>
+          </td>
+          <td onclick="event.stopPropagation()">
+            <a href="{{ url_for('one_on_one_detail', mid=m.id) }}" class="btn btn-sm btn-outline">상세</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card" style="text-align:center; padding:60px 20px;">
+  <i class="fas fa-comments" style="font-size:36px; color:var(--tx-4); display:block; margin-bottom:16px;"></i>
+  <div style="font-size:15px; font-weight:600; color:var(--tx-2); margin-bottom:8px;">미팅이 없습니다</div>
+  <div class="muted body-sm" style="margin-bottom:20px;">
+    {% if session.role in ('admin','manager') %}
+    첫 번째 1:1 미팅을 예약해보세요.
+    {% else %}
+    매니저가 1:1 미팅을 예약하면 여기에 표시됩니다.
+    {% endif %}
+  </div>
+  {% if session.role in ('admin','manager') %}
+  <a href="{{ url_for('one_on_one_new') }}" class="btn btn-primary">미팅 예약하기</a>
+  {% endif %}
+</div>
+{% endif %}
+
+<style>
+.tab-btn {
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--tx-3);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+}
+.tab-btn.active, .tab-btn:hover {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+</style>
+
+<script>
+function filterMeetings(status) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + status).classList.add('active');
+  document.querySelectorAll('.meeting-row').forEach(row => {
+    row.style.display = (status === 'all' || row.dataset.status === status) ? '' : 'none';
+  });
+}
+</script>
+
+{% endblock %}
