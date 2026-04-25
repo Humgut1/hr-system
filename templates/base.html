@@ -97,11 +97,6 @@
           <i class="fas fa-star"></i><span>Peer Review</span>
         </a>
         {% endif %}
-        {% if session.user_role != 'guest' %}
-        <a href="{{ url_for('one_on_ones') }}" class="nav-item{% if active_page == 'one_on_ones' %} active{% endif %}" title="1:1 Meetings">
-          <i class="fas fa-comments"></i><span>1:1 Meetings</span>
-        </a>
-        {% endif %}
       </div>
 
       <div class="nav-section-divider"></div>
@@ -135,9 +130,6 @@
         </a>
         <a href="{{ url_for('attendance') }}" class="nav-item{% if active_page == 'attendance' %} active{% endif %}" title="Approvals">
           <i class="fas fa-check-circle"></i><span>Approvals</span>
-        </a>
-        <a href="{{ url_for('one_on_ones') }}" class="nav-item{% if active_page == 'one_on_ones' %} active{% endif %}" title="1:1 Schedule">
-          <i class="fas fa-calendar-check"></i><span>1:1 Schedule</span>
         </a>
         <a href="{{ url_for('termination_requests') }}" class="nav-item{% if active_page == 'termination_requests' %} active{% endif %}" title="Termination">
           <i class="fas fa-user-clock"></i><span>Termination</span>

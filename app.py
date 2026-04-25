@@ -4788,133 +4788,6 @@ def not_found(e):
     return render_template('errors/404.html'), 404
 
 
-# ── 1:1 Meeting ─────────────────────────────────────────────
-
-@app.route('/one-on-ones')
-@login_required
-def one_on_ones():
-    db  = get_db()
-    uid = session['user_id']
-    role = session['user_role']
-    if role in ('admin', 'manager'):
-        meetings = db.execute(
-            "SELECT o.*, u.name AS emp_name, m.name AS mgr_name "
-            "FROM one_on_ones o "
-            "JOIN users u ON u.id=o.employee_id "
-            "JOIN users m ON m.id=o.manager_id "
-            "WHERE o.manager_id=? ORDER BY o.scheduled_at DESC LIMIT 50", (uid,)
-        ).fetchall()
-    else:
-        meetings = db.execute(
-            "SELECT o.*, u.name AS emp_name, m.name AS mgr_name "
-            "FROM one_on_ones o "
-            "JOIN users u ON u.id=o.employee_id "
-            "JOIN users m ON m.id=o.manager_id "
-            "WHERE o.employee_id=? ORDER BY o.scheduled_at DESC LIMIT 50", (uid,)
-        ).fetchall()
-    result = []
-    for m in meetings:
-        open_actions = db.execute(
-            "SELECT COUNT(*) FROM one_on_one_actions WHERE meeting_id=? AND status='open'", (m['id'],)
-        ).fetchone()[0]
-        partner_name = m['emp_name'] if role in ('admin', 'manager') else m['mgr_name']
-        result.append(dict(m, partner_name=partner_name, open_actions=open_actions))
-    return render_template('one_on_ones/list.html', meetings=result, active_page='one_on_ones')
-
-
-@app.route('/one-on-ones/new', methods=['GET', 'POST'])
-@login_required
-def one_on_one_new():
-    db   = get_db()
-    uid  = session['user_id']
-    role = session['user_role']
-    if role not in ('admin', 'manager'):
-        abort(403)
-    if request.method == 'POST':
-        emp_id       = int(request.form['employee_id'])
-        scheduled_at = request.form['scheduled_at']
-        agenda       = request.form.get('agenda', '').strip()
-        db.execute(
-            "INSERT INTO one_on_ones (manager_id, employee_id, scheduled_at, agenda) VALUES (?,?,?,?)",
-            (uid, emp_id, scheduled_at, agenda)
-        )
-        db.commit()
-        flash('1:1 미팅이 예약되었습니다.', 'success')
-        # 알림 발송
-        emp = db.execute("SELECT name FROM users WHERE id=?", (emp_id,)).fetchone()
-        if emp:
-            add_notification(emp_id, 'action', 'meeting',
-                f"1:1 미팅 예약 — {session['user_name']}",
-                f"{scheduled_at[:10]} 예약됨",
-                url_for('one_on_ones'))
-        return redirect(url_for('one_on_ones'))
-    dept_id = session.get('dept_id')
-    if role == 'admin':
-        members = db.execute(
-            "SELECT id, name FROM users WHERE status='active' AND role='employee' ORDER BY name"
-        ).fetchall()
-    else:
-        members = db.execute(
-            "SELECT id, name FROM users WHERE status='active' AND department_id=? AND id!=? ORDER BY name",
-            (dept_id, uid)
-        ).fetchall()
-    return render_template('one_on_ones/form.html', members=members, active_page='1on1')
-
-
-@app.route('/one-on-ones/<int:mid>', methods=['GET', 'POST'])
-@login_required
-def one_on_one_detail(mid):
-    db  = get_db()
-    uid = session['user_id']
-    meeting = db.execute(
-        "SELECT o.*, u.name AS emp_name, m.name AS mgr_name "
-        "FROM one_on_ones o JOIN users u ON u.id=o.employee_id JOIN users m ON m.id=o.manager_id "
-        "WHERE o.id=?", (mid,)
-    ).fetchone()
-    if not meeting:
-        abort(404)
-    if uid not in (meeting['manager_id'], meeting['employee_id']) and session['user_role'] != 'admin':
-        abort(403)
-    can_edit = (uid in (meeting['manager_id'], meeting['employee_id'])) or session['user_role'] == 'admin'
-    if request.method == 'POST':
-        action = request.form.get('action', '')
-        if action == 'save_notes':
-            notes = request.form.get('notes', '').strip()
-            status = request.form.get('status', meeting['status'])
-            db.execute("UPDATE one_on_ones SET notes=?, status=? WHERE id=?", (notes, status, mid))
-            db.commit()
-            flash('노트가 저장되었습니다.', 'success')
-        elif action == 'add_action':
-            content  = request.form.get('content', '').strip()
-            owner_id = request.form.get('owner_id') or None
-            due_date = request.form.get('due_date') or None
-            if content:
-                db.execute(
-                    "INSERT INTO one_on_one_actions (meeting_id, content, owner_id, due_date) VALUES (?,?,?,?)",
-                    (mid, content, owner_id, due_date)
-                )
-                db.commit()
-        elif action == 'toggle_action':
-            aid = int(request.form.get('action_id', 0))
-            cur = db.execute("SELECT status FROM one_on_one_actions WHERE id=?", (aid,)).fetchone()
-            if cur:
-                new_status = 'done' if cur['status'] == 'open' else 'open'
-                db.execute("UPDATE one_on_one_actions SET status=? WHERE id=?", (new_status, aid))
-                db.commit()
-        return redirect(url_for('one_on_one_detail', mid=mid))
-    actions = db.execute(
-        "SELECT a.*, u.name AS owner_name FROM one_on_one_actions a "
-        "LEFT JOIN users u ON u.id=a.owner_id WHERE a.meeting_id=? ORDER BY a.created_at ASC",
-        (mid,)
-    ).fetchall()
-    participants = [
-        db.execute("SELECT id, name FROM users WHERE id=?", (meeting['manager_id'],)).fetchone(),
-        db.execute("SELECT id, name FROM users WHERE id=?", (meeting['employee_id'],)).fetchone(),
-    ]
-    return render_template('one_on_ones/detail.html',
-        meeting=meeting, actions=actions, participants=participants,
-        can_edit=can_edit, active_page='one_on_ones')
-
 
 # ── 전자계약 ─────────────────────────────────────────────────
 
@@ -4984,14 +4857,22 @@ CONTRACT_DEFAULTS = {
 </div>
 
 <div style="margin-bottom:20px;">
-  <div style="font-size:14px;font-weight:700;background:#eff6ff;border-left:4px solid #2563eb;padding:8px 14px;margin-bottom:10px;">제5조 (연차 유급 휴가)</div>
+  <div style="font-size:14px;font-weight:700;background:#eff6ff;border-left:4px solid #2563eb;padding:8px 14px;margin-bottom:10px;">제5조 (휴일)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 주휴일 : 매주 일요일 (근로기준법 제55조)</p>
+    <p style="margin:4px 0;">② 법정 공휴일 : 관공서의 공휴일에 관한 규정에 따른 공휴일 및 대체 공휴일</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#eff6ff;border-left:4px solid #2563eb;padding:8px 14px;margin-bottom:10px;">제6조 (연차 유급 휴가)</div>
   <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
     <p style="margin:4px 0;">근로기준법 제60조에 따라 연차 유급 휴가를 부여하며, 미사용 연차에 대해서는 관련 법령에 따라 처리한다.</p>
   </div>
 </div>
 
 <div style="margin-bottom:20px;">
-  <div style="font-size:14px;font-weight:700;background:#eff6ff;border-left:4px solid #2563eb;padding:8px 14px;margin-bottom:10px;">제6조 (기타)</div>
+  <div style="font-size:14px;font-weight:700;background:#eff6ff;border-left:4px solid #2563eb;padding:8px 14px;margin-bottom:10px;">제7조 (기타)</div>
   <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
     <p style="margin:4px 0;">① 본 계약에 명시되지 않은 사항은 근로기준법 등 관련 법령 및 회사 취업규칙에 따른다.</p>
     <p style="margin:4px 0;">② 본 계약서는 2부 작성하여 사용자와 근로자가 각 1부씩 보관한다.</p>
@@ -5116,7 +4997,15 @@ CONTRACT_DEFAULTS = {
 </div>
 
 <div style="margin-bottom:20px;">
-  <div style="font-size:14px;font-weight:700;background:#fff7ed;border-left:4px solid #f59e0b;padding:8px 14px;margin-bottom:10px;">제4조 (계약 해지)</div>
+  <div style="font-size:14px;font-weight:700;background:#fff7ed;border-left:4px solid #f59e0b;padding:8px 14px;margin-bottom:10px;">제4조 (휴일 및 연차)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 주휴일 : 매주 일요일, 법정 공휴일 부여 (근로기준법 제55조)</p>
+    <p style="margin:4px 0;">② 연차 유급 휴가 : 근로기준법 제60조에 따라 부여한다.</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#fff7ed;border-left:4px solid #f59e0b;padding:8px 14px;margin-bottom:10px;">제5조 (계약 해지)</div>
   <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
     <p style="margin:4px 0;">① 사용자는 수습 기간 중 근로자의 업무 능력·태도·적응력 등을 평가하여 정규직 전환 여부를 결정한다.</p>
     <p style="margin:4px 0;">② 수습 기간 만료 시 별도 통보 없이 정규직으로 전환된다. 단, 평가 결과 부적합 판정 시 계약을 해지할 수 있다.</p>
@@ -5227,7 +5116,7 @@ def contracts_list():
             "JOIN users i ON i.id=c.issued_by WHERE c.employee_id=? ORDER BY c.created_at DESC",
             (uid,)
         ).fetchall()
-    templates = db.execute("SELECT id, name, contract_type FROM contract_templates ORDER BY created_at DESC").fetchall()
+    templates = db.execute("SELECT id, name, contract_type, created_at FROM contract_templates ORDER BY created_at DESC").fetchall()
     return render_template('contracts/list.html',
         contracts=contracts, templates=templates,
         type_labels=CONTRACT_TYPE_LABELS, active_page='contracts')
@@ -5244,16 +5133,13 @@ def contract_template_new():
         if not name or not content:
             flash('이름과 내용을 입력해주세요.', 'error')
         else:
-            try:
-                db.execute(
-                    "INSERT INTO contract_templates (name, contract_type, content_html, created_by) VALUES (?,?,?,?)",
-                    (name, ctype, content, session['user_id'])
-                )
-                db.commit()
-                flash('템플릿이 저장되었습니다.', 'success')
-                return redirect(url_for('contracts_list'))
-            except Exception as e:
-                flash(f'저장 오류: {e}', 'error')
+            db.execute(
+                "INSERT INTO contract_templates (name, contract_type, content_html, created_by) VALUES (?,?,?,?)",
+                (name, ctype, content, session['user_id'])
+            )
+            db.commit()
+            flash('템플릿이 저장되었습니다.', 'success')
+            return redirect(url_for('contracts_list'))
     default_type = request.args.get('type', 'employment')
     default_content = CONTRACT_DEFAULTS.get(default_type, '')
     return render_template('contracts/template_form.html',
