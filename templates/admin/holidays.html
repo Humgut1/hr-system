@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% block title %}공휴일 관리{% endblock %}
+{% block page_title %}공휴일 관리{% endblock %}
+
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+  <div class="muted body-sm">근로기준법 §56②에 따라 공휴일 근무 시 휴일근로 수당이 자동 계산됩니다.</div>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <form method="GET" style="display:flex; gap:6px;">
+      <select name="year" class="form-control" style="width:100px; padding:7px 10px; font-size:13px;">
+        {% for y in [2024, 2025, 2026, 2027] %}
+        <option value="{{ y }}" {{ 'selected' if y == year }}>{{ y }}년</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-outline btn-sm">조회</button>
+    </form>
+    <button class="btn btn-primary" onclick="document.getElementById('add-modal').style.display='flex'">
+      <i class="fas fa-plus" style="margin-right:6px;"></i>공휴일 추가
+    </button>
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 320px; gap:20px; align-items:start;">
+
+  <!-- 공휴일 목록 -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">
+        <i class="fas fa-calendar-alt" style="color:var(--red); margin-right:7px;"></i>
+        {{ year }}년 공휴일
+      </span>
+      <span class="badge badge-info" style="font-size:11px;">{{ holidays|length }}일</span>
+    </div>
+    {% if holidays %}
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>날짜</th><th>요일</th><th>공휴일명</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for h in holidays %}
+          {% set weekday = ['월','화','수','목','금','토','일'] %}
+          <tr>
+            <td style="font-weight:600; font-size:13.5px;">{{ h.date }}</td>
+            <td>
+              <span style="font-size:13px; font-weight:600;
+                color:{% if h.date | string | replace('-','') | int % 7 in [5,6] %}var(--red){% else %}var(--tx-2){% endif %};">
+                {{ h.date }}
+              </span>
+            </td>
+            <td style="font-size:13.5px;">{{ h.name }}</td>
+            <td>
+              <form method="POST" style="display:inline;">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="id" value="{{ h.id }}">
+                <button type="submit" class="btn btn-sm"
+                  style="background:none; border:1px solid var(--red); color:var(--red); padding:4px 10px; font-size:12px;"
+                  onclick="return confirm('{{ h.name }}을(를) 삭제하시겠습니까?')">
+                  삭제
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align:center; padding:60px 20px;" class="muted">
+      <i class="fas fa-calendar-times" style="font-size:32px; opacity:.3; display:block; margin-bottom:12px;"></i>
+      {{ year }}년 공휴일이 없습니다.
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 안내 카드 -->
+  <div style="display:flex; flex-direction:column; gap:16px;">
+    <div class="card" style="padding:20px;">
+      <div class="label" style="margin-bottom:12px;">휴일근로 수당 기준</div>
+      <div style="font-size:13px; color:var(--tx-2); line-height:1.8;">
+        <div style="margin-bottom:8px;">
+          <span style="font-weight:700; color:var(--primary);">8시간 이내</span><br>
+          통상임금 × <strong>1.5배</strong>
+        </div>
+        <div style="margin-bottom:8px;">
+          <span style="font-weight:700; color:var(--orange);">8시간 초과</span><br>
+          통상임금 × <strong>2.0배</strong>
+        </div>
+        <div>
+          <span style="font-weight:700; color:var(--red);">야간 중복</span><br>
+          휴일가산 + 야간가산 <strong>중복 적용</strong>
+        </div>
+      </div>
+      <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border); font-size:12px; color:var(--tx-3);">
+        근로기준법 제56조 제2항
+      </div>
+    </div>
+
+    <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:var(--r); padding:16px;">
+      <div style="font-size:13px; font-weight:700; color:#166534; margin-bottom:6px;">
+        <i class="fas fa-info-circle" style="margin-right:6px;"></i>자동 적용 방식
+      </div>
+      <div style="font-size:12.5px; color:#15803d; line-height:1.6;">
+        직원이 공휴일에 체크인/아웃하면 <strong>자동으로 휴일근로 수당</strong>이 계산되어 해당 월 급여에 반영됩니다.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 추가 모달 -->
+<div id="add-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:999; align-items:center; justify-content:center;">
+  <div style="background:var(--surface); border-radius:var(--r); padding:28px; width:360px; box-shadow:0 8px 32px rgba(0,0,0,.2);">
+    <div style="font-size:16px; font-weight:700; color:var(--tx-1); margin-bottom:20px;">공휴일 추가</div>
+    <form method="POST">
+      <input type="hidden" name="action" value="add">
+      <div class="form-group">
+        <label class="form-label">날짜 <span style="color:var(--red);">*</span></label>
+        <input type="date" name="date" class="form-control" required
+          min="{{ year }}-01-01" max="{{ year }}-12-31">
+      </div>
+      <div class="form-group">
+        <label class="form-label">공휴일명 <span style="color:var(--red);">*</span></label>
+        <input type="text" name="name" class="form-control" required placeholder="예: 대체공휴일">
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
+        <button type="button" class="btn btn-outline"
+          onclick="document.getElementById('add-modal').style.display='none'">취소</button>
+        <button type="submit" class="btn btn-primary">추가</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

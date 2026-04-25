@@ -2547,7 +2547,7 @@ def admin_payroll():
                 last_day  = f"{year}-{month:02d}-{cal_mod.monthrange(year, month)[1]}"
                 
                 # 해당 월의 공휴일 목록 가져오기
-                holiday_rows = db.execute('SELECT date FROM holidays WHERE date BETWEEN ? AND ?', (first_day, last_day)).fetchall()
+                holiday_rows = db.execute('SELECT date FROM public_holidays WHERE date BETWEEN ? AND ?', (first_day, last_day)).fetchall()
                 month_holidays = {h['date'] for h in holiday_rows}
 
                 emps = db.execute(
@@ -3449,7 +3449,7 @@ def attendance_home():
     ).fetchall()
 
     # 해당 월의 공휴일 목록
-    holiday_rows = db.execute('SELECT date FROM holidays WHERE date BETWEEN ? AND ?', (first_day.isoformat(), last_day.isoformat())).fetchall()
+    holiday_rows = db.execute('SELECT date FROM public_holidays WHERE date BETWEEN ? AND ?', (first_day.isoformat(), last_day.isoformat())).fetchall()
     month_holidays = {h['date'] for h in holiday_rows}
 
     base_row = db.execute(
@@ -3740,10 +3740,14 @@ def do_checkout():
     ).fetchone()
     if row:
         hrs = calc_day_hours(today, row['check_in'] or '09:00', now)
+        is_holiday = bool(db.execute(
+            'SELECT 1 FROM public_holidays WHERE date=?', (today,)
+        ).fetchone())
+        holiday_min = hrs['regular_min'] + hrs['overtime_min'] if is_holiday else 0
         db.execute(
-            'UPDATE checkins SET check_out=?, regular_min=?, overtime_min=?, night_min=? '
+            'UPDATE checkins SET check_out=?, regular_min=?, overtime_min=?, night_min=?, holiday_min=? '
             'WHERE user_id=? AND date=?',
-            (now, hrs['regular_min'], hrs['overtime_min'], hrs['night_min'], uid, today)
+            (now, hrs['regular_min'], hrs['overtime_min'], hrs['night_min'], holiday_min, uid, today)
         )
         db.commit()
     return redirect(url_for('attendance_home'))
@@ -5094,6 +5098,36 @@ def contract_reject(cid):
         url_for('contracts_list'))
     flash('계약서를 거절했습니다.', 'success')
     return redirect(url_for('contracts_list'))
+
+
+@app.route('/admin/holidays', methods=['GET', 'POST'])
+@admin_required
+def admin_holidays():
+    db = get_db()
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'add':
+            hdate = request.form.get('date', '').strip()
+            hname = request.form.get('name', '').strip()
+            if hdate and hname:
+                year = int(hdate[:4])
+                try:
+                    db.execute('INSERT OR IGNORE INTO public_holidays (date, name, year) VALUES (?,?,?)', (hdate, hname, year))
+                    db.commit()
+                    flash('공휴일이 추가되었습니다.', 'success')
+                except Exception:
+                    flash('이미 등록된 날짜입니다.', 'error')
+        elif action == 'delete':
+            hid = int(request.form.get('id', 0))
+            db.execute('DELETE FROM public_holidays WHERE id=?', (hid,))
+            db.commit()
+            flash('삭제되었습니다.', 'success')
+        return redirect(url_for('admin_holidays'))
+    year = int(request.args.get('year', 2026))
+    holidays = db.execute(
+        'SELECT * FROM public_holidays WHERE year=? ORDER BY date', (year,)
+    ).fetchall()
+    return render_template('admin/holidays.html', holidays=holidays, year=year, active_page='holidays')
 
 
 @app.route('/contracts/<int:cid>/cancel', methods=['POST'])

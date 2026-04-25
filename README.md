@@ -148,6 +148,10 @@ web: gunicorn app:app --bind 0.0.0.0:$PORT
 
 ## Changelog
 
+### v0.29.0 - 2026-04-26
+- Public holidays DB (Korean 2026 calendar) with admin management UI
+- Auto holiday_min tracking on checkout; holiday overtime pay applied to payroll
+
 ### v0.28.0 - 2026-04-25
 - Electronic contracts: template system, issue to employee, in-app e-sign with timestamp + IP
 

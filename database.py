@@ -223,6 +223,13 @@ def init_db():
                 created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS public_holidays (
+                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                date    DATE    NOT NULL UNIQUE,
+                name    TEXT    NOT NULL,
+                year    INTEGER NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS checkins (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id      INTEGER NOT NULL REFERENCES users(id),
@@ -233,6 +240,7 @@ def init_db():
                 regular_min  INTEGER DEFAULT 0,
                 overtime_min INTEGER DEFAULT 0,
                 night_min    INTEGER DEFAULT 0,
+                holiday_min  INTEGER DEFAULT 0,
                 UNIQUE(user_id, date)
             );
 
@@ -569,10 +577,35 @@ def init_db():
             c.execute('ALTER TABLE checkins ADD COLUMN overtime_min INTEGER DEFAULT 0')
         if 'night_min' not in checkin_cols:
             c.execute('ALTER TABLE checkins ADD COLUMN night_min    INTEGER DEFAULT 0')
+        if 'holiday_min' not in checkin_cols:
+            c.execute('ALTER TABLE checkins ADD COLUMN holiday_min  INTEGER DEFAULT 0')
 
         # company_config 기본 row (없으면 삽입 — setup_completed=0 유지해서 위자드 표시)
         if c.execute('SELECT COUNT(*) FROM company_config').fetchone()[0] == 0:
             c.execute('INSERT INTO company_config (id) VALUES (1)')
+
+        # 2026년 한국 공휴일 시드 (관공서 공휴일에 관한 규정)
+        holidays_2026 = [
+            ('2026-01-01', '신정'),
+            ('2026-01-28', '설날 연휴'),
+            ('2026-01-29', '설날'),
+            ('2026-01-30', '설날 연휴'),
+            ('2026-03-01', '삼일절'),
+            ('2026-05-05', '어린이날'),
+            ('2026-05-15', '부처님오신날'),
+            ('2026-06-06', '현충일'),
+            ('2026-08-15', '광복절'),
+            ('2026-09-24', '추석 연휴'),
+            ('2026-09-25', '추석'),
+            ('2026-09-26', '추석 연휴'),
+            ('2026-10-03', '개천절'),
+            ('2026-10-09', '한글날'),
+            ('2026-12-25', '크리스마스'),
+        ]
+        existing_hd = {r[0] for r in c.execute('SELECT date FROM public_holidays WHERE year=2026').fetchall()}
+        for hdate, hname in holidays_2026:
+            if hdate not in existing_hd:
+                c.execute('INSERT INTO public_holidays (date, name, year) VALUES (?,?,2026)', (hdate, hname))
 
         if c.execute('SELECT COUNT(*) FROM departments').fetchone()[0] == 0:
             departments = [
