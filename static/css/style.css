@@ -261,7 +261,7 @@ input, select, textarea { font-family: var(--font); }
   font-size: 17px; font-weight: 700;
   color: var(--tx-1); letter-spacing: -.3px;
 }
-.header-right { display: flex; align-items: center; gap: 10px; }
+.header-right { display: flex; align-items: center; gap: 10px; position: relative; }
 
 .icon-btn {
   position: relative;
@@ -291,8 +291,37 @@ input, select, textarea { font-family: var(--font); }
   padding: 5px 10px;
   border-radius: var(--r);
   cursor: pointer; transition: background .15s;
+  position: relative;
+  user-select: none;
 }
 .user-pill:hover { background: var(--bg); }
+
+/* ── 유저 드롭다운 ──────────────────────────────── */
+.user-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  z-index: 200;
+}
+.user-dropdown.open { display: block; }
+.user-dropdown-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px;
+  font-size: 13.5px; font-weight: 500;
+  color: var(--tx-1);
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background .12s;
+  cursor: pointer;
+}
+.user-dropdown-item:hover { background: var(--bg); }
+.user-dropdown-item i { width: 16px; font-size: 13px; color: var(--tx-3); }
 .user-avatar {
   width: 34px; height: 34px;
   background: linear-gradient(135deg, var(--primary), var(--primary-light));

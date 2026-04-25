@@ -203,20 +203,12 @@
 
     </nav>
 
-    <div class="sidebar-footer">
-      {% if session.user_role == 'admin' %}
-      <a href="{{ url_for('admin_settings') }}" class="nav-item{% if active_page == 'company_settings' %} active{% endif %}" title="Settings">
-        <i class="fas fa-building"></i><span class="sidebar-footer-label">Company Settings</span>
+    <div class="sidebar-footer" style="padding:8px;">
+      <div style="height:1px; background:var(--border); margin-bottom:8px;"></div>
+      <a href="{{ url_for('profile') }}" class="nav-item{% if active_page == 'profile' %} active{% endif %}" title="My Profile" style="justify-content:center; padding:8px 0;">
+        <div class="user-avatar" style="width:28px; height:28px; font-size:12px; flex-shrink:0;">{{ session.user_name[0] if session.user_name else 'U' }}</div>
+        <span class="sidebar-footer-label" style="font-size:13px;">{{ session.user_name }}</span>
       </a>
-      {% endif %}
-      <a href="{{ url_for('profile') }}" class="nav-item{% if active_page == 'profile' %} active{% endif %}" title="My Profile">
-        <i class="fas fa-cog"></i><span class="sidebar-footer-label">My Profile</span>
-      </a>
-      <form method="POST" action="{{ url_for('logout') }}" style="margin:0;">
-        <button type="submit" class="nav-item" style="width:100%;background:none;border:none;cursor:pointer;text-align:left;" title="Sign Out">
-          <i class="fas fa-sign-out-alt"></i><span class="sidebar-footer-label">Sign Out</span>
-        </button>
-      </form>
     </div>
   </aside>
 
@@ -253,7 +245,7 @@
           {% endif %}
         </a>
         <div class="divider-v"></div>
-        <div class="user-pill">
+        <div class="user-pill" id="userPill" style="cursor:pointer;" onclick="toggleUserMenu()">
           <div class="user-avatar">{{ session.user_name[0] if session.user_name else 'U' }}</div>
           <div class="user-info-wrap">
             <span class="user-fullname">{{ session.user_name }}</span>
@@ -264,6 +256,34 @@
               {% elif session.user_role == 'guest' %}Guest
               {% else %}{{ session.dept_name }}{% if session.pos_name %} · {{ session.pos_name }}{% endif %}{% endif %}
             </span>
+          </div>
+          <i class="fas fa-chevron-down" style="font-size:11px; color:var(--tx-3); margin-left:4px;"></i>
+        </div>
+
+        <!-- 유저 드롭다운 -->
+        <div class="user-dropdown" id="userDropdown">
+          <div style="padding:12px 16px 10px; border-bottom:1px solid var(--border);">
+            <div style="font-size:13.5px; font-weight:700; color:var(--tx-1);">{{ session.user_name }}</div>
+            <div style="font-size:12px; color:var(--tx-3); margin-top:1px;">{{ session.user_email or '' }}</div>
+          </div>
+          <div style="padding:6px;">
+            <a href="{{ url_for('profile') }}" class="user-dropdown-item">
+              <i class="fas fa-user"></i> My Profile
+            </a>
+            {% if session.user_role == 'admin' %}
+            <a href="{{ url_for('admin_settings') }}" class="user-dropdown-item">
+              <i class="fas fa-building"></i> Company Settings
+            </a>
+            <a href="{{ url_for('onboarding') }}" class="user-dropdown-item">
+              <i class="fas fa-sliders"></i> Feature Settings
+            </a>
+            {% endif %}
+            <div style="height:1px; background:var(--border); margin:6px 0;"></div>
+            <form method="POST" action="{{ url_for('logout') }}" style="margin:0;">
+              <button type="submit" class="user-dropdown-item" style="width:100%; background:none; border:none; cursor:pointer; color:var(--red);">
+                <i class="fas fa-sign-out-alt"></i> Sign Out
+              </button>
+            </form>
           </div>
         </div>
       </div>
@@ -311,6 +331,19 @@
   {% block extra_js %}{% endblock %}
 
 <script>
+// ── 유저 드롭다운 ──────────────────────────────
+function toggleUserMenu() {
+  var menu = document.getElementById('userDropdown');
+  menu.classList.toggle('open');
+}
+document.addEventListener('click', function(e) {
+  var pill = document.getElementById('userPill');
+  var menu = document.getElementById('userDropdown');
+  if (menu && pill && !pill.contains(e.target)) {
+    menu.classList.remove('open');
+  }
+});
+
 // ── 사이드바 Collapse 토글 ─────────────────────
 (function() {
   var sidebar = document.getElementById('appSidebar');
