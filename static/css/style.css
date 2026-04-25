@@ -258,8 +258,16 @@ input, select, textarea { font-family: var(--font); }
 }
 .header-left { display: flex; align-items: center; gap: 14px; }
 .page-title {
-  font-size: 17px; font-weight: 700;
-  color: var(--tx-1); letter-spacing: -.3px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -.5px;
+  background: linear-gradient(90deg, var(--primary) 0%, #6b8eff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  padding-left: 12px;
+  border-left: 3px solid var(--primary);
+  line-height: 1.2;
 }
 .header-right { display: flex; align-items: center; gap: 10px; position: relative; }
 
