@@ -4,44 +4,76 @@
 
 {% block content %}
 
-<div style="max-width:800px; margin:0 auto;">
-  <form method="POST">
-    <div class="card" style="padding:28px; margin-bottom:16px;">
-      <div class="label" style="margin-bottom:20px;">템플릿 기본 정보</div>
-
+<div style="max-width:1100px; margin:0 auto;">
+  <form method="POST" id="template-form">
+    <!-- 기본 정보 -->
+    <div class="card" style="padding:24px; margin-bottom:16px;">
+      <div class="label" style="margin-bottom:16px;">템플릿 기본 정보</div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-        <div class="form-group">
+        <div class="form-group" style="margin:0;">
           <label class="form-label">템플릿 이름 <span style="color:var(--red);">*</span></label>
           <input type="text" name="name" class="form-control" required
             placeholder="예: 정규직 근로계약서 기본형"
             value="{{ request.form.get('name','') }}">
         </div>
-        <div class="form-group">
+        <div class="form-group" style="margin:0;">
           <label class="form-label">계약 유형 <span style="color:var(--red);">*</span></label>
-          <select name="contract_type" class="form-control" id="contract-type" onchange="loadDefault()">
+          <select name="contract_type" class="form-control" id="contract-type" onchange="onTypeChange()">
             <option value="employment" {{ 'selected' if request.form.get('contract_type','employment') == 'employment' }}>근로계약서</option>
-            <option value="nda" {{ 'selected' if request.form.get('contract_type') == 'nda' }}>비밀유지서약서 (NDA)</option>
-            <option value="probation" {{ 'selected' if request.form.get('contract_type') == 'probation' }}>수습근로계약서</option>
-            <option value="freelance" {{ 'selected' if request.form.get('contract_type') == 'freelance' }}>프리랜서 계약서</option>
+            <option value="nda"        {{ 'selected' if request.form.get('contract_type') == 'nda' }}>비밀유지서약서 (NDA)</option>
+            <option value="probation"  {{ 'selected' if request.form.get('contract_type') == 'probation' }}>수습근로계약서</option>
+            <option value="freelance"  {{ 'selected' if request.form.get('contract_type') == 'freelance' }}>프리랜서 계약서</option>
           </select>
         </div>
       </div>
     </div>
 
-    <div class="card" style="padding:28px; margin-bottom:16px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-        <div class="label">계약서 내용</div>
-        <button type="button" class="btn btn-sm btn-outline" onclick="loadDefault()">
-          <i class="fas fa-magic" style="margin-right:5px;"></i>기본 양식 불러오기
-        </button>
+    <!-- 편집 영역 -->
+    <div class="card" style="padding:0; overflow:hidden; margin-bottom:16px;">
+      <!-- 탭 헤더 -->
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:0 20px; border-bottom:1px solid var(--border); background:var(--bg);">
+        <div style="display:flex; gap:0;">
+          <button type="button" class="editor-tab active" id="tab-edit" onclick="switchTab('edit')">
+            <i class="fas fa-code" style="margin-right:6px; font-size:12px;"></i>편집
+          </button>
+          <button type="button" class="editor-tab" id="tab-preview" onclick="switchTab('preview')">
+            <i class="fas fa-eye" style="margin-right:6px; font-size:12px;"></i>미리보기
+          </button>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span style="font-size:12px; color:var(--tx-3);">
+            변수: <code style="font-size:11px; background:var(--surface); padding:2px 6px; border-radius:4px; border:1px solid var(--border);">{{employee_name}}</code>
+            <code style="font-size:11px; background:var(--surface); padding:2px 6px; border-radius:4px; border:1px solid var(--border);">{{position}}</code>
+            <code style="font-size:11px; background:var(--surface); padding:2px 6px; border-radius:4px; border:1px solid var(--border);">{{department}}</code>
+            <code style="font-size:11px; background:var(--surface); padding:2px 6px; border-radius:4px; border:1px solid var(--border);">{{salary}}</code>
+            <code style="font-size:11px; background:var(--surface); padding:2px 6px; border-radius:4px; border:1px solid var(--border);">{{hire_date}}</code>
+            <code style="font-size:11px; background:var(--surface); padding:2px 6px; border-radius:4px; border:1px solid var(--border);">{{company_name}}</code>
+          </span>
+          <button type="button" class="btn btn-sm btn-outline" onclick="loadDefault()">
+            <i class="fas fa-magic" style="margin-right:5px;"></i>기본 양식
+          </button>
+        </div>
       </div>
-      <div class="muted body-sm" style="margin-bottom:12px;">
-        변수: <code>{{employee_name}}</code> <code>{{position}}</code> <code>{{department}}</code>
-        <code>{{start_date}}</code> <code>{{salary}}</code> <code>{{company_name}}</code> 를 사용할 수 있습니다.
+
+      <!-- 편집 탭 -->
+      <div id="pane-edit">
+        <textarea name="content_html" id="content-editor" class="form-control"
+          style="border:none; border-radius:0; resize:vertical; min-height:520px;
+                 font-family:'Courier New',monospace; font-size:12.5px; line-height:1.6;
+                 padding:20px; background:#fafafa;"
+          placeholder="계약서 내용을 HTML로 입력하세요..." required
+          oninput="syncPreview()">{{ request.form.get('content_html', default_content) }}</textarea>
       </div>
-      <textarea name="content_html" id="content-editor" class="form-control" rows="20"
-        style="font-family: 'Courier New', monospace; font-size:13px; line-height:1.6;"
-        placeholder="계약서 내용을 HTML 또는 텍스트로 입력하세요..." required>{{ request.form.get('content_html', default_content) }}</textarea>
+
+      <!-- 미리보기 탭 -->
+      <div id="pane-preview" style="display:none; min-height:520px; background:#f3f4f6; padding:24px;">
+        <div style="max-width:700px; margin:0 auto; background:#fff; padding:48px 56px;
+                    box-shadow:0 2px 16px rgba(0,0,0,.08); border-radius:4px;
+                    font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;
+                    font-size:13.5px; line-height:1.9; color:#111; word-break:keep-all;">
+          <div id="preview-body"></div>
+        </div>
+      </div>
     </div>
 
     <div style="display:flex; gap:10px; justify-content:flex-end;">
@@ -53,22 +85,63 @@
   </form>
 </div>
 
+<style>
+.editor-tab {
+  padding: 12px 18px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tx-3);
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.editor-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+</style>
+
 <script>
 const CONTRACT_DEFAULTS = {{ contract_defaults | tojson }};
 
-function loadDefault() {
-  const type = document.getElementById('contract-type').value;
+function onTypeChange() {
   const editor = document.getElementById('content-editor');
+  if (!editor.value.trim()) {
+    loadDefault();
+  } else if (confirm('계약 유형을 변경하면 현재 내용이 기본 양식으로 교체됩니다. 계속하시겠습니까?')) {
+    loadDefault();
+  }
+}
+
+function loadDefault() {
+  const type    = document.getElementById('contract-type').value;
+  const editor  = document.getElementById('content-editor');
   const content = CONTRACT_DEFAULTS[type] || '';
   if (!content) return;
-  if (!editor.value.trim() || confirm('기본 양식으로 교체하시겠습니까? 현재 내용이 사라집니다.')) {
-    editor.value = content;
-  }
+  editor.value = content;
+  syncPreview();
+}
+
+function syncPreview() {
+  const editor  = document.getElementById('content-editor');
+  const preview = document.getElementById('preview-body');
+  if (preview) preview.innerHTML = editor.value;
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.editor-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('pane-edit').style.display    = (tab === 'edit')    ? '' : 'none';
+  document.getElementById('pane-preview').style.display = (tab === 'preview') ? '' : 'none';
+  if (tab === 'preview') syncPreview();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
   const editor = document.getElementById('content-editor');
   if (!editor.value.trim()) loadDefault();
+  syncPreview();
 });
 </script>
 

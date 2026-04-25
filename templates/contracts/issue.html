@@ -17,7 +17,7 @@
             <option value="">-- 직원 선택 --</option>
             {% for emp in employees %}
             <option value="{{ emp.id }}" {{ 'selected' if request.form.get('employee_id')|int == emp.id }}>
-              {{ emp.name }} ({{ emp.dept or '부서 없음' }})
+              {{ emp.name }}{% if emp.dept %} ({{ emp.dept }}){% endif %}
             </option>
             {% endfor %}
           </select>
@@ -52,15 +52,39 @@
       {% endif %}
     </div>
 
-    <div class="card" style="padding:28px; margin-bottom:16px;">
-      <div class="label" style="margin-bottom:12px;">계약서 내용</div>
-      <div class="muted body-sm" style="margin-bottom:12px;">
-        변수: <code>{{employee_name}}</code> <code>{{position}}</code> <code>{{department}}</code>
-        <code>{{start_date}}</code> <code>{{salary}}</code> <code>{{company_name}}</code>
+    <div class="card" style="padding:0; overflow:hidden; margin-bottom:16px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:0 20px; border-bottom:1px solid var(--border); background:var(--bg);">
+        <div style="display:flex; gap:0;">
+          <button type="button" class="editor-tab active" id="tab-edit" onclick="switchIssueTabs('edit')">
+            <i class="fas fa-code" style="margin-right:6px; font-size:12px;"></i>편집
+          </button>
+          <button type="button" class="editor-tab" id="tab-preview" onclick="switchIssueTabs('preview')">
+            <i class="fas fa-eye" style="margin-right:6px; font-size:12px;"></i>미리보기
+          </button>
+        </div>
+        <span style="font-size:12px; color:var(--tx-3);">
+          변수: <code style="font-size:11px; background:var(--surface); padding:2px 6px; border-radius:4px; border:1px solid var(--border);">{{employee_name}}</code>
+          <code style="font-size:11px; background:var(--surface); padding:2px 6px; border-radius:4px; border:1px solid var(--border);">{{salary}}</code>
+          <code style="font-size:11px; background:var(--surface); padding:2px 6px; border-radius:4px; border:1px solid var(--border);">{{hire_date}}</code>
+          — 발행 시 자동 치환됩니다
+        </span>
       </div>
-      <textarea name="content_html" id="content-editor" class="form-control" rows="22"
-        style="font-family:'Courier New',monospace; font-size:13px; line-height:1.6;"
-        placeholder="계약서 내용을 입력하세요..." required>{{ request.form.get('content_html','') }}</textarea>
+      <div id="issue-pane-edit">
+        <textarea name="content_html" id="content-editor" class="form-control"
+          style="border:none;border-radius:0;resize:vertical;min-height:500px;
+                 font-family:'Courier New',monospace;font-size:12.5px;line-height:1.6;
+                 padding:20px;background:#fafafa;"
+          placeholder="계약서 내용을 입력하세요..." required
+          oninput="syncIssuePreview()">{{ request.form.get('content_html','') }}</textarea>
+      </div>
+      <div id="issue-pane-preview" style="display:none; min-height:500px; background:#f3f4f6; padding:24px;">
+        <div style="max-width:700px; margin:0 auto; background:#fff; padding:48px 56px;
+                    box-shadow:0 2px 16px rgba(0,0,0,.08); border-radius:4px;
+                    font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;
+                    font-size:13.5px; line-height:1.9; color:#111; word-break:keep-all;">
+          <div id="issue-preview-body"></div>
+        </div>
+      </div>
     </div>
 
     <div style="background:#fffbeb; border:1px solid #fed7aa; border-radius:var(--r); padding:14px 18px; margin-bottom:16px;">
@@ -79,6 +103,15 @@
   </form>
 </div>
 
+<style>
+.editor-tab {
+  padding: 12px 18px; border: none; background: none; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--tx-3);
+  border-bottom: 2px solid transparent; transition: color .15s, border-color .15s;
+}
+.editor-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+</style>
+
 <script>
 function loadTemplate() {
   const sel = document.getElementById('template-select');
@@ -87,8 +120,22 @@ function loadTemplate() {
     const editor = document.getElementById('content-editor');
     if (!editor.value.trim() || confirm('현재 내용을 템플릿으로 교체하시겠습니까?')) {
       editor.value = TEMPLATE_MAP[tid];
+      syncIssuePreview();
     }
   }
+}
+
+function syncIssuePreview() {
+  const body = document.getElementById('issue-preview-body');
+  if (body) body.innerHTML = document.getElementById('content-editor').value;
+}
+
+function switchIssueTabs(tab) {
+  document.querySelectorAll('.editor-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('issue-pane-edit').style.display    = tab === 'edit'    ? '' : 'none';
+  document.getElementById('issue-pane-preview').style.display = tab === 'preview' ? '' : 'none';
+  if (tab === 'preview') syncIssuePreview();
 }
 </script>
 

@@ -37,16 +37,18 @@
 <div style="display:grid; grid-template-columns:1fr 320px; gap:20px; align-items:start;">
 
   <!-- 계약서 본문 -->
-  <div class="card" style="padding:32px;">
-    <div id="contract-body" style="font-size:14px; line-height:1.9; color:var(--tx-1);">
-      {{ contract.content_html | safe }}
-    </div>
+  <div class="card" style="padding:0; overflow:hidden;">
+    <!-- 문서 용지 래퍼 -->
+    <div id="contract-paper">
+      <div id="contract-body">
+        {{ contract.content_html | safe }}
+      </div>
 
     {% if contract.status == 'signed' %}
-    <!-- 서명 스탬프 -->
+    <!-- 전자서명 완료 스탬프 -->
     <div style="margin-top:40px; padding-top:24px; border-top:2px solid var(--border); display:flex; justify-content:space-between; align-items:flex-end;">
       <div>
-        <div style="font-size:12px; color:var(--tx-3); margin-bottom:4px;">서명자</div>
+        <div style="font-size:12px; color:var(--tx-3); margin-bottom:4px;">전자서명자</div>
         <div style="font-size:16px; font-weight:700; color:var(--tx-1);">{{ contract.emp_name }}</div>
         <div class="muted body-sm">{{ contract.signed_at[:16].replace('T',' ') if contract.signed_at else '' }}</div>
       </div>
@@ -68,7 +70,9 @@
       <div style="font-size:13px; color:#b91c1c;">{{ contract.reject_reason }}</div>
     </div>
     {% endif %}
-  </div>
+
+      </div><!-- /contract-paper -->
+    </div>
 
   <!-- 사이드 패널 -->
   <div style="display:flex; flex-direction:column; gap:16px;">
@@ -154,9 +158,25 @@
 </div>
 
 <style>
+#contract-paper {
+  background: #fff;
+  padding: 56px 64px;
+  font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+}
+#contract-body {
+  font-size: 13.5px;
+  line-height: 1.9;
+  color: #111;
+  word-break: keep-all;
+}
+@media (max-width: 768px) {
+  #contract-paper { padding: 24px 20px; }
+}
 @media print {
-  .sidebar, .header, .btn, .card:last-child { display: none !important; }
-  #contract-body { font-size: 12pt; }
+  .sidebar, .header, .btn, aside { display: none !important; }
+  .main-content { padding: 0 !important; }
+  #contract-paper { padding: 20mm 15mm; box-shadow: none; }
+  #contract-body { font-size: 10pt; }
 }
 </style>
 

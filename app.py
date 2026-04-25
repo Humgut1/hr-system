@@ -4924,21 +4924,287 @@ CONTRACT_TYPE_LABELS = {
 }
 
 CONTRACT_DEFAULTS = {
-    'employment': '''<h2>근로계약서</h2>
-<p><strong>사용자</strong>(이하 "회사")와 <strong>{{employee_name}}</strong>(이하 "근로자")는 아래와 같이 근로계약을 체결합니다.</p>
-<h3>제1조 (근무 장소 및 업무 내용)</h3>
-<p>근무 장소: {{company_address}}<br>업무 내용: {{position}}</p>
-<h3>제2조 (근로 기간)</h3>
-<p>입사일: {{hire_date}} / 계약 기간: 정규직 (기간의 정함이 없음)</p>
-<h3>제3조 (근무 시간)</h3>
-<p>1일 8시간, 주 40시간 (09:00~18:00, 점심시간 12:00~13:00)</p>
-<h3>제4조 (임금)</h3>
-<p>월 기본급: {{base_salary}}원 (세전)<br>지급일: 매월 25일</p>
-<h3>제5조 (연차휴가)</h3>
-<p>근로기준법 제60조에 따라 연차유급휴가를 부여합니다.</p>
-<p>본 계약서는 2부 작성하여 사용자와 근로자가 각 1부씩 보관합니다.</p>''',
-    'nda': '''<h2>비밀유지서약서</h2>
-<p>본인 <strong>{{employee_name}}</strong>은(는) {{company_name}}(이하 "회사")에 재직하는 동안 및 퇴직 후에도 업무상 취득한 회사의 영업비밀, 기술정보, 고객정보 등 일체의 기밀정보를 제3자에게 누설하거나 회사의 동의 없이 사용하지 않을 것을 서약합니다.</p>''',
+    'employment': '''\
+<div style="text-align:center;margin-bottom:32px;padding-bottom:24px;border-bottom:3px double #000;">
+  <div style="font-size:22px;font-weight:900;letter-spacing:10px;color:#111;margin-bottom:4px;">근 로 계 약 서</div>
+  <div style="font-size:12px;color:#999;">Labor Contract</div>
+</div>
+
+<p style="font-size:14px;line-height:2;margin-bottom:24px;">
+  <strong>{{company_name}}</strong>(이하 "사용자"라 한다)와 <strong>{{employee_name}}</strong>(이하 "근로자"라 한다)는 다음과 같이 근로계약을 체결한다.
+</p>
+
+<table style="width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13.5px;">
+  <tr>
+    <td style="padding:9px 14px;border:1px solid #ccc;background:#f5f5f5;font-weight:700;width:22%;">성&nbsp;&nbsp;&nbsp;명</td>
+    <td style="padding:9px 14px;border:1px solid #ccc;width:28%;">{{employee_name}}</td>
+    <td style="padding:9px 14px;border:1px solid #ccc;background:#f5f5f5;font-weight:700;width:22%;">소&nbsp;&nbsp;&nbsp;속</td>
+    <td style="padding:9px 14px;border:1px solid #ccc;">{{department}}</td>
+  </tr>
+  <tr>
+    <td style="padding:9px 14px;border:1px solid #ccc;background:#f5f5f5;font-weight:700;">직&nbsp;&nbsp;&nbsp;위</td>
+    <td style="padding:9px 14px;border:1px solid #ccc;">{{position}}</td>
+    <td style="padding:9px 14px;border:1px solid #ccc;background:#f5f5f5;font-weight:700;">입 사 일</td>
+    <td style="padding:9px 14px;border:1px solid #ccc;">{{hire_date}}</td>
+  </tr>
+</table>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#eff6ff;border-left:4px solid #2563eb;padding:8px 14px;margin-bottom:10px;">제1조 (근무 장소 및 업무 내용)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 근무 장소 : {{company_name}} 사무소 및 회사가 지정하는 장소</p>
+    <p style="margin:4px 0;">② 업무 내용 : {{position}} 관련 업무 및 회사가 지시하는 제반 업무</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#eff6ff;border-left:4px solid #2563eb;padding:8px 14px;margin-bottom:10px;">제2조 (근로 기간)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 근로 개시일 : {{hire_date}}</p>
+    <p style="margin:4px 0;">② 계약 기간 : 기간의 정함이 없는 근로계약 (정규직)</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#eff6ff;border-left:4px solid #2563eb;padding:8px 14px;margin-bottom:10px;">제3조 (근무 시간 및 휴게)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 소정 근로 시간 : 1일 8시간, 주 40시간</p>
+    <p style="margin:4px 0;">② 근무 시간 : 09:00 ~ 18:00 (월요일 ~ 금요일)</p>
+    <p style="margin:4px 0;">③ 휴게 시간 : 12:00 ~ 13:00 (1시간)</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#eff6ff;border-left:4px solid #2563eb;padding:8px 14px;margin-bottom:10px;">제4조 (임금)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 월 기본급 : <strong>{{salary}}</strong>원 (세전)</p>
+    <p style="margin:4px 0;">② 임금 지급일 : 매월 25일 (휴무일인 경우 전 영업일 지급)</p>
+    <p style="margin:4px 0;">③ 지급 방법 : 근로자 명의의 금융계좌에 현금으로 지급</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#eff6ff;border-left:4px solid #2563eb;padding:8px 14px;margin-bottom:10px;">제5조 (연차 유급 휴가)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">근로기준법 제60조에 따라 연차 유급 휴가를 부여하며, 미사용 연차에 대해서는 관련 법령에 따라 처리한다.</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#eff6ff;border-left:4px solid #2563eb;padding:8px 14px;margin-bottom:10px;">제6조 (기타)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 본 계약에 명시되지 않은 사항은 근로기준법 등 관련 법령 및 회사 취업규칙에 따른다.</p>
+    <p style="margin:4px 0;">② 본 계약서는 2부 작성하여 사용자와 근로자가 각 1부씩 보관한다.</p>
+  </div>
+</div>
+
+<div style="margin-top:48px;padding-top:24px;border-top:2px solid #ddd;display:flex;justify-content:space-around;text-align:center;">
+  <div style="width:42%;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px;">사 용 자 (갑)</div>
+    <div style="font-size:13px;">{{company_name}}</div>
+    <div style="font-size:13px;color:#666;margin-bottom:40px;">대표이사</div>
+    <div style="border-bottom:1px solid #000;margin:0 auto 4px;width:90%;"></div>
+    <div style="font-size:11px;color:#999;">(서명 또는 날인)</div>
+  </div>
+  <div style="width:42%;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px;">근 로 자 (을)</div>
+    <div style="font-size:13px;">{{employee_name}}</div>
+    <div style="font-size:13px;color:#666;margin-bottom:40px;">{{position}}</div>
+    <div style="border-bottom:1px solid #000;margin:0 auto 4px;width:90%;"></div>
+    <div style="font-size:11px;color:#999;">(서명 또는 날인)</div>
+  </div>
+</div>''',
+
+    'nda': '''\
+<div style="text-align:center;margin-bottom:32px;padding-bottom:24px;border-bottom:3px double #000;">
+  <div style="font-size:22px;font-weight:900;letter-spacing:6px;color:#111;margin-bottom:4px;">비 밀 유 지 서 약 서</div>
+  <div style="font-size:12px;color:#999;">Non-Disclosure Agreement</div>
+</div>
+
+<p style="font-size:14px;line-height:2;margin-bottom:28px;">
+  본인 <strong>{{employee_name}}</strong>(이하 "서약자")은(는) <strong>{{company_name}}</strong>(이하 "회사")에 재직하는 동안 및 퇴직 후에도 아래의 사항을 성실히 이행할 것을 서약한다.
+</p>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#fdf4ff;border-left:4px solid #7c3aed;padding:8px 14px;margin-bottom:10px;">제1조 (비밀정보의 범위)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">본 서약서에서 "비밀정보"란 다음 각 호에 해당하는 정보를 말한다.</p>
+    <p style="margin:4px 0;">① 영업비밀 및 기술 정보, 연구개발 데이터, 특허 출원 전 정보</p>
+    <p style="margin:4px 0;">② 고객 정보, 거래처 정보, 계약 조건 및 가격 정보</p>
+    <p style="margin:4px 0;">③ 내부 경영 자료, 재무 정보, 인사 정보</p>
+    <p style="margin:4px 0;">④ 기타 "대외비" 또는 이와 유사한 표시가 된 일체의 정보</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#fdf4ff;border-left:4px solid #7c3aed;padding:8px 14px;margin-bottom:10px;">제2조 (비밀유지 의무)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 서약자는 재직 중 및 퇴직 후 3년간 비밀정보를 제3자에게 누설하거나 공개하지 않는다.</p>
+    <p style="margin:4px 0;">② 서약자는 비밀정보를 업무 목적 이외의 용도로 사용하지 않는다.</p>
+    <p style="margin:4px 0;">③ 서약자는 회사의 서면 동의 없이 비밀정보를 복사·복제·배포하지 않는다.</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#fdf4ff;border-left:4px solid #7c3aed;padding:8px 14px;margin-bottom:10px;">제3조 (위반 시 책임)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">서약자가 본 서약을 위반하여 회사에 손해를 끼친 경우, 관련 법령에 따라 민·형사상 책임을 진다.</p>
+  </div>
+</div>
+
+<div style="margin-top:48px;padding-top:24px;border-top:2px solid #ddd;text-align:center;">
+  <p style="font-size:13.5px;margin-bottom:32px;">본인은 위 사항을 충분히 이해하고 이를 준수할 것을 서약합니다.</p>
+  <div style="display:inline-block;min-width:300px;text-align:left;">
+    <div style="font-size:13.5px;margin-bottom:6px;">소속 : {{department}}</div>
+    <div style="font-size:13.5px;margin-bottom:6px;">직위 : {{position}}</div>
+    <div style="font-size:13.5px;margin-bottom:6px;">성명 : {{employee_name}}</div>
+    <div style="font-size:13.5px;margin-bottom:32px;">입사일 : {{hire_date}}</div>
+    <div style="border-bottom:1px solid #000;margin-bottom:4px;"></div>
+    <div style="font-size:11px;color:#999;text-align:center;">(서명 또는 날인)</div>
+  </div>
+</div>''',
+
+    'probation': '''\
+<div style="text-align:center;margin-bottom:32px;padding-bottom:24px;border-bottom:3px double #000;">
+  <div style="font-size:22px;font-weight:900;letter-spacing:6px;color:#111;margin-bottom:4px;">수 습 근 로 계 약 서</div>
+  <div style="font-size:12px;color:#999;">Probationary Employment Contract</div>
+</div>
+
+<p style="font-size:14px;line-height:2;margin-bottom:24px;">
+  <strong>{{company_name}}</strong>(이하 "사용자"라 한다)와 <strong>{{employee_name}}</strong>(이하 "근로자"라 한다)는 다음과 같이 수습 근로계약을 체결한다.
+</p>
+
+<table style="width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13.5px;">
+  <tr>
+    <td style="padding:9px 14px;border:1px solid #ccc;background:#f5f5f5;font-weight:700;width:22%;">성&nbsp;&nbsp;&nbsp;명</td>
+    <td style="padding:9px 14px;border:1px solid #ccc;width:28%;">{{employee_name}}</td>
+    <td style="padding:9px 14px;border:1px solid #ccc;background:#f5f5f5;font-weight:700;width:22%;">소&nbsp;&nbsp;&nbsp;속</td>
+    <td style="padding:9px 14px;border:1px solid #ccc;">{{department}}</td>
+  </tr>
+  <tr>
+    <td style="padding:9px 14px;border:1px solid #ccc;background:#f5f5f5;font-weight:700;">지원 직위</td>
+    <td style="padding:9px 14px;border:1px solid #ccc;">{{position}}</td>
+    <td style="padding:9px 14px;border:1px solid #ccc;background:#f5f5f5;font-weight:700;">수습 기간</td>
+    <td style="padding:9px 14px;border:1px solid #ccc;">입사일로부터 3개월</td>
+  </tr>
+</table>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#fff7ed;border-left:4px solid #f59e0b;padding:8px 14px;margin-bottom:10px;">제1조 (수습 기간)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 수습 개시일 : {{hire_date}}</p>
+    <p style="margin:4px 0;">② 수습 기간 : {{hire_date}}로부터 3개월</p>
+    <p style="margin:4px 0;">③ 수습 기간 만료 후 회사의 평가에 따라 정규직 전환 여부를 결정한다.</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#fff7ed;border-left:4px solid #f59e0b;padding:8px 14px;margin-bottom:10px;">제2조 (근무 시간)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 소정 근로 시간 : 1일 8시간, 주 40시간</p>
+    <p style="margin:4px 0;">② 근무 시간 : 09:00 ~ 18:00 (월~금), 휴게 12:00 ~ 13:00</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#fff7ed;border-left:4px solid #f59e0b;padding:8px 14px;margin-bottom:10px;">제3조 (임금)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 수습 기간 중 월 기본급 : <strong>{{salary}}</strong>원 (세전)</p>
+    <p style="margin:4px 0;">② 수습 기간 중 임금은 근로기준법이 허용하는 범위 내에서 적용한다.</p>
+    <p style="margin:4px 0;">③ 임금 지급일 : 매월 25일</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#fff7ed;border-left:4px solid #f59e0b;padding:8px 14px;margin-bottom:10px;">제4조 (계약 해지)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 사용자는 수습 기간 중 근로자의 업무 능력·태도·적응력 등을 평가하여 정규직 전환 여부를 결정한다.</p>
+    <p style="margin:4px 0;">② 수습 기간 만료 시 별도 통보 없이 정규직으로 전환된다. 단, 평가 결과 부적합 판정 시 계약을 해지할 수 있다.</p>
+  </div>
+</div>
+
+<div style="margin-top:48px;padding-top:24px;border-top:2px solid #ddd;display:flex;justify-content:space-around;text-align:center;">
+  <div style="width:42%;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px;">사 용 자 (갑)</div>
+    <div style="font-size:13px;">{{company_name}}</div>
+    <div style="font-size:13px;color:#666;margin-bottom:40px;">대표이사</div>
+    <div style="border-bottom:1px solid #000;margin:0 auto 4px;width:90%;"></div>
+    <div style="font-size:11px;color:#999;">(서명 또는 날인)</div>
+  </div>
+  <div style="width:42%;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px;">근 로 자 (을)</div>
+    <div style="font-size:13px;">{{employee_name}}</div>
+    <div style="font-size:13px;color:#666;margin-bottom:40px;">{{position}}</div>
+    <div style="border-bottom:1px solid #000;margin:0 auto 4px;width:90%;"></div>
+    <div style="font-size:11px;color:#999;">(서명 또는 날인)</div>
+  </div>
+</div>''',
+
+    'freelance': '''\
+<div style="text-align:center;margin-bottom:32px;padding-bottom:24px;border-bottom:3px double #000;">
+  <div style="font-size:22px;font-weight:900;letter-spacing:6px;color:#111;margin-bottom:4px;">프 리 랜 서 계 약 서</div>
+  <div style="font-size:12px;color:#999;">Freelance Service Agreement</div>
+</div>
+
+<p style="font-size:14px;line-height:2;margin-bottom:24px;">
+  <strong>{{company_name}}</strong>(이하 "발주자"라 한다)와 <strong>{{employee_name}}</strong>(이하 "수급자"라 한다)는 다음과 같이 용역 계약을 체결한다.
+</p>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#f0fdf4;border-left:4px solid #16a34a;padding:8px 14px;margin-bottom:10px;">제1조 (용역 내용)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 용역 내용 : {{position}} 관련 업무</p>
+    <p style="margin:4px 0;">② 납품 방법 : 발주자가 지정하는 방법으로 납품</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#f0fdf4;border-left:4px solid #16a34a;padding:8px 14px;margin-bottom:10px;">제2조 (계약 기간)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 계약 개시일 : {{hire_date}}</p>
+    <p style="margin:4px 0;">② 계약 종료일 : 별도 협의에 따름</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#f0fdf4;border-left:4px solid #16a34a;padding:8px 14px;margin-bottom:10px;">제3조 (용역 대가)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">① 월 용역 대가 : <strong>{{salary}}</strong>원 (부가가치세 별도)</p>
+    <p style="margin:4px 0;">② 지급 방법 : 세금계산서 발행 후 30일 이내 계좌 이체</p>
+    <p style="margin:4px 0;">③ 수급자는 용역 대가에 대한 세금 신고 및 납부 의무를 직접 부담한다.</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#f0fdf4;border-left:4px solid #16a34a;padding:8px 14px;margin-bottom:10px;">제4조 (지식재산권)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">본 계약에 따라 수급자가 제작·개발한 결과물의 저작권 및 지식재산권은 발주자에게 귀속된다.</p>
+  </div>
+</div>
+
+<div style="margin-bottom:20px;">
+  <div style="font-size:14px;font-weight:700;background:#f0fdf4;border-left:4px solid #16a34a;padding:8px 14px;margin-bottom:10px;">제5조 (비밀유지)</div>
+  <div style="font-size:13.5px;line-height:1.9;padding:0 6px;">
+    <p style="margin:4px 0;">수급자는 계약 이행 중 취득한 발주자의 영업비밀 및 기밀정보를 제3자에게 누설하지 않으며, 계약 종료 후에도 동일하게 적용된다.</p>
+  </div>
+</div>
+
+<div style="margin-top:48px;padding-top:24px;border-top:2px solid #ddd;display:flex;justify-content:space-around;text-align:center;">
+  <div style="width:42%;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px;">발 주 자 (갑)</div>
+    <div style="font-size:13px;">{{company_name}}</div>
+    <div style="font-size:13px;color:#666;margin-bottom:40px;">대표이사</div>
+    <div style="border-bottom:1px solid #000;margin:0 auto 4px;width:90%;"></div>
+    <div style="font-size:11px;color:#999;">(서명 또는 날인)</div>
+  </div>
+  <div style="width:42%;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px;">수 급 자 (을)</div>
+    <div style="font-size:13px;">{{employee_name}}</div>
+    <div style="font-size:13px;color:#666;margin-bottom:40px;">{{position}}</div>
+    <div style="border-bottom:1px solid #000;margin:0 auto 4px;width:90%;"></div>
+    <div style="font-size:11px;color:#999;">(서명 또는 날인)</div>
+  </div>
+</div>''',
 }
 
 
@@ -5005,6 +5271,30 @@ def contract_issue():
         if not title or not content:
             flash('제목과 내용을 입력해주세요.', 'error')
         else:
+            # Variable substitution: replace {{var}} placeholders with real data
+            emp_data = db.execute(
+                "SELECT u.name, u.hire_date, es.base_salary, "
+                "d.name AS dept, p.name AS pos "
+                "FROM users u "
+                "LEFT JOIN departments d ON d.id=u.department_id "
+                "LEFT JOIN positions p ON p.id=u.position_id "
+                "LEFT JOIN employee_salary es ON es.user_id=u.id "
+                "WHERE u.id=?", (emp_id,)
+            ).fetchone()
+            company = get_company_info()
+            if emp_data:
+                subst = {
+                    '{{employee_name}}': emp_data['name'] or '',
+                    '{{department}}':    emp_data['dept'] or '',
+                    '{{position}}':      emp_data['pos'] or '',
+                    '{{hire_date}}':     emp_data['hire_date'] or '',
+                    '{{start_date}}':    emp_data['hire_date'] or '',
+                    '{{salary}}':        f"{int(emp_data['base_salary']):,}" if emp_data['base_salary'] else '0',
+                    '{{company_name}}':  company.get('name', ''),
+                    '{{company_address}}': company.get('address', ''),
+                }
+                for var, val in subst.items():
+                    content = content.replace(var, val)
             db.execute(
                 "INSERT INTO contracts (template_id, employee_id, issued_by, title, content_html) VALUES (?,?,?,?,?)",
                 (template_id, emp_id, session['user_id'], title, content)
@@ -5017,7 +5307,9 @@ def contract_issue():
             flash('계약서가 발송되었습니다.', 'success')
             return redirect(url_for('contracts_list'))
     employees = db.execute(
-        "SELECT id, name FROM users WHERE status='active' AND role='employee' ORDER BY name"
+        "SELECT u.id, u.name, d.name AS dept "
+        "FROM users u LEFT JOIN departments d ON d.id=u.department_id "
+        "WHERE u.status='active' AND u.role='employee' ORDER BY u.name"
     ).fetchall()
     templates = db.execute("SELECT id, name, contract_type, content_html FROM contract_templates ORDER BY created_at DESC").fetchall()
     company   = get_company_info()
