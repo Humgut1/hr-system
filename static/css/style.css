@@ -61,11 +61,12 @@ input, select, textarea { font-family: var(--font); }
 
 /* ── App Shell ────────────────────────────────── */
 .app-layout { display: flex; min-height: 100vh; width: 100%; }
-.app-shell { width: 100%; }
+.app-shell { display: flex; width: 100%; min-height: 100vh; }
 
 /* ── Sidebar ──────────────────────────────────── */
 .sidebar {
-  width: 260px;
+  width: 220px;
+  min-width: 220px;
   background: #ffffff;
   display: flex;
   flex-direction: column;
@@ -76,8 +77,79 @@ input, select, textarea { font-family: var(--font); }
   overflow-x: hidden;
   flex-shrink: 0;
   box-shadow: 1px 0 0 rgba(21,28,35,0.06);
+  transition: width .22s ease, min-width .22s ease;
+  z-index: 10;
 }
 .sidebar::-webkit-scrollbar { width: 0; }
+
+/* ── Sidebar collapsed ───────────────────────── */
+.sidebar.collapsed {
+  width: 64px;
+  min-width: 64px;
+}
+.sidebar.collapsed .brand-name,
+.sidebar.collapsed .brand-sub,
+.sidebar.collapsed .nav-item span,
+.sidebar.collapsed .nav-category-btn span,
+.sidebar.collapsed .nav-chevron,
+.sidebar.collapsed .sidebar-footer-label {
+  display: none;
+}
+.sidebar.collapsed .brand { padding: 6px 14px; justify-content: center; }
+.sidebar.collapsed .brand-mark { margin: 0; }
+.sidebar.collapsed .nav-category-btn {
+  justify-content: center;
+  padding: 8px 0;
+}
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 10px 0;
+  gap: 0;
+  border-radius: 10px;
+}
+.sidebar.collapsed .nav-item i { width: auto; font-size: 16px; }
+.sidebar.collapsed .nav-section-body { padding: 0 8px; }
+.sidebar.collapsed .sidebar-footer { padding: 10px 8px; }
+.sidebar.collapsed .nav-section-divider { display: none; }
+
+/* collapsed 상태에서 nav-item 툴팁 */
+.sidebar.collapsed .nav-item[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  left: 72px;
+  background: #151c23;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 7px;
+  white-space: nowrap;
+  z-index: 999;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,.2);
+}
+.sidebar.collapsed .nav-item[title] { position: relative; }
+
+/* 사이드바 토글 버튼 */
+.sidebar-toggle-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--tx-3);
+  cursor: pointer;
+  font-size: 11px;
+  transition: background .15s, color .15s;
+  flex-shrink: 0;
+}
+.sidebar-toggle-btn:hover { background: var(--bg); color: var(--tx-1); }
+
+/* 섹션 구분선 */
+.nav-section-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 14px;
+}
 
 /* brand 블록 */
 .brand { display: flex; align-items: center; gap: 12px; padding: 6px 10px; }
