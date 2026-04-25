@@ -5244,13 +5244,16 @@ def contract_template_new():
         if not name or not content:
             flash('이름과 내용을 입력해주세요.', 'error')
         else:
-            db.execute(
-                "INSERT INTO contract_templates (name, contract_type, content_html, created_by) VALUES (?,?,?,?)",
-                (name, ctype, content, session['user_id'])
-            )
-            db.commit()
-            flash('템플릿이 저장되었습니다.', 'success')
-            return redirect(url_for('contracts_list'))
+            try:
+                db.execute(
+                    "INSERT INTO contract_templates (name, contract_type, content_html, created_by) VALUES (?,?,?,?)",
+                    (name, ctype, content, session['user_id'])
+                )
+                db.commit()
+                flash('템플릿이 저장되었습니다.', 'success')
+                return redirect(url_for('contracts_list'))
+            except Exception as e:
+                flash(f'저장 오류: {e}', 'error')
     default_type = request.args.get('type', 'employment')
     default_content = CONTRACT_DEFAULTS.get(default_type, '')
     return render_template('contracts/template_form.html',
