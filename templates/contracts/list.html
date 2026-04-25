@@ -6,7 +6,7 @@
 
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
   <div class="muted body-sm">직원 계약서를 발행하고 전자 서명을 관리합니다.</div>
-  {% if session.role in ('admin','hr') %}
+  {% if session.user_role in ('admin','hr') %}
   <div style="display:flex; gap:8px;">
     <a href="{{ url_for('contract_template_new') }}" class="btn btn-outline">
       <i class="fas fa-file-alt" style="margin-right:6px;"></i>템플릿 만들기
@@ -23,7 +23,7 @@
   <button class="tab-btn active" id="tab-contracts" onclick="showTab('contracts')">
     계약서 <span class="badge badge-info" style="font-size:10px; margin-left:4px;">{{ contracts|length }}</span>
   </button>
-  {% if session.role in ('admin','hr') %}
+  {% if session.user_role in ('admin','hr') %}
   <button class="tab-btn" id="tab-templates" onclick="showTab('templates')">
     템플릿 <span class="badge" style="font-size:10px; margin-left:4px; background:var(--bg); color:var(--tx-3);">{{ templates|length }}</span>
   </button>
@@ -39,7 +39,7 @@
         <thead>
           <tr>
             <th>제목</th>
-            {% if session.role in ('admin','hr','manager') %}<th>직원</th>{% endif %}
+            {% if session.user_role in ('admin','hr','manager') %}<th>직원</th>{% endif %}
             <th>유형</th>
             <th>발행일</th>
             <th>상태</th>
@@ -52,7 +52,7 @@
             <td>
               <div style="font-weight:600; font-size:13.5px;">{{ c.title }}</div>
             </td>
-            {% if session.role in ('admin','hr','manager') %}
+            {% if session.user_role in ('admin','hr','manager') %}
             <td>
               <div style="display:flex; align-items:center; gap:8px;">
                 <div class="avatar-xs" style="font-size:11px; flex-shrink:0;">{{ (c.emp_name or '?')[0] }}</div>
@@ -97,9 +97,9 @@
     <i class="fas fa-file-signature" style="font-size:36px; color:var(--tx-4); display:block; margin-bottom:16px;"></i>
     <div style="font-size:15px; font-weight:600; color:var(--tx-2); margin-bottom:8px;">계약서가 없습니다</div>
     <div class="muted body-sm" style="margin-bottom:20px;">
-      {% if session.role in ('admin','hr') %}계약서를 발행해보세요.{% else %}발행된 계약서가 없습니다.{% endif %}
+      {% if session.user_role in ('admin','hr') %}계약서를 발행해보세요.{% else %}발행된 계약서가 없습니다.{% endif %}
     </div>
-    {% if session.role in ('admin','hr') %}
+    {% if session.user_role in ('admin','hr') %}
     <a href="{{ url_for('contract_issue') }}" class="btn btn-primary">계약서 발행하기</a>
     {% endif %}
   </div>
@@ -107,7 +107,7 @@
 </div>
 
 <!-- 템플릿 목록 -->
-{% if session.role in ('admin','hr') %}
+{% if session.user_role in ('admin','hr') %}
 <div id="pane-templates" style="display:none;">
   {% if templates %}
   <div class="card">

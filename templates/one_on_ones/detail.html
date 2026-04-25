@@ -26,7 +26,7 @@
   </div>
   <div style="display:flex; gap:8px; flex-shrink:0;">
     <a href="{{ url_for('one_on_ones') }}" class="btn btn-outline btn-sm">목록</a>
-    {% if meeting.status == 'scheduled' and session.role in ('admin','manager') %}
+    {% if meeting.status == 'scheduled' and session.user_role in ('admin','manager') %}
     <form method="POST" style="display:inline;">
       <input type="hidden" name="action" value="complete">
       <button type="submit" class="btn btn-primary btn-sm"

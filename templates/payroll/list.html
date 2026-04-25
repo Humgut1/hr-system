@@ -81,7 +81,7 @@
       <span class="card-title">Certificates</span>
     </div>
     <div class="card-body" style="display:flex; flex-direction:column; gap:10px;">
-      <a href="{{ url_for('cert_employment') }}" target="_blank"
+      <a href="{{ url_for('certificates_hub') }}"
          style="display:flex; align-items:center; gap:14px; padding:16px;
                 border:1.5px solid var(--border); border-radius:var(--r);
                 transition:all .15s; text-decoration:none;"
@@ -94,27 +94,9 @@
         </div>
         <div>
           <div style="font-size:14px; font-weight:700; color:var(--tx-1);">Employment Certificate</div>
-          <div style="font-size:12px; color:var(--tx-3);">Proof of current employment</div>
+          <div style="font-size:12px; color:var(--tx-3);">재직·경력·소득·퇴직 증명서 발급</div>
         </div>
-        <i class="fas fa-print" style="margin-left:auto; color:var(--tx-3);"></i>
-      </a>
-
-      <a href="{{ url_for('cert_career') }}" target="_blank"
-         style="display:flex; align-items:center; gap:14px; padding:16px;
-                border:1.5px solid var(--border); border-radius:var(--r);
-                transition:all .15s; text-decoration:none;"
-         onmouseover="this.style.borderColor='var(--primary)'; this.style.background='#eff6ff'"
-         onmouseout="this.style.borderColor='var(--border)'; this.style.background=''">
-        <div style="width:42px; height:42px; background:#f0fdf4; border-radius:var(--r-sm);
-                    display:flex; align-items:center; justify-content:center;
-                    color:var(--green); font-size:18px; flex-shrink:0;">
-          <i class="fas fa-file-alt"></i>
-        </div>
-        <div>
-          <div style="font-size:14px; font-weight:700; color:var(--tx-1);">Career Certificate</div>
-          <div style="font-size:12px; color:var(--tx-3);">Work history from hire date to present</div>
-        </div>
-        <i class="fas fa-print" style="margin-left:auto; color:var(--tx-3);"></i>
+        <i class="fas fa-arrow-right" style="margin-left:auto; color:var(--tx-3);"></i>
       </a>
     </div>
   </div>
