@@ -2213,10 +2213,13 @@ def attendance():
     pending_count = db.execute(
         "SELECT COUNT(*) FROM leave_requests WHERE status='pending'"
     ).fetchone()[0]
+    reviewed_count = db.execute(
+        "SELECT COUNT(*) FROM leave_requests WHERE status='reviewed'"
+    ).fetchone()[0]
     return render_template('attendance/list.html', reqs=reqs, status=status,
                            depts=depts, dept_id=dept_id,
-                           pending_count=pending_count, labels=LEAVE_LABELS,
-                           active_page='attendance')
+                           pending_count=pending_count, reviewed_count=reviewed_count,
+                           labels=LEAVE_LABELS, active_page='attendance')
 
 @app.route('/attendance/<int:req_id>/approve', methods=['POST'])
 @manager_or_admin
