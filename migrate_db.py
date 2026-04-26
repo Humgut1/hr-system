@@ -391,6 +391,181 @@ def _seed_transactional(c, all_uids: list, admin_id: int):
     print(f"   성과목표: {len(goal_uids)}명 × {len(goal_templates)}개 × 2주기")
     print(f"   전자계약: {len(sample_employees)}건")
 
+    # ── 7. 채용 공고 + 지원자 + 파이프라인 ──────────────────────
+    recruiter_row = c.execute(
+        "SELECT id FROM users WHERE email='recruiter@company.com'"
+    ).fetchone()
+    recruiter_id = recruiter_row[0] if recruiter_row else admin_id
+
+    # 공고 정의: (title, dept_name, position_level, desc_summary, status, deadline_offset_days)
+    POSTINGS = [
+        ('백엔드 엔지니어 (Python/Django)',
+         '백엔드팀', 3,
+         'Python/Django 기반 서버 개발 경력 3년 이상. MSA 경험 우대.\n'
+         '주요 업무: API 설계·개발, DB 최적화, 코드 리뷰.',
+         'open', 30),
+        ('프론트엔드 엔지니어 (React)',
+         '프론트엔드팀', 3,
+         'React/TypeScript 3년 이상. 디자인 시스템 구축 경험 우대.\n'
+         '주요 업무: 웹 서비스 UI 개발, 성능 최적화.',
+         'open', 25),
+        ('ML 엔지니어 (추천/검색)',
+         'ML/AI팀', 4,
+         '추천 시스템 또는 검색 엔진 개발 경험 4년 이상. PyTorch 필수.\n'
+         '주요 업무: 추천 모델 개발 및 A/B 테스트 운영.',
+         'open', 45),
+        ('데이터 엔지니어',
+         '데이터엔지니어링팀', 3,
+         'Airflow, Spark, dbt 중 2개 이상 실무 경험.\n'
+         '주요 업무: 데이터 파이프라인 구축 및 데이터 마트 관리.',
+         'open', 20),
+        ('시니어 PM (B2B SaaS)',
+         '서비스기획팀', 4,
+         'B2B SaaS 프로덕트 기획 5년 이상. 사용자 인터뷰, 데이터 기반 의사결정 경험.\n'
+         '주요 업무: 로드맵 수립, 고객 문제 정의, 스쿼드 리딩.',
+         'open', 35),
+        ('DevOps / SRE',
+         'DevOps팀', 3,
+         'Kubernetes, Terraform, AWS 실무 경험 3년 이상.\n'
+         '주요 업무: 클라우드 인프라 운영, CI/CD 파이프라인 관리.',
+         'open', 30),
+        ('브랜드 마케터',
+         '브랜드마케팅팀', 2,
+         'SNS 채널 운영 및 콘텐츠 기획 2년 이상.\n'
+         '주요 업무: 브랜드 캠페인 기획, 인플루언서 협업.',
+         'open', 15),
+        ('B2B 영업 (Enterprise)',
+         'B2B영업팀', 3,
+         '엔터프라이즈 SaaS 영업 경력 3년 이상.\n'
+         '주요 업무: 신규 고객 발굴, 계약 협상, 고객 관계 관리.',
+         'closed', -10),
+        ('UX 디자이너',
+         'UX팀', 3,
+         'Figma 능숙, 사용자 리서치 및 프로토타이핑 경험 3년 이상.\n'
+         '주요 업무: 서비스 UX 설계, 디자인 시스템 운영.',
+         'closed', -5),
+        ('채용 담당자 (IT/테크 전문)',
+         '채용팀', 2,
+         'IT/테크 직군 채용 경력 2년 이상. 헤드헌팅 경험 우대.\n'
+         '주요 업무: JD 작성, 소싱, 인터뷰 조율.',
+         'open', 60),
+    ]
+
+    posting_ids = []
+    for title, dept_name, pos_level, desc, status, deadline_offset in POSTINGS:
+        dept_row = c.execute(
+            "SELECT id FROM departments WHERE name=?", (dept_name,)
+        ).fetchone()
+        pos_row = c.execute(
+            "SELECT id FROM positions WHERE level=?", (pos_level,)
+        ).fetchone()
+        dept_id_p = dept_row[0] if dept_row else None
+        pos_id_p  = pos_row[0] if pos_row else None
+        deadline  = (today + timedelta(days=deadline_offset)).isoformat() if deadline_offset > 0 else (today + timedelta(days=deadline_offset)).isoformat()
+        c.execute(
+            """INSERT INTO job_postings
+               (title, department_id, position_id, description, requirements, status, deadline, created_by)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (title, dept_id_p, pos_id_p, desc,
+             '이력서 + 포트폴리오(해당자) 제출. 서류 검토 후 개별 연락.',
+             status, deadline, recruiter_id)
+        )
+        posting_ids.append(c.lastrowid)
+
+    # 지원자 이름 풀
+    APPLICANT_NAMES = [
+        '강민호','윤지수','정다은','이승준','박소연','김재현','최예림','조민수',
+        '한지영','신동현','임채원','오지훈','서유진','권민정','황성호','안예진',
+        '송재원','류민수','전지은','홍성준','고은서','문준혁','양미래','손동우',
+        '배지현','백승현','허민준','유채린','남정호','박현수','이다인','김성민',
+        '정유진','최재훈','윤수빈','조현준','한민지','신예원','임도현','오서연',
+        '강준혁','이민채','박재영','김하은','정성준','최도윤','윤예진','조성현',
+        '한재민','신수진',
+    ]
+    SOURCES = ['direct', 'direct', 'linkedin', 'linkedin', 'referral', 'wanted', 'jumpit']
+    RESUME_NOTES = [
+        '경력기술서 충실, GitHub 포트폴리오 있음',
+        '전 직장 대기업 경력. 이직 사유 명확',
+        '스타트업 경험 다수. 주도적 업무 스타일',
+        '기술 스택 일치율 높음. 코딩테스트 통과',
+        '포트폴리오 퀄리티 우수. 팀 추천 지원자',
+        '경력 3년, 기대 연봉 협의 가능',
+        '오픈소스 기여 이력. 자기소개서 성의 있음',
+        '전 직장 동료 추천. 인성 검증됨',
+    ]
+
+    # 스테이지별 분포: open 공고는 파이프라인 전반에 걸쳐, closed는 hired/rejected 위주
+    STAGE_DIST_OPEN = [
+        'applied', 'applied', 'applied',
+        'screening', 'screening',
+        'interview1', 'interview1',
+        'interview2',
+        'final',
+        'offered', 'rejected',
+    ]
+    STAGE_DIST_CLOSED = [
+        'hired', 'hired', 'rejected', 'rejected', 'rejected',
+    ]
+
+    name_pool = list(APPLICANT_NAMES)
+    rng.shuffle(name_pool)
+    name_cursor = 0
+
+    total_applicants = 0
+    for i, (posting_id, (_, _, _, _, status, _)) in enumerate(zip(posting_ids, POSTINGS)):
+        count = rng.randint(4, 8) if status == 'open' else rng.randint(3, 5)
+        stage_dist = STAGE_DIST_OPEN if status == 'open' else STAGE_DIST_CLOSED
+
+        for _ in range(count):
+            if name_cursor >= len(name_pool):
+                name_cursor = 0
+            app_name = name_pool[name_cursor]; name_cursor += 1
+            app_email = f"{app_name.lower().replace(' ', '')}_{rng.randint(10,99)}@email.com"
+            phone = f"010-{rng.randint(1000,9999)}-{rng.randint(1000,9999)}"
+            stage = rng.choice(stage_dist)
+            source = rng.choice(SOURCES)
+            resume = rng.choice(RESUME_NOTES)
+            days_ago = rng.randint(3, 60)
+            created = (today - timedelta(days=days_ago)).isoformat() + ' 10:00:00'
+
+            c.execute(
+                """INSERT INTO applicants
+                   (posting_id, name, email, phone, source, resume_note, stage, created_at)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (posting_id, app_name, app_email, phone, source, resume, stage, created)
+            )
+            app_id = c.lastrowid
+            total_applicants += 1
+
+            # 파이프라인 이동 로그 (스테이지마다 로그 생성)
+            stage_order = ['applied','screening','interview1','interview2','final','offered','hired','rejected']
+            current_idx = stage_order.index(stage)
+            log_date = today - timedelta(days=days_ago)
+            for s_idx in range(current_idx + 1):
+                log_date = log_date + timedelta(days=rng.randint(1, 5))
+                note_map = {
+                    'applied': '지원서 접수',
+                    'screening': '서류 통과',
+                    'interview1': '1차 면접 통과',
+                    'interview2': '2차 면접 통과',
+                    'final': '최종 면접 완료',
+                    'offered': '처우 협의 중',
+                    'hired': '입사 확정',
+                    'rejected': '불합격 처리',
+                }
+                c.execute(
+                    """INSERT INTO applicant_logs
+                       (applicant_id, stage, note, changed_by, created_at)
+                       VALUES (?,?,?,?,?)""",
+                    (app_id, stage_order[s_idx],
+                     note_map.get(stage_order[s_idx], ''),
+                     recruiter_id,
+                     log_date.isoformat() + ' 09:00:00')
+                )
+
+    print(f"   채용공고: {len(posting_ids)}건 (오픈 {sum(1 for _,(_,_,_,_,s,_) in zip(posting_ids,POSTINGS) if s=='open')}건 / 마감 {sum(1 for _,(_,_,_,_,s,_) in zip(posting_ids,POSTINGS) if s=='closed')}건)")
+    print(f"   지원자: {total_applicants}명")
+
 
 def run():
     init_db()   # 테이블이 없을 때도 안전하게 실행되도록
