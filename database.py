@@ -2,7 +2,8 @@ import sqlite3
 import os
 from werkzeug.security import generate_password_hash
 
-DATABASE = 'hr_system.db'
+_db_dir  = os.environ.get('DB_DIR', '')
+DATABASE = os.path.join(_db_dir, 'hr_system.db') if _db_dir else 'hr_system.db'
 
 _DEV_PW   = os.environ.get('HR_DEV_PASSWORD',   'changeme!')
 _GUEST_PW = os.environ.get('HR_GUEST_PASSWORD', 'guest1234!')

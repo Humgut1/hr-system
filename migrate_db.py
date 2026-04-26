@@ -11,11 +11,13 @@
 
 import sqlite3
 import random
+import os
 from datetime import date, timedelta
 from werkzeug.security import generate_password_hash
 from database import init_db
 
-DB  = 'hr_system.db'
+_db_dir = os.environ.get('DB_DIR', '')
+DB = os.path.join(_db_dir, 'hr_system.db') if _db_dir else 'hr_system.db'
 PW  = 'changeme!'
 random.seed(42)
 

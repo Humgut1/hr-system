@@ -748,25 +748,63 @@ tbody tr:hover { background: #fafbfd; }
 .sidebar-overlay.active { display: block; }
 
 @media (max-width: 768px) {
-  .app-shell { grid-template-columns: 1fr; } /* 사이드바 열 제거 */
+  /* 레이아웃 */
+  .app-shell { grid-template-columns: 1fr; }
   .hamburger { display: flex; }
-  .sidebar { position: fixed; inset: 0 auto 0 0; transform: translateX(-100%); transition: transform .25s ease; z-index: 200; }
+  .sidebar-toggle-btn { display: none !important; }
+  .sidebar {
+    position: fixed; inset: 0 auto 0 0;
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+    z-index: 200;
+    width: 240px !important; /* collapsed 상태 무시 */
+  }
   .sidebar.open { transform: translateX(0); }
+  .sidebar.collapsed { width: 240px !important; }
+  .sidebar.collapsed .nav-item span,
+  .sidebar.collapsed .nav-category-btn span,
+  .sidebar.collapsed .brand-name,
+  .sidebar.collapsed .sidebar-footer-name { display: block !important; }
+
+  /* 헤더 */
   .header { padding: 0 16px; }
   .user-info-wrap { display: none; }
   .divider-v { display: none; }
+  .global-search-wrap { max-width: 180px; }
+
+  /* 콘텐츠 */
   .page-content { padding: 16px; }
   .info-list { grid-template-columns: 1fr; }
   .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+
+  /* 인라인 grid 2컬럼 → 1컬럼 강제 (계약서뷰, 직원상세 등) */
+  [style*="grid-template-columns:1fr 320px"],
+  [style*="grid-template-columns: 1fr 320px"],
+  [style*="grid-template-columns:2fr 1fr"],
+  [style*="grid-template-columns: 2fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 달력 */
   .cal-cell { min-height: 60px; padding: 4px; }
   .cal-event { font-size: 10px; padding: 1px 4px; }
+
+  /* 파이프라인 */
   .pipeline-board { grid-template-columns: repeat(4, 240px); overflow-x: auto; padding-bottom: 10px; }
+
+  /* 로그인 */
   .login-left { display: none; }
   .login-right { width: 100%; padding: 40px 28px; }
+
+  /* 대시보드 배너 */
   .welcome-greeting { font-size: 16px; }
   .welcome-icon { font-size: 36px; }
   .welcome-banner { padding: 20px 22px; }
+
+  /* 성과 */
   .cycles-layout { grid-template-columns: 1fr !important; }
+
+  /* 테이블 */
   td, th { padding: 10px 12px; font-size: 12.5px; }
 }
 
@@ -777,4 +815,10 @@ tbody tr:hover { background: #fafbfd; }
   .welcome-icon { display: none; }
   .cal-date { font-size: 10px; }
   .cal-extra { font-size: 9.5px; }
+
+  /* 검색바 숨김 (너무 좁음) */
+  .global-search-wrap { display: none; }
+
+  /* 헤더 우측 아이콘만 */
+  .user-pill-name { display: none; }
 }

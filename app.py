@@ -13,7 +13,9 @@ from payroll_utils import (calc_payslip, calc_annual_leave, fmt_krw,
 app = Flask(__name__)
 app.secret_key = os.environ.get('HR_SECRET_KEY', 'dev-only-change-in-prod')
 
-DATABASE = 'hr_system.db'
+# Railway Volume이 /data에 마운트된 경우 해당 경로 사용, 아니면 로컬 경로
+_db_dir = os.environ.get('DB_DIR', '')
+DATABASE = os.path.join(_db_dir, 'hr_system.db') if _db_dir else 'hr_system.db'
 
 # DB 초기화 — gunicorn 포함 모든 실행 방식에서 실행
 from database import init_db
