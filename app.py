@@ -5250,7 +5250,7 @@ def contract_sign(cid):
     # 발급자에게 알림
     add_notification(c['issued_by'], 'info', 'contract',
         f"계약서 서명 완료 — {c['title']}",
-        f"{session['user_name']}님이 서명했습니다.",
+        f"{session.get('user_name', '직원')}님이 서명했습니다.",
         url_for('contracts_list'))
     flash('서명이 완료되었습니다.', 'success')
     return redirect(url_for('contract_view', cid=cid))
@@ -5275,7 +5275,7 @@ def contract_reject(cid):
     db.commit()
     add_notification(c['issued_by'], 'info', 'contract',
         f"계약서 서명 거절 — {c['title']}",
-        f"{session['user_name']}님이 거절했습니다. 사유: {reason or '미기재'}",
+        f"{session.get('user_name', '직원')}님이 거절했습니다. 사유: {reason or '미기재'}",
         url_for('contracts_list'))
     flash('계약서를 거절했습니다.', 'success')
     return redirect(url_for('contracts_list'))
