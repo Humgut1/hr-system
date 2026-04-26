@@ -7,14 +7,16 @@
 - 직군 × 직급 연봉 기준표 생성
 - users 테이블에 birth_date, job_family_id 컬럼 추가
 - 직원 100명 시드
+- 트랜잭셔널 시드 데이터 (급여명세/휴가/근태/성과/계약)
 """
 
 import sqlite3
 import random
 import os
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from werkzeug.security import generate_password_hash
 from database import init_db
+from payroll_utils import calc_payslip
 
 _db_dir = os.environ.get('DB_DIR', '')
 DB = os.path.join(_db_dir, 'hr_system.db') if _db_dir else 'hr_system.db'
@@ -114,6 +116,280 @@ def monthly_base(jf_code: str, cl: int) -> int:
     if ann == 0:
         ann = 3600
     return (ann * 10000) // 12
+
+
+def _seed_transactional(c, all_uids: list, admin_id: int):
+    """
+    직원 시드 완료 후 현실적인 트랜잭셔널 데이터를 삽입.
+    - 급여명세서: 최근 6개월 (전체 직원)
+    - 휴가신청: 40건 (다양한 상태)
+    - 출퇴근 기록: 최근 45일 (무작위 직원 30명)
+    - 공지사항: 7건 추가
+    - 성과 주기 + 목표 + 리뷰
+    - 전자계약: 5건
+    """
+    today = date.today()
+    rng = random.Random(99)  # 별도 시드 — 기존 시드와 분리
+
+    # ── 1. 급여명세서 (최근 6개월, 전체 직원) ────────────────────
+    salary_map = {}
+    for row in c.execute("SELECT user_id, base_salary, meal_allowance, transport_allowance FROM employee_salary"):
+        salary_map[row[0]] = (row[1], row[2], row[3])
+
+    months = []
+    for delta in range(6, 0, -1):
+        d = today.replace(day=1) - timedelta(days=delta * 28)
+        months.append((d.year, d.month))
+
+    for uid in all_uids:
+        if uid not in salary_map:
+            continue
+        base, meal, transport = salary_map[uid]
+        for yr, mo in months:
+            ot = rng.choice([0, 0, 0, rng.randint(50000, 300000)])
+            p = calc_payslip(base, meal, transport, ot)
+            c.execute(
+                """INSERT OR IGNORE INTO payslips
+                   (user_id, year, month, base_salary, meal_allowance, transport_allowance,
+                    overtime_pay, national_pension, health_insurance, long_term_care,
+                    employment_insurance, income_tax, local_income_tax,
+                    gross_pay, total_deduction, net_pay)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (uid, yr, mo,
+                 p['base_salary'], p['meal_allowance'], p['transport_allowance'],
+                 p['overtime_pay'], p['national_pension'], p['health_insurance'],
+                 p['long_term_care'], p['employment_insurance'],
+                 p['income_tax'], p['local_income_tax'],
+                 p['gross_pay'], p['total_deduction'], p['net_pay'])
+            )
+
+    # ── 2. 공지사항 7건 추가 ───────────────────────────────────
+    extra_notices = [
+        ('2026년 건강검진 대상자 안내',
+         '2026년 직장 건강검진 대상자를 안내드립니다.\n\n'
+         '- 대상: 짝수년도 출생 전 직원 전원\n'
+         '- 기간: 2026.03.01 ~ 11.30\n'
+         '- 방법: 가까운 검진 지정 의료기관 방문\n\n'
+         '건강검진 미수검 시 과태료가 부과될 수 있으니 반드시 기간 내 수검 바랍니다.', 0),
+        ('사무실 이전 안내 (4월 28일)',
+         '안녕하세요. 당사 사무실이 아래와 같이 이전될 예정입니다.\n\n'
+         '- 이전일: 2026년 4월 28일 (월)\n'
+         '- 신주소: 서울시 강남구 테헤란로 123, 12층\n\n'
+         '이전 당일은 오전 10시 이후 출근해 주시기 바랍니다.', 1),
+        ('스톡옵션 베스팅 일정 공지',
+         '2023년 부여된 스톡옵션 1차 베스팅이 도래하였습니다.\n\n'
+         '- 베스팅 비율: 25% (1년 클리프)\n'
+         '- 행사 가능 기간: 2026.05.01 ~ 2029.04.30\n\n'
+         '세부 사항은 재무팀 담당자에게 문의하시기 바랍니다.', 0),
+        ('5월 연휴 출퇴근 안내',
+         '5월 황금연휴 기간 정상 근무 여부를 안내드립니다.\n\n'
+         '- 5/1 (근로자의날): 유급휴일\n'
+         '- 5/5 (어린이날): 법정공휴일\n'
+         '- 5/6 (대체공휴일): 법정공휴일\n\n'
+         '연휴 기간 시스템 긴급 대응 담당자는 별도 공지 예정입니다.', 1),
+        ('2026 상반기 OKR 킥오프 워크샵',
+         '상반기 OKR 수립을 위한 전사 워크샵을 아래와 같이 진행합니다.\n\n'
+         '- 일시: 2026년 4월 30일 (목) 14:00~18:00\n'
+         '- 장소: 3층 대강당\n'
+         '- 대상: 팀장급 이상 전원 + 팀별 대표 1인\n\n'
+         '참석 여부를 4월 25일까지 인사팀에 회신 부탁드립니다.', 0),
+        ('사내 추천 채용 인센티브 프로그램 안내',
+         '우수 인재 확보를 위한 사내 추천 채용 프로그램을 운영합니다.\n\n'
+         '- 추천 성공 시 인센티브: 100만원 (입사 후 3개월 근속 조건)\n'
+         '- 추천 방법: TalentCore > 채용 > 지원자 추천\n\n'
+         '현재 채용 중인 포지션은 채용공고 페이지에서 확인하세요.', 0),
+        ('정보보안 교육 이수 안내 (필수)',
+         '연간 정보보안 의무 교육 이수를 완료해 주세요.\n\n'
+         '- 대상: 전 임직원\n'
+         '- 마감: 2026.04.30\n'
+         '- 방법: 사내 LMS 시스템 (lms.company.com) 접속 후 "정보보안 기초" 과정 수강\n\n'
+         '미이수 시 보안 규정에 따라 시스템 접근이 제한될 수 있습니다.', 1),
+    ]
+    c.executemany(
+        "INSERT INTO announcements (title, content, pinned, author_id) VALUES (?,?,?,?)",
+        [(t, body, pin, admin_id) for t, body, pin in extra_notices]
+    )
+
+    # ── 3. 휴가 신청 40건 ─────────────────────────────────────
+    leave_types_common = ['annual', 'annual', 'annual', 'half_am', 'half_pm',
+                          'sick', 'remote', 'remote', 'outing', 'bereavement']
+    statuses = ['approved', 'approved', 'approved', 'pending', 'rejected']
+    sample_uids = rng.sample(all_uids, min(40, len(all_uids)))
+
+    for i, uid in enumerate(sample_uids):
+        ltype = rng.choice(leave_types_common)
+        # 신청일: 최근 90일 내
+        days_ago = rng.randint(1, 90)
+        req_date = today - timedelta(days=days_ago)
+        if ltype in ('half_am', 'half_pm', 'outing', 'sick'):
+            start = req_date
+            end   = req_date
+            days  = 1
+        else:
+            start = req_date
+            end   = req_date + timedelta(days=rng.randint(0, 3))
+            days  = (end - start).days + 1
+        status = rng.choice(statuses)
+        reason_map = {
+            'annual': rng.choice(['개인 사유', '가족 행사', '여행', '병원 방문', '개인 용무']),
+            'half_am': '오전 외출',
+            'half_pm': '오후 개인 용무',
+            'sick': '몸이 좋지 않아 요양',
+            'remote': '재택근무 신청',
+            'outing': '외근 업무',
+            'bereavement': '가족 애도',
+        }
+        reason = reason_map.get(ltype, '개인 사유')
+        c.execute(
+            """INSERT INTO leave_requests
+               (user_id, type, start_date, end_date, days, reason, status)
+               VALUES (?,?,?,?,?,?,?)""",
+            (uid, ltype, start.isoformat(), end.isoformat(), days, reason, status)
+        )
+
+    # ── 4. 출퇴근 기록 (최근 45일, 30명) ─────────────────────
+    checkin_uids = rng.sample(all_uids, min(30, len(all_uids)))
+    for uid in checkin_uids:
+        for day_offset in range(45, 0, -1):
+            d = today - timedelta(days=day_offset)
+            if d.weekday() >= 5:  # 주말 제외
+                continue
+            if rng.random() < 0.05:  # 5% 결근
+                continue
+            # 출근: 8:30~9:30 사이, 퇴근: 18:00~20:30 사이
+            in_h = rng.randint(8, 9)
+            in_m = rng.randint(0, 59) if in_h == 9 else rng.randint(30, 59)
+            out_h = rng.randint(18, 20)
+            out_m = rng.randint(0, 59)
+            check_in  = f"{in_h:02d}:{in_m:02d}:00"
+            check_out = f"{out_h:02d}:{out_m:02d}:00"
+            # 근무 시간 계산 (분)
+            total_min = (out_h * 60 + out_m) - (in_h * 60 + in_m) - 60  # 점심 1h 제외
+            regular_min = min(total_min, 480)
+            overtime_min = max(0, total_min - 480)
+            c.execute(
+                """INSERT OR IGNORE INTO checkins
+                   (user_id, date, check_in, check_out, regular_min, overtime_min)
+                   VALUES (?,?,?,?,?,?)""",
+                (uid, d.isoformat(), check_in, check_out, regular_min, overtime_min)
+            )
+
+    # ── 5. 성과 주기 + 목표 + 리뷰 ──────────────────────────
+    # 2025 하반기 (완료), 2026 상반기 (진행중)
+    c.execute(
+        "INSERT OR IGNORE INTO performance_cycles (name, start_date, end_date, status) VALUES (?,?,?,?)",
+        ('2025 하반기', '2025-07-01', '2025-12-31', 'closed')
+    )
+    cycle_2025h2 = c.lastrowid or c.execute(
+        "SELECT id FROM performance_cycles WHERE name='2025 하반기'"
+    ).fetchone()[0]
+
+    c.execute(
+        "INSERT OR IGNORE INTO performance_cycles (name, start_date, end_date, status) VALUES (?,?,?,?)",
+        ('2026 상반기', '2026-01-01', '2026-06-30', 'active')
+    )
+    cycle_2026h1 = c.lastrowid or c.execute(
+        "SELECT id FROM performance_cycles WHERE name='2026 상반기'"
+    ).fetchone()[0]
+
+    goal_templates = [
+        ('KPI', '핵심 지표 달성',     '분기 KPI 목표를 달성하여 팀 성과에 기여한다.', 40),
+        ('KPI', '프로젝트 일정 준수', '할당된 프로젝트를 계획 대비 지연 없이 완료한다.', 30),
+        ('OKR', '역량 개발 및 성장',  '연간 학습 목표를 이수하고 스킬을 강화한다.', 20),
+        ('OKR', '협업 및 팀 기여',    '팀 내 지식 공유와 협업 문화에 적극 기여한다.', 10),
+    ]
+    scores_closed = [3, 3, 4, 4, 4, 5, 5, 2, 3, 4]
+    goal_uids = rng.sample(all_uids, min(50, len(all_uids)))
+
+    manager_id = c.execute(
+        "SELECT id FROM users WHERE email='manager@company.com'"
+    ).fetchone()
+    manager_id = manager_id[0] if manager_id else admin_id
+
+    for uid in goal_uids:
+        for cat, title, desc, weight in goal_templates:
+            # 2025 H2 (완료된 주기)
+            progress_25 = rng.randint(70, 100)
+            score_25    = rng.choice(scores_closed)
+            self_score  = max(1, min(5, score_25 + rng.randint(-1, 1)))
+            c.execute(
+                """INSERT OR IGNORE INTO performance_goals
+                   (cycle_id, user_id, category, title, description, weight,
+                    progress, self_score, self_comment, status)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (cycle_2025h2, uid, cat, title, desc, weight,
+                 progress_25, self_score, '목표 달성을 위해 최선을 다했습니다.', 'completed')
+            )
+            goal_id = c.lastrowid
+            if goal_id:
+                c.execute(
+                    "INSERT OR IGNORE INTO performance_reviews (goal_id, reviewer_id, score, comment) VALUES (?,?,?,?)",
+                    (goal_id, manager_id,
+                     score_25, rng.choice(['우수한 성과를 보였습니다.', '목표를 충실히 이행했습니다.',
+                                           '기대 이상의 결과물을 제출했습니다.', '개선의 여지가 있습니다.']))
+                )
+
+            # 2026 H1 (현재 진행중)
+            progress_26 = rng.randint(0, 80)
+            c.execute(
+                """INSERT OR IGNORE INTO performance_goals
+                   (cycle_id, user_id, category, title, description, weight,
+                    progress, status)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (cycle_2026h1, uid, cat, title, desc, weight, progress_26, 'active')
+            )
+
+    # ── 6. 전자계약 5건 (계약서 + 서명 완료) ─────────────────
+    sample_employees = rng.sample(
+        [uid for uid in all_uids if uid != admin_id],
+        min(5, len(all_uids) - 1)
+    )
+    for emp_id in sample_employees:
+        emp_row = c.execute(
+            "SELECT u.name, u.hire_date, es.base_salary, d.name "
+            "FROM users u "
+            "LEFT JOIN departments d ON d.id=u.department_id "
+            "LEFT JOIN employee_salary es ON es.user_id=u.id "
+            "WHERE u.id=?", (emp_id,)
+        ).fetchone()
+        if not emp_row:
+            continue
+        emp_name, hire_date, base_sal, dept_name = emp_row
+        salary_fmt = f"{base_sal:,}원" if base_sal else "협의"
+        content = (
+            f"<div style='font-family:serif;padding:40px'>"
+            f"<h2 style='text-align:center'>근로계약서</h2>"
+            f"<p><strong>회사:</strong> (주)탤런트코어 (이하 '갑')</p>"
+            f"<p><strong>근로자:</strong> {emp_name} (이하 '을')</p>"
+            f"<p><strong>부서:</strong> {dept_name or '미정'}</p>"
+            f"<p><strong>입사일:</strong> {hire_date}</p>"
+            f"<p><strong>월 기본급:</strong> {salary_fmt}</p>"
+            f"<p>갑과 을은 근로기준법 등 관련 법령을 준수하여 아래와 같이 근로계약을 체결한다.</p>"
+            f"<p>제1조 (근로계약기간) 계약기간은 입사일로부터 정함이 없는 근로계약으로 한다.</p>"
+            f"<p>제2조 (근무장소) 회사 지정 사업장 및 원격근무.</p>"
+            f"<p>제3조 (업무내용) 담당 직무 및 회사가 지시하는 업무.</p>"
+            f"<p>제4조 (근무시간) 1일 8시간, 주 40시간을 원칙으로 한다.</p>"
+            f"<p>제5조 (임금) 월 기본급 {salary_fmt} (4대보험 및 세금 별도 공제).</p>"
+            f"</div>"
+        )
+        issued_date = (today - timedelta(days=rng.randint(30, 180))).isoformat()
+        c.execute(
+            """INSERT INTO contracts
+               (employee_id, issued_by, title, content_html, status, signed_at, created_at)
+               VALUES (?,?,?,?,?,?,?)""",
+            (emp_id, admin_id,
+             f"{emp_name} 근로계약서",
+             content, 'signed',
+             issued_date + ' 10:00:00',
+             issued_date + ' 09:00:00')
+        )
+
+    print(f"   급여명세서: {len(all_uids) * len(months)}건 (직원 {len(all_uids)}명 × {len(months)}개월)")
+    print(f"   공지사항: +{len(extra_notices)}건")
+    print(f"   휴가신청: {len(sample_uids)}건")
+    print(f"   출퇴근: {len(checkin_uids)}명 × ~38일")
+    print(f"   성과목표: {len(goal_uids)}명 × {len(goal_templates)}개 × 2주기")
+    print(f"   전자계약: {len(sample_employees)}건")
 
 
 def run():
@@ -423,11 +699,14 @@ def run():
         )
         c.execute("UPDATE users SET emp_no='TC-GUEST' WHERE email='guest@talentcore.com'")
 
+    # ── 트랜잭셔널 시드 데이터 ───────────────────────────────────
+    _seed_transactional(c, inserted_ids, admin_id if admin_row else inserted_ids[0])
+
     conn.commit()
     c.execute('PRAGMA foreign_keys = ON')
     conn.close()
 
-    print(f"✅ 마이그레이션 완료!")
+    print("Migration complete!")
     print(f"   직원: {len(inserted_ids)}명")
     print(f"   부서: 부문 4 / 본부 8 / 실 13 / 팀 23")
     print(f"   직급: CL1~CL9 (9단계)")
