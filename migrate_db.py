@@ -567,6 +567,51 @@ def _seed_transactional(c, all_uids: list, admin_id: int):
     print(f"   지원자: {total_applicants}명")
 
 
+def _seed_master_db(c_all_users=None):
+    """
+    master.db에 데모 테넌트(id=1) 등록.
+    이미 존재하면 스킵 (idempotent).
+    """
+    from master_db import init_master_db, get_master_db, get_tenant_db_path
+    init_master_db()
+
+    mdb = get_master_db()
+    # 이미 테넌트 1이 있으면 스킵
+    if mdb.execute('SELECT id FROM tenants WHERE id=1').fetchone():
+        mdb.close()
+        return
+
+    from datetime import date, timedelta
+    trial_ends = (date.today() + timedelta(days=36500)).isoformat()  # 데모는 100년 트라이얼
+
+    mc = mdb.cursor()
+    mc.execute(
+        '''INSERT INTO tenants (id, slug, company_name, admin_email, status, trial_ends_at)
+           VALUES (1, 'demo', '(주)탤런트코어 데모', 'admin@company.com', 'trial', ?)''',
+        (trial_ends,)
+    )
+    mc.execute(
+        '''INSERT INTO subscriptions (tenant_id, status, peak_headcount)
+           VALUES (1, 'trialing', 100)'''
+    )
+
+    # hr_system.db 모든 사용자 이메일을 tenant_users에 등록
+    t1_path = get_tenant_db_path(1)
+    t1_conn = sqlite3.connect(t1_path)
+    emails  = [r[0] for r in t1_conn.execute(
+        "SELECT email FROM users WHERE status='active'"
+    ).fetchall()]
+    t1_conn.close()
+
+    mc.executemany(
+        'INSERT OR IGNORE INTO tenant_users (email, tenant_id) VALUES (?,1)',
+        [(e,) for e in emails]
+    )
+    mdb.commit()
+    mdb.close()
+    print(f"   master.db: 데모 테넌트 등록 ({len(emails)}명)")
+
+
 def run():
     init_db()   # 테이블이 없을 때도 안전하게 실행되도록
     conn = sqlite3.connect(DB)
@@ -880,6 +925,9 @@ def run():
     conn.commit()
     c.execute('PRAGMA foreign_keys = ON')
     conn.close()
+
+    # ── master.db: 데모 테넌트(1) 등록 ───────────────────────
+    _seed_master_db(c_all_users=inserted_ids)
 
     print("Migration complete!")
     print(f"   직원: {len(inserted_ids)}명")

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TalentCore — 스타트업을 위한 HR 시스템</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    /* ── 랜딩 전용 스타일 ── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           color: #1a1a2e; background: #fff; }
+
+    /* ── 헤더 ── */
+    .lp-header {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 5%; height: 64px;
+      background: rgba(255,255,255,.95); backdrop-filter: blur(8px);
+      border-bottom: 1px solid #e8eaf0;
+    }
+    .lp-logo { font-size: 1.25rem; font-weight: 800; color: #4361ee; letter-spacing: -.5px; }
+    .lp-nav { display: flex; gap: 24px; align-items: center; }
+    .lp-nav a { text-decoration: none; color: #555; font-size: .9rem; }
+    .lp-nav a:hover { color: #4361ee; }
+    .btn-primary {
+      background: #4361ee; color: #fff; border: none; border-radius: 8px;
+      padding: 9px 20px; font-size: .9rem; font-weight: 600;
+      cursor: pointer; text-decoration: none; transition: background .2s;
+    }
+    .btn-primary:hover { background: #3451d1; }
+    .btn-outline {
+      background: transparent; color: #4361ee; border: 1.5px solid #4361ee;
+      border-radius: 8px; padding: 8px 20px; font-size: .9rem; font-weight: 600;
+      cursor: pointer; text-decoration: none; transition: all .2s;
+    }
+    .btn-outline:hover { background: #4361ee; color: #fff; }
+
+    /* ── 히어로 ── */
+    .hero {
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      padding: 96px 5% 80px;
+      background: linear-gradient(135deg, #f0f4ff 0%, #fafafe 60%, #f5f0ff 100%);
+    }
+    .hero-badge {
+      display: inline-block; background: #e8edff; color: #4361ee;
+      border-radius: 20px; padding: 5px 14px; font-size: .8rem; font-weight: 600;
+      margin-bottom: 20px; letter-spacing: .3px;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 900; line-height: 1.2;
+      color: #0f0f23; margin-bottom: 20px;
+    }
+    .hero h1 span { color: #4361ee; }
+    .hero p {
+      font-size: 1.1rem; color: #555; max-width: 560px;
+      line-height: 1.7; margin-bottom: 36px;
+    }
+    .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .hero-note { margin-top: 16px; font-size: .8rem; color: #888; }
+
+    /* ── 숫자 배너 ── */
+    .stats-bar {
+      display: flex; justify-content: center; gap: 48px; flex-wrap: wrap;
+      padding: 36px 5%; background: #fff; border-bottom: 1px solid #f0f0f5;
+    }
+    .stat-item { text-align: center; }
+    .stat-num { font-size: 1.8rem; font-weight: 800; color: #4361ee; }
+    .stat-label { font-size: .8rem; color: #888; margin-top: 2px; }
+
+    /* ── 섹션 공통 ── */
+    section { padding: 80px 5%; }
+    .section-title { text-align: center; margin-bottom: 56px; }
+    .section-title h2 { font-size: 1.9rem; font-weight: 800; color: #0f0f23; margin-bottom: 12px; }
+    .section-title p { color: #666; font-size: 1rem; max-width: 480px; margin: 0 auto; line-height: 1.6; }
+
+    /* ── 기능 카드 ── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;
+      max-width: 1100px; margin: 0 auto;
+    }
+    .feature-card {
+      background: #fafbff; border: 1px solid #e8eaf0; border-radius: 16px;
+      padding: 28px; transition: transform .2s, box-shadow .2s;
+    }
+    .feature-card:hover { transform: translateY(-4px); box-shadow: 0 8px 32px rgba(67,97,238,.1); }
+    .feature-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      background: #e8edff; display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; margin-bottom: 16px;
+    }
+    .feature-card h3 { font-size: 1rem; font-weight: 700; color: #0f0f23; margin-bottom: 8px; }
+    .feature-card p { font-size: .875rem; color: #666; line-height: 1.6; }
+
+    /* ── 요금제 ── */
+    .pricing-wrap {
+      max-width: 540px; margin: 0 auto;
+      background: linear-gradient(135deg, #4361ee, #7048e8);
+      border-radius: 24px; padding: 48px 40px; color: #fff; text-align: center;
+      box-shadow: 0 20px 60px rgba(67,97,238,.3);
+    }
+    .pricing-wrap .label { font-size: .875rem; opacity: .85; margin-bottom: 12px; letter-spacing: .5px; }
+    .pricing-amount { font-size: 3.5rem; font-weight: 900; line-height: 1; }
+    .pricing-amount span { font-size: 1.2rem; font-weight: 400; opacity: .85; }
+    .pricing-desc { margin: 16px 0 32px; opacity: .9; line-height: 1.6; font-size: .95rem; }
+    .pricing-features { text-align: left; margin-bottom: 36px; }
+    .pricing-features li {
+      list-style: none; padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,.15);
+      font-size: .9rem; display: flex; align-items: center; gap: 10px;
+    }
+    .pricing-features li:before { content: '✓'; font-weight: 700; flex-shrink: 0; }
+    .pricing-wrap .btn-white {
+      display: inline-block; background: #fff; color: #4361ee;
+      border-radius: 10px; padding: 14px 36px; font-size: 1rem; font-weight: 700;
+      text-decoration: none; width: 100%; transition: opacity .2s;
+    }
+    .pricing-wrap .btn-white:hover { opacity: .92; }
+    .pricing-note { margin-top: 14px; font-size: .8rem; opacity: .75; }
+
+    /* ── How it works ── */
+    .steps-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 32px; max-width: 900px; margin: 0 auto;
+    }
+    .step { text-align: center; }
+    .step-num {
+      width: 52px; height: 52px; border-radius: 50%;
+      background: #4361ee; color: #fff; font-size: 1.3rem; font-weight: 800;
+      display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;
+    }
+    .step h3 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+    .step p { font-size: .875rem; color: #666; line-height: 1.6; }
+
+    /* ── CTA 배너 ── */
+    .cta-banner {
+      background: #0f0f23; color: #fff; text-align: center;
+      padding: 72px 5%;
+    }
+    .cta-banner h2 { font-size: 2rem; font-weight: 800; margin-bottom: 12px; }
+    .cta-banner p { opacity: .75; margin-bottom: 32px; font-size: 1rem; }
+
+    /* ── 푸터 ── */
+    footer {
+      background: #f8f9fc; border-top: 1px solid #e8eaf0;
+      padding: 32px 5%; display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 16px; font-size: .85rem; color: #888;
+    }
+    footer a { color: #888; text-decoration: none; }
+    footer a:hover { color: #4361ee; }
+
+    @media (max-width: 600px) {
+      .lp-nav .btn-outline { display: none; }
+      .stats-bar { gap: 28px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<header class="lp-header">
+  <div class="lp-logo">TalentCore</div>
+  <nav class="lp-nav">
+    <a href="#features">기능</a>
+    <a href="#pricing">요금제</a>
+    <a href="{{ url_for('login') }}" class="btn-outline">로그인</a>
+    <a href="{{ url_for('signup') }}" class="btn-primary">무료로 시작</a>
+  </nav>
+</header>
+
+<!-- 히어로 -->
+<section class="hero">
+  <div class="hero-badge">200명 이하 스타트업을 위한 HR</div>
+  <h1>복잡한 HR 업무를<br><span>하나의 시스템</span>으로</h1>
+  <p>근태 관리부터 급여, 성과 평가, 채용까지.<br>
+     Workday 수준의 기능을 스타트업 가격으로.</p>
+  <div class="hero-cta">
+    <a href="{{ url_for('signup') }}" class="btn-primary" style="padding:14px 32px;font-size:1rem;">
+      {{ trial_days }}일 무료 체험 시작
+    </a>
+    <a href="{{ url_for('login') }}" class="btn-outline" style="padding:13px 32px;font-size:1rem;">
+      데모 계정으로 보기
+    </a>
+  </div>
+  <p class="hero-note">신용카드 불필요 · 설치 없음 · 언제든 해지 가능</p>
+</section>
+
+<!-- 숫자 배너 -->
+<div class="stats-bar">
+  <div class="stat-item">
+    <div class="stat-num">23+</div>
+    <div class="stat-label">HR 기능</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">₩{{ "{:,}".format(price_per_seat) }}/인</div>
+    <div class="stat-label">월 요금</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">{{ trial_days }}일</div>
+    <div class="stat-label">무료 체험</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">200명</div>
+    <div class="stat-label">지원 규모</div>
+  </div>
+</div>
+
+<!-- 기능 소개 -->
+<section id="features" style="background:#f8f9ff;">
+  <div class="section-title">
+    <h2>HR 전 영역을 하나로</h2>
+    <p>10개 모듈이 유기적으로 연결되어 데이터 중복 입력 없이 처리됩니다.</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">⏱</div>
+      <h3>근태 관리</h3>
+      <p>연차·반차·병가 등 13종 휴가 신청, 출퇴근 체크인, 유연근무 스케줄러. 근로기준법 기준 자동 계산.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">💰</div>
+      <h3>급여 명세서</h3>
+      <p>4대보험·소득세 자동계산. 비과세 한도 적용. 최저임금 미달 경고. 엑셀 내보내기.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🎯</div>
+      <h3>성과 관리</h3>
+      <p>KPI/OKR 목표 설정, 자기평가, 다면평가(360°), 캘리브레이션 보드, S/A/B/C/D 등급 확정.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔍</div>
+      <h3>채용 파이프라인</h3>
+      <p>공고 관리, 칸반 파이프라인, 지원자 이력 로그. 사내 추천 채용 트래킹.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📋</div>
+      <h3>전자 계약서</h3>
+      <p>근로계약서·NDA·수습·프리랜서 4종 양식. 발행 즉시 직원 서명 완결. 인쇄/PDF 저장.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📊</div>
+      <h3>People Analytics</h3>
+      <p>부서·직급별 Headcount, 퇴직 추이, 연봉 Compa-ratio, Attrition Risk 대시보드.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 요금제 -->
+<section id="pricing">
+  <div class="section-title">
+    <h2>단순한 요금제, 합리적인 가격</h2>
+    <p>직원 수만큼만 내세요. 최소 금액 없음.</p>
+  </div>
+  <div class="pricing-wrap">
+    <div class="label">월 구독 요금</div>
+    <div class="pricing-amount">₩1,000<span>/인·월</span></div>
+    <p class="pricing-desc">
+      해당 월 최고 사용자 수 기준 청구<br>
+      (High-Water Mark 방식 — Salesforce·HubSpot 동일)
+    </p>
+    <ul class="pricing-features">
+      <li>전체 기능 무제한 사용</li>
+      <li>최소 인원 제한 없음 (5인 사업장 가능)</li>
+      <li>{{ trial_days }}일 무료 체험 (카드 등록 불필요)</li>
+      <li>언제든 해지 가능</li>
+      <li>데이터 엑셀 내보내기</li>
+      <li>이메일 지원</li>
+    </ul>
+    <a href="{{ url_for('signup') }}" class="btn-white">{{ trial_days }}일 무료로 시작하기</a>
+    <p class="pricing-note">체험 종료 후 카드 등록 시 자동 구독 전환</p>
+  </div>
+</section>
+
+<!-- How it works -->
+<section style="background:#f8f9ff;">
+  <div class="section-title">
+    <h2>3단계로 시작</h2>
+  </div>
+  <div class="steps-grid">
+    <div class="step">
+      <div class="step-num">1</div>
+      <h3>회사 등록</h3>
+      <p>회사명과 이메일만 입력하면 즉시 시작. 설치 없이 브라우저에서 바로 사용.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <h3>직원 초대</h3>
+      <p>부서·직급·직군을 설정하고 직원 계정을 생성. 임포트 기능으로 대량 등록 가능.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <h3>업무 시작</h3>
+      <p>직원들이 바로 근태 신청, 급여 조회, 성과 입력을 시작. HR 담당자는 한 화면에서 모두 관리.</p>
+    </div>
+  </div>
+</section>
+
+<!-- CTA 배너 -->
+<section class="cta-banner">
+  <h2>지금 바로 시작하세요</h2>
+  <p>{{ trial_days }}일 무료 체험 · 신용카드 불필요 · 언제든 해지</p>
+  <a href="{{ url_for('signup') }}" class="btn-primary" style="font-size:1rem;padding:14px 40px;">
+    무료 체험 시작하기
+  </a>
+</section>
+
+<!-- 푸터 -->
+<footer>
+  <div><strong>TalentCore</strong> — 스타트업 HR 시스템</div>
+  <div style="display:flex;gap:24px;">
+    <a href="#">이용약관</a>
+    <a href="#">개인정보처리방침</a>
+    <a href="{{ url_for('login') }}">로그인</a>
+    <a href="{{ url_for('signup') }}">시작하기</a>
+  </div>
+</footer>
+
+</body>
+</html>

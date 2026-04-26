@@ -1,31 +1,51 @@
 import os
 import sqlite3
+import uuid
+import json
+import base64
+import urllib.request
 from datetime import datetime, date
 from functools import wraps
 
 from flask import (Flask, abort, flash, g, redirect, render_template,
-                   request, session, url_for)
+                   request, session, url_for, jsonify)
 from werkzeug.security import check_password_hash, generate_password_hash
 from payroll_utils import (calc_payslip, calc_annual_leave, fmt_krw,
                            calc_severance, check_min_wage, MIN_WAGE_MONTHLY,
                            calc_day_hours, calc_extra_pay)
+from master_db import (
+    init_master_db, get_master_db, get_tenant_db_path,
+    get_tenant_by_email, get_tenant, create_tenant,
+    register_tenant_user, update_tenant_user_email, remove_tenant_user,
+    update_peak_headcount, reset_peak_headcount,
+    save_billing_key, log_billing, update_billing_log,
+    PRICE_PER_SEAT, TRIAL_DAYS,
+)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('HR_SECRET_KEY', 'dev-only-change-in-prod')
 
-# Railway Volume이 /data에 마운트된 경우 해당 경로 사용, 아니면 로컬 경로
-_db_dir = os.environ.get('DB_DIR', '')
-DATABASE = os.path.join(_db_dir, 'hr_system.db') if _db_dir else 'hr_system.db'
+# ── 토스페이먼츠 키 ─────────────────────────────────────────
+TOSS_CLIENT_KEY = os.environ.get(
+    'TOSS_CLIENT_KEY', 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq'
+)
+TOSS_SECRET_KEY = os.environ.get(
+    'TOSS_SECRET_KEY', 'test_sk_zXLkKEypNArWmo50nX3lmeaxYG5pqkgs4EBbA'
+)
 
-# DB 초기화 — gunicorn 포함 모든 실행 방식에서 실행
+# ── DB 초기화 ────────────────────────────────────────────────
 from database import init_db
-init_db()
+init_master_db()   # master.db
+init_db()          # hr_system.db (테넌트 1 기본 스키마)
 
 # 연봉 기준표·부서 확장 시드 (job_families가 비어 있을 때만 자동 실행)
 def _ensure_extended_seed():
-    _c = sqlite3.connect(DATABASE)
+    t1_path = get_tenant_db_path(1)
+    _c = sqlite3.connect(t1_path)
     try:
         empty = _c.execute('SELECT COUNT(*) FROM job_families').fetchone()[0] == 0
+    except Exception:
+        empty = True
     finally:
         _c.close()
     if empty:
@@ -88,9 +108,12 @@ def inject_company_config():
 
 # ── DB ──────────────────────────────────────────────────────
 def get_db():
+    """테넌트 격리 DB 연결. session['tenant_id'] → tenant_N.db"""
     db = getattr(g, '_database', None)
     if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
+        tenant_id = session.get('tenant_id', 1)  # 기본값 1 = 데모 테넌트
+        db_path = get_tenant_db_path(tenant_id)
+        db = g._database = sqlite3.connect(db_path)
         db.row_factory = sqlite3.Row
         db.execute('PRAGMA foreign_keys = ON')
     return db
@@ -234,10 +257,6 @@ def build_reporting_tree(users, manager_id=None, seen=None):
 
 
 # ── Auth Routes ──────────────────────────────────────────────
-@app.route('/')
-def index():
-    return redirect(url_for('dashboard') if 'user_id' in session else url_for('login'))
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if 'user_id' in session:
@@ -249,8 +268,19 @@ def login():
         if not email or not password:
             error = '이메일과 비밀번호를 입력해주세요.'
         else:
-            db   = get_db()
-            user = db.execute(
+            # ── master.db에서 테넌트 조회 ────────────────────────
+            tenant_row = get_tenant_by_email(email)
+            if tenant_row:
+                tenant_id = tenant_row['id']
+            else:
+                # master.db에 없으면 데모 테넌트(1)에서 시도
+                tenant_id = 1
+
+            # ── 해당 테넌트 DB에서 인증 ──────────────────────────
+            db_path = get_tenant_db_path(tenant_id)
+            _db = sqlite3.connect(db_path)
+            _db.row_factory = sqlite3.Row
+            user = _db.execute(
                 'SELECT u.*, d.name AS dept_name, p.name AS pos_name '
                 'FROM users u '
                 'LEFT JOIN departments d ON u.department_id = d.id '
@@ -258,8 +288,11 @@ def login():
                 'WHERE u.email = ? AND u.status = ?',
                 (email, 'active')
             ).fetchone()
+            _db.close()
+
             if user and check_password_hash(user['password_hash'], password):
                 session.clear()
+                session['tenant_id']  = tenant_id
                 session['user_id']    = user['id']
                 session['user_name']  = user['name']
                 session['user_role']  = user['role']
@@ -268,6 +301,20 @@ def login():
                 session['pos_name']   = user['pos_name']  or ''
                 session['dept_id']    = user['department_id'] or 0
                 session['onboarded']  = 1 if user['onboarded'] else 0
+
+                # ── 구독 만료 체크 (guest/demo 제외) ────────────
+                if user['role'] != 'guest' and tenant_row:
+                    sub_status   = tenant_row['sub_status']
+                    trial_ends   = tenant_row['trial_ends_at']
+                    period_end   = tenant_row['current_period_end']
+                    today_str    = date.today().isoformat()
+                    if sub_status == 'trialing' and trial_ends and today_str > trial_ends:
+                        session['subscription_expired'] = True
+                    elif sub_status in ('past_due', 'cancelled'):
+                        session['subscription_expired'] = True
+                    else:
+                        session.pop('subscription_expired', None)
+
                 return redirect(url_for('dashboard'))
             error = '이메일 또는 비밀번호가 올바르지 않습니다.'
     return render_template('login.html', error=error)
@@ -995,6 +1042,13 @@ def employee_new():
             new_id = cur.lastrowid
             db.execute("UPDATE users SET emp_no = 'TC-' || printf('%05d', id) WHERE id=?", (new_id,))
             db.commit()
+            # ── master.db 동기화: 이메일 매핑 + peak headcount ──
+            tid = session.get('tenant_id', 1)
+            register_tenant_user(email, tid)
+            active_count = db.execute(
+                "SELECT COUNT(*) FROM users WHERE status='active'"
+            ).fetchone()[0]
+            update_peak_headcount(tid, active_count)
             flash(f'직원 {name}(TC-{new_id:05d})이 추가되었습니다.', 'success')
             return redirect(url_for('employees'))
 
@@ -1062,6 +1116,11 @@ def employee_edit(emp_id):
                      termination_date, term_reason, emp_id)
                 )
             db.commit()
+            # ── master.db 이메일 변경 동기화 ─────────────────────
+            tid = session.get('tenant_id', 1)
+            old_email = emp['email']
+            if old_email != email:
+                update_tenant_user_email(old_email, email, tid)
             flash('직원 정보가 저장되었습니다.', 'success')
             return redirect(url_for('employee_detail', emp_id=emp_id))
 
@@ -5331,6 +5390,271 @@ def contract_cancel(cid):
     db.commit()
     flash('계약서가 취소되었습니다.', 'success')
     return redirect(url_for('contracts_list'))
+
+
+# ════════════════════════════════════════════════════════════
+#  SaaS — 랜딩 / 가입 / 결제
+# ════════════════════════════════════════════════════════════
+
+@app.route('/')
+def landing():
+    """랜딩 페이지 — 로그인 상태면 대시보드로"""
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    return render_template('landing/index.html',
+                           toss_client_key=TOSS_CLIENT_KEY,
+                           trial_days=TRIAL_DAYS,
+                           price_per_seat=PRICE_PER_SEAT)
+
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    """회사 가입 — 새 테넌트 생성 + 관리자 계정 생성"""
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+
+    error = None
+    if request.method == 'POST':
+        company_name = request.form.get('company_name', '').strip()
+        admin_name   = request.form.get('name', '').strip()
+        email        = request.form.get('email', '').strip()
+        password     = request.form.get('password', '').strip()
+        password2    = request.form.get('password2', '').strip()
+
+        # ── 유효성 검사 ──────────────────────────────────────
+        if not all([company_name, admin_name, email, password]):
+            error = '모든 항목을 입력해주세요.'
+        elif password != password2:
+            error = '비밀번호가 일치하지 않습니다.'
+        elif len(password) < 8:
+            error = '비밀번호는 8자 이상이어야 합니다.'
+        else:
+            # 이미 가입된 이메일인지 확인
+            existing = get_tenant_by_email(email)
+            if existing:
+                error = '이미 가입된 이메일입니다.'
+            else:
+                # ── 테넌트 생성 ──────────────────────────────
+                tenant_id = create_tenant(company_name, email)
+
+                # ── 테넌트 DB 초기화 (스키마만, 시드 없음) ───
+                from database import init_db as _init_db
+                _init_db(db_path=get_tenant_db_path(tenant_id))
+
+                # ── 관리자 계정 생성 ──────────────────────────
+                tdb = sqlite3.connect(get_tenant_db_path(tenant_id))
+                tdb.row_factory = sqlite3.Row
+                tdb.execute('PRAGMA foreign_keys = ON')
+                tdb.execute(
+                    '''INSERT INTO users
+                       (email, password_hash, name, role, hire_date, onboarded,
+                        features_enabled, status)
+                       VALUES (?,?,?,?,?,?,?,?)''',
+                    (email, generate_password_hash(password), admin_name,
+                     'admin', date.today().isoformat(), 0,
+                     'attendance,payroll,performance,peer_review,calibration,'
+                     'recruiting,announcements,org_chart,certificates',
+                     'active')
+                )
+                tdb.execute("UPDATE users SET emp_no='TC-00001' WHERE email=?", (email,))
+                tdb.commit()
+                tdb.close()
+
+                # ── master.db에 이메일 매핑 ───────────────────
+                register_tenant_user(email, tenant_id)
+
+                flash(f'가입 완료! {TRIAL_DAYS}일 무료 체험이 시작됩니다.', 'success')
+                return redirect(url_for('login'))
+
+    return render_template('landing/signup.html', error=error, trial_days=TRIAL_DAYS)
+
+
+# ── 토스페이먼츠 Billing Key 발급 ────────────────────────────
+
+@app.route('/billing/register', methods=['GET'])
+@login_required
+def billing_register():
+    """카드 등록 페이지 — 토스 빌링 위젯 호출"""
+    tenant_id = session.get('tenant_id', 1)
+    tenant    = get_tenant(tenant_id)
+    customer_key = f'tenant_{tenant_id}'  # 테넌트별 고정 키
+    return render_template('billing/register.html',
+                           tenant=tenant,
+                           customer_key=customer_key,
+                           toss_client_key=TOSS_CLIENT_KEY,
+                           price_per_seat=PRICE_PER_SEAT)
+
+
+@app.route('/billing/card-success')
+@login_required
+def billing_card_success():
+    """
+    토스 카드 인증 성공 콜백.
+    authKey + customerKey를 받아 billing key 발급 후 저장.
+    """
+    auth_key     = request.args.get('authKey', '')
+    customer_key = request.args.get('customerKey', '')
+    if not auth_key or not customer_key:
+        flash('카드 등록 정보가 올바르지 않습니다.', 'error')
+        return redirect(url_for('billing_register'))
+
+    # ── 토스 API: billing key 발급 ───────────────────────────
+    try:
+        credential = base64.b64encode(f'{TOSS_SECRET_KEY}:'.encode()).decode()
+        req_data   = json.dumps({'authKey': auth_key, 'customerKey': customer_key}).encode()
+        req = urllib.request.Request(
+            'https://api.tosspayments.com/v1/billing/authorizations/issue',
+            data=req_data,
+            headers={
+                'Authorization': f'Basic {credential}',
+                'Content-Type': 'application/json',
+            },
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+        billing_key = result.get('billingKey', '')
+        if not billing_key:
+            raise ValueError('billingKey not found in response')
+    except Exception as e:
+        app.logger.error(f'Toss billing key issue failed: {e}')
+        flash('카드 등록 중 오류가 발생했습니다. 다시 시도해주세요.', 'error')
+        return redirect(url_for('billing_register'))
+
+    # ── master.db에 billing key 저장, 구독 active 전환 ───────
+    tenant_id = session.get('tenant_id', 1)
+    save_billing_key(tenant_id, billing_key)
+    session.pop('subscription_expired', None)
+
+    flash('카드가 등록되었습니다. 구독이 시작됩니다.', 'success')
+    return redirect(url_for('billing_dashboard'))
+
+
+@app.route('/billing/card-fail')
+@login_required
+def billing_card_fail():
+    msg = request.args.get('message', '카드 등록이 취소되었습니다.')
+    flash(msg, 'error')
+    return redirect(url_for('billing_register'))
+
+
+@app.route('/billing')
+@login_required
+def billing_dashboard():
+    """구독 현황 대시보드"""
+    tenant_id = session.get('tenant_id', 1)
+    tenant    = get_tenant(tenant_id)
+    mdb       = get_master_db()
+    logs      = mdb.execute(
+        '''SELECT * FROM billing_logs WHERE tenant_id=?
+           ORDER BY created_at DESC LIMIT 12''',
+        (tenant_id,)
+    ).fetchall()
+    db            = get_db()
+    active_count  = db.execute(
+        "SELECT COUNT(*) FROM users WHERE status='active' AND role!='guest'"
+    ).fetchone()[0]
+    mdb.close()
+    monthly_amount = (tenant['peak_headcount'] or active_count) * PRICE_PER_SEAT
+    return render_template('billing/dashboard.html',
+                           tenant=tenant,
+                           logs=logs,
+                           active_count=active_count,
+                           monthly_amount=monthly_amount,
+                           price_per_seat=PRICE_PER_SEAT)
+
+
+@app.route('/billing/charge', methods=['POST'])
+@admin_required
+def billing_charge():
+    """
+    월별 청구 실행 (관리자 수동 트리거 또는 cron 대용).
+    Peak headcount × 1,000원을 저장된 billing key로 결제.
+    """
+    tenant_id = session.get('tenant_id', 1)
+    tenant    = get_tenant(tenant_id)
+
+    if not tenant or not tenant['toss_billing_key']:
+        flash('등록된 결제 수단이 없습니다.', 'error')
+        return redirect(url_for('billing_dashboard'))
+
+    db           = get_db()
+    active_count = db.execute(
+        "SELECT COUNT(*) FROM users WHERE status='active' AND role!='guest'"
+    ).fetchone()[0]
+    peak         = max(tenant['peak_headcount'] or 0, active_count)
+    amount       = peak * PRICE_PER_SEAT
+
+    if amount == 0:
+        flash('청구 금액이 0원입니다.', 'info')
+        return redirect(url_for('billing_dashboard'))
+
+    order_id     = f'TC-{tenant_id}-{date.today().strftime("%Y%m")}-{uuid.uuid4().hex[:8]}'
+    billing_key  = tenant['toss_billing_key']
+    customer_key = f'tenant_{tenant_id}'
+
+    # ── 토스 API: 빌링 결제 실행 ────────────────────────────
+    try:
+        credential = base64.b64encode(f'{TOSS_SECRET_KEY}:'.encode()).decode()
+        req_data   = json.dumps({
+            'customerKey': customer_key,
+            'amount':      amount,
+            'orderId':     order_id,
+            'orderName':   f'TalentCore {date.today().strftime("%Y년 %m월")} 구독 ({peak}명)',
+        }).encode()
+        req = urllib.request.Request(
+            f'https://api.tosspayments.com/v1/billing/{billing_key}',
+            data=req_data,
+            headers={
+                'Authorization': f'Basic {credential}',
+                'Content-Type': 'application/json',
+            },
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+        payment_key = result.get('paymentKey', '')
+        status      = result.get('status', '')
+        if status == 'DONE':
+            log_billing(tenant_id, amount, peak, order_id, payment_key, 'paid')
+            reset_peak_headcount(tenant_id, active_count)
+            flash(f'{peak}명 기준 {amount:,}원 결제 완료.', 'success')
+        else:
+            log_billing(tenant_id, amount, peak, order_id, status=f'failed')
+            flash(f'결제 실패: {result.get("message", "알 수 없는 오류")}', 'error')
+    except Exception as e:
+        app.logger.error(f'Toss billing charge failed: {e}')
+        log_billing(tenant_id, amount, peak, order_id, status='failed')
+        flash('결제 처리 중 오류가 발생했습니다.', 'error')
+
+    return redirect(url_for('billing_dashboard'))
+
+
+@app.route('/billing/webhook', methods=['POST'])
+def billing_webhook():
+    """
+    토스 웹훅 수신 — 결제 상태 동기화.
+    (토스 대시보드에서 웹훅 URL을 /billing/webhook 으로 설정)
+    """
+    try:
+        payload     = json.loads(request.data)
+        event_type  = payload.get('eventType', '')
+        data        = payload.get('data', {})
+        order_id    = data.get('orderId', '')
+        payment_key = data.get('paymentKey', '')
+        status      = data.get('status', '')
+
+        if event_type == 'PAYMENT_STATUS_CHANGED':
+            if status == 'DONE':
+                update_billing_log(order_id, payment_key, 'paid')
+            elif status in ('ABORTED', 'EXPIRED'):
+                update_billing_log(order_id, payment_key, 'failed',
+                                   data.get('failure', {}).get('message', ''))
+    except Exception as e:
+        app.logger.error(f'Toss webhook error: {e}')
+        return '', 400
+
+    return '', 200
 
 
 # ── Run ─────────────────────────────────────────────────────

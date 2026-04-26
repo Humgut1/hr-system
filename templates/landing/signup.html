@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>회사 등록 — TalentCore</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #f0f4ff, #f5f0ff);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .signup-wrap {
+      width: 100%; max-width: 480px;
+    }
+    .signup-logo {
+      text-align: center; margin-bottom: 32px;
+    }
+    .signup-logo a {
+      font-size: 1.5rem; font-weight: 800; color: #4361ee; text-decoration: none;
+    }
+    .signup-logo p {
+      color: #666; margin-top: 6px; font-size: .9rem;
+    }
+    .signup-card {
+      background: #fff; border-radius: 20px;
+      padding: 40px; box-shadow: 0 4px 40px rgba(67,97,238,.12);
+    }
+    .signup-card h1 {
+      font-size: 1.35rem; font-weight: 800; color: #0f0f23; margin-bottom: 6px;
+    }
+    .signup-card .sub {
+      color: #777; font-size: .875rem; margin-bottom: 28px;
+    }
+    .error-box {
+      background: #fff0f0; border: 1px solid #fca5a5; border-radius: 8px;
+      padding: 12px 16px; color: #dc2626; font-size: .875rem; margin-bottom: 20px;
+    }
+    .form-group { margin-bottom: 18px; }
+    .form-group label {
+      display: block; font-size: .8rem; font-weight: 600; color: #444;
+      margin-bottom: 6px;
+    }
+    .form-group input {
+      width: 100%; padding: 11px 14px; border: 1.5px solid #dde2f0;
+      border-radius: 8px; font-size: .925rem; color: #1a1a2e;
+      transition: border-color .2s;
+    }
+    .form-group input:focus {
+      outline: none; border-color: #4361ee;
+      box-shadow: 0 0 0 3px rgba(67,97,238,.1);
+    }
+    .form-divider {
+      border: none; border-top: 1px solid #f0f0f5; margin: 8px 0 18px;
+    }
+    .form-group .hint {
+      font-size: .78rem; color: #999; margin-top: 4px;
+    }
+    .btn-submit {
+      width: 100%; background: #4361ee; color: #fff; border: none;
+      border-radius: 10px; padding: 14px; font-size: 1rem; font-weight: 700;
+      cursor: pointer; transition: background .2s; margin-top: 4px;
+    }
+    .btn-submit:hover { background: #3451d1; }
+    .trial-badge {
+      background: #e8edff; color: #4361ee; border-radius: 8px;
+      padding: 10px 14px; font-size: .83rem; text-align: center;
+      margin-top: 16px; line-height: 1.5;
+    }
+    .login-link {
+      text-align: center; margin-top: 20px; font-size: .875rem; color: #888;
+    }
+    .login-link a { color: #4361ee; font-weight: 600; text-decoration: none; }
+  </style>
+</head>
+<body>
+<div class="signup-wrap">
+
+  <div class="signup-logo">
+    <a href="{{ url_for('landing') }}">TalentCore</a>
+    <p>{{ trial_days }}일 무료 체험을 시작하세요</p>
+  </div>
+
+  <div class="signup-card">
+    <h1>회사 등록</h1>
+    <p class="sub">신용카드 없이 바로 시작 · 언제든 해지 가능</p>
+
+    {% if error %}
+    <div class="error-box">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST">
+      <div class="form-group">
+        <label>회사명</label>
+        <input type="text" name="company_name" placeholder="(주)탤런트코어" required
+               value="{{ request.form.get('company_name', '') }}">
+      </div>
+
+      <hr class="form-divider">
+
+      <div class="form-group">
+        <label>관리자 이름</label>
+        <input type="text" name="name" placeholder="홍길동" required
+               value="{{ request.form.get('name', '') }}">
+      </div>
+      <div class="form-group">
+        <label>이메일 (로그인 ID)</label>
+        <input type="email" name="email" placeholder="admin@company.com" required
+               value="{{ request.form.get('email', '') }}">
+      </div>
+      <div class="form-group">
+        <label>비밀번호</label>
+        <input type="password" name="password" placeholder="8자 이상" required minlength="8">
+        <p class="hint">영문·숫자 조합 8자 이상 권장</p>
+      </div>
+      <div class="form-group">
+        <label>비밀번호 확인</label>
+        <input type="password" name="password2" placeholder="비밀번호 재입력" required>
+      </div>
+
+      <button type="submit" class="btn-submit">{{ trial_days }}일 무료로 시작하기</button>
+    </form>
+
+    <div class="trial-badge">
+      체험 기간 {{ trial_days }}일 동안 모든 기능 무제한 사용<br>
+      이후 ₩1,000/인·월 자동 구독 전환 (카드 등록 시)
+    </div>
+
+    <p class="login-link">
+      이미 계정이 있으신가요? <a href="{{ url_for('login') }}">로그인</a>
+    </p>
+  </div>
+</div>
+</body>
+</html>

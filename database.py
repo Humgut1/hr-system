@@ -9,8 +9,9 @@ _DEV_PW   = os.environ.get('HR_DEV_PASSWORD',   'changeme!')
 _GUEST_PW = os.environ.get('HR_GUEST_PASSWORD', 'guest1234!')
 
 
-def init_db():
-    conn = sqlite3.connect(DATABASE)
+def init_db(db_path: str = None):
+    """DB 스키마 초기화. db_path 지정 시 해당 경로에 생성 (신규 테넌트용)."""
+    conn = sqlite3.connect(db_path or DATABASE)
     try:
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
