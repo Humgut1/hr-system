@@ -2,856 +2,972 @@
 
 {% block body %}
 
-  <svg width="0" height="0" style="position:absolute">
-    <defs>
-      <linearGradient id="donutGrad" x1="0" x2="1" y1="0" y2="1">
-        <stop offset="0%" stop-color="#2b5bff"/>
-        <stop offset="100%" stop-color="#6b8eff"/>
-      </linearGradient>
-    </defs>
-  </svg>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="donutGrad" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#2b5bff"/>
+      <stop offset="100%" stop-color="#6b8eff"/>
+    </linearGradient>
+  </defs>
+</svg>
 
-  <div class="scroll-progress" aria-hidden="true"><span id="scrollBar"></span></div>
+<div class="scroll-progress" aria-hidden="true"><span id="scrollBar"></span></div>
 
-  <!-- ============ TOP NAV ============ -->
-  <header class="topnav" id="topnav">
-    <div class="brand">
-      <div class="brand-mark">T</div>
-      <span>TalentCore</span>
-    </div>
-    <nav>
-      <a href="#features">기능</a>
-      <a href="#compare">비교</a>
-      <a href="#pricing">요금</a>
-      <a href="#faq">FAQ</a>
-    </nav>
-    <div class="grow"></div>
-    <div class="actions">
-      <a href="{{ url_for('login') }}" class="btn btn-ghost">로그인</a>
-      <a href="{{ url_for('signup') }}" class="btn btn-primary">무료로 시작</a>
-    </div>
-  </header>
+<!-- ============ TOP NAV ============ -->
+<header class="topnav" id="topnav">
+  <div class="brand">
+    <div class="brand-mark">T</div>
+    <span>TalentCore</span>
+  </div>
+  <nav>
+    <a href="#features">기능</a>
+    <a href="#compare">비교</a>
+    <a href="#pricing">요금</a>
+    <a href="#faq">FAQ</a>
+  </nav>
+  <div class="grow"></div>
+  <div class="actions">
+    <a href="{{ url_for('login') }}" class="btn btn-ghost">로그인</a>
+    <a href="{{ url_for('signup') }}" class="btn btn-primary">무료로 시작하기</a>
+  </div>
+</header>
 
-  <!-- ============ HERO ============ -->
-  <section class="hero">
-    <div class="hero-mesh" aria-hidden="true"></div>
-    <div class="wrap hero-grid">
-      <div class="reveal in">
-        <span class="chip">HR 담당자 1명 · 직원 200명 · 문제없어요</span>
-        <h1 class="display-xl" style="margin: 22px 0 0;">
-          1인 HR팀도<br>
-          <span class="accent">대기업처럼.</span>
-        </h1>
-        <p class="lede">
-          혼자서 급여 계산하고, 연차 관리하고, 계약서 쓰고, 채용까지 —
-          매달 반복되는 그 일들, TalentCore가 대신합니다.
-          타사 대비 <strong>최대 7배 저렴하게.</strong>
-        </p>
-        <div class="hero-ctas">
-          <a href="{{ url_for('signup') }}" class="btn btn-primary btn-lg btn-arrow">
-            14일 무료로 시작하기
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
-          </a>
-          <a href="#features" class="btn btn-ghost btn-lg">기능 살펴보기</a>
-          <span class="trust">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            카드 등록 없음
-          </span>
-        </div>
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="hero-mesh" aria-hidden="true"></div>
+  <div class="wrap hero-grid">
 
-        <div class="hero-meta">
-          <div class="col"><strong data-count="7" data-suffix="배">0</strong><span>타사 대비 저렴한 가격</span></div>
-          <div class="col"><strong data-count="30" data-suffix="분">0</strong><span>월 급여 처리 시간</span></div>
-          <div class="col"><strong data-count="0" data-suffix="원">0</strong><span>카드 등록 없이 체험</span></div>
-        </div>
-      </div>
-
-      <div class="hero-vis" id="heroVis">
-        <div class="vis-card card-stat">
-          <div class="label">이번 달 급여 자동 계산</div>
-          <div class="num">47<small>명</small></div>
-          <span class="delta">✓ 4대보험 자동 반영</span>
-          <svg class="spark" width="100%" height="44" viewBox="0 0 240 44" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id="sparkFill" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stop-color="#2b5bff" stop-opacity="0.25"/>
-                <stop offset="100%" stop-color="#2b5bff" stop-opacity="0"/>
-              </linearGradient>
-            </defs>
-            <path d="M0,30 L30,26 L60,28 L90,18 L120,22 L150,12 L180,16 L210,8 L240,10 L240,44 L0,44 Z" fill="url(#sparkFill)"/>
-            <path d="M0,30 L30,26 L60,28 L90,18 L120,22 L150,12 L180,16 L210,8 L240,10" stroke="#2b5bff" stroke-width="2" fill="none" stroke-linecap="round"/>
-          </svg>
-        </div>
-
-        <div class="vis-card card-people">
-          <div class="label" style="margin-bottom: 6px;">오늘 처리할 항목</div>
-          <div class="people-row">
-            <div class="av av-a">휴가</div>
-            <div class="meta"><div class="name">연차 승인 대기</div><div class="role">박준영 · 3일</div></div>
-            <span class="badge">1건</span>
-          </div>
-          <div class="people-row">
-            <div class="av av-b">계약</div>
-            <div class="meta"><div class="name">전자서명 대기</div><div class="role">신입 이슬아</div></div>
-            <span class="badge">서명중</span>
-          </div>
-          <div class="people-row">
-            <div class="av av-c">증명</div>
-            <div class="meta"><div class="name">재직증명서 발급</div><div class="role">다라 김 요청</div></div>
-            <span class="badge">완료</span>
-          </div>
-        </div>
-
-        <div class="vis-card card-toast">
-          <div class="ico">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          </div>
-          <div>
-            <div class="title">5월 급여 자동 생성 완료</div>
-            <div class="sub">47명 · 4대보험 자동계산 · 2분 전</div>
-          </div>
-        </div>
-
-        <div class="vis-card card-cal">
-          <div class="cal-head"><div class="month">5월 2026</div><div class="ind">연차 8건</div></div>
-          <div class="cal-grid">
-            <div class="d muted"></div><div class="d muted"></div><div class="d">1</div><div class="d">2</div><div class="d">3</div><div class="d">4</div><div class="d">5</div>
-            <div class="d">6</div><div class="d">7</div><div class="d">8</div><div class="d">9</div><div class="d">10</div><div class="d">11</div><div class="d range start">12</div>
-            <div class="d range">13</div><div class="d range end">14</div><div class="d">15</div><div class="d">16</div><div class="d">17</div><div class="d">18</div><div class="d">19</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ LOGOS MARQUEE ============ -->
-  <section class="logos">
-    <div class="wrap"><div class="label" style="text-align:center;">HR 담당자 1명이 이 팀들을 운영하고 있어요</div></div>
-    <div class="marquee">
-      <div class="logo-item"><span class="dot"></span> Northwind · 87명</div>
-      <div class="logo-item"><span class="sq"></span> Lumen Studio · 43명</div>
-      <div class="logo-item"><span class="tri"></span> Foundry · 120명</div>
-      <div class="logo-item">◐ Atlas Co. · 64명</div>
-      <div class="logo-item">⬡ Hexa Lab · 31명</div>
-      <div class="logo-item">▲▼ Tandem · 56명</div>
-      <div class="logo-item">✦ Solstice · 98명</div>
-      <div class="logo-item">◇ Vellum · 72명</div>
-      <div class="logo-item"><span class="dot"></span> Northwind · 87명</div>
-      <div class="logo-item"><span class="sq"></span> Lumen Studio · 43명</div>
-      <div class="logo-item"><span class="tri"></span> Foundry · 120명</div>
-      <div class="logo-item">◐ Atlas Co. · 64명</div>
-      <div class="logo-item">⬡ Hexa Lab · 31명</div>
-      <div class="logo-item">▲▼ Tandem · 56명</div>
-      <div class="logo-item">✦ Solstice · 98명</div>
-      <div class="logo-item">◇ Vellum · 72명</div>
-    </div>
-  </section>
-
-  <!-- ============ PAIN POINTS ============ -->
-  <section class="section wrap" id="features">
-    <div class="section-head reveal">
-      <div class="eyebrow">1인 HR의 현실</div>
-      <h2 class="display-md">매달 반복되는<br>그 일들, 알아요.</h2>
-      <p class="body-lg">혼자 다 하려니 실수가 무서웠죠. TalentCore는 그 반복 업무를 자동화해서 당신이 진짜 HR에 집중하게 합니다.</p>
-    </div>
-
-    <div class="bento">
-      <!-- 급여 자동계산 — BIG -->
-      <div class="bento-item b1 reveal">
-        <div class="feat-ico">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-        </div>
-        <h3 class="headline-md">급여 · 4대보험 자동계산</h3>
-        <p>국민연금·건강보험·고용보험·산재보험 요율, 연장·야간·휴일 수당까지 근로기준법 §56 기준으로 자동 계산. 엑셀 실수 걱정 끝.</p>
-        <div class="b1-art">
-          <div class="mini">
-            <div class="mini-row">
-              <div class="av av-a" style="width:30px;height:30px;font-size:11px;">국연</div>
-              <div class="name">국민연금 4.5% 자동 공제</div>
-              <span class="when">완료</span>
-            </div>
-            <div class="bar"><span data-bar="100" style="background: linear-gradient(90deg, #5fbf6f, #88d68a);"></span></div>
-          </div>
-          <div class="mini">
-            <div class="mini-row">
-              <div class="av av-b" style="width:30px;height:30px;font-size:11px;">건보</div>
-              <div class="name">건강보험 3.545% + 장기요양</div>
-              <span class="when">완료</span>
-            </div>
-            <div class="bar"><span data-bar="100" style="background: linear-gradient(90deg, #5fbf6f, #88d68a);"></span></div>
-          </div>
-          <div class="mini">
-            <div class="mini-row">
-              <div class="av av-c" style="width:30px;height:30px;font-size:11px;">연장</div>
-              <div class="name">연장·야간 수당 자동 산정</div>
-              <span class="when">완료</span>
-            </div>
-            <div class="bar"><span data-bar="100" style="background: linear-gradient(90deg, #5fbf6f, #88d68a);"></span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 연차 자동관리 -->
-      <div class="bento-item b2 reveal delay-1">
-        <div class="feat-ico" style="background: var(--tertiary-container); color: var(--on-tertiary-container);">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        </div>
-        <h3 class="headline-md">연차 · 휴가 자동관리</h3>
-        <div class="donut-wrap">
-          <svg class="donut" viewBox="0 0 80 80">
-            <circle class="track" cx="40" cy="40" r="32"/>
-            <circle class="fill" cx="40" cy="40" r="32"
-              data-donut="65"
-              stroke-dasharray="201.06" stroke-dashoffset="201.06"/>
-          </svg>
-          <div>
-            <div class="headline-md" style="font-size:24px;">65%</div>
-            <p style="font-size: 12px; margin: 2px 0 0;">연차 사용률 실시간</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- 전자계약 -->
-      <div class="bento-item b3 reveal delay-2">
-        <div class="feat-ico" style="background: var(--warn-container); color: var(--on-warn-container);">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        </div>
-        <h3 class="headline-md">전자계약 · 증명서</h3>
-        <p>근로계약서 발행부터 전자서명, 재직·경력·퇴직증명서 즉시 발급. 직원이 요청하면 1분 안에.</p>
-      </div>
-
-      <!-- 조직도 -->
-      <div class="bento-item b4 reveal">
-        <div class="feat-ico" style="background: var(--rose-container); color: var(--on-rose-container);">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        </div>
-        <h3 class="headline-md">채용 · 온보딩 · 인사발령</h3>
-        <p>채용 파이프라인 칸반, 입사자 온보딩, 인사발령 이력까지. 스프레드시트 없이 전 과정을 한 곳에서.</p>
-        <div class="org-tree">
-          <div class="org-node"><div class="av av-d">신입</div> 이슬아 · 입사 D-3</div>
-          <div class="org-row">
-            <div class="org-node small"><div class="av av-a">계약</div> 서명완료</div>
-            <div class="org-node small"><div class="av av-b">장비</div> 준비중</div>
-            <div class="org-node small"><div class="av av-c">계정</div> 발급완료</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 성과관리 — dark -->
-      <div class="bento-item b5 reveal delay-1">
-        <div class="feat-ico">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        </div>
-        <h3 class="headline-md">성과평가 · OKR</h3>
-        <p>분기 평가 주기 설정, 목표 관리, 다면평가, 캘리브레이션까지. 평가 시즌마다 개별 연락 없이 자동 리마인더.</p>
-        <div class="payslip-mock">
-          <div class="label" style="color: rgba(255,255,255,.4); margin-bottom: 8px;">2026 상반기 평가</div>
-          <div class="pay-amount" style="font-size:28px;">자동 리마인더</div>
-          <div style="margin-top: 14px;">
-            <div class="pay-line"><span>목표 설정 완료</span><strong>47 / 47명</strong></div>
-            <div class="pay-line"><span>중간 점검</span><strong>진행 중</strong></div>
-            <div class="pay-line"><span>최종 평가 마감</span><strong>D-14 알림 예약</strong></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ STORY: 1인 HR 하루 ============ -->
-  <section class="story" id="how">
-    <div class="wrap">
-      <div class="section-head reveal">
-        <div class="eyebrow">Before / After</div>
-        <h2 class="display-md">혼자였던 월급날,<br>이제 달라요.</h2>
-      </div>
-
-      <div class="story-wrap">
-        <div class="story-left reveal">
-          <h3 class="headline-md">TalentCore 도입 전후,<br>1인 HR팀의 하루.</h3>
-          <p class="body-md muted" style="margin-top: 14px; max-width: 36ch;">반복 업무는 자동화하고, 당신은 정말 중요한 사람 관련 결정에 집중하세요.</p>
-          <div class="story-steps" id="storyTabs">
-            <div class="story-step-tab active" data-step="0"><span class="stab-num">01</span> 급여일 전날</div>
-            <div class="story-step-tab" data-step="1"><span class="stab-num">02</span> 입사자 온보딩 날</div>
-            <div class="story-step-tab" data-step="2"><span class="stab-num">03</span> 평가 시즌</div>
-          </div>
-        </div>
-
-        <div class="story-right">
-          <div class="story-card reveal" data-step="0">
-            <div class="num-big">01</div>
-            <h3 class="headline-md">급여일 전날, 더 이상 야근 없어요.</h3>
-            <p>기존엔 엑셀로 4대보험 요율 찾아보고, 연장수당 직접 계산하고, 명세서 개별 발송까지 3~4시간. 이제 버튼 하나로 전 직원 급여가 생성되고 명세서는 자동 발송됩니다.</p>
-            <div class="story-art">
-              <div class="csv-mock">
-                <div class="csv-head"><span></span><span></span><span></span></div>
-                <div class="row h"><div class="col">직원</div><div class="col">기본급</div><div class="col">공제</div><div class="col">실수령</div></div>
-                <div class="row"><div class="col">박준영</div><div class="col">4,800,000</div><div class="col">432,000</div><div class="col check">✓ 4,368,000</div></div>
-                <div class="row"><div class="col">이슬아</div><div class="col">3,900,000</div><div class="col">351,000</div><div class="col check">✓ 3,549,000</div></div>
-                <div class="row"><div class="col">다라 김</div><div class="col">5,200,000</div><div class="col">468,000</div><div class="col check">✓ 4,732,000</div></div>
-                <div class="row"><div class="col" style="color: var(--primary); font-weight:700;">47명 전체</div><div class="col">—</div><div class="col">—</div><div class="col check">✓ 2분 완료</div></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="story-card reveal" data-step="1">
-            <div class="num-big">02</div>
-            <h3 class="headline-md">입사 첫날, HR이 옆에 없어도 됩니다.</h3>
-            <p>근로계약서 발행 → 전자서명 → 계정 생성 → 조직도 등록 → 팀 공지까지. 온보딩 체크리스트를 시스템이 안내하니 새 직원도 길 잃지 않아요.</p>
-            <div class="story-art">
-              <div class="toggles">
-                <div class="toggle-row">
-                  <div class="grow">
-                    <div class="name">근로계약서 전자서명</div>
-                    <div class="desc">이슬아 · 서명 완료 09:14</div>
-                  </div>
-                  <div class="toggle on"></div>
-                </div>
-                <div class="toggle-row">
-                  <div class="grow">
-                    <div class="name">인사정보 등록</div>
-                    <div class="desc">부서 · 직급 · 연봉 입력</div>
-                  </div>
-                  <div class="toggle on"></div>
-                </div>
-                <div class="toggle-row">
-                  <div class="grow">
-                    <div class="name">조직도 자동 반영</div>
-                    <div class="desc">매니저 리포팅 라인 설정</div>
-                  </div>
-                  <div class="toggle on"></div>
-                </div>
-                <div class="toggle-row">
-                  <div class="grow">
-                    <div class="name">전사 공지 발송</div>
-                    <div class="desc">입사 안내 · 자동 예약</div>
-                  </div>
-                  <div class="toggle on"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="story-card reveal" data-step="2">
-            <div class="num-big">03</div>
-            <h3 class="headline-md">평가 시즌, 더 이상 개별 독촉 안 해도 돼요.</h3>
-            <p>평가 주기 설정하면 자동으로 목표 입력 → 중간 점검 → 자기평가 → 매니저 평가 → 캘리브레이션까지 흘러갑니다. 마감 전 자동 리마인더가 대신 독촉해요.</p>
-            <div class="story-art">
-              <div class="notif-stack">
-                <div class="notif">
-                  <div class="ico-lg blue">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                  </div>
-                  <div class="grow">
-                    <div class="title">자기평가 마감 3일 전 — 자동 알림 발송</div>
-                    <div class="sub">미완료 12명에게 자동 발송 · 방금 전</div>
-                  </div>
-                </div>
-                <div class="notif">
-                  <div class="ico-lg green">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                  </div>
-                  <div class="grow">
-                    <div class="title">매니저 평가 47 / 47명 완료</div>
-                    <div class="sub">캘리브레이션 세션 준비됨</div>
-                  </div>
-                </div>
-                <div class="notif">
-                  <div class="ico-lg warn">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                  </div>
-                  <div class="grow">
-                    <div class="title">가중 평균 등급 자동 산출</div>
-                    <div class="sub">S·A·B·C·D 분포 · 캘리브레이션 결과 확인</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ COMPETITOR COMPARE ============ -->
-  <section class="section wrap" id="compare">
-    <div class="section-head reveal" style="max-width: 100%;">
-      <div class="eyebrow">가격 비교</div>
-      <h2 class="display-md">같은 기능,<br>7배 저렴하게.</h2>
-      <p class="body-lg">숨겨진 비용 없이 직원 수만큼만 내세요. 50명 기준, 경쟁사와 비교해보세요.</p>
-    </div>
-
-    <div class="compare-wrap reveal">
-      <div class="compare-table">
-        <div class="compare-header">
-          <div class="compare-col col-feature"></div>
-          <div class="compare-col col-us">
-            <div class="col-brand"><div class="brand-mark" style="width:24px;height:24px;font-size:11px;">T</div> TalentCore</div>
-            <div class="col-price">₩1,000<span>/인/월</span></div>
-          </div>
-          <div class="compare-col col-them">
-            <div class="col-brand">국내 HR SaaS A</div>
-            <div class="col-price col-price-them">₩7,000<span>/인/월</span></div>
-          </div>
-          <div class="compare-col col-them">
-            <div class="col-brand">글로벌 HR SaaS B</div>
-            <div class="col-price col-price-them">₩13,000<span>/인/월</span></div>
-          </div>
-        </div>
-
-        <div class="compare-row">
-          <div class="compare-col col-feature">급여 · 4대보험 자동계산</div>
-          <div class="compare-col col-us"><span class="check-yes">✓</span></div>
-          <div class="compare-col col-them"><span class="check-yes">✓</span></div>
-          <div class="compare-col col-them"><span class="check-no">✗ 한국 미지원</span></div>
-        </div>
-        <div class="compare-row">
-          <div class="compare-col col-feature">연장·야간·휴일 수당 자동계산</div>
-          <div class="compare-col col-us"><span class="check-yes">✓</span></div>
-          <div class="compare-col col-them"><span class="check-yes">✓</span></div>
-          <div class="compare-col col-them"><span class="check-no">✗</span></div>
-        </div>
-        <div class="compare-row">
-          <div class="compare-col col-feature">전자계약 · 서명</div>
-          <div class="compare-col col-us"><span class="check-yes">✓</span></div>
-          <div class="compare-col col-them"><span class="check-partial">— 별도 추가</span></div>
-          <div class="compare-col col-them"><span class="check-partial">— 상위 플랜</span></div>
-        </div>
-        <div class="compare-row">
-          <div class="compare-col col-feature">채용 파이프라인</div>
-          <div class="compare-col col-us"><span class="check-yes">✓</span></div>
-          <div class="compare-col col-them"><span class="check-yes">✓</span></div>
-          <div class="compare-col col-them"><span class="check-yes">✓</span></div>
-        </div>
-        <div class="compare-row">
-          <div class="compare-col col-feature">성과평가 · 다면평가</div>
-          <div class="compare-col col-us"><span class="check-yes">✓</span></div>
-          <div class="compare-col col-them"><span class="check-partial">— 상위 플랜</span></div>
-          <div class="compare-col col-them"><span class="check-partial">— 상위 플랜</span></div>
-        </div>
-        <div class="compare-row">
-          <div class="compare-col col-feature">퇴직금 자동계산</div>
-          <div class="compare-col col-us"><span class="check-yes">✓</span></div>
-          <div class="compare-col col-them"><span class="check-no">✗</span></div>
-          <div class="compare-col col-them"><span class="check-no">✗</span></div>
-        </div>
-        <div class="compare-row">
-          <div class="compare-col col-feature">재직·경력·퇴직 증명서</div>
-          <div class="compare-col col-us"><span class="check-yes">✓</span></div>
-          <div class="compare-col col-them"><span class="check-yes">✓</span></div>
-          <div class="compare-col col-them"><span class="check-no">✗</span></div>
-        </div>
-        <div class="compare-row compare-row-total">
-          <div class="compare-col col-feature"><strong>50명 기준 월 비용</strong></div>
-          <div class="compare-col col-us"><strong class="price-highlight">₩50,000</strong></div>
-          <div class="compare-col col-them"><strong style="color:var(--on-surface-variant);">₩350,000</strong></div>
-          <div class="compare-col col-them"><strong style="color:var(--on-surface-variant);">₩650,000</strong></div>
-        </div>
-      </div>
-      <p class="body-sm muted" style="text-align:center; margin-top: 16px;">* 국내외 주요 HR SaaS 공시 요금 기준. 2026년 4월 기준.</p>
-    </div>
-  </section>
-
-  <!-- ============ EDITORIAL DARK CARD ============ -->
-  <section class="wrap">
-    <div class="editorial-card reveal">
-      <div>
-        <div class="quote-mark">"</div>
-        <div class="eyebrow">고객 스토리</div>
-        <h2 class="display-md" style="color: white;">HR 혼자인데<br>아무도 몰라요.</h2>
-        <p>급여 계산에 이틀, 연차 집계에 반나절, 계약서 발송에 한 시간. TalentCore 쓰고 나서 그 시간이 전부 사라졌어요. 이제 채용이랑 문화 만드는 데 집중할 수 있어요.</p>
-        <div style="display:flex; align-items:center; gap: 14px; margin-top: 28px;">
-          <div class="av av-a">민서</div>
-          <div>
-            <div style="font-weight:600; font-size:14px;">김민서</div>
-            <div style="font-size: 12px; color: rgba(255,255,255,.55);">HR팀 1인 · Lumen Studio (43명)</div>
-          </div>
-        </div>
-      </div>
-      <div class="stats-grid">
-        <div class="stat"><strong data-count="8" data-suffix="h">0</strong><span>월 급여 처리 절감 시간</span></div>
-        <div class="stat"><strong data-count="7" data-suffix="배">0</strong><span>타사 대비 저렴한 비용</span></div>
-        <div class="stat"><strong data-count="100" data-suffix="%">0</strong><span>한국 근로기준법 준수</span></div>
-        <div class="stat"><strong data-count="0" data-suffix="건">0</strong><span>급여 계산 오류</span></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ PRICING ============ -->
-  <section class="section wrap" id="pricing">
-    <div class="section-head reveal">
-      <div class="eyebrow">요금제</div>
-      <h2 class="display-md">딱 하나.<br>숨김 비용 없이.</h2>
-      <p class="body-lg">모든 기능이 포함된 단일 플랜. 직원 수만큼만 내고, 그달 최고 인원 기준으로 청구됩니다.</p>
-    </div>
-
-    <div class="pricing-single reveal">
-      <div class="price-single-card">
-        <div class="price-single-left">
-          <span class="ribbon">전체 기능 포함</span>
-          <h3 class="headline-lg" style="margin: 16px 0 10px;">TalentCore</h3>
-          <p style="color: var(--on-surface-variant); font-size: 15px; margin: 0 0 32px; max-width: 40ch;">급여부터 채용, 성과, 계약, 증명서까지. 1인 HR팀에 필요한 모든 것.</p>
-          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px;">
-            <span style="font-size: 72px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--primary);">₩1,000</span>
-            <span style="font-size: 16px; color: var(--on-surface-muted);">/ 인 / 월</span>
-          </div>
-          <p style="font-size: 13px; color: var(--on-surface-muted); margin: 0 0 36px;">월 최고 인원 기준 · 최소 인원 없음 · 해지 언제든 가능</p>
-          <a href="{{ url_for('signup') }}" class="btn btn-primary btn-lg btn-arrow" style="width: 100%; justify-content: center;">
-            14일 무료로 시작하기
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
-          </a>
-          <p style="font-size: 12px; color: var(--on-surface-muted); text-align:center; margin-top: 14px;">신용카드 등록 없이 14일 무료 체험</p>
-        </div>
-        <div class="price-single-right">
-          <div class="feat-grid">
-            <div class="feat-group">
-              <div class="feat-group-title">급여 · 노무</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 4대보험 자동계산 (국민·건강·고용·산재)</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 연장·야간·휴일 수당 자동계산</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 급여명세서 자동 생성</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 퇴직금 자동계산</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 최저임금 미달 자동 경고</div>
-            </div>
-            <div class="feat-group">
-              <div class="feat-group-title">근태 · 휴가</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 13종 휴가 관리 (출산·육아·병가 등)</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 연차 자동 계산 (근속연수 기반)</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 출퇴근 체크인·아웃</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 유연근무 스케줄러</div>
-            </div>
-            <div class="feat-group">
-              <div class="feat-group-title">계약 · 증명</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 전자계약서 발행 · 서명</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 재직·경력·퇴직·소득 증명서</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 인사발령 이력 관리</div>
-            </div>
-            <div class="feat-group">
-              <div class="feat-group-title">성과 · 채용</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 성과평가 주기 · OKR 관리</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 다면평가 · 캘리브레이션</div>
-              <div class="feat-item"><span class="check-yes">✓</span> 채용 공고 · 파이프라인 칸반</div>
-              <div class="feat-item"><span class="check-yes">✓</span> People Analytics 대시보드</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 비용 시뮬레이터 -->
-      <div class="cost-sim reveal">
-        <div class="eyebrow" style="margin-bottom: 20px;">비용 계산기</div>
-        <div class="sim-row">
-          <div class="sim-label">직원 수</div>
-          <input type="range" id="simSlider" min="5" max="200" value="50" step="5" />
-          <div class="sim-count"><span id="simCount">50</span>명</div>
-        </div>
-        <div class="sim-result">
-          <div class="sim-item sim-us">
-            <div class="sim-brand">TalentCore</div>
-            <div class="sim-price" id="simUs">₩50,000</div>
-            <div class="sim-mo">/ 월</div>
-          </div>
-          <div class="sim-vs">vs</div>
-          <div class="sim-item">
-            <div class="sim-brand">국내 HR SaaS A</div>
-            <div class="sim-price" id="simFlex">₩350,000</div>
-            <div class="sim-mo">/ 월</div>
-          </div>
-          <div class="sim-item">
-            <div class="sim-brand">글로벌 HR SaaS B</div>
-            <div class="sim-price" id="simBamboo">₩650,000</div>
-            <div class="sim-mo">/ 월</div>
-          </div>
-        </div>
-        <p class="sim-save">연간 <strong id="simSaveAmt">₩3,600,000</strong> 절약 (타사 대비)</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ TESTIMONIALS ============ -->
-  <section class="section wrap" id="testimonials">
-    <div class="section-head reveal">
-      <div class="eyebrow">고객 후기</div>
-      <h2 class="display-md">1인 HR팀이<br>직접 말합니다.</h2>
-    </div>
-    <div class="testi-grid">
-      <div class="testi reveal">
-        <q>매달 급여날 전날이 가장 무서웠어요. 이제는 퇴근하고 자도 돼요. 4대보험 계산을 시스템이 다 해주니까.</q>
-        <div class="who">
-          <div class="av av-a">민서</div>
-          <div><div class="name">김민서</div><div class="role">HR 1인 · Lumen Studio (43명)</div></div>
-        </div>
-      </div>
-      <div class="testi reveal delay-1">
-        <q>다른 HR 툴 쓰다가 넘어왔어요. 기능은 오히려 더 많은데 비용은 훨씬 저렴해요. 퇴직금 자동계산이 특히 좋았어요.</q>
-        <div class="who">
-          <div class="av av-b">현우</div>
-          <div><div class="name">정현우</div><div class="role">People Ops · Foundry (120명)</div></div>
-        </div>
-      </div>
-      <div class="testi reveal delay-2">
-        <q>채용부터 온보딩, 계약서, 성과평가까지 하나로 되니까 툴 전환하는 시간 자체가 없어졌어요.</q>
-        <div class="who">
-          <div class="av av-c">예린</div>
-          <div><div class="name">신예린</div><div class="role">HRBP 1인 · Hexa Lab (87명)</div></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ FAQ ============ -->
-  <section class="section wrap" id="faq">
-    <div class="section-head reveal" style="text-align: center; margin-left: auto; margin-right: auto;">
-      <div class="eyebrow" style="display: block;">자주 묻는 질문</div>
-      <h2 class="display-md">궁금한 거,<br>여기서 다 풀어드려요.</h2>
-    </div>
-    <div class="faq" id="faqList">
-      <div class="faq-item">
-        <button class="faq-q">₩1,000/인/월이면 정말 모든 기능을 쓸 수 있나요? <span class="ind">+</span></button>
-        <div class="faq-a"><div class="faq-a-inner">네, 숨겨진 플랜이 없어요. 급여·4대보험, 근태·휴가, 전자계약, 성과평가, 채용, 증명서 발급까지 모든 기능이 ₩1,000/인/월에 포함됩니다. 추가 모듈 비용 없어요.</div></div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q">'월 최고 인원 기준' 과금이 무슨 뜻인가요? <span class="ind">+</span></button>
-        <div class="faq-a"><div class="faq-a-inner">그달 가장 많았던 활성 직원 수를 기준으로 청구합니다. 예를 들어 월 중간에 직원이 퇴사해도 그달 최고 인원이 50명이면 50명 기준으로만 내면 돼요. 다음 달은 실제 인원 기준으로 리셋됩니다.</div></div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q">4대보험 요율이 매년 바뀌는데 자동으로 반영되나요? <span class="ind">+</span></button>
-        <div class="faq-a"><div class="faq-a-inner">네, 국민연금·건강보험·고용보험·산재보험 요율 변경 시 시스템에서 자동 업데이트합니다. 수동으로 수정할 필요 없어요. 최저임금 기준도 매년 반영됩니다.</div></div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q">기존 엑셀 데이터를 가져올 수 있나요? <span class="ind">+</span></button>
-        <div class="faq-a"><div class="faq-a-inner">CSV 일괄 가져오기를 지원합니다. 직원 정보, 급여 내역, 근태 데이터를 양식에 맞춰 업로드하면 됩니다. 셋업 과정에서 막히면 온보딩 지원을 받을 수 있어요.</div></div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q">중도 해지 시 어떻게 되나요? <span class="ind">+</span></button>
-        <div class="faq-a"><div class="faq-a-inner">언제든 해지 가능하고, 해지 전까지 사용한 기간만 일할 계산 청구합니다. 데이터는 CSV로 전체 내보내기 할 수 있어요. 위약금이나 최소 계약 기간 없습니다.</div></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ FINAL CTA ============ -->
-  <section class="wrap">
-    <div class="cta-final reveal">
-      <div class="eyebrow" style="display: inline-block;">지금 시작하기</div>
-      <h2 class="display-md" style="margin-top: 14px;">이번 달 급여일,<br>야근하지 마세요.</h2>
-      <p class="body-lg">카드 등록 없이 14일 무료 · 직원 수 관계없이 ₩1,000/인/월 · 언제든 해지</p>
-      <form class="cta-form" action="{{ url_for('signup') }}" method="GET">
-        <input type="email" name="email" placeholder="회사 이메일 주소" required />
-        <button type="submit" class="btn btn-primary btn-lg btn-arrow">
-          무료로 시작하기
+    <!-- Left: Copy -->
+    <div class="reveal in">
+      <span class="chip">1인 HR팀을 위한 도구</span>
+      <h1 class="display-xl" style="margin: 22px 0 0;">
+        직원 100명,<br>
+        <span class="accent">HR 1명이어도</span><br>
+        괜찮아요.
+      </h1>
+      <p class="lede">
+        급여 계산, 연차 관리, 계약서 발행, 채용까지.<br>
+        매달 반복되던 그 일들을 TalentCore가 대신해요.
+      </p>
+      <div class="hero-ctas">
+        <a href="{{ url_for('signup') }}" class="btn btn-primary btn-lg btn-arrow">
+          14일 무료로 시작하기
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
-        </button>
-      </form>
+        </a>
+        <a href="#features" class="btn btn-ghost btn-lg">기능 살펴보기</a>
+      </div>
+      <div class="hero-trust">
+        <span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          카드 등록 없이 14일 무료
+        </span>
+        <span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          5분 셋업
+        </span>
+        <span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          언제든 해지 가능
+        </span>
+      </div>
     </div>
-  </section>
 
-  <!-- ============ FOOTER ============ -->
-  <footer class="wrap">
-    <div class="foot-grid">
-      <div class="foot-col">
-        <div class="brand" style="margin-bottom: 14px;">
-          <div class="brand-mark">T</div>
-          <span style="font-weight:700;">TalentCore</span>
+    <!-- Right: Animated HR workflow card -->
+    <div class="hero-vis-wrap reveal in">
+      <div class="hero-dash">
+        <div class="dash-topbar">
+          <div class="dash-dots">
+            <span></span><span></span><span></span>
+          </div>
+          <div class="dash-title-bar">TalentCore · HR 대시보드</div>
         </div>
-        <p class="body-sm muted" style="max-width: 32ch;">1인 HR팀을 위한 올인원 HR OS. 급여부터 퇴직까지 전 과정을 자동화합니다.</p>
-      </div>
-      <div class="foot-col">
-        <h5>제품</h5>
-        <a href="#features">기능</a>
-        <a href="#compare">경쟁사 비교</a>
-        <a href="#pricing">요금</a>
-        <a href="#faq">FAQ</a>
-      </div>
-      <div class="foot-col">
-        <h5>회사</h5>
-        <a href="#">소개</a>
-        <a href="#">채용</a>
-        <a href="mailto:hi@talentcore.io">문의</a>
-      </div>
-      <div class="foot-col">
-        <h5>리소스</h5>
-        <a href="#">도움말</a>
-        <a href="#">블로그</a>
-        <a href="#">개인정보처리방침</a>
-        <a href="#">이용약관</a>
+        <div class="dash-body">
+          <div class="dash-section-label">오늘 처리할 업무</div>
+          <div class="task-list" id="taskList">
+            <div class="task-item" id="task0">
+              <div class="task-check-wrap">
+                <div class="task-check"></div>
+              </div>
+              <div class="task-info">
+                <div class="task-name">5월 급여 생성</div>
+                <div class="task-sub">직원 47명 · 4대보험 자동 계산</div>
+              </div>
+              <span class="task-status waiting">대기</span>
+            </div>
+            <div class="task-item" id="task1">
+              <div class="task-check-wrap">
+                <div class="task-check"></div>
+              </div>
+              <div class="task-info">
+                <div class="task-name">근로계약서 서명 요청</div>
+                <div class="task-sub">이슬아 · 신규 입사자</div>
+              </div>
+              <span class="task-status waiting">대기</span>
+            </div>
+            <div class="task-item" id="task2">
+              <div class="task-check-wrap">
+                <div class="task-check"></div>
+              </div>
+              <div class="task-info">
+                <div class="task-name">연차 신청 승인</div>
+                <div class="task-sub">박준영 · 3일 · 5/12~5/14</div>
+              </div>
+              <span class="task-status waiting">대기</span>
+            </div>
+            <div class="task-item" id="task3">
+              <div class="task-check-wrap">
+                <div class="task-check"></div>
+              </div>
+              <div class="task-info">
+                <div class="task-name">재직증명서 발급</div>
+                <div class="task-sub">다라 김 요청 · 즉시 발급 가능</div>
+              </div>
+              <span class="task-status waiting">대기</span>
+            </div>
+          </div>
+          <div class="dash-done" id="dashDone">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            오늘 업무 모두 처리했어요
+          </div>
+        </div>
+        <div class="dash-footer">
+          <div class="dash-stat">
+            <span class="dash-stat-num" id="heroCounter">0</span>
+            <span class="dash-stat-label">이번 달 자동 처리된 업무</span>
+          </div>
+          <div class="dash-stat">
+            <span class="dash-stat-num">₩1,000</span>
+            <span class="dash-stat-label">인당 월 요금</span>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="foot-bottom">
-      <span>© 2026 TalentCore Inc. All rights reserved.</span>
-      <span>Made with care in Seoul.</span>
+  </div>
+</section>
+
+<!-- ============ LOGOS ============ -->
+<section class="logos">
+  <div class="wrap"><div class="label" style="text-align:center;">HR 담당자 1명이 이 팀들을 운영하고 있어요</div></div>
+  <div class="marquee">
+    <div class="logo-item"><span class="dot"></span> Northwind · 87명</div>
+    <div class="logo-item"><span class="sq"></span> Lumen Studio · 43명</div>
+    <div class="logo-item"><span class="tri"></span> Foundry · 120명</div>
+    <div class="logo-item">◐ Atlas Co. · 64명</div>
+    <div class="logo-item">⬡ Hexa Lab · 31명</div>
+    <div class="logo-item">▲▼ Tandem · 56명</div>
+    <div class="logo-item">✦ Solstice · 98명</div>
+    <div class="logo-item">◇ Vellum · 72명</div>
+    <div class="logo-item"><span class="dot"></span> Northwind · 87명</div>
+    <div class="logo-item"><span class="sq"></span> Lumen Studio · 43명</div>
+    <div class="logo-item"><span class="tri"></span> Foundry · 120명</div>
+    <div class="logo-item">◐ Atlas Co. · 64명</div>
+    <div class="logo-item">⬡ Hexa Lab · 31명</div>
+    <div class="logo-item">▲▼ Tandem · 56명</div>
+    <div class="logo-item">✦ Solstice · 98명</div>
+    <div class="logo-item">◇ Vellum · 72명</div>
+  </div>
+</section>
+
+<!-- ============ PAIN POINTS / FEATURES ============ -->
+<section class="section wrap" id="features">
+  <div class="section-head reveal">
+    <div class="eyebrow">핵심 기능</div>
+    <h2 class="display-md">혼자서도<br>빠짐없이 돌아가요.</h2>
+    <p class="body-lg">급여부터 퇴직까지, 직원 생애 전 과정을 커버해요. 엑셀 파일 열 필요 없어요.</p>
+  </div>
+
+  <div class="bento">
+    <!-- 급여 자동계산 — BIG -->
+    <div class="bento-item b1 reveal">
+      <div class="feat-ico">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </div>
+      <h3 class="headline-md">급여명세서, 버튼 하나로 끝나요.</h3>
+      <p>국민연금 4.5%, 건강보험 3.545%, 연장·야간·휴일 수당까지 — 근로기준법 기준으로 자동 계산해요. 매달 반복하던 엑셀 작업이 사라져요.</p>
+      <div class="b1-art">
+        <div class="mini">
+          <div class="mini-row">
+            <div class="av av-a" style="width:30px;height:30px;font-size:11px;">국연</div>
+            <div class="name">국민연금 4.5% 자동 공제</div>
+            <span class="when" style="color:#3dba6a;">완료</span>
+          </div>
+          <div class="bar"><span data-bar="100" style="background:linear-gradient(90deg,#5fbf6f,#88d68a);"></span></div>
+        </div>
+        <div class="mini">
+          <div class="mini-row">
+            <div class="av av-b" style="width:30px;height:30px;font-size:11px;">건보</div>
+            <div class="name">건강보험 3.545% + 장기요양</div>
+            <span class="when" style="color:#3dba6a;">완료</span>
+          </div>
+          <div class="bar"><span data-bar="100" style="background:linear-gradient(90deg,#5fbf6f,#88d68a);"></span></div>
+        </div>
+        <div class="mini">
+          <div class="mini-row">
+            <div class="av av-c" style="width:30px;height:30px;font-size:11px;">수당</div>
+            <div class="name">연장·야간·휴일 수당 자동 산정</div>
+            <span class="when" style="color:#3dba6a;">완료</span>
+          </div>
+          <div class="bar"><span data-bar="100" style="background:linear-gradient(90deg,#5fbf6f,#88d68a);"></span></div>
+        </div>
+      </div>
     </div>
-  </footer>
 
-  <style>
-    /* ===== Compare table ===== */
-    .compare-wrap { overflow-x: auto; }
-    .compare-table { min-width: 640px; border-radius: var(--radius-lg); overflow: hidden; background: var(--surface-container-lowest); box-shadow: 0 20px 60px rgba(21,28,35,.06); }
-    .compare-header { display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr; background: var(--surface-container-low); padding: 20px 28px; gap: 12px; align-items: center; }
-    .compare-row { display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr; padding: 14px 28px; gap: 12px; align-items: center; border-top: 1px solid var(--surface-container); font-size: 14px; }
-    .compare-row:hover { background: var(--surface-container-low); }
-    .compare-row-total { background: var(--surface-container-low); font-size: 15px; }
-    .col-brand { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-    .col-price { font-size: 22px; font-weight: 800; color: var(--primary); letter-spacing: -0.02em; }
-    .col-price span { font-size: 12px; font-weight: 500; color: var(--on-surface-muted); margin-left: 2px; }
-    .col-price-them { color: var(--on-surface-variant); font-size: 18px; }
-    .col-feature { color: var(--on-surface-variant); font-size: 14px; }
-    .check-yes { color: #3dba6a; font-weight: 700; font-size: 15px; }
-    .check-no { color: var(--on-surface-muted); font-size: 12px; }
-    .check-partial { color: var(--on-warn-container); font-size: 12px; }
-    .price-highlight { font-size: 20px; color: var(--primary); font-weight: 800; }
-    .col-us { background: rgba(43,91,255,.04); border-radius: var(--radius-sm); padding: 4px 12px; }
+    <!-- 연차 자동관리 -->
+    <div class="bento-item b2 reveal delay-1">
+      <div class="feat-ico" style="background:var(--tertiary-container);color:var(--on-tertiary-container);">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+      <h3 class="headline-md">연차, 직접 세지 않아도 돼요.</h3>
+      <div class="donut-wrap">
+        <svg class="donut" viewBox="0 0 80 80">
+          <circle class="track" cx="40" cy="40" r="32"/>
+          <circle class="fill" cx="40" cy="40" r="32" data-donut="65" stroke-dasharray="201.06" stroke-dashoffset="201.06"/>
+        </svg>
+        <div>
+          <div class="headline-md" style="font-size:24px;">65%</div>
+          <p style="font-size:12px;margin:2px 0 0;">팀 연차 사용률</p>
+        </div>
+      </div>
+    </div>
 
-    /* ===== Single pricing card ===== */
-    .pricing-single { display: flex; flex-direction: column; gap: 24px; }
-    .price-single-card { display: grid; grid-template-columns: 1fr 1.3fr; gap: 0; background: var(--surface-container-lowest); border-radius: var(--radius-xl); overflow: hidden; box-shadow: 0 24px 60px rgba(21,28,35,.07); }
-    @media (max-width: 980px) { .price-single-card { grid-template-columns: 1fr; } }
-    .price-single-left { padding: 52px 48px; background: linear-gradient(160deg, #f0f5ff, #ffffff); }
-    .price-single-right { padding: 52px 48px; background: var(--surface-container-lowest); border-left: 1px solid var(--surface-container); }
-    @media (max-width: 980px) { .price-single-right { border-left: none; border-top: 1px solid var(--surface-container); } }
-    .feat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
-    @media (max-width: 640px) { .feat-grid { grid-template-columns: 1fr; } }
-    .feat-group-title { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--on-surface-muted); margin-bottom: 10px; }
-    .feat-item { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--on-surface-variant); margin-bottom: 7px; line-height: 1.4; }
-    .feat-item .check-yes { flex-shrink: 0; margin-top: 1px; }
+    <!-- 전자계약 -->
+    <div class="bento-item b3 reveal delay-2">
+      <div class="feat-ico" style="background:var(--warn-container);color:var(--on-warn-container);">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </div>
+      <h3 class="headline-md">계약서와 증명서, 1분이면 돼요.</h3>
+      <p>근로계약서 발행부터 전자서명까지. 재직·경력·퇴직·소득증명서는 직원이 직접 요청하면 바로 발급돼요.</p>
+    </div>
 
-    /* ===== Cost simulator ===== */
-    .cost-sim { background: var(--surface-container-lowest); border-radius: var(--radius-lg); padding: 40px 44px; box-shadow: 0 16px 48px rgba(21,28,35,.05); }
-    .sim-row { display: flex; align-items: center; gap: 20px; margin-bottom: 32px; }
-    .sim-label { font-size: 14px; font-weight: 600; color: var(--on-surface-variant); white-space: nowrap; }
-    .sim-row input[type=range] { flex: 1; accent-color: var(--primary); height: 4px; cursor: pointer; }
-    .sim-count { font-size: 18px; font-weight: 800; color: var(--primary); white-space: nowrap; min-width: 56px; text-align: right; }
-    .sim-result { display: grid; grid-template-columns: 1.4fr auto 1fr 1fr; gap: 16px; align-items: center; }
-    @media (max-width: 640px) { .sim-result { grid-template-columns: 1fr 1fr; } .sim-vs { display: none; } }
-    .sim-item { background: var(--surface-container-low); border-radius: var(--radius-md); padding: 20px 24px; }
-    .sim-item.sim-us { background: linear-gradient(135deg, rgba(43,91,255,.08), rgba(107,142,255,.05)); border: 1.5px solid rgba(43,91,255,.2); }
-    .sim-brand { font-size: 12px; font-weight: 700; color: var(--on-surface-muted); margin-bottom: 6px; }
-    .sim-price { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: var(--on-surface); }
-    .sim-item.sim-us .sim-price { color: var(--primary); }
-    .sim-mo { font-size: 11px; color: var(--on-surface-muted); margin-top: 2px; }
-    .sim-vs { font-size: 12px; font-weight: 700; color: var(--on-surface-muted); text-align: center; }
-    .sim-save { text-align: center; margin: 24px 0 0; font-size: 14px; color: var(--on-surface-variant); }
-    .sim-save strong { color: #3dba6a; font-size: 16px; }
-  </style>
+    <!-- 채용 + 온보딩 -->
+    <div class="bento-item b4 reveal">
+      <div class="feat-ico" style="background:var(--rose-container);color:var(--on-rose-container);">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <h3 class="headline-md">채용부터 첫날까지 한 곳에서 관리해요.</h3>
+      <p>채용 파이프라인 칸반, 입사자 온보딩 체크리스트, 인사발령 이력까지. 새 직원도 첫날부터 길 잃지 않아요.</p>
+      <div class="org-tree">
+        <div class="org-node"><div class="av av-d">신입</div> 이슬아 · 입사 D-3</div>
+        <div class="org-row">
+          <div class="org-node small"><div class="av av-a">계약</div> 서명완료</div>
+          <div class="org-node small"><div class="av av-b">장비</div> 준비중</div>
+          <div class="org-node small"><div class="av av-c">계정</div> 발급완료</div>
+        </div>
+      </div>
+    </div>
 
-  <script>
-    // ===== Scroll progress =====
-    const bar = document.getElementById('scrollBar');
-    const nav = document.getElementById('topnav');
-    function onScroll() {
-      const max = document.documentElement.scrollHeight - window.innerHeight;
-      bar.style.width = (max > 0 ? (window.scrollY / max) * 100 : 0) + '%';
-      nav.classList.toggle('scrolled', window.scrollY > 30);
+    <!-- 성과관리 — dark -->
+    <div class="bento-item b5 reveal delay-1">
+      <div class="feat-ico">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <h3 class="headline-md">평가 시즌에 개별 독촉 안 해도 돼요.</h3>
+      <p>마감 전 자동 리마인더가 대신 알려줘요. 자기평가, 매니저 평가, 다면평가, 캘리브레이션까지 한 흐름으로 이어져요.</p>
+      <div class="payslip-mock">
+        <div class="label" style="color:rgba(255,255,255,.4);margin-bottom:8px;">2026 상반기 평가</div>
+        <div class="pay-amount" style="font-size:26px;">47 / 47명 완료</div>
+        <div style="margin-top:14px;">
+          <div class="pay-line"><span>자기평가</span><strong>완료</strong></div>
+          <div class="pay-line"><span>다면평가</span><strong>완료</strong></div>
+          <div class="pay-line"><span>캘리브레이션</span><strong>진행 중</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STORY: BEFORE / AFTER ============ -->
+<section class="story" id="how">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="eyebrow">도입 전 · 후</div>
+      <h2 class="display-md">급여날 전날,<br>더 이상 야근 안 해도 돼요.</h2>
+    </div>
+
+    <div class="story-wrap">
+      <div class="story-left reveal">
+        <h3 class="headline-md">매달 반복되던 그 일들이<br>이렇게 바뀌어요.</h3>
+        <p class="body-md muted" style="margin-top:14px;max-width:36ch;">혼자 다 하던 방식에서, 시스템이 자동으로 처리하는 방식으로.</p>
+        <div class="story-steps" id="storyTabs">
+          <div class="story-step-tab active" data-step="0"><span class="stab-num">01</span> 급여일 전날</div>
+          <div class="story-step-tab" data-step="1"><span class="stab-num">02</span> 새 직원 입사날</div>
+          <div class="story-step-tab" data-step="2"><span class="stab-num">03</span> 평가 시즌</div>
+        </div>
+      </div>
+
+      <div class="story-right">
+        <div class="story-card reveal" data-step="0">
+          <div class="num-big">01</div>
+          <h3 class="headline-md">47명 급여, 2분이면 끝나요.</h3>
+          <p>전엔 4대보험 요율 하나하나 찾아보고, 연장수당 직접 계산하고, 명세서 한 명씩 보내고 — 3시간은 기본이었죠. 이제 버튼 하나로 전 직원 급여가 만들어지고 명세서는 자동으로 발송돼요.</p>
+          <div class="story-art">
+            <div class="csv-mock">
+              <div class="csv-head"><span></span><span></span><span></span></div>
+              <div class="row h"><div class="col">직원</div><div class="col">기본급</div><div class="col">공제</div><div class="col">실수령</div></div>
+              <div class="row"><div class="col">박준영</div><div class="col">4,800,000</div><div class="col">432,000</div><div class="col check">✓ 4,368,000</div></div>
+              <div class="row"><div class="col">이슬아</div><div class="col">3,900,000</div><div class="col">351,000</div><div class="col check">✓ 3,549,000</div></div>
+              <div class="row"><div class="col">다라 김</div><div class="col">5,200,000</div><div class="col">468,000</div><div class="col check">✓ 4,732,000</div></div>
+              <div class="row"><div class="col" style="color:var(--primary);font-weight:700;">47명 전체</div><div class="col">—</div><div class="col">—</div><div class="col check">✓ 2분 완료</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="story-card reveal" data-step="1">
+          <div class="num-big">02</div>
+          <h3 class="headline-md">HR이 옆에 없어도, 첫날이 매끄러워요.</h3>
+          <p>근로계약서 발행, 전자서명, 조직도 등록, 팀 공지까지 — 온보딩 체크리스트를 시스템이 안내해요. 새 직원도 혼자서 척척 따라갈 수 있어요.</p>
+          <div class="story-art">
+            <div class="toggles">
+              <div class="toggle-row">
+                <div class="grow"><div class="name">근로계약서 전자서명</div><div class="desc">이슬아 · 09:14 서명 완료</div></div>
+                <div class="toggle on"></div>
+              </div>
+              <div class="toggle-row">
+                <div class="grow"><div class="name">인사정보 등록</div><div class="desc">부서 · 직급 · 연봉 입력</div></div>
+                <div class="toggle on"></div>
+              </div>
+              <div class="toggle-row">
+                <div class="grow"><div class="name">조직도 자동 반영</div><div class="desc">매니저 리포팅 라인 설정</div></div>
+                <div class="toggle on"></div>
+              </div>
+              <div class="toggle-row">
+                <div class="grow"><div class="name">전사 입사 공지 발송</div><div class="desc">자동 예약 · 오후 9시 발송</div></div>
+                <div class="toggle on"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="story-card reveal" data-step="2">
+          <div class="num-big">03</div>
+          <h3 class="headline-md">마감 독촉 메시지, 이제 직접 안 보내도 돼요.</h3>
+          <p>평가 주기를 한 번 설정하면 — 목표 입력, 중간 점검, 자기평가, 매니저 평가, 다면평가까지 자동으로 흘러가요. 마감 3일 전엔 리마인더가 알아서 날아가요.</p>
+          <div class="story-art">
+            <div class="notif-stack">
+              <div class="notif">
+                <div class="ico-lg blue">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </div>
+                <div class="grow"><div class="title">자기평가 마감 3일 전 자동 알림 발송</div><div class="sub">미완료 12명에게 자동 발송됐어요</div></div>
+              </div>
+              <div class="notif">
+                <div class="ico-lg green">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </div>
+                <div class="grow"><div class="title">매니저 평가 47 / 47명 완료</div><div class="sub">캘리브레이션 세션 준비됐어요</div></div>
+              </div>
+              <div class="notif">
+                <div class="ico-lg warn">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                </div>
+                <div class="grow"><div class="title">가중 평균 등급 자동 산출됐어요</div><div class="sub">S·A·B·C·D 분포 확인하러 가기</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DARK EDITORIAL ============ -->
+<section class="wrap">
+  <div class="editorial-card reveal">
+    <div>
+      <div class="quote-mark">"</div>
+      <div class="eyebrow">고객 이야기</div>
+      <h2 class="display-md" style="color:white;">HR이 나 혼자인데,<br>아무도 몰라요.</h2>
+      <p>급여 계산에 이틀, 연차 집계에 반나절, 계약서 보내는 데 한 시간. TalentCore 쓰고 나서 그 시간이 전부 사라졌어요. 이제 채용이랑 팀 문화 만드는 데 집중할 수 있어요.</p>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:28px;">
+        <div class="av av-a">민서</div>
+        <div>
+          <div style="font-weight:600;font-size:14px;">김민서</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.55);">HR팀 1인 · 스타트업 43명</div>
+        </div>
+      </div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat"><strong data-count="8" data-suffix="h">0</strong><span>월 급여 처리 절감 시간</span></div>
+      <div class="stat"><strong data-count="7" data-suffix="배">0</strong><span>타사 대비 저렴한 비용</span></div>
+      <div class="stat"><strong data-count="100" data-suffix="%">0</strong><span>한국 근로기준법 준수</span></div>
+      <div class="stat"><strong data-count="0" data-suffix="건">0</strong><span>급여 계산 오류</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COMPARE ============ -->
+<section class="section wrap" id="compare">
+  <div class="section-head reveal">
+    <div class="eyebrow">요금 비교</div>
+    <h2 class="display-md">같은 기능,<br>훨씬 저렴하게 쓸 수 있어요.</h2>
+    <p class="body-lg">50명 기준, 월 비용을 비교해봤어요.</p>
+  </div>
+  <div class="compare-wrap reveal">
+    <div class="compare-table">
+      <div class="compare-header">
+        <div class="compare-col col-feature"></div>
+        <div class="compare-col col-us">
+          <div class="col-brand"><div class="brand-mark" style="width:22px;height:22px;font-size:11px;">T</div> TalentCore</div>
+          <div class="col-price">₩1,000<span>/인/월</span></div>
+        </div>
+        <div class="compare-col col-them">
+          <div class="col-brand">국내 HR SaaS A</div>
+          <div class="col-price col-price-them">₩7,000<span>/인/월</span></div>
+        </div>
+        <div class="compare-col col-them">
+          <div class="col-brand">글로벌 HR SaaS B</div>
+          <div class="col-price col-price-them">₩13,000<span>/인/월</span></div>
+        </div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-col col-feature">급여 · 4대보험 자동계산</div>
+        <div class="compare-col col-us"><span class="check-yes">✓</span></div>
+        <div class="compare-col col-them"><span class="check-yes">✓</span></div>
+        <div class="compare-col col-them"><span class="check-no">한국 미지원</span></div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-col col-feature">연장·야간·휴일 수당 자동계산</div>
+        <div class="compare-col col-us"><span class="check-yes">✓</span></div>
+        <div class="compare-col col-them"><span class="check-yes">✓</span></div>
+        <div class="compare-col col-them"><span class="check-no">미지원</span></div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-col col-feature">전자계약 · 서명</div>
+        <div class="compare-col col-us"><span class="check-yes">✓</span></div>
+        <div class="compare-col col-them"><span class="check-partial">별도 추가</span></div>
+        <div class="compare-col col-them"><span class="check-partial">상위 플랜</span></div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-col col-feature">성과평가 · 다면평가</div>
+        <div class="compare-col col-us"><span class="check-yes">✓</span></div>
+        <div class="compare-col col-them"><span class="check-partial">상위 플랜</span></div>
+        <div class="compare-col col-them"><span class="check-partial">상위 플랜</span></div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-col col-feature">퇴직금 자동계산</div>
+        <div class="compare-col col-us"><span class="check-yes">✓</span></div>
+        <div class="compare-col col-them"><span class="check-no">미지원</span></div>
+        <div class="compare-col col-them"><span class="check-no">미지원</span></div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-col col-feature">재직·경력·퇴직 증명서</div>
+        <div class="compare-col col-us"><span class="check-yes">✓</span></div>
+        <div class="compare-col col-them"><span class="check-yes">✓</span></div>
+        <div class="compare-col col-them"><span class="check-no">미지원</span></div>
+      </div>
+      <div class="compare-row compare-row-total">
+        <div class="compare-col col-feature"><strong>50명 기준 월 비용</strong></div>
+        <div class="compare-col col-us"><strong class="price-highlight">₩50,000</strong></div>
+        <div class="compare-col col-them"><strong style="color:var(--on-surface-variant);">₩350,000</strong></div>
+        <div class="compare-col col-them"><strong style="color:var(--on-surface-variant);">₩650,000</strong></div>
+      </div>
+    </div>
+    <p class="body-sm muted" style="text-align:center;margin-top:16px;">* 국내외 주요 HR SaaS 공시 요금 기준. 2026년 4월 기준.</p>
+  </div>
+</section>
+
+<!-- ============ PRICING ============ -->
+<section class="section wrap" id="pricing">
+  <div class="section-head reveal">
+    <div class="eyebrow">요금제</div>
+    <h2 class="display-md">플랜 고민 없어요.<br>딱 하나예요.</h2>
+    <p class="body-lg">모든 기능이 포함된 단일 플랜이에요. 직원 수만큼만 내면 돼요.</p>
+  </div>
+
+  <div class="pricing-single reveal">
+    <div class="price-single-card">
+      <div class="price-single-left">
+        <span class="ribbon">전체 기능 포함</span>
+        <h3 class="headline-lg" style="margin:16px 0 10px;">TalentCore</h3>
+        <p style="color:var(--on-surface-variant);font-size:15px;margin:0 0 32px;max-width:40ch;">급여부터 채용, 성과, 계약, 증명서까지. 1인 HR팀에 필요한 모든 게 들어 있어요.</p>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+          <span style="font-size:72px;font-weight:800;letter-spacing:-0.03em;line-height:1;color:var(--primary);">₩1,000</span>
+          <span style="font-size:16px;color:var(--on-surface-muted);">/ 인 / 월</span>
+        </div>
+        <p style="font-size:13px;color:var(--on-surface-muted);margin:0 0 36px;">월 최고 인원 기준 · 최소 인원 없음 · 해지 언제든 가능</p>
+        <a href="{{ url_for('signup') }}" class="btn btn-primary btn-lg btn-arrow" style="width:100%;justify-content:center;">
+          14일 무료로 시작하기
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+        <p style="font-size:12px;color:var(--on-surface-muted);text-align:center;margin-top:14px;">신용카드 없이 14일 무료로 써볼 수 있어요</p>
+      </div>
+      <div class="price-single-right">
+        <div class="feat-grid">
+          <div class="feat-group">
+            <div class="feat-group-title">급여 · 노무</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 4대보험 자동계산</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 연장·야간·휴일 수당 자동계산</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 급여명세서 자동 생성</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 퇴직금 자동계산</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 최저임금 미달 자동 경고</div>
+          </div>
+          <div class="feat-group">
+            <div class="feat-group-title">근태 · 휴가</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 연차 자동계산 (근속연수 기반)</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 13종 휴가 관리</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 출퇴근 체크인·아웃</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 유연근무 스케줄러</div>
+          </div>
+          <div class="feat-group">
+            <div class="feat-group-title">계약 · 증명</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 전자계약서 발행 · 서명</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 재직·경력·퇴직·소득증명서</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 인사발령 이력 관리</div>
+          </div>
+          <div class="feat-group">
+            <div class="feat-group-title">성과 · 채용</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 성과평가 · OKR 관리</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 다면평가 · 캘리브레이션</div>
+            <div class="feat-item"><span class="check-yes">✓</span> 채용 공고 · 파이프라인</div>
+            <div class="feat-item"><span class="check-yes">✓</span> People Analytics</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 비용 계산기 -->
+    <div class="cost-sim reveal">
+      <div class="eyebrow" style="margin-bottom:20px;">직접 계산해보세요</div>
+      <div class="sim-row">
+        <div class="sim-label">직원 수</div>
+        <input type="range" id="simSlider" min="5" max="200" value="50" step="5"/>
+        <div class="sim-count"><span id="simCount">50</span>명</div>
+      </div>
+      <div class="sim-result">
+        <div class="sim-item sim-us">
+          <div class="sim-brand">TalentCore</div>
+          <div class="sim-price" id="simUs">₩50,000</div>
+          <div class="sim-mo">/ 월</div>
+        </div>
+        <div class="sim-vs">vs</div>
+        <div class="sim-item">
+          <div class="sim-brand">국내 HR SaaS A</div>
+          <div class="sim-price" id="simFlex">₩350,000</div>
+          <div class="sim-mo">/ 월</div>
+        </div>
+        <div class="sim-item">
+          <div class="sim-brand">글로벌 HR SaaS B</div>
+          <div class="sim-price" id="simBamboo">₩650,000</div>
+          <div class="sim-mo">/ 월</div>
+        </div>
+      </div>
+      <p class="sim-save">타사 대비 연간 <strong id="simSaveAmt">₩3,600,000</strong> 절약할 수 있어요</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TESTIMONIALS ============ -->
+<section class="section wrap">
+  <div class="section-head reveal">
+    <div class="eyebrow">고객 후기</div>
+    <h2 class="display-md">1인 HR팀이<br>직접 말해요.</h2>
+  </div>
+  <div class="testi-grid">
+    <div class="testi reveal">
+      <q>매달 급여날 전날이 가장 무서웠어요. 이제는 퇴근하고 자도 돼요. 4대보험 계산을 시스템이 다 해주니까요.</q>
+      <div class="who">
+        <div class="av av-a">민서</div>
+        <div><div class="name">김민서</div><div class="role">HR 1인 · 스타트업 43명</div></div>
+      </div>
+    </div>
+    <div class="testi reveal delay-1">
+      <q>다른 HR 툴 쓰다가 넘어왔어요. 기능은 오히려 더 많은데 비용은 훨씬 저렴해요. 퇴직금 자동계산이 특히 좋아요.</q>
+      <div class="who">
+        <div class="av av-b">현우</div>
+        <div><div class="name">정현우</div><div class="role">People Ops · 스타트업 120명</div></div>
+      </div>
+    </div>
+    <div class="testi reveal delay-2">
+      <q>입사자 30명을 한 달에 받았는데, 온보딩 체크리스트 덕분에 누구도 길을 잃지 않았어요.</q>
+      <div class="who">
+        <div class="av av-c">예린</div>
+        <div><div class="name">신예린</div><div class="role">HRBP 1인 · 스타트업 87명</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="section wrap" id="faq">
+  <div class="section-head reveal" style="text-align:center;margin-left:auto;margin-right:auto;">
+    <div class="eyebrow" style="display:block;">자주 묻는 질문</div>
+    <h2 class="display-md">궁금한 게 있으세요?</h2>
+  </div>
+  <div class="faq" id="faqList">
+    <div class="faq-item">
+      <button class="faq-q">₩1,000/인/월이면 정말 모든 기능을 쓸 수 있나요? <span class="ind">+</span></button>
+      <div class="faq-a"><div class="faq-a-inner">네, 숨겨진 플랜이 없어요. 급여·4대보험, 근태·휴가, 전자계약, 성과평가, 채용, 증명서 발급까지 모든 기능이 포함돼 있어요. 추가 모듈 비용도 없어요.</div></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">'월 최고 인원 기준' 과금이 무슨 의미예요? <span class="ind">+</span></button>
+      <div class="faq-a"><div class="faq-a-inner">그달 가장 많았던 활성 직원 수를 기준으로 청구해요. 월 중간에 직원이 퇴사해도 그달 최고 인원이 50명이었다면 50명 기준으로만 내면 돼요. 다음 달은 실제 인원으로 리셋돼요.</div></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">4대보험 요율이 매년 바뀌는데 자동으로 반영되나요? <span class="ind">+</span></button>
+      <div class="faq-a"><div class="faq-a-inner">네, 국민연금·건강보험·고용보험·산재보험 요율 변경 시 자동으로 업데이트돼요. 수동으로 수정할 필요 없어요. 최저임금 기준도 매년 반영돼요.</div></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">기존 엑셀 데이터를 가져올 수 있나요? <span class="ind">+</span></button>
+      <div class="faq-a"><div class="faq-a-inner">CSV 일괄 가져오기를 지원해요. 직원 정보, 급여 내역, 근태 데이터를 양식에 맞춰 업로드하면 돼요. 막히는 부분이 있으면 온보딩 지원도 받을 수 있어요.</div></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">언제든 해지할 수 있나요? <span class="ind">+</span></button>
+      <div class="faq-a"><div class="faq-a-inner">네, 언제든 해지할 수 있어요. 해지 전까지 사용한 기간만 일할 계산으로 청구돼요. 데이터는 CSV로 전체 내보내기 할 수 있고, 위약금이나 최소 계약 기간은 없어요.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FINAL CTA ============ -->
+<section class="wrap">
+  <div class="cta-final reveal">
+    <div class="eyebrow" style="display:inline-block;">지금 시작하기</div>
+    <h2 class="display-md" style="margin-top:14px;">이번 달 급여일,<br>야근하지 않아도 돼요.</h2>
+    <p class="body-lg">카드 등록 없이 14일 무료 · ₩1,000/인/월 · 언제든 해지</p>
+    <form class="cta-form" action="{{ url_for('signup') }}" method="GET">
+      <input type="email" name="email" placeholder="회사 이메일 주소를 입력하세요" required/>
+      <button type="submit" class="btn btn-primary btn-lg btn-arrow">
+        무료로 시작하기
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+      </button>
+    </form>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="wrap">
+  <div class="foot-grid">
+    <div class="foot-col">
+      <div class="brand" style="margin-bottom:14px;">
+        <div class="brand-mark">T</div>
+        <span style="font-weight:700;">TalentCore</span>
+      </div>
+      <p class="body-sm muted" style="max-width:32ch;">1인 HR팀을 위한 올인원 HR 도구예요. 급여부터 퇴직까지 전 과정을 자동화해요.</p>
+    </div>
+    <div class="foot-col">
+      <h5>제품</h5>
+      <a href="#features">기능</a>
+      <a href="#compare">요금 비교</a>
+      <a href="#pricing">요금제</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <div class="foot-col">
+      <h5>회사</h5>
+      <a href="#">소개</a>
+      <a href="#">채용</a>
+      <a href="mailto:hi@talentcore.io">문의하기</a>
+    </div>
+    <div class="foot-col">
+      <h5>리소스</h5>
+      <a href="#">도움말</a>
+      <a href="#">블로그</a>
+      <a href="#">개인정보처리방침</a>
+      <a href="#">이용약관</a>
+    </div>
+  </div>
+  <div class="foot-bottom">
+    <span>© 2026 TalentCore Inc. All rights reserved.</span>
+    <span>Made with care in Seoul.</span>
+  </div>
+</footer>
+
+<style>
+/* ===== Hero dashboard animation ===== */
+.hero-vis-wrap { display: flex; align-items: center; justify-content: center; }
+.hero-dash {
+  width: 100%; max-width: 440px;
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 40px 100px rgba(21,28,35,.12), 0 8px 24px rgba(21,28,35,.05);
+  overflow: hidden;
+  animation: dashFloat 6s ease-in-out infinite alternate;
+}
+@keyframes dashFloat {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-12px); }
+}
+.dash-topbar {
+  background: var(--surface-container-low);
+  padding: 14px 20px;
+  display: flex; align-items: center; gap: 12px;
+}
+.dash-dots { display: flex; gap: 6px; }
+.dash-dots span { width: 10px; height: 10px; border-radius: 50%; background: var(--surface-container-highest); }
+.dash-dots span:nth-child(1) { background: #ff6b6b; opacity:.7; }
+.dash-dots span:nth-child(2) { background: #ffd93d; opacity:.7; }
+.dash-dots span:nth-child(3) { background: #6bcf7f; opacity:.7; }
+.dash-title-bar { font-size: 12px; font-weight: 600; color: var(--on-surface-muted); }
+.dash-body { padding: 24px 24px 20px; }
+.dash-section-label { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--on-surface-muted); margin-bottom: 14px; }
+.task-list { display: flex; flex-direction: column; gap: 8px; }
+.task-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface-container-low);
+  border-radius: var(--radius-md);
+  transition: background .3s;
+}
+.task-item.done { background: var(--tertiary-container); }
+.task-check-wrap { flex-shrink: 0; }
+.task-check {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 2px solid var(--surface-container-highest);
+  display: grid; place-items: center;
+  transition: all .3s;
+}
+.task-item.done .task-check {
+  background: #3dba6a; border-color: #3dba6a;
+}
+.task-item.done .task-check::after {
+  content: '';
+  width: 5px; height: 9px;
+  border-right: 2px solid white;
+  border-bottom: 2px solid white;
+  transform: rotate(40deg) translate(-1px, -1px);
+  display: block;
+}
+.task-info { flex: 1; min-width: 0; }
+.task-name { font-size: 13px; font-weight: 600; color: var(--on-surface); }
+.task-item.done .task-name { color: var(--on-tertiary-container); }
+.task-sub { font-size: 11px; color: var(--on-surface-muted); margin-top: 2px; }
+.task-status { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: var(--radius-full); flex-shrink: 0; }
+.task-status.waiting { background: var(--surface-container); color: var(--on-surface-muted); }
+.task-status.done-badge { background: rgba(61,186,106,.18); color: #1e7a42; }
+
+.dash-done {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(43,91,255,.08), rgba(107,142,255,.05));
+  border: 1.5px solid rgba(43,91,255,.18);
+  border-radius: var(--radius-md);
+  font-size: 13px; font-weight: 700; color: var(--primary);
+  margin-top: 10px;
+  opacity: 0; transform: translateY(6px);
+  transition: opacity .4s, transform .4s;
+}
+.dash-done.show { opacity: 1; transform: translateY(0); }
+
+.dash-footer {
+  display: flex; gap: 0;
+  border-top: 1px solid var(--surface-container);
+}
+.dash-stat {
+  flex: 1; padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.dash-stat:not(:last-child) { border-right: 1px solid var(--surface-container); }
+.dash-stat-num { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; color: var(--primary); }
+.dash-stat-label { font-size: 10px; color: var(--on-surface-muted); font-weight: 500; }
+
+/* Hero trust row */
+.hero-trust { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
+.hero-trust span { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--on-surface-muted); }
+.hero-trust svg { color: #3dba6a; }
+
+/* ===== Compare table ===== */
+.compare-wrap { overflow-x: auto; }
+.compare-table { min-width: 640px; border-radius: var(--radius-lg); overflow: hidden; background: var(--surface-container-lowest); box-shadow: 0 20px 60px rgba(21,28,35,.06); }
+.compare-header { display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr; background: var(--surface-container-low); padding: 20px 28px; gap: 12px; align-items: center; }
+.compare-row { display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr; padding: 14px 28px; gap: 12px; align-items: center; border-top: 1px solid var(--surface-container); font-size: 14px; }
+.compare-row:hover { background: var(--surface-container-low); }
+.compare-row-total { background: var(--surface-container-low); font-size: 15px; }
+.col-brand { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.col-price { font-size: 22px; font-weight: 800; color: var(--primary); letter-spacing: -0.02em; }
+.col-price span { font-size: 12px; font-weight: 500; color: var(--on-surface-muted); margin-left: 2px; }
+.col-price-them { color: var(--on-surface-variant); font-size: 18px; }
+.col-feature { color: var(--on-surface-variant); font-size: 14px; }
+.check-yes { color: #3dba6a; font-weight: 700; font-size: 15px; }
+.check-no { color: var(--on-surface-muted); font-size: 12px; }
+.check-partial { color: var(--on-warn-container); font-size: 12px; }
+.price-highlight { font-size: 20px; color: var(--primary); font-weight: 800; }
+.col-us { background: rgba(43,91,255,.04); border-radius: var(--radius-sm); padding: 4px 12px; }
+
+/* ===== Single pricing ===== */
+.pricing-single { display: flex; flex-direction: column; gap: 24px; }
+.price-single-card { display: grid; grid-template-columns: 1fr 1.3fr; background: var(--surface-container-lowest); border-radius: var(--radius-xl); overflow: hidden; box-shadow: 0 24px 60px rgba(21,28,35,.07); }
+@media (max-width: 980px) { .price-single-card { grid-template-columns: 1fr; } }
+.price-single-left { padding: 52px 48px; background: linear-gradient(160deg,#f0f5ff,#ffffff); }
+.price-single-right { padding: 52px 48px; border-left: 1px solid var(--surface-container); }
+@media (max-width: 980px) { .price-single-right { border-left: none; border-top: 1px solid var(--surface-container); } }
+.feat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+@media (max-width: 640px) { .feat-grid { grid-template-columns: 1fr; } }
+.feat-group-title { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--on-surface-muted); margin-bottom: 10px; }
+.feat-item { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--on-surface-variant); margin-bottom: 7px; line-height: 1.4; }
+
+/* ===== Cost simulator ===== */
+.cost-sim { background: var(--surface-container-lowest); border-radius: var(--radius-lg); padding: 40px 44px; box-shadow: 0 16px 48px rgba(21,28,35,.05); }
+.sim-row { display: flex; align-items: center; gap: 20px; margin-bottom: 32px; }
+.sim-label { font-size: 14px; font-weight: 600; color: var(--on-surface-variant); white-space: nowrap; }
+.sim-row input[type=range] { flex: 1; accent-color: var(--primary); cursor: pointer; }
+.sim-count { font-size: 18px; font-weight: 800; color: var(--primary); white-space: nowrap; min-width: 56px; text-align: right; }
+.sim-result { display: grid; grid-template-columns: 1.4fr auto 1fr 1fr; gap: 16px; align-items: center; }
+@media (max-width: 640px) { .sim-result { grid-template-columns: 1fr 1fr; } .sim-vs { display: none; } }
+.sim-item { background: var(--surface-container-low); border-radius: var(--radius-md); padding: 20px 24px; }
+.sim-item.sim-us { background: linear-gradient(135deg,rgba(43,91,255,.08),rgba(107,142,255,.05)); border: 1.5px solid rgba(43,91,255,.2); }
+.sim-brand { font-size: 12px; font-weight: 700; color: var(--on-surface-muted); margin-bottom: 6px; }
+.sim-price { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: var(--on-surface); }
+.sim-item.sim-us .sim-price { color: var(--primary); }
+.sim-mo { font-size: 11px; color: var(--on-surface-muted); margin-top: 2px; }
+.sim-vs { font-size: 12px; font-weight: 700; color: var(--on-surface-muted); text-align: center; }
+.sim-save { text-align: center; margin: 24px 0 0; font-size: 14px; color: var(--on-surface-variant); }
+.sim-save strong { color: #3dba6a; font-size: 16px; }
+</style>
+
+<script>
+// ===== Scroll progress =====
+const bar = document.getElementById('scrollBar');
+const nav = document.getElementById('topnav');
+window.addEventListener('scroll', () => {
+  const max = document.documentElement.scrollHeight - window.innerHeight;
+  bar.style.width = (max > 0 ? window.scrollY / max * 100 : 0) + '%';
+  nav.classList.toggle('scrolled', window.scrollY > 30);
+}, { passive: true });
+
+// ===== Reveal =====
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+}, { threshold: 0.12, rootMargin: '0px 0px -50px 0px' });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+// ===== Count-up =====
+const counterIO = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (!entry.isIntersecting) return;
+    const el = entry.target;
+    const target = parseFloat(el.dataset.count);
+    const suffix = el.dataset.suffix || '';
+    const isFloat = !Number.isInteger(target);
+    const dur = 1400, start = performance.now();
+    function step(now) {
+      const t = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - t, 3);
+      el.textContent = (isFloat ? (target*eased).toFixed(1) : Math.floor(target*eased)) + suffix;
+      if (t < 1) requestAnimationFrame(step);
+      else el.textContent = (isFloat ? target.toFixed(1) : target) + suffix;
     }
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
+    requestAnimationFrame(step);
+    counterIO.unobserve(el);
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('[data-count]').forEach(el => counterIO.observe(el));
 
-    // ===== Reveal =====
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
-    }, { threshold: 0.12, rootMargin: '0px 0px -50px 0px' });
-    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+// ===== Bar animate =====
+const barIO = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    setTimeout(() => { e.target.style.width = e.target.dataset.bar + '%'; }, 200);
+    barIO.unobserve(e.target);
+  });
+}, { threshold: 0.4 });
+document.querySelectorAll('[data-bar]').forEach(el => { el.style.width = '0%'; barIO.observe(el); });
 
-    // ===== Count-up =====
-    const counterIO = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (!entry.isIntersecting) return;
-        const el = entry.target;
-        const target = parseFloat(el.dataset.count);
-        const suffix = el.dataset.suffix || '';
-        const isFloat = !Number.isInteger(target);
-        const dur = 1400, start = performance.now();
-        function step(now) {
-          const t = Math.min(1, (now - start) / dur);
-          const eased = 1 - Math.pow(1 - t, 3);
-          el.textContent = (isFloat ? (target * eased).toFixed(1) : Math.floor(target * eased)) + suffix;
-          if (t < 1) requestAnimationFrame(step);
-          else el.textContent = (isFloat ? target.toFixed(1) : target) + suffix;
+// ===== Donut =====
+const donutIO = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    const offset = 2 * Math.PI * 32 * (1 - parseFloat(e.target.dataset.donut) / 100);
+    setTimeout(() => { e.target.style.strokeDashoffset = offset; }, 200);
+    donutIO.unobserve(e.target);
+  });
+}, { threshold: 0.4 });
+document.querySelectorAll('[data-donut]').forEach(c => donutIO.observe(c));
+
+// ===== Hero dashboard task animation =====
+function runTaskAnimation() {
+  const tasks = document.querySelectorAll('.task-item');
+  const done  = document.getElementById('dashDone');
+  const counter = document.getElementById('heroCounter');
+
+  // reset
+  tasks.forEach(t => {
+    t.classList.remove('done');
+    const s = t.querySelector('.task-status');
+    s.textContent = '대기';
+    s.className = 'task-status waiting';
+  });
+  if (done) { done.classList.remove('show'); }
+  let count = 0;
+  if (counter) counter.textContent = '0';
+
+  let i = 0;
+  function checkNext() {
+    if (i >= tasks.length) {
+      // all done
+      if (done) done.classList.add('show');
+      // count up
+      if (counter) {
+        let n = 0;
+        const target = 247;
+        const dur = 1200, st = performance.now();
+        function cStep(now) {
+          const t = Math.min(1, (now - st) / dur);
+          n = Math.floor(target * (1 - Math.pow(1-t, 3)));
+          counter.textContent = n;
+          if (t < 1) requestAnimationFrame(cStep);
+          else counter.textContent = target;
         }
-        requestAnimationFrame(step);
-        counterIO.unobserve(el);
-      });
-    }, { threshold: 0.5 });
-    document.querySelectorAll('[data-count]').forEach(el => counterIO.observe(el));
-
-    // ===== Bar animate =====
-    const barIO = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (!entry.isIntersecting) return;
-        setTimeout(() => { entry.target.style.width = entry.target.dataset.bar + '%'; }, 200);
-        barIO.unobserve(entry.target);
-      });
-    }, { threshold: 0.4 });
-    document.querySelectorAll('[data-bar]').forEach(el => { el.style.width = '0%'; barIO.observe(el); });
-
-    // ===== Donut =====
-    const donutIO = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (!entry.isIntersecting) return;
-        const c = entry.target;
-        const offset = 2 * Math.PI * 32 * (1 - parseFloat(c.dataset.donut) / 100);
-        setTimeout(() => { c.style.strokeDashoffset = offset; }, 200);
-        donutIO.unobserve(c);
-      });
-    }, { threshold: 0.4 });
-    document.querySelectorAll('[data-donut]').forEach(c => donutIO.observe(c));
-
-    // ===== Hero parallax =====
-    const heroVis = document.getElementById('heroVis');
-    if (heroVis) {
-      heroVis.addEventListener('mousemove', (e) => {
-        const r = heroVis.getBoundingClientRect();
-        const mx = ((e.clientX - r.left) / r.width - 0.5) * 2;
-        const my = ((e.clientY - r.top) / r.height - 0.5) * 2;
-        heroVis.querySelectorAll('.vis-card').forEach(c => {
-          const d = parseFloat(getComputedStyle(c).getPropertyValue('--depth')) || 30;
-          c.style.transform = `translate3d(${mx*(d/3)}px,${my*(d/4)}px,0) rotateY(${mx*4}deg) rotateX(${-my*4}deg)`;
-        });
-      });
-      heroVis.addEventListener('mouseleave', () => {
-        heroVis.querySelectorAll('.vis-card').forEach(c => { c.style.transform = ''; });
-      });
+        requestAnimationFrame(cStep);
+      }
+      // restart after pause
+      setTimeout(runTaskAnimation, 4000);
+      return;
     }
+    const task = tasks[i];
+    setTimeout(() => {
+      task.classList.add('done');
+      const s = task.querySelector('.task-status');
+      s.textContent = '완료';
+      s.className = 'task-status done-badge';
+      i++;
+      checkNext();
+    }, 700);
+  }
 
-    // ===== Story tabs =====
-    const tabs = document.querySelectorAll('#storyTabs .story-step-tab');
-    const storyIO = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.intersectionRatio > 0.5) {
-          const idx = entry.target.dataset.step;
-          tabs.forEach(t => t.classList.toggle('active', t.dataset.step === idx));
-        }
-      });
-    }, { threshold: [0.5, 0.7] });
-    document.querySelectorAll('.story-card[data-step]').forEach(c => storyIO.observe(c));
-    tabs.forEach(t => t.addEventListener('click', () => {
-      const card = document.querySelector(`.story-card[data-step="${t.dataset.step}"]`);
-      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }));
+  setTimeout(checkNext, 800);
+}
 
-    // ===== FAQ =====
-    document.querySelectorAll('#faqList .faq-q').forEach(q => {
-      q.addEventListener('click', () => q.parentElement.classList.toggle('open'));
-    });
+// start when hero is visible
+const heroIO = new IntersectionObserver(entries => {
+  if (entries[0].isIntersecting) {
+    setTimeout(runTaskAnimation, 600);
+    heroIO.disconnect();
+  }
+}, { threshold: 0.3 });
+const heroVis = document.querySelector('.hero-vis-wrap');
+if (heroVis) heroIO.observe(heroVis);
 
-    // ===== Cost simulator =====
-    const slider = document.getElementById('simSlider');
-    const simCount = document.getElementById('simCount');
-    const simUs = document.getElementById('simUs');
-    const simFlex = document.getElementById('simFlex');
-    const simBamboo = document.getElementById('simBamboo');
-    const simSaveAmt = document.getElementById('simSaveAmt');
-
-    function fmt(n) { return '₩' + n.toLocaleString('ko-KR'); }
-    function updateSim() {
-      const n = parseInt(slider.value);
-      simCount.textContent = n;
-      const us = n * 1000;
-      const flex = n * 7000;
-      const bamboo = n * 13000;
-      simUs.textContent = fmt(us);
-      simFlex.textContent = fmt(flex);
-      simBamboo.textContent = fmt(bamboo);
-      simSaveAmt.textContent = fmt((flex - us) * 12);
+// ===== Story tabs =====
+const tabs = document.querySelectorAll('#storyTabs .story-step-tab');
+const storyIO = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.intersectionRatio > 0.5) {
+      const idx = e.target.dataset.step;
+      tabs.forEach(t => t.classList.toggle('active', t.dataset.step === idx));
     }
-    if (slider) { slider.addEventListener('input', updateSim); updateSim(); }
-  </script>
+  });
+}, { threshold: [0.5, 0.7] });
+document.querySelectorAll('.story-card[data-step]').forEach(c => storyIO.observe(c));
+tabs.forEach(t => t.addEventListener('click', () => {
+  const card = document.querySelector(`.story-card[data-step="${t.dataset.step}"]`);
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}));
+
+// ===== FAQ =====
+document.querySelectorAll('#faqList .faq-q').forEach(q => {
+  q.addEventListener('click', () => q.parentElement.classList.toggle('open'));
+});
+
+// ===== Cost simulator =====
+const slider = document.getElementById('simSlider');
+function fmt(n) { return '₩' + n.toLocaleString('ko-KR'); }
+function updateSim() {
+  const n = parseInt(slider.value);
+  document.getElementById('simCount').textContent = n;
+  document.getElementById('simUs').textContent    = fmt(n * 1000);
+  document.getElementById('simFlex').textContent  = fmt(n * 7000);
+  document.getElementById('simBamboo').textContent = fmt(n * 13000);
+  document.getElementById('simSaveAmt').textContent = fmt((n * 7000 - n * 1000) * 12);
+}
+if (slider) { slider.addEventListener('input', updateSim); updateSim(); }
+</script>
 
 {% endblock %}
