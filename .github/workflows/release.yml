@@ -17,17 +17,40 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Extract version info
-        id: info
+      - name: Get previous tag
+        id: prev
         run: |
-          TAG=${GITHUB_REF#refs/tags/}
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          CURRENT=${GITHUB_REF#refs/tags/}
+          PREV=$(git tag --sort=version:refname | grep -B1 "^${CURRENT}$" | head -1)
+          if [ "$PREV" = "$CURRENT" ]; then PREV=""; fi
+          echo "prev=$PREV" >> $GITHUB_OUTPUT
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+
+      - name: Build release notes from commits
+        id: notes
+        run: |
+          CURRENT=${{ steps.prev.outputs.current }}
+          PREV=${{ steps.prev.outputs.prev }}
+
+          if [ -n "$PREV" ]; then
+            RANGE="${PREV}..${CURRENT}"
+          else
+            RANGE="${CURRENT}"
+          fi
+
+          # Collect commits (exclude docs-only)
+          COMMITS=$(git log "$RANGE" --pretty=format:"- %s" | grep -v "^- docs:" || true)
+
+          BODY="${CURRENT}"$'\n\n'"${COMMITS}"
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.info.outputs.tag }}
-          name: ${{ steps.info.outputs.tag }}
-          body_path: RELEASE_BODY.md
+          tag_name: ${{ steps.prev.outputs.current }}
+          name: ${{ steps.prev.outputs.current }}
+          body: ${{ steps.notes.outputs.body }}
           draft: false
           prerelease: false
