@@ -25,3 +25,11 @@ check_*.txt
 flask_run.log
 extracted_*.css
 patch_app.py
+
+# Claude Design 번들 임시 파일
+_Landing.html
+_base.html
+_design-system.css
+_design_readme.md
+_flask_kit_readme.md
+design_readme.txt
