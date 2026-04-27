@@ -5401,10 +5401,7 @@ def landing():
     """랜딩 페이지 — 로그인 상태면 대시보드로"""
     if 'user_id' in session:
         return redirect(url_for('dashboard'))
-    return render_template('landing/index.html',
-                           toss_client_key=TOSS_CLIENT_KEY,
-                           trial_days=TRIAL_DAYS,
-                           price_per_seat=PRICE_PER_SEAT)
+    return render_template('landing.html')
 
 
 @app.route('/signup', methods=['GET', 'POST'])

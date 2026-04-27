@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{% block title %}TalentCore — 사람을 중심에 둔 HR OS{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --surface: #f6f9ff;
+    --surface-container-low: #edf4fe;
+    --surface-container: #e7eff9;
+    --surface-container-high: #e1e9f2;
+    --surface-container-highest: #d9e2ed;
+    --surface-container-lowest: #ffffff;
+    --on-surface: #151c23;
+    --on-surface-variant: #4a5568;
+    --on-surface-muted: #6b7a8c;
+    --primary: #2b5bff;
+    --primary-container: #6b8eff;
+    --on-primary: #ffffff;
+    --secondary-container: #dfe7ff;
+    --on-secondary-container: #15306b;
+    --tertiary-container: #e5efd7;
+    --on-tertiary-container: #1f3b10;
+    --warn-container: #fce8cf;
+    --on-warn-container: #4a2f00;
+    --rose-container: #fcdce8;
+    --on-rose-container: #5c1432;
+    --radius-sm: .75rem;
+    --radius-md: 1.5rem;
+    --radius-lg: 2rem;
+    --radius-xl: 3rem;
+    --radius-full: 9999px;
+    --font: 'Plus Jakarta Sans', 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}" />
+{% block head %}{% endblock %}
+</head>
+<body>
+{% block body %}{% endblock %}
+</body>
+</html>
