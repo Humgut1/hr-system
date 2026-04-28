@@ -208,23 +208,23 @@ h1,h2,h3,h4 { margin: 0; }
 .float-s { font-size: 11px; color: var(--text-3); margin-top: 1px; }
 
 /* =====================
-   NUMBERS STRIP
+   NUMBERS STRIP  — dark bg
    ===================== */
-.nums-strip { background: var(--bg-soft); padding: 60px 0; }
+.nums-strip { background: var(--bg-dark); padding: 64px 0; }
 .nums-grid { display: grid; grid-template-columns: repeat(3,1fr); }
 @media (max-width: 640px) { .nums-grid { grid-template-columns: 1fr; } }
-.num-cell { padding: 32px 24px; border-right: 1px solid var(--line); }
+.num-cell { padding: 32px 24px; border-right: 1px solid rgba(255,255,255,.1); }
 .num-cell:last-child { border-right: none; }
-@media (max-width: 640px) { .num-cell { border-right: none; border-bottom: 1px solid var(--line); padding: 24px; } }
-.num-big { font-size: clamp(44px, 7vw, 80px); font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
-.num-big small { font-size: .42em; font-weight: 700; color: var(--accent); margin-left: 4px; letter-spacing: 0; }
-.num-cap { font-size: 15px; color: var(--text-2); margin-top: 12px; }
+@media (max-width: 640px) { .num-cell { border-right: none; border-bottom: 1px solid rgba(255,255,255,.1); padding: 24px; } }
+.num-big { font-size: clamp(44px, 7vw, 80px); font-weight: 800; letter-spacing: -0.04em; line-height: 1; color: #fff; }
+.num-big small { font-size: .42em; font-weight: 700; color: #6aabff; margin-left: 4px; letter-spacing: 0; }
+.num-cap { font-size: 15px; color: rgba(255,255,255,.55); margin-top: 12px; }
 
 /* =====================
    FEATURE SECTIONS
    ===================== */
 .feat { padding: 100px 0; }
-.feat-alt { background: var(--bg-soft); }
+.feat-alt { background: #edf5ff; }  /* 기존 회색 → 파란 틴트 */
 .feat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: center; }
 .feat-row.rev > .feat-text { order: 2; }
 @media (max-width: 980px) {
@@ -297,43 +297,46 @@ h1,h2,h3,h4 { margin: 0; }
 .kanban-count { font-size: 12px; font-weight: 700; color: var(--accent); background: var(--accent-sf); padding: 2px 8px; border-radius: 999px; display: inline-block; margin-bottom: 8px; }
 
 /* =====================
-   COMPARISON TABLE
+   COMPARISON TABLE  — dark bg
    ===================== */
-.compare-section { background: var(--bg-soft); padding: 100px 0; }
+.compare-section { background: #131a24; padding: 100px 0; }
 .compare-head { text-align: center; margin-bottom: 56px; }
-.compare-head p { margin: 16px auto 0; max-width: 38ch; font-size: 16px; color: var(--text-2); }
+.compare-head .eyebrow { color: #6aabff; }
+.compare-head h2 { color: #fff; }
+.compare-head p { margin: 16px auto 0; max-width: 38ch; font-size: 16px; color: rgba(255,255,255,.55); }
 .compare-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .compare-table { width: 100%; border-collapse: collapse; min-width: 600px; }
-.compare-table th { padding: 16px 20px; font-size: 14px; font-weight: 700; background: white; }
-.compare-table th:first-child { text-align: left; background: var(--bg-soft); }
+.compare-table th { padding: 16px 20px; font-size: 14px; font-weight: 700; background: #1e2936; color: rgba(255,255,255,.6); }
+.compare-table th:first-child { text-align: left; background: transparent; color: rgba(255,255,255,.4); }
 .compare-table th.ours { background: var(--accent); color: white; border-radius: 12px 12px 0 0; }
-.compare-table td { padding: 13px 20px; text-align: center; font-size: 14px; border-bottom: 1px solid var(--line); background: white; }
-.compare-table td:first-child { text-align: left; font-weight: 500; background: var(--bg-soft); color: var(--text-2); }
+.compare-table td { padding: 13px 20px; text-align: center; font-size: 14px; border-bottom: 1px solid rgba(255,255,255,.07); background: #1e2936; color: rgba(255,255,255,.7); }
+.compare-table td:first-child { text-align: left; font-weight: 500; background: transparent; color: rgba(255,255,255,.55); }
 .compare-table tr:last-child td { border-bottom: none; }
-.compare-table .ours-col { background: var(--accent-sf) !important; font-weight: 700; color: var(--accent); }
-.compare-table .ours-col.price { font-size: 17px; font-weight: 800; color: var(--accent); }
-.chk  { color: var(--green); font-size: 18px; }
-.nope { color: var(--text-3); font-size: 18px; }
+.compare-table .ours-col { background: rgba(49,130,246,.18) !important; font-weight: 700; color: #6aabff; }
+.compare-table .ours-col.price { font-size: 17px; font-weight: 800; color: #6aabff; }
+.chk  { color: #3de093; font-size: 18px; }
+.nope { color: rgba(255,255,255,.25); font-size: 18px; }
 
 /* =====================
-   QUOTE / DARK SECTION
+   QUOTE / LIGHT SECTION  — 비교표 다크 다음이라 흰 배경으로
    ===================== */
 .quote-section {
-  background: var(--bg-dark); color: white;
+  background: #fff;
   padding: 100px 0;
 }
 .quote-grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 64px; align-items: center; }
 @media (max-width: 980px) { .quote-grid { grid-template-columns: 1fr; gap: 48px; } }
-.quote-eyebrow { font-size: 13px; font-weight: 700; color: rgba(255,255,255,.45); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 28px; display: block; }
-.quote-mark { font-size: 96px; line-height: 0.7; color: rgba(255,255,255,.15); font-family: Georgia, serif; }
-.quote-text { font-size: clamp(22px, 3vw, 34px); font-weight: 700; line-height: 1.45; letter-spacing: -0.022em; margin: 16px 0 0; text-wrap: balance; }
+.quote-eyebrow { font-size: 13px; font-weight: 700; color: var(--accent); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 28px; display: block; }
+.quote-mark { font-size: 96px; line-height: 0.7; color: #dce8ff; font-family: Georgia, serif; }
+.quote-text { font-size: clamp(22px, 3vw, 34px); font-weight: 700; line-height: 1.45; letter-spacing: -0.022em; margin: 16px 0 0; color: var(--text); text-wrap: balance; }
 .quote-author { display: flex; align-items: center; gap: 12px; margin-top: 28px; }
 .quote-avatar { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 14px; color: white; flex-shrink: 0; }
-.quote-name { font-weight: 700; font-size: 15px; }
-.quote-role { font-size: 13px; color: rgba(255,255,255,.5); margin-top: 2px; }
+.quote-name { font-weight: 700; font-size: 15px; color: var(--text); }
+.quote-role { font-size: 13px; color: var(--text-3); margin-top: 2px; }
 .quote-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
-.qs-num { font-size: clamp(36px, 5vw, 58px); font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
-.qs-cap { font-size: 13px; color: rgba(255,255,255,.55); margin-top: 8px; }
+.qs-num { font-size: clamp(36px, 5vw, 58px); font-weight: 800; letter-spacing: -0.04em; line-height: 1; color: var(--text); }
+.qs-num small { color: var(--accent); }
+.qs-cap { font-size: 13px; color: var(--text-3); margin-top: 8px; }
 
 /* =====================
    PRICING
@@ -375,7 +378,7 @@ h1,h2,h3,h4 { margin: 0; }
 /* =====================
    TESTIMONIALS
    ===================== */
-.testi-section { background: var(--bg-soft); padding: 100px 0; }
+.testi-section { background: #f5f4ef; padding: 100px 0; }  /* 웜 오프화이트 — FAQ 흰색과 구분 */
 .testi-head { text-align: center; margin-bottom: 48px; }
 .testi-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
 @media (max-width: 900px) { .testi-grid { grid-template-columns: 1fr; } }
@@ -894,19 +897,19 @@ footer { background: var(--bg-soft); padding: 56px 0 36px; }
       </div>
       <div class="quote-stats reveal d2">
         <div>
-          <div class="qs-num">4<small style="font-size:.5em;">시간</small></div>
+          <div class="qs-num">4<small style="font-size:.5em; color:var(--accent);">시간</small></div>
           <div class="qs-cap">급여일마다 아꼈어요</div>
         </div>
         <div>
-          <div class="qs-num">7<small style="font-size:.5em;">배</small></div>
+          <div class="qs-num">7<small style="font-size:.5em; color:var(--accent);">배</small></div>
           <div class="qs-cap">타사 대비 저렴한 비용</div>
         </div>
         <div>
-          <div class="qs-num">200<small style="font-size:.4em;">명</small></div>
+          <div class="qs-num">200<small style="font-size:.4em; color:var(--accent);">명</small></div>
           <div class="qs-cap">혼자 관리 중</div>
         </div>
         <div>
-          <div class="qs-num">14<small style="font-size:.45em;">일</small></div>
+          <div class="qs-num">14<small style="font-size:.45em; color:var(--accent);">일</small></div>
           <div class="qs-cap">무료 체험 후 바로 전환</div>
         </div>
       </div>
