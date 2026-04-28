@@ -208,17 +208,36 @@ h1,h2,h3,h4 { margin: 0; }
 .float-s { font-size: 11px; color: var(--text-3); margin-top: 1px; }
 
 /* =====================
-   NUMBERS STRIP  — dark bg
+   STAT BAR  — dark bg, compact
    ===================== */
-.nums-strip { background: var(--bg-dark); padding: 64px 0; }
-.nums-grid { display: grid; grid-template-columns: repeat(3,1fr); }
-@media (max-width: 640px) { .nums-grid { grid-template-columns: 1fr; } }
-.num-cell { padding: 32px 24px; border-right: 1px solid rgba(255,255,255,.1); }
+.nums-strip { background: var(--bg-dark); padding: 0; }
+.nums-grid {
+  display: flex; align-items: stretch; flex-wrap: wrap;
+}
+.num-cell {
+  flex: 1; min-width: 200px;
+  display: flex; align-items: center; gap: 16px;
+  padding: 32px 36px;
+  border-right: 1px solid rgba(255,255,255,.08);
+}
 .num-cell:last-child { border-right: none; }
-@media (max-width: 640px) { .num-cell { border-right: none; border-bottom: 1px solid rgba(255,255,255,.1); padding: 24px; } }
-.num-big { font-size: clamp(44px, 7vw, 80px); font-weight: 800; letter-spacing: -0.04em; line-height: 1; color: #fff; }
-.num-big small { font-size: .42em; font-weight: 700; color: #6aabff; margin-left: 4px; letter-spacing: 0; }
-.num-cap { font-size: 15px; color: rgba(255,255,255,.55); margin-top: 12px; }
+@media (max-width: 760px) {
+  .num-cell { border-right: none; border-bottom: 1px solid rgba(255,255,255,.08); padding: 24px 28px; min-width: 100%; }
+  .num-cell:last-child { border-bottom: none; }
+}
+.num-ico {
+  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: rgba(49,130,246,.18);
+  color: #6aabff;
+}
+.num-text { display: flex; flex-direction: column; gap: 3px; }
+.num-val {
+  font-size: 28px; font-weight: 800; letter-spacing: -0.03em; line-height: 1;
+  color: #fff;
+}
+.num-val em { font-style: normal; font-size: .7em; font-weight: 700; color: #6aabff; margin-left: 2px; }
+.num-cap { font-size: 13px; color: rgba(255,255,255,.45); }
 
 /* =====================
    FEATURE SECTIONS
@@ -569,22 +588,51 @@ footer { background: var(--bg-soft); padding: 56px 0 36px; }
   </div>
 </section>
 
-<!-- ==================== NUMBERS STRIP ==================== -->
+<!-- ==================== STAT BAR ==================== -->
 <div class="nums-strip">
   <div class="wrap">
     <div class="nums-grid">
+
       <div class="num-cell reveal">
-        <div class="num-big" data-count="120">0<small>+</small></div>
-        <div class="num-cap">도입 기업</div>
+        <div class="num-ico">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="num-text">
+          <div class="num-val" data-count="120">0<em>+</em></div>
+          <div class="num-cap">도입 기업</div>
+        </div>
       </div>
+
       <div class="num-cell reveal d1">
-        <div class="num-big" data-count="4.9">0<small>/ 5.0</small></div>
-        <div class="num-cap">관리자 만족도</div>
+        <div class="num-ico">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <div class="num-text">
+          <div class="num-val" data-count="4.9">0<em>/ 5.0</em></div>
+          <div class="num-cap">관리자 만족도</div>
+        </div>
       </div>
+
       <div class="num-cell reveal d2">
-        <div class="num-big" data-count="7" data-suffix="배">0<small></small></div>
-        <div class="num-cap">타사 대비 저렴한 비용</div>
+        <div class="num-ico">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <div class="num-text">
+          <div class="num-val" data-count="7">0<em>배 저렴</em></div>
+          <div class="num-cap">타사 대비 비용</div>
+        </div>
       </div>
+
+      <div class="num-cell reveal d3">
+        <div class="num-ico">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="num-text">
+          <div class="num-val">14<em>일 무료</em></div>
+          <div class="num-cap">카드 등록 없이 시작</div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -1174,18 +1222,17 @@ footer { background: var(--bg-soft); padding: 56px 0 36px; }
   /* Count-up numbers */
   function countUp(el) {
     const target = parseFloat(el.dataset.count);
-    const suffix = el.dataset.suffix || '';
     const isFloat = target % 1 !== 0;
-    const smallTag = el.querySelector('small');
-    const smallHtml = smallTag ? smallTag.outerHTML : '';
-    const dur = 1600, step = 16;
+    const emTag = el.querySelector('em');
+    const emHtml = emTag ? emTag.outerHTML : '';
+    const dur = 1400;
     let start = null;
     function tick(ts) {
       if (!start) start = ts;
       const p = Math.min((ts - start) / dur, 1);
       const ease = 1 - Math.pow(1 - p, 3);
       const val = ease * target;
-      el.innerHTML = (isFloat ? val.toFixed(1) : Math.floor(val)) + suffix + smallHtml;
+      el.innerHTML = (isFloat ? val.toFixed(1) : Math.floor(val)) + emHtml;
       if (p < 1) requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
