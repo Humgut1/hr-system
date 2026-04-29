@@ -14,11 +14,12 @@ from payroll_utils import (calc_payslip, calc_annual_leave, fmt_krw,
                            calc_severance, check_min_wage, MIN_WAGE_MONTHLY,
                            calc_day_hours, calc_extra_pay)
 from master_db import (
-    init_master_db, get_master_db, get_tenant_db_path,
+    init_master_db, migrate_subscriptions, get_master_db, get_tenant_db_path,
     get_tenant_by_email, get_tenant, create_tenant,
     register_tenant_user, update_tenant_user_email, remove_tenant_user,
     update_peak_headcount, reset_peak_headcount,
     save_billing_key, log_billing, update_billing_log,
+    compute_sub_state, start_grace_period, lock_tenant,
     PRICE_PER_SEAT, TRIAL_DAYS,
 )
 
@@ -35,8 +36,9 @@ TOSS_SECRET_KEY = os.environ.get(
 
 # ── DB 초기화 ────────────────────────────────────────────────
 from database import init_db
-init_master_db()   # master.db
-init_db()          # hr_system.db (테넌트 1 기본 스키마)
+init_master_db()        # master.db
+migrate_subscriptions() # grace_until 등 신규 컬럼 추가
+init_db()               # hr_system.db (테넌트 1 기본 스키마)
 
 # 연봉 기준표·부서 확장 시드 (job_families가 비어 있을 때만 자동 실행)
 def _ensure_extended_seed():
@@ -156,11 +158,70 @@ def inject_user_features():
     unread_notifications = unread_row[0] if unread_row else 0
     
     return {
-        'user_features': features, 
+        'user_features': features,
         'unread_notifications': unread_notifications,
         'FEATURE_DEFS': FEATURE_DEFS,
         'today': date.today().isoformat()
     }
+
+
+# ── 구독 상태 context processor ──────────────────────────────
+@app.context_processor
+def inject_sub_state():
+    """모든 템플릿에 sub_state 딕셔너리 주입 (배너용)"""
+    if not session.get('user_id'):
+        return {'sub_state': None}
+    if session.get('user_role') == 'guest':
+        return {'sub_state': None}
+    tenant_id = session.get('tenant_id')
+    if not tenant_id:
+        return {'sub_state': None}
+    return {'sub_state': compute_sub_state(tenant_id)}
+
+
+# ── 구독 가드 (before_request) ───────────────────────────────
+# 접근 제한 제외 경로 prefix
+_EXEMPT_PREFIXES = ('/static/', '/billing', '/login', '/logout',
+                    '/signup', '/_')
+_EXEMPT_ENDPOINTS = {'landing', 'login', 'logout', 'signup',
+                     'billing', 'billing_register', 'billing_charge',
+                     'billing_webhook', 'static'}
+
+@app.before_request
+def subscription_guard():
+    """
+    구독 상태에 따라 앱 접근 제어.
+    - locked  → /billing 리다이렉트 (GET만, POST는 그냥 차단)
+    - grace / payment_failed → POST/PUT/DELETE 차단 (조회 전용)
+    """
+    # 비로그인 / guest / 제외 경로는 통과
+    if not session.get('user_id'):
+        return
+    if session.get('user_role') == 'guest':
+        return
+    tenant_id = session.get('tenant_id')
+    if not tenant_id:
+        return
+    # 랜딩·billing·정적 경로 제외
+    path = request.path
+    if any(path.startswith(p) for p in _EXEMPT_PREFIXES):
+        return
+    if request.endpoint in _EXEMPT_ENDPOINTS:
+        return
+
+    state_info = compute_sub_state(tenant_id)
+    state = state_info['state']
+
+    if state == 'locked':
+        if request.method == 'GET':
+            flash('구독이 만료되었어요. 카드를 등록하면 다시 사용할 수 있어요.', 'error')
+            return redirect(url_for('billing'))
+        return ('구독 만료', 402)
+
+    if state in ('grace', 'payment_failed'):
+        if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
+            flash('체험 기간이 만료되었어요. 카드를 등록하면 계속 사용할 수 있어요.', 'error')
+            return redirect(url_for('billing'))
 
 
 def login_required(f):

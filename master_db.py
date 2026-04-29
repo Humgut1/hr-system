@@ -64,6 +64,9 @@ def init_master_db():
             current_period_start  DATE,
             current_period_end    DATE,
             toss_billing_key      TEXT,
+            grace_until           DATE,
+            payment_retry_count   INTEGER NOT NULL DEFAULT 0,
+            last_payment_attempt  TIMESTAMP,
             updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -302,5 +305,145 @@ def update_billing_log(toss_order_id: str, payment_key: str, status: str,
            WHERE toss_order_id=?''',
         (payment_key, status, fail_reason, toss_order_id)
     )
+    conn.commit()
+    conn.close()
+
+
+# ── 구독 상태 컬럼 마이그레이션 ─────────────────────────────────
+def migrate_subscriptions():
+    """grace_until 등 신규 컬럼 추가 (멱등)"""
+    conn = get_master_db()
+    existing = [row[1] for row in conn.execute('PRAGMA table_info(subscriptions)')]
+    for col, definition in [
+        ('grace_until',          'DATE'),
+        ('payment_retry_count',  'INTEGER NOT NULL DEFAULT 0'),
+        ('last_payment_attempt', 'TIMESTAMP'),
+    ]:
+        if col not in existing:
+            conn.execute(f'ALTER TABLE subscriptions ADD COLUMN {col} {definition}')
+    conn.commit()
+    conn.close()
+
+
+# ── 구독 상태 계산 ────────────────────────────────────────────
+GRACE_DAYS = 7
+WARNING_DAYS = 7   # trial 종료 N일 전부터 배너 표시
+
+
+def compute_sub_state(tenant_id: int) -> dict:
+    """
+    테넌트 구독 상태를 계산해서 반환.
+
+    state 값:
+      trial_active    — 체험 중 (경고 없음)
+      trial_warning   — 체험 D-7 이하 (주황 배너)
+      grace           — 체험 만료 or 결제 실패, 유예 기간 중 (빨간 배너, 조회 전용)
+      locked          — 유예 만료 (완전 차단)
+      active          — 정상 구독
+      payment_failed  — 결제 실패, 유예 기간 중
+
+    can_write: POST/PUT/DELETE 허용 여부
+    locked:    앱 접근 완전 차단 여부
+    days_left: 체험 또는 유예 잔여일 (배너용)
+    """
+    today = date.today()
+    conn = get_master_db()
+    row = conn.execute(
+        '''SELECT t.status AS tenant_status, t.trial_ends_at,
+                  s.status AS sub_status, s.toss_billing_key,
+                  s.grace_until, s.payment_retry_count
+           FROM tenants t
+           LEFT JOIN subscriptions s ON s.tenant_id = t.id
+           WHERE t.id = ?''',
+        (tenant_id,)
+    ).fetchone()
+    conn.close()
+
+    if not row:
+        return {'state': 'active', 'can_write': True, 'locked': False, 'days_left': 0}
+
+    sub_status  = row['sub_status'] or 'trialing'
+    trial_ends  = row['trial_ends_at']
+    grace_until = row['grace_until']
+    has_card    = bool(row['toss_billing_key'])
+
+    # ── 1. 정상 유료 구독 ─────────────────────────────────────
+    if sub_status == 'active' and has_card:
+        return {'state': 'active', 'can_write': True, 'locked': False, 'days_left': 0}
+
+    # ── 2. 트라이얼 중 ────────────────────────────────────────
+    if sub_status == 'trialing':
+        if not trial_ends:
+            return {'state': 'trial_active', 'can_write': True, 'locked': False, 'days_left': 14}
+        delta = (date.fromisoformat(trial_ends) - today).days
+        if delta > WARNING_DAYS:
+            return {'state': 'trial_active', 'can_write': True, 'locked': False, 'days_left': delta}
+        if delta >= 0:
+            return {'state': 'trial_warning', 'can_write': True, 'locked': False, 'days_left': delta}
+        # 트라이얼 만료 → 유예 시작
+        if not grace_until:
+            _start_grace(tenant_id, today)
+            grace_until = (today + timedelta(days=GRACE_DAYS)).isoformat()
+        grace_delta = (date.fromisoformat(grace_until) - today).days
+        if grace_delta >= 0:
+            return {'state': 'grace', 'can_write': False, 'locked': False, 'days_left': grace_delta}
+        return {'state': 'locked', 'can_write': False, 'locked': True, 'days_left': 0}
+
+    # ── 3. 결제 실패 ──────────────────────────────────────────
+    if sub_status == 'past_due':
+        if not grace_until:
+            _start_grace(tenant_id, today)
+            grace_until = (today + timedelta(days=GRACE_DAYS)).isoformat()
+        grace_delta = (date.fromisoformat(grace_until) - today).days
+        if grace_delta >= 0:
+            return {'state': 'payment_failed', 'can_write': False, 'locked': False, 'days_left': grace_delta}
+        return {'state': 'locked', 'can_write': False, 'locked': True, 'days_left': 0}
+
+    # ── 4. 취소/기타 ─────────────────────────────────────────
+    if sub_status == 'cancelled':
+        return {'state': 'locked', 'can_write': False, 'locked': True, 'days_left': 0}
+
+    return {'state': 'active', 'can_write': True, 'locked': False, 'days_left': 0}
+
+
+def _start_grace(tenant_id: int, today: date):
+    """유예 기간 시작 — grace_until 설정 + subscriptions 상태 갱신"""
+    conn = get_master_db()
+    grace_until = (today + timedelta(days=GRACE_DAYS)).isoformat()
+    conn.execute(
+        '''UPDATE subscriptions
+           SET grace_until=?, updated_at=CURRENT_TIMESTAMP
+           WHERE tenant_id=?''',
+        (grace_until, tenant_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def start_grace_period(tenant_id: int):
+    """외부에서 유예 기간 강제 시작 (결제 실패 webhook 수신 시 호출)"""
+    conn = get_master_db()
+    today = date.today()
+    grace_until = (today + timedelta(days=GRACE_DAYS)).isoformat()
+    conn.execute(
+        '''UPDATE subscriptions
+           SET status='past_due', grace_until=?, updated_at=CURRENT_TIMESTAMP
+           WHERE tenant_id=?''',
+        (grace_until, tenant_id)
+    )
+    conn.execute("UPDATE tenants SET status='suspended' WHERE id=?", (tenant_id,))
+    conn.commit()
+    conn.close()
+
+
+def lock_tenant(tenant_id: int):
+    """유예 만료 후 테넌트 완전 잠금"""
+    conn = get_master_db()
+    conn.execute(
+        '''UPDATE subscriptions SET status='cancelled', updated_at=CURRENT_TIMESTAMP
+           WHERE tenant_id=?''',
+        (tenant_id,)
+    )
+    conn.execute("UPDATE tenants SET status='suspended' WHERE id=?", (tenant_id,))
     conn.commit()
     conn.close()

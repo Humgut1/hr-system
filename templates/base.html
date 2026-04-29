@@ -176,6 +176,19 @@
         <a href="{{ url_for('admin_holidays') }}" class="nav-item{% if active_page == 'holidays' %} active{% endif %}" title="Holidays">
           <i class="fas fa-calendar-alt"></i><span>Holidays</span>
         </a>
+        <!-- 구독 관리 -->
+        <a href="{{ url_for('billing') }}" class="nav-item{% if active_page == 'billing' %} active{% endif %}" title="Subscription" style="position:relative;">
+          <i class="fas fa-credit-card"></i><span>Subscription</span>
+          {% if sub_state %}
+            {% if sub_state.state in ('trial_warning',) %}
+              <span style="margin-left:auto;font-size:10px;font-weight:700;background:#f59e0b;color:#fff;padding:2px 6px;border-radius:999px;">D-{{ sub_state.days_left }}</span>
+            {% elif sub_state.state in ('grace','payment_failed') %}
+              <span style="margin-left:auto;font-size:10px;font-weight:700;background:#ef4444;color:#fff;padding:2px 6px;border-radius:999px;">만료</span>
+            {% elif sub_state.state == 'active' %}
+              <span style="margin-left:auto;font-size:10px;font-weight:700;background:#22c55e;color:#fff;padding:2px 6px;border-radius:999px;">활성</span>
+            {% endif %}
+          {% endif %}
+        </a>
       </div>
       {% endif %}
 
@@ -209,6 +222,26 @@
 
   <!-- ══ 메인 ══════════════════════════════════════ -->
   <div class="main-wrapper">
+
+    <!-- ── 구독 상태 배너 ──────────────────────────── -->
+    {% if sub_state %}
+      {% if sub_state.state == 'trial_warning' %}
+      <div style="background:#fffbeb;border-bottom:1px solid #fde68a;padding:10px 24px;display:flex;align-items:center;gap:12px;font-size:13px;">
+        <i class="fas fa-clock" style="color:#f59e0b;"></i>
+        <span style="font-weight:600;color:#92400e;">무료 체험 <strong>{{ sub_state.days_left }}일</strong> 남았어요.</span>
+        <span style="color:#78350f;">카드를 등록하면 체험 종료 후에도 계속 사용할 수 있어요.</span>
+        <a href="{{ url_for('billing') }}" style="margin-left:auto;background:#f59e0b;color:#fff;padding:5px 14px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">카드 등록하기</a>
+      </div>
+      {% elif sub_state.state in ('grace', 'payment_failed') %}
+      <div style="background:#fef2f2;border-bottom:1px solid #fecaca;padding:10px 24px;display:flex;align-items:center;gap:12px;font-size:13px;">
+        <i class="fas fa-exclamation-triangle" style="color:#ef4444;"></i>
+        <span style="font-weight:600;color:#991b1b;">체험 기간이 만료되었어요.</span>
+        <span style="color:#7f1d1d;">유예 기간 <strong>{{ sub_state.days_left }}일</strong> 안에 카드를 등록하지 않으면 데이터 조회도 중단돼요. 현재 조회만 가능해요.</span>
+        <a href="{{ url_for('billing') }}" style="margin-left:auto;background:#ef4444;color:#fff;padding:5px 14px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">지금 등록하기</a>
+      </div>
+      {% endif %}
+    {% endif %}
+
     <header class="header">
       <div class="header-left">
         <button class="hamburger" id="hamburgerBtn" aria-label="메뉴">
