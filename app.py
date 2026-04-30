@@ -5850,7 +5850,7 @@ def billing_card_fail():
 
 @app.route('/billing')
 @login_required
-def billing_dashboard():
+def billing():
     """구독 현황 대시보드"""
     tenant_id = session.get('tenant_id', 1)
     tenant    = get_tenant(tenant_id)
