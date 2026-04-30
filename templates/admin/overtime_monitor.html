@@ -1,0 +1,190 @@
+{% extends 'base.html' %}
+{% block title %}주 52시간 모니터링 — TalentCore{% endblock %}
+{% block page_title %}주 52시간 근로시간 모니터링{% endblock %}
+
+{% block content %}
+<div style="max-width:1000px;margin:0 auto;">
+
+  <!-- 요약 카드 3개 -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px;">
+    <div class="card" style="padding:20px;border-left:4px solid #ef4444;">
+      <div style="font-size:.72rem;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">위반 (52h 초과)</div>
+      <div style="font-size:2rem;font-weight:800;color:#ef4444;">{{ violations | length }}</div>
+      <div style="font-size:.78rem;color:#aaa;margin-top:2px;">건 · 최근 8주 기준</div>
+    </div>
+    <div class="card" style="padding:20px;border-left:4px solid #f59e0b;">
+      <div style="font-size:.72rem;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">경고 (48h~52h)</div>
+      <div style="font-size:2rem;font-weight:800;color:#f59e0b;">{{ warnings | length }}</div>
+      <div style="font-size:.78rem;color:#aaa;margin-top:2px;">건</div>
+    </div>
+    <div class="card" style="padding:20px;border-left:4px solid #22c55e;">
+      <div style="font-size:.72rem;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">정상 (48h 미만)</div>
+      <div style="font-size:2rem;font-weight:800;color:#22c55e;">{{ safe_count }}</div>
+      <div style="font-size:.78rem;color:#aaa;margin-top:2px;">주·직원 조합</div>
+    </div>
+  </div>
+
+  <!-- 법령 안내 배너 -->
+  <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 18px;margin-bottom:24px;font-size:.82rem;color:#92400e;">
+    <i class="fas fa-balance-scale" style="margin-right:6px;"></i>
+    <strong>근로기준법 §53</strong> — 1주 최대 근로시간: 법정 40시간 + 연장 12시간 = <strong>주 52시간</strong>
+    (5인 이상 사업장). 위반 시 사용자에게 2년 이하 징역 또는 2,000만원 이하 벌금.
+  </div>
+
+  {% if violations %}
+  <!-- 위반 목록 -->
+  <div class="card" style="padding:24px;margin-bottom:20px;">
+    <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px;color:#ef4444;">
+      <i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>
+      52시간 초과 위반 ({{ violations | length }}건)
+    </h3>
+    <table style="width:100%;border-collapse:collapse;font-size:.875rem;">
+      <thead>
+        <tr style="border-bottom:2px solid #fecaca;">
+          <th style="text-align:left;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">직원</th>
+          <th style="text-align:left;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">부서</th>
+          <th style="text-align:center;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">해당 주</th>
+          <th style="text-align:right;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">총 근무시간</th>
+          <th style="text-align:right;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">초과시간</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in violations | sort(attribute='total_min', reverse=True) %}
+        <tr style="border-bottom:1px solid #fef2f2;">
+          <td style="padding:10px 0;">
+            <div style="font-weight:600;">{{ v.name }}</div>
+            <div style="font-size:.75rem;color:#94a3b8;">{{ v.emp_no or '' }}</div>
+          </td>
+          <td style="padding:10px 0;color:#64748b;">{{ v.dept_name or '—' }}</td>
+          <td style="padding:10px 0;text-align:center;color:#64748b;">{{ v.week_start }}</td>
+          <td style="padding:10px 0;text-align:right;">
+            <span style="background:#fee2e2;color:#dc2626;font-weight:700;padding:3px 10px;border-radius:999px;">
+              {{ v.total_h }}h
+            </span>
+          </td>
+          <td style="padding:10px 0;text-align:right;font-weight:700;color:#ef4444;">+{{ v.over_h }}h</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if warnings %}
+  <!-- 경고 목록 -->
+  <div class="card" style="padding:24px;margin-bottom:20px;">
+    <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px;color:#f59e0b;">
+      <i class="fas fa-exclamation-circle" style="margin-right:6px;"></i>
+      경고 (48h~52h, {{ warnings | length }}건)
+    </h3>
+    <table style="width:100%;border-collapse:collapse;font-size:.875rem;">
+      <thead>
+        <tr style="border-bottom:2px solid #fde68a;">
+          <th style="text-align:left;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">직원</th>
+          <th style="text-align:left;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">부서</th>
+          <th style="text-align:center;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">해당 주</th>
+          <th style="text-align:right;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">총 근무시간</th>
+          <th style="text-align:right;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">여유시간</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in warnings | sort(attribute='total_min', reverse=True) %}
+        <tr style="border-bottom:1px solid #fffbeb;">
+          <td style="padding:10px 0;">
+            <div style="font-weight:600;">{{ w.name }}</div>
+            <div style="font-size:.75rem;color:#94a3b8;">{{ w.emp_no or '' }}</div>
+          </td>
+          <td style="padding:10px 0;color:#64748b;">{{ w.dept_name or '—' }}</td>
+          <td style="padding:10px 0;text-align:center;color:#64748b;">{{ w.week_start }}</td>
+          <td style="padding:10px 0;text-align:right;">
+            <span style="background:#fef3c7;color:#d97706;font-weight:700;padding:3px 10px;border-radius:999px;">
+              {{ w.total_h }}h
+            </span>
+          </td>
+          <td style="padding:10px 0;text-align:right;font-weight:600;color:#d97706;">
+            {{ (52 - w.total_h) | round(1) }}h 여유
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if not violations and not warnings %}
+  <div class="card" style="padding:48px;text-align:center;">
+    <i class="fas fa-check-circle" style="font-size:40px;color:#22c55e;margin-bottom:16px;display:block;"></i>
+    <div style="font-size:1.1rem;font-weight:700;margin-bottom:8px;">최근 8주간 52시간 위반 없음</div>
+    <div style="color:#94a3b8;font-size:.875rem;">모든 직원이 법정 근로시간 내에서 근무하고 있습니다.</div>
+  </div>
+  {% endif %}
+
+  <!-- 추이 차트 (위반·경고자만) -->
+  {% if violations or warnings %}
+  <div class="card" style="padding:24px;margin-top:20px;">
+    <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px;">최근 4주 근무시간 추이 (위반·경고 직원)</h3>
+    <canvas id="overtimeChart" height="120"></canvas>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+{% if violations or warnings %}
+(function(){
+  const raw = {{ chart_data | safe }};
+  if (!raw.length) return;
+
+  const allWeeks = [...new Set(raw.flatMap(d => d.weeks))].sort();
+  const colors = ['#ef4444','#f59e0b','#3b82f6','#8b5cf6','#06b6d4','#84cc16'];
+
+  new Chart(document.getElementById('overtimeChart'), {
+    type: 'line',
+    data: {
+      labels: allWeeks,
+      datasets: raw.slice(0, 8).map((d, i) => ({
+        label: d.name,
+        data: allWeeks.map(w => {
+          const idx = d.weeks.indexOf(w);
+          return idx >= 0 ? d.hours[idx] : null;
+        }),
+        borderColor: colors[i % colors.length],
+        backgroundColor: colors[i % colors.length] + '22',
+        fill: false,
+        tension: 0.3,
+        pointRadius: 4,
+        spanGaps: true,
+      }))
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}h`
+          }
+        }
+      },
+      scales: {
+        y: {
+          min: 0,
+          suggestedMax: 60,
+          grid: { color: '#f1f5f9' },
+          ticks: { callback: v => v + 'h' }
+        },
+        x: { grid: { display: false } }
+      },
+      annotation: {
+        annotations: {
+          limit: { type:'line', yMin:52, yMax:52, borderColor:'#ef4444', borderWidth:2, borderDash:[6,4],
+                   label:{content:'52h 한도', enabled:true, position:'end'} },
+          warn:  { type:'line', yMin:48, yMax:48, borderColor:'#f59e0b', borderWidth:1, borderDash:[4,4] }
+        }
+      }
+    }
+  });
+})();
+{% endif %}
+</script>
+{% endblock %}

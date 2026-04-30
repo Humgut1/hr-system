@@ -4,10 +4,10 @@
 적용 법령:
   - 근로기준법 제34조  : 퇴직급여 (퇴직금)
   - 근로기준법 제56조  : 연장·야간·휴일 근로 가산수당
-  - 근로기준법 제60조  : 연차유급휴가
+  - 근로기준법 제60조  : 연차유급휴가 + 미사용연차수당
   - 근로기준법 제48조  : 임금명세서 필수 기재사항
   - 최저임금법         : 2026년 시간급 최저임금
-  - 소득세법 시행령 §12: 비과세 소득 (식대 20만원, 교통비 20만원)
+  - 소득세법 §12       : 비과세 소득 (식대 20만원, 교통비 20만원, 육아수당 10만원 등)
   - 국민연금법         : 근로자 부담 4.5%
   - 국민건강보험법     : 근로자 부담 3.545%
   - 노인장기요양보험법 : 건강보험료의 12.95% (2026년)
@@ -15,6 +15,7 @@
   - 소득세법           : 근로소득세 누진세율 + 지방소득세 10%
 """
 
+import calendar as _cal
 from datetime import date, datetime, time as dtime, timedelta
 
 # ── 최저임금 (최저임금법, 2026년) ─────────────────────────────
@@ -145,13 +146,15 @@ def calc_payslip(
     meal_allowance: int = 0,
     transport_allowance: int = 0,
     overtime_pay: int = 0,
+    extra_benefits: list = None,
 ) -> dict:
     """
     월 급여에서 공제액을 계산해 명세서 dict 반환.
 
     비과세 한도 (소득세법 시행령 §12):
-      - 식대      : 20만원/월
-      - 교통비    : 20만원/월
+      - 식대            : 20만원/월
+      - 교통비          : 20만원/월
+      - extra_benefits  : BENEFIT_CATALOG 기준 각 항목별 비과세 한도 자동 적용
 
     4대보험 근로자 부담률 (2026년):
       - 국민연금        : 4.5 %
@@ -161,20 +164,58 @@ def calc_payslip(
 
     소득세: 연간 과세표준 기준 누진세율 → 월 환산
     지방소득세: 소득세 × 10 %
+
+    Args:
+        extra_benefits: [{'key': str, 'name': str, 'amount': int,
+                          'tax_exempt': bool, 'monthly_limit': int|None}]
+                        BENEFIT_CATALOG 항목을 그대로 전달.
     """
-    # ── 비과세 처리
+    # ── 비과세 처리 (식대·교통비)
     TAX_FREE_MEAL      = 200_000   # 소득세법 시행령 §12①3
     TAX_FREE_TRANSPORT = 200_000   # 소득세법 시행령 §12①1
 
     nontax_meal      = min(meal_allowance, TAX_FREE_MEAL)
     nontax_transport = min(transport_allowance, TAX_FREE_TRANSPORT)
 
-    # 과세소득 = 기본급 + 연장수당 + 한도초과 수당
+    # ── extra_benefits 처리
+    extra_benefits = extra_benefits or []
+    benefits_gross     = 0   # 추가 지급 합계 (gross_pay에 포함)
+    benefits_nontax    = 0   # 비과세 합계
+    benefits_breakdown = []  # 명세서 표시용
+
+    for b in extra_benefits:
+        amount = int(b.get('amount', 0))
+        if amount <= 0:
+            continue
+        tax_exempt = b.get('tax_exempt', False)
+        limit      = b.get('monthly_limit')
+        if tax_exempt and limit is not None:
+            exempt_part  = min(amount, limit)
+            taxable_part = amount - exempt_part
+        elif tax_exempt:
+            exempt_part  = amount
+            taxable_part = 0
+        else:
+            exempt_part  = 0
+            taxable_part = amount
+
+        benefits_gross  += amount
+        benefits_nontax += exempt_part
+        benefits_breakdown.append({
+            'key':          b.get('key', ''),
+            'name':         b.get('name', ''),
+            'amount':       amount,
+            'exempt_part':  exempt_part,
+            'taxable_part': taxable_part,
+        })
+
+    # 과세소득 = 기본급 + 연장수당 + 한도초과 수당 + 과세 복리후생
     taxable_monthly = (
         base_salary
         + overtime_pay
         + max(0, meal_allowance - nontax_meal)
         + max(0, transport_allowance - nontax_transport)
+        + (benefits_gross - benefits_nontax)
     )
 
     # ── 4대보험
@@ -200,11 +241,14 @@ def calc_payslip(
     else:
         annual_tax = annual_taxable * 0.42 - 35_940_000
 
-    income_tax      = max(0, round(annual_tax / 12))
+    income_tax       = max(0, round(annual_tax / 12))
     local_income_tax = round(income_tax * 0.10)   # 지방소득세 10 %
 
     # ── 집계
-    gross_pay = base_salary + meal_allowance + transport_allowance + overtime_pay
+    gross_pay = (
+        base_salary + meal_allowance + transport_allowance
+        + overtime_pay + benefits_gross
+    )
     total_deduction = (
         national_pension + health_insurance + long_term_care
         + employment_insurance + income_tax + local_income_tax
@@ -218,6 +262,9 @@ def calc_payslip(
         'overtime_pay':          overtime_pay,
         'nontax_meal':           nontax_meal,
         'nontax_transport':      nontax_transport,
+        'benefits_gross':        benefits_gross,
+        'benefits_nontax':       benefits_nontax,
+        'benefits_breakdown':    benefits_breakdown,
         'taxable_monthly':       taxable_monthly,
         'national_pension':      national_pension,
         'health_insurance':      health_insurance,
@@ -234,6 +281,357 @@ def calc_payslip(
 def fmt_krw(amount: int) -> str:
     """정수를 한국 원화 형식으로 포매팅"""
     return f"{amount:,}"
+
+
+# ── 복리후생·비과세 카탈로그 (소득세법 §12) ─────────────────────
+BENEFIT_CATALOG = {
+    # ── 비과세 수당 ──────────────────────────────────────────────
+    'meal': {
+        'name': '식대',
+        'category': 'nontax',
+        'tax_exempt': True,
+        'monthly_limit': 200_000,
+        'legal_basis': '소득세법 시행령 §12①3',
+        'description': '회사가 직접 식사를 제공하지 않는 경우 월 20만원까지 비과세',
+        'default_amount': 200_000,
+        'conditions': None,
+        'icon': 'fa-utensils',
+        'sort': 1,
+    },
+    'transport': {
+        'name': '교통비',
+        'category': 'nontax',
+        'tax_exempt': True,
+        'monthly_limit': 200_000,
+        'legal_basis': '소득세법 시행령 §12①1',
+        'description': '대중교통·주차비 등 월 20만원까지 비과세',
+        'default_amount': 100_000,
+        'conditions': None,
+        'icon': 'fa-bus',
+        'sort': 2,
+    },
+    'car_allowance': {
+        'name': '자가운전보조금',
+        'category': 'nontax',
+        'tax_exempt': True,
+        'monthly_limit': 200_000,
+        'legal_basis': '소득세법 시행령 §12①2',
+        'description': '본인 소유 차량을 업무에 사용하는 경우 월 20만원까지 비과세',
+        'default_amount': 200_000,
+        'conditions': '본인 명의 차량 보유자만 적용',
+        'icon': 'fa-car',
+        'sort': 3,
+    },
+    'childcare': {
+        'name': '육아수당',
+        'category': 'nontax',
+        'tax_exempt': True,
+        'monthly_limit': 100_000,
+        'legal_basis': '소득세법 시행령 §12①9',
+        'description': '만 8세 이하 자녀가 있는 근로자 월 10만원까지 비과세',
+        'default_amount': 100_000,
+        'conditions': '만 8세 이하 자녀 보유자만 적용',
+        'icon': 'fa-baby',
+        'sort': 4,
+    },
+    'tuition': {
+        'name': '학자금 지원',
+        'category': 'nontax',
+        'tax_exempt': True,
+        'monthly_limit': 100_000,
+        'legal_basis': '소득세법 시행령 §12①10',
+        'description': '자녀 교육비 지원 월 10만원까지 비과세',
+        'default_amount': 0,
+        'conditions': None,
+        'icon': 'fa-graduation-cap',
+        'sort': 5,
+    },
+    'research_allowance': {
+        'name': '연구보조비',
+        'category': 'nontax',
+        'tax_exempt': True,
+        'monthly_limit': 200_000,
+        'legal_basis': '소득세법 시행령 §12①4',
+        'description': '연구직·기술직 근로자 월 20만원까지 비과세',
+        'default_amount': 0,
+        'conditions': '연구직·기술직 해당자만 적용',
+        'icon': 'fa-flask',
+        'sort': 6,
+    },
+    # ── 복리후생 (과세) ───────────────────────────────────────────
+    'welfare_point': {
+        'name': '복지포인트',
+        'category': 'welfare',
+        'tax_exempt': False,
+        'monthly_limit': None,
+        'legal_basis': '소득세법 §20 (근로소득 — 과세)',
+        'description': '포인트 지급 시점에 근로소득 과세. 연간 한도 없음. (비과세 아님 주의)',
+        'default_amount': 0,
+        'conditions': None,
+        'icon': 'fa-gift',
+        'sort': 10,
+    },
+    'health_support': {
+        'name': '건강검진 지원',
+        'category': 'welfare',
+        'tax_exempt': False,
+        'monthly_limit': None,
+        'legal_basis': '소득세법 §20 (복리후생비)',
+        'description': '연간 건강검진 비용 지원. 과세 대상',
+        'default_amount': 0,
+        'conditions': None,
+        'icon': 'fa-heartbeat',
+        'sort': 11,
+    },
+    'gym_support': {
+        'name': '피트니스·운동 지원',
+        'category': 'welfare',
+        'tax_exempt': False,
+        'monthly_limit': None,
+        'legal_basis': '소득세법 §20 (복리후생비)',
+        'description': '헬스장·운동 관련 비용 지원. 과세 대상',
+        'default_amount': 0,
+        'conditions': None,
+        'icon': 'fa-dumbbell',
+        'sort': 12,
+    },
+    # ── 상여·성과급 (과세) ───────────────────────────────────────
+    'holiday_bonus_lunar': {
+        'name': '설 상여금',
+        'category': 'bonus',
+        'tax_exempt': False,
+        'monthly_limit': None,
+        'legal_basis': '소득세법 §20 (상여 — 과세)',
+        'description': '설 명절 상여금. 과세 (평균임금 산입). 기본급 대비 %로 설정',
+        'default_amount': 0,
+        'conditions': None,
+        'icon': 'fa-moon',
+        'sort': 20,
+        'calc_type': 'pct_of_base',
+        'default_pct': 100,
+    },
+    'holiday_bonus_chuseok': {
+        'name': '추석 상여금',
+        'category': 'bonus',
+        'tax_exempt': False,
+        'monthly_limit': None,
+        'legal_basis': '소득세법 §20 (상여 — 과세)',
+        'description': '추석 명절 상여금. 과세 (평균임금 산입). 기본급 대비 %로 설정',
+        'default_amount': 0,
+        'conditions': None,
+        'icon': 'fa-star',
+        'sort': 21,
+        'calc_type': 'pct_of_base',
+        'default_pct': 100,
+    },
+    'pi_bonus': {
+        'name': '성과급 PI (개인)',
+        'category': 'bonus',
+        'tax_exempt': False,
+        'monthly_limit': None,
+        'legal_basis': '소득세법 §20 (상여 — 과세)',
+        'description': '개인 성과등급 기반 인센티브. 등급(S/A/B/C/D)별 지급률 설정',
+        'default_amount': 0,
+        'conditions': None,
+        'icon': 'fa-chart-line',
+        'sort': 22,
+        'calc_type': 'grade_pct',
+        'grade_pct': {'S': 20, 'A': 15, 'B': 10, 'C': 5, 'D': 0},
+    },
+    'ci_bonus': {
+        'name': '성과급 CI (회사)',
+        'category': 'bonus',
+        'tax_exempt': False,
+        'monthly_limit': None,
+        'legal_basis': '소득세법 §20 (상여 — 과세)',
+        'description': '회사 목표 달성률 기반 인센티브. 달성률 × 기본급 비율로 계산',
+        'default_amount': 0,
+        'conditions': None,
+        'icon': 'fa-building',
+        'sort': 23,
+        'calc_type': 'company_pct',
+        'default_pct': 10,
+    },
+}
+
+# 카테고리 한글 레이블
+BENEFIT_CATEGORY_LABELS = {
+    'nontax':  '비과세 수당',
+    'welfare': '복리후생 (과세)',
+    'bonus':   '상여·성과급 (과세)',
+}
+
+
+# ── 중도 입사/퇴사 일할계산 ─────────────────────────────────────
+def calc_prorated_salary(base_salary: int, start_date_str: str,
+                         end_date_str: str, year: int, month: int) -> dict:
+    """
+    해당 월에 부분 근무한 경우 일할계산 급여 반환.
+
+    Args:
+        base_salary    : 월 기본급
+        start_date_str : 입사일 or 해당 월 근무 시작일 (YYYY-MM-DD)
+        end_date_str   : 퇴직일 or 해당 월 근무 종료일 (YYYY-MM-DD)
+        year / month   : 계산 대상 연월
+
+    Returns dict:
+        days_in_month, days_worked, prorated_salary, is_full_month
+    """
+    try:
+        start = date.fromisoformat(start_date_str)
+        end   = date.fromisoformat(end_date_str)
+    except (ValueError, TypeError):
+        return {
+            'days_in_month': 30, 'days_worked': 0,
+            'prorated_salary': 0, 'is_full_month': False,
+        }
+
+    days_in_month = _cal.monthrange(year, month)[1]
+    month_start   = date(year, month, 1)
+    month_end     = date(year, month, days_in_month)
+
+    work_start = max(start, month_start)
+    work_end   = min(end,   month_end)
+
+    if work_end < work_start:
+        return {
+            'days_in_month': days_in_month, 'days_worked': 0,
+            'prorated_salary': 0, 'is_full_month': False,
+        }
+
+    days_worked      = (work_end - work_start).days + 1
+    prorated_salary  = int(base_salary * days_worked / days_in_month)
+    is_full_month    = (days_worked == days_in_month)
+
+    return {
+        'days_in_month':    days_in_month,
+        'days_worked':      days_worked,
+        'prorated_salary':  prorated_salary,
+        'is_full_month':    is_full_month,
+        'base_salary':      base_salary,
+    }
+
+
+# ── 미사용 연차수당 (근로기준법 §60⑦) ─────────────────────────
+def calc_unused_leave_pay(hire_date_str: str, termination_date_str: str,
+                          used_days: float, avg_daily_wage: float) -> dict:
+    """
+    퇴직 시 미사용 연차에 대한 수당 계산.
+
+    산식: 미사용 연차수당 = 평균임금(일) × 미사용 연차일수
+
+    Args:
+        hire_date_str        : 입사일 (YYYY-MM-DD)
+        termination_date_str : 퇴직일 (YYYY-MM-DD)
+        used_days            : 해당 회계연도 사용 연차일수
+        avg_daily_wage       : 평균임금 (일, 퇴직금 계산과 동일 기준)
+
+    Returns dict:
+        total_leave, used_days, unused_days, avg_daily_wage, unused_leave_pay
+    """
+    try:
+        hire = date.fromisoformat(hire_date_str)
+        term = date.fromisoformat(termination_date_str)
+    except (ValueError, TypeError):
+        return {'total_leave': 0, 'used_days': used_days,
+                'unused_days': 0, 'unused_leave_pay': 0}
+
+    tenure_days = (term - hire).days
+
+    if tenure_days < 30:
+        total_leave = 0.0
+    elif tenure_days < 365:
+        months      = int(tenure_days / 30.4375)
+        total_leave = float(min(months, 11))
+    else:
+        full_years  = int(tenure_days / 365.25)
+        extra       = (full_years - 1) // 2      # 3년차부터 2년마다 +1
+        total_leave = float(min(15 + extra, 25))
+
+    unused_days      = max(0.0, total_leave - used_days)
+    unused_leave_pay = int(avg_daily_wage * unused_days)
+
+    return {
+        'total_leave':      total_leave,
+        'used_days':        used_days,
+        'unused_days':      unused_days,
+        'avg_daily_wage':   round(avg_daily_wage),
+        'unused_leave_pay': unused_leave_pay,
+    }
+
+
+# ── 종합 퇴직 정산 ─────────────────────────────────────────────
+def calc_separation_settlement(
+    hire_date_str: str,
+    termination_date_str: str,
+    recent_payslips: list,
+    used_leave_days: float = 0,
+    final_month_base_salary: int = 0,
+    final_month_days_worked: int = 0,
+    final_month_days_total: int = 0,
+) -> dict:
+    """
+    퇴직 시 법정 지급 금액 전체 자동계산.
+
+    구성:
+      1. 퇴직금       (근로기준법 §34)  — 1년 이상 근속 시
+      2. 미사용 연차수당 (근로기준법 §60⑦)
+      3. 마지막 월 일할급여 (중도 퇴직 시)
+
+    Args:
+        hire_date_str          : 입사일
+        termination_date_str   : 퇴직일
+        recent_payslips        : 최근 3개월 payslip list [{'gross_pay':int,'year':int,'month':int}]
+        used_leave_days        : 해당 회계연도 사용 연차일수
+        final_month_*          : 마지막 월 일할계산 파라미터 (0이면 full month 가정)
+
+    Returns dict:
+        severance, unused_leave, prorated, avg_daily_wage, total_settlement
+    """
+    # 1. 퇴직금
+    severance = calc_severance(hire_date_str, termination_date_str, recent_payslips)
+
+    # 평균임금 (일) — 퇴직금 계산에서 이미 구해진 값 재활용
+    if severance.get('avg_daily_wage', 0) > 0:
+        avg_daily = float(severance['avg_daily_wage'])
+    elif recent_payslips:
+        import calendar as _c
+        total_pay  = sum(p.get('gross_pay', 0) for p in recent_payslips)
+        basis_days = sum(_c.monthrange(p['year'], p['month'])[1] for p in recent_payslips)
+        avg_daily  = total_pay / basis_days if basis_days else 0.0
+    else:
+        avg_daily = 0.0
+
+    # 2. 미사용 연차수당
+    unused_leave = calc_unused_leave_pay(
+        hire_date_str, termination_date_str, used_leave_days, avg_daily
+    )
+
+    # 3. 마지막 월 일할급여
+    prorated = None
+    if final_month_base_salary > 0 and final_month_days_total > 0:
+        days_worked = final_month_days_worked if final_month_days_worked > 0 else final_month_days_total
+        prorated = {
+            'base_salary':      final_month_base_salary,
+            'days_worked':      days_worked,
+            'days_total':       final_month_days_total,
+            'prorated_salary':  int(final_month_base_salary * days_worked / final_month_days_total),
+            'is_full_month':    days_worked == final_month_days_total,
+        }
+
+    total = (
+        severance.get('severance_amount', 0)
+        + unused_leave.get('unused_leave_pay', 0)
+        + (prorated['prorated_salary'] if prorated else 0)
+    )
+
+    return {
+        'severance':        severance,
+        'unused_leave':     unused_leave,
+        'prorated':         prorated,
+        'avg_daily_wage':   round(avg_daily),
+        'total_settlement': total,
+    }
 
 
 # ── 연장·야간 근로 계산 (근로기준법 §56) ─────────────────────

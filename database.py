@@ -434,6 +434,27 @@ def init_db(db_path: str = None):
                 processed_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS benefit_configs (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                key        TEXT NOT NULL UNIQUE,
+                enabled    INTEGER NOT NULL DEFAULT 0,
+                amount     INTEGER NOT NULL DEFAULT 0,
+                pct        INTEGER,
+                note       TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS employee_benefit_overrides (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL REFERENCES users(id),
+                benefit_key TEXT NOT NULL,
+                amount      INTEGER NOT NULL DEFAULT 0,
+                enabled     INTEGER NOT NULL DEFAULT 1,
+                note        TEXT,
+                updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, benefit_key)
+            );
+
             CREATE TABLE IF NOT EXISTS notifications (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id      INTEGER NOT NULL REFERENCES users(id),
@@ -570,6 +591,13 @@ def init_db(db_path: str = None):
             c.execute('ALTER TABLE users ADD COLUMN termination_reason TEXT')
         if 'work_type' not in existing:
             c.execute('ALTER TABLE users ADD COLUMN work_type TEXT NOT NULL DEFAULT "standard"')
+
+        # payslips 컬럼 마이그레이션
+        payslip_cols = {r[1] for r in c.execute('PRAGMA table_info(payslips)').fetchall()}
+        if 'bonus_pay' not in payslip_cols:
+            c.execute('ALTER TABLE payslips ADD COLUMN bonus_pay INTEGER NOT NULL DEFAULT 0')
+        if 'benefits_json' not in payslip_cols:
+            c.execute('ALTER TABLE payslips ADD COLUMN benefits_json TEXT')
 
         # checkins 컬럼 마이그레이션
         checkin_cols = {r[1] for r in c.execute('PRAGMA table_info(checkins)').fetchall()}

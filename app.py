@@ -12,7 +12,10 @@ from flask import (Flask, abort, flash, g, redirect, render_template,
 from werkzeug.security import check_password_hash, generate_password_hash
 from payroll_utils import (calc_payslip, calc_annual_leave, fmt_krw,
                            calc_severance, check_min_wage, MIN_WAGE_MONTHLY,
-                           calc_day_hours, calc_extra_pay)
+                           calc_day_hours, calc_extra_pay,
+                           BENEFIT_CATALOG, BENEFIT_CATEGORY_LABELS,
+                           calc_prorated_salary, calc_unused_leave_pay,
+                           calc_separation_settlement)
 from master_db import (
     init_master_db, migrate_subscriptions, get_master_db, get_tenant_db_path,
     get_tenant_by_email, get_tenant, create_tenant,
@@ -1876,6 +1879,9 @@ def employee_offboard(emp_id):
 @app.route('/employees/<int:emp_id>/severance', methods=['GET', 'POST'])
 @admin_required
 def employee_severance(emp_id):
+    """퇴직 종합 정산 — 퇴직금 + 미사용연차수당 + 일할급여 자동계산."""
+    import calendar as _cal
+    import json as _json
     db  = get_db()
     emp = db.execute(
         'SELECT u.*, d.name dept_name, p.name pos_name '
@@ -1887,13 +1893,13 @@ def employee_severance(emp_id):
     if not emp:
         abort(404)
 
-    # 기존 퇴직금 지급 내역
+    # 기존 처리 내역
     existing = db.execute(
         'SELECT * FROM severance_payments WHERE user_id=? ORDER BY processed_at DESC LIMIT 1',
         (emp_id,)
     ).fetchone()
 
-    # 최근 3개월 payslip 조회
+    # 최근 3개월 payslip
     recent_payslips = db.execute(
         'SELECT year, month, gross_pay FROM payslips '
         'WHERE user_id=? ORDER BY year DESC, month DESC LIMIT 3',
@@ -1902,30 +1908,83 @@ def employee_severance(emp_id):
     payslip_list = [dict(r) for r in recent_payslips]
 
     term_date = emp['termination_date'] or date.today().isoformat()
-    result    = calc_severance(
-        emp['hire_date'] or '', term_date, payslip_list
+
+    # 사용 연차일수 조회 (해당 연도 approved 건)
+    term_year  = int(term_date[:4])
+    used_rows  = db.execute(
+        "SELECT COALESCE(SUM(days), 0) AS used "
+        "FROM leave_requests "
+        "WHERE user_id=? AND type='annual' AND status='approved' "
+        "AND strftime('%Y', start_date)=?",
+        (emp_id, str(term_year))
+    ).fetchone()
+    used_days = float(used_rows['used'] if used_rows else 0)
+
+    # 마지막 월 일할계산 파라미터
+    term_dt         = date.fromisoformat(term_date)
+    days_in_month   = _cal.monthrange(term_dt.year, term_dt.month)[1]
+    month_start     = date(term_dt.year, term_dt.month, 1)
+    days_worked_last = (term_dt - month_start).days + 1
+
+    # 종합 정산 계산
+    settlement = calc_separation_settlement(
+        hire_date_str        = emp['hire_date'] or '',
+        termination_date_str = term_date,
+        recent_payslips      = payslip_list,
+        used_leave_days      = used_days,
+        final_month_base_salary = emp.get('base_salary') or 0,
+        final_month_days_worked = days_worked_last,
+        final_month_days_total  = days_in_month,
+    )
+    # base_salary가 employee_salary에 있으므로 별도 조회
+    sal_row = db.execute(
+        'SELECT base_salary FROM employee_salary WHERE user_id=?', (emp_id,)
+    ).fetchone()
+    base_salary = sal_row['base_salary'] if sal_row else 0
+    # 마지막 월 파라미터 재계산 (base_salary 확보 후)
+    settlement = calc_separation_settlement(
+        hire_date_str        = emp['hire_date'] or '',
+        termination_date_str = term_date,
+        recent_payslips      = payslip_list,
+        used_leave_days      = used_days,
+        final_month_base_salary = base_salary,
+        final_month_days_worked = days_worked_last,
+        final_month_days_total  = days_in_month,
     )
 
     if request.method == 'POST':
-        note = request.form.get('note', '').strip() or None
-        if result.get('eligible'):
+        note   = request.form.get('note', '').strip() or None
+        sev    = settlement['severance']
+        if sev.get('eligible'):
             db.execute(
                 'INSERT INTO severance_payments '
                 '(user_id, hire_date, termination_date, tenure_days, '
                 ' basis_total_pay, basis_days, avg_daily_wage, severance_amount, note, processed_by) '
                 'VALUES (?,?,?,?,?,?,?,?,?,?)',
                 (emp_id, emp['hire_date'], term_date,
-                 result['tenure_days'], result.get('basis_total_pay', 0),
-                 result.get('basis_days', 92), result.get('avg_daily_wage', 0),
-                 result['severance_amount'], note, session['user_id'])
+                 sev['tenure_days'], sev.get('basis_total_pay', 0),
+                 sev.get('basis_days', 92), sev.get('avg_daily_wage', 0),
+                 settlement['total_settlement'], note, session['user_id'])
             )
             db.commit()
-            flash(f'퇴직금 {fmt_krw(result["severance_amount"])}원 처리가 완료되었습니다.', 'success')
-        return redirect(url_for('employees'))
+            flash(
+                f'퇴직 정산 완료 — 총 {fmt_krw(settlement["total_settlement"])}원 '
+                f'(퇴직금 {fmt_krw(sev["severance_amount"])}원 + '
+                f'미사용연차 {fmt_krw(settlement["unused_leave"]["unused_leave_pay"])}원 포함)',
+                'success'
+            )
+        else:
+            flash('근속 1년 미만으로 퇴직금은 미발생입니다.', 'info')
+        return redirect(url_for('employee_detail', emp_id=emp_id))
 
     return render_template('employees/severance.html',
-                           emp=emp, result=result, existing=existing,
+                           emp=emp,
+                           settlement=settlement,
+                           existing=existing,
                            term_date=term_date,
+                           used_days=used_days,
+                           base_salary=base_salary,
+                           fmt_krw=fmt_krw,
                            active_page='employees')
 
 
@@ -2660,20 +2719,27 @@ def admin_payroll():
             else:
                 msg = '급여 정보가 저장되었습니다.'
 
-        # 월 급여 일괄 생성 (근태 연동)
+        # 월 급여 일괄 생성 (근태 + 복리후생 연동)
         elif action == 'generate':
+            import calendar as cal_mod
+            import json as _json
             year  = int(request.form.get('year', 2026))
             month = int(request.form.get('month', 1))
             if not (1 <= month <= 12):
                 error = '올바른 월을 입력해주세요.'
             else:
-                import calendar as cal_mod
                 first_day = f"{year}-{month:02d}-01"
                 last_day  = f"{year}-{month:02d}-{cal_mod.monthrange(year, month)[1]}"
-                
-                # 해당 월의 공휴일 목록 가져오기
-                holiday_rows = db.execute('SELECT date FROM public_holidays WHERE date BETWEEN ? AND ?', (first_day, last_day)).fetchall()
+
+                # 해당 월의 공휴일 목록
+                holiday_rows   = db.execute('SELECT date FROM public_holidays WHERE date BETWEEN ? AND ?', (first_day, last_day)).fetchall()
                 month_holidays = {h['date'] for h in holiday_rows}
+
+                # 회사 복리후생 설정 로드 (활성화된 항목만)
+                benefit_cfg_rows = db.execute(
+                    'SELECT * FROM benefit_configs WHERE enabled=1'
+                ).fetchall()
+                company_benefits = {r['key']: dict(r) for r in benefit_cfg_rows}
 
                 emps = db.execute(
                     "SELECT u.id, s.base_salary, s.meal_allowance, s.transport_allowance "
@@ -2681,56 +2747,83 @@ def admin_payroll():
                     "JOIN employee_salary s ON u.id = s.user_id "
                     "WHERE u.status = 'active'"
                 ).fetchall()
-                
+
                 count = 0
                 for e in emps:
                     if db.execute('SELECT 1 FROM payslips WHERE user_id=? AND year=? AND month=?', (e['id'], year, month)).fetchone():
                         continue
-                    
-                    # 해당 직원의 월간 근태 기록 기반 수당 합계 계산
+
+                    # 근태 수당 계산
                     checkins = db.execute(
                         'SELECT * FROM checkins WHERE user_id=? AND date BETWEEN ? AND ?',
                         (e['id'], first_day, last_day)
                     ).fetchall()
-                    
                     total_ot_pay = 0
                     for c in checkins:
                         is_h = c['date'] in month_holidays
-                        # calc_extra_pay(overtime_min, night_min, base_salary, is_holiday, holiday_regular_min)
                         res = calc_extra_pay(
-                            c['overtime_min'], 
-                            c['night_min'], 
-                            e['base_salary'],
+                            c['overtime_min'], c['night_min'], e['base_salary'],
                             is_holiday=is_h,
                             holiday_regular_min=c['regular_min'] if is_h else 0
                         )
                         total_ot_pay += res['total_extra_pay']
 
+                    # 복리후생 항목 구성 (직원별 오버라이드 우선)
+                    emp_overrides = {
+                        r['benefit_key']: dict(r)
+                        for r in db.execute(
+                            'SELECT * FROM employee_benefit_overrides WHERE user_id=?',
+                            (e['id'],)
+                        ).fetchall()
+                    }
+                    extra_benefits = []
+                    for key, cfg in company_benefits.items():
+                        meta = BENEFIT_CATALOG.get(key, {})
+                        # 직원 오버라이드 확인
+                        override = emp_overrides.get(key)
+                        if override and not override['enabled']:
+                            continue   # 이 직원은 해당 항목 제외
+                        amount = override['amount'] if override else cfg['amount']
+                        # pct 기반 계산 (명절상여, 성과급)
+                        if not amount and cfg.get('pct'):
+                            amount = int(e['base_salary'] * cfg['pct'] / 100)
+                        if amount > 0:
+                            extra_benefits.append({
+                                'key':           key,
+                                'name':          meta.get('name', key),
+                                'amount':        amount,
+                                'tax_exempt':    meta.get('tax_exempt', False),
+                                'monthly_limit': meta.get('monthly_limit'),
+                            })
+
                     result = calc_payslip(
                         e['base_salary'],
                         e['meal_allowance'],
                         e['transport_allowance'],
-                        overtime_pay=total_ot_pay
+                        overtime_pay=total_ot_pay,
+                        extra_benefits=extra_benefits,
                     )
-                    
+                    bonus_pay = result.get('benefits_gross', 0)
+
                     db.execute(
                         'INSERT INTO payslips '
                         '(user_id, year, month, base_salary, meal_allowance, transport_allowance, '
-                        'overtime_pay, national_pension, health_insurance, long_term_care, '
+                        'overtime_pay, bonus_pay, national_pension, health_insurance, long_term_care, '
                         'employment_insurance, income_tax, local_income_tax, '
-                        'gross_pay, total_deduction, net_pay) '
-                        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                        'gross_pay, total_deduction, net_pay, benefits_json) '
+                        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                         (e['id'], year, month,
                          result['base_salary'], result['meal_allowance'],
-                         result['transport_allowance'], result['overtime_pay'],
+                         result['transport_allowance'], result['overtime_pay'], bonus_pay,
                          result['national_pension'], result['health_insurance'],
                          result['long_term_care'], result['employment_insurance'],
                          result['income_tax'], result['local_income_tax'],
-                         result['gross_pay'], result['total_deduction'], result['net_pay'])
+                         result['gross_pay'], result['total_deduction'], result['net_pay'],
+                         _json.dumps(result.get('benefits_breakdown', []), ensure_ascii=False))
                     )
                     count += 1
                 db.commit()
-                msg = f'{year}년 {month}월 급여명세서 {count}건이 생성되었습니다. (근태 수당 자동 포함)'
+                msg = f'{year}년 {month}월 급여명세서 {count}건이 생성되었습니다. (근태 수당·복리후생 자동 포함)'
 
     emps = db.execute(
         'SELECT u.id, u.name, d.name AS dept_name, p.name AS pos_name, '
@@ -5434,6 +5527,165 @@ def admin_holidays():
         'SELECT * FROM public_holidays WHERE year=? ORDER BY date', (year,)
     ).fetchall()
     return render_template('admin/holidays.html', holidays=holidays, year=year, active_page='holidays')
+
+
+# ── 복리후생 설정 ────────────────────────────────────────────────
+@app.route('/admin/benefits', methods=['GET', 'POST'])
+@admin_required
+def admin_benefits():
+    """복리후생·비과세 항목 회사 설정 페이지."""
+    db = get_db()
+
+    if request.method == 'POST':
+        import json as _json
+        for key in BENEFIT_CATALOG:
+            enabled = 1 if request.form.get(f'enabled_{key}') else 0
+            amount  = int(request.form.get(f'amount_{key}', 0) or 0)
+            pct     = request.form.get(f'pct_{key}')
+            pct     = int(pct) if pct and pct.strip().isdigit() else None
+            note    = request.form.get(f'note_{key}', '').strip() or None
+            db.execute(
+                'INSERT INTO benefit_configs (key, enabled, amount, pct, note) '
+                'VALUES (?, ?, ?, ?, ?) '
+                'ON CONFLICT(key) DO UPDATE SET '
+                'enabled=excluded.enabled, amount=excluded.amount, '
+                'pct=excluded.pct, note=excluded.note, '
+                'updated_at=CURRENT_TIMESTAMP',
+                (key, enabled, amount, pct, note)
+            )
+        db.commit()
+        flash('복리후생 설정이 저장되었습니다.', 'success')
+        return redirect(url_for('admin_benefits'))
+
+    # 현재 설정 로드
+    rows = db.execute('SELECT * FROM benefit_configs').fetchall()
+    configs = {r['key']: dict(r) for r in rows}
+
+    # BENEFIT_CATALOG + 저장된 설정 병합
+    benefit_items = []
+    for key, meta in sorted(BENEFIT_CATALOG.items(), key=lambda x: x[1].get('sort', 99)):
+        cfg = configs.get(key, {})
+        benefit_items.append({
+            'key':           key,
+            'name':          meta['name'],
+            'category':      meta['category'],
+            'tax_exempt':    meta['tax_exempt'],
+            'monthly_limit': meta.get('monthly_limit'),
+            'legal_basis':   meta['legal_basis'],
+            'description':   meta['description'],
+            'conditions':    meta.get('conditions'),
+            'icon':          meta.get('icon', 'fa-circle'),
+            'calc_type':     meta.get('calc_type'),
+            'grade_pct':     meta.get('grade_pct'),
+            'default_pct':   meta.get('default_pct'),
+            'enabled':       cfg.get('enabled', 0),
+            'amount':        cfg.get('amount', meta.get('default_amount', 0)),
+            'pct':           cfg.get('pct', meta.get('default_pct')),
+            'note':          cfg.get('note', ''),
+        })
+
+    return render_template('admin/benefits.html',
+                           benefit_items=benefit_items,
+                           category_labels=BENEFIT_CATEGORY_LABELS,
+                           active_page='benefits')
+
+
+# ── 주 52시간 감시 ───────────────────────────────────────────────
+@app.route('/admin/overtime-monitor')
+@admin_required
+def overtime_monitor():
+    """주 52시간 위반 모니터링 대시보드."""
+    import json as _json
+    db = get_db()
+
+    # 기준: 최근 8주
+    today      = date.today()
+    eight_ago  = (today - timedelta(weeks=8)).isoformat()
+
+    # 직원별·주별 근무시간 집계 (checkins 기반)
+    rows = db.execute(
+        """
+        SELECT
+            u.id AS user_id,
+            u.name,
+            u.emp_no,
+            d.name AS dept_name,
+            strftime('%Y-%W', c.date) AS week_key,
+            MIN(c.date) AS week_start,
+            SUM(c.regular_min + c.overtime_min) AS total_min,
+            SUM(c.overtime_min) AS ot_min
+        FROM checkins c
+        JOIN users u ON c.user_id = u.id
+        LEFT JOIN departments d ON u.department_id = d.id
+        WHERE u.status = 'active'
+          AND c.date >= ?
+        GROUP BY u.id, week_key
+        ORDER BY total_min DESC
+        """,
+        (eight_ago,)
+    ).fetchall()
+
+    # 52시간 = 3120분 기준으로 분류
+    LIMIT_MIN  = 52 * 60   # 3120
+    WARNING_MIN = 48 * 60  # 2880 (경고선: 48h)
+
+    violations = []
+    warnings   = []
+    safe       = []
+
+    for r in rows:
+        entry = dict(r)
+        entry['total_h']  = round(entry['total_min'] / 60, 1)
+        entry['ot_h']     = round(entry['ot_min'] / 60, 1)
+        entry['over_min'] = max(0, entry['total_min'] - LIMIT_MIN)
+        entry['over_h']   = round(entry['over_min'] / 60, 1)
+
+        if entry['total_min'] > LIMIT_MIN:
+            violations.append(entry)
+        elif entry['total_min'] >= WARNING_MIN:
+            warnings.append(entry)
+        else:
+            safe.append(entry)
+
+    # 직원별 최근 4주 추이 (chart용)
+    trend_rows = db.execute(
+        """
+        SELECT
+            u.id AS user_id,
+            u.name,
+            strftime('%Y-%W', c.date) AS week_key,
+            SUM(c.regular_min + c.overtime_min) AS total_min
+        FROM checkins c
+        JOIN users u ON c.user_id = u.id
+        WHERE u.status = 'active'
+          AND c.date >= ?
+        GROUP BY u.id, week_key
+        ORDER BY u.id, week_key
+        """,
+        ((today - timedelta(weeks=4)).isoformat(),)
+    ).fetchall()
+
+    # 위반·경고자만 차트 데이터 구성
+    flagged_ids = {r['user_id'] for r in violations + warnings}
+    chart_data = {}
+    for r in trend_rows:
+        if r['user_id'] not in flagged_ids:
+            continue
+        uid  = r['user_id']
+        name = r['name']
+        if uid not in chart_data:
+            chart_data[uid] = {'name': name, 'weeks': [], 'hours': []}
+        chart_data[uid]['weeks'].append(r['week_key'])
+        chart_data[uid]['hours'].append(round(r['total_min'] / 60, 1))
+
+    return render_template('admin/overtime_monitor.html',
+                           violations=violations,
+                           warnings=warnings,
+                           safe_count=len(safe),
+                           chart_data=_json.dumps(list(chart_data.values())),
+                           limit_h=52,
+                           warning_h=48,
+                           active_page='overtime_monitor')
 
 
 @app.route('/contracts/<int:cid>/cancel', methods=['POST'])

@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+{% block title %}복리후생 설정 — TalentCore{% endblock %}
+{% block page_title %}복리후생 · 비과세 설정{% endblock %}
+
+{% block content %}
+<div style="max-width:900px;margin:0 auto;">
+
+  <p style="color:#64748b;font-size:.875rem;margin-bottom:24px;">
+    회사에서 지급하는 복리후생 항목을 활성화하고 금액을 설정하세요.
+    설정된 항목은 매월 급여 생성 시 자동으로 반영됩니다.
+    <strong>비과세 항목은 법정 한도 내 금액이 소득세 과세표준에서 제외</strong>되며,
+    한도 초과분은 자동으로 과세 처리됩니다.
+  </p>
+
+  <form method="POST">
+  {% for category_key, category_label in category_labels.items() %}
+    {% set items_in_cat = benefit_items | selectattr('category', 'equalto', category_key) | list %}
+    {% if items_in_cat %}
+    <div class="card" style="padding:24px;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;">
+        {% if category_key == 'nontax' %}
+          <span style="background:#dcfce7;color:#16a34a;font-size:.7rem;font-weight:700;padding:3px 10px;border-radius:999px;">비과세</span>
+        {% elif category_key == 'welfare' %}
+          <span style="background:#fef9c3;color:#854d0e;font-size:.7rem;font-weight:700;padding:3px 10px;border-radius:999px;">과세</span>
+        {% else %}
+          <span style="background:#fee2e2;color:#991b1b;font-size:.7rem;font-weight:700;padding:3px 10px;border-radius:999px;">과세 (상여)</span>
+        {% endif %}
+        <h3 style="font-size:.95rem;font-weight:700;margin:0;">{{ category_label }}</h3>
+      </div>
+
+      {% for item in items_in_cat %}
+      <div style="border:1px solid {% if item.enabled %}#bfdbfe{% else %}#f1f5f9{% endif %};border-radius:12px;padding:18px;margin-bottom:12px;background:{% if item.enabled %}#f0f7ff{% else %}#fafafa{% endif %};transition:all .2s;">
+        <div style="display:flex;align-items:flex-start;gap:14px;">
+
+          <!-- 아이콘 + 토글 -->
+          <div style="width:40px;height:40px;background:{% if item.enabled %}#3b82f6{% else %}#e2e8f0{% endif %};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="fas {{ item.icon }}" style="color:{% if item.enabled %}#fff{% else %}#94a3b8{% endif %};font-size:15px;"></i>
+          </div>
+
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px;">
+              <strong style="font-size:.9rem;">{{ item.name }}</strong>
+              {% if item.tax_exempt %}
+                <span style="background:#dcfce7;color:#166534;font-size:.7rem;font-weight:600;padding:1px 7px;border-radius:4px;">
+                  비과세 {% if item.monthly_limit %}월 {{ '{:,}'.format(item.monthly_limit) }}원 한도{% endif %}
+                </span>
+              {% else %}
+                <span style="background:#fef9c3;color:#713f12;font-size:.7rem;font-weight:600;padding:1px 7px;border-radius:4px;">과세</span>
+              {% endif %}
+              <span style="color:#94a3b8;font-size:.72rem;">{{ item.legal_basis }}</span>
+            </div>
+            <p style="font-size:.8rem;color:#64748b;margin:0 0 6px;">{{ item.description }}</p>
+            {% if item.conditions %}
+            <p style="font-size:.75rem;color:#f59e0b;margin:0 0 8px;">
+              <i class="fas fa-exclamation-circle"></i> {{ item.conditions }}
+            </p>
+            {% endif %}
+          </div>
+
+          <!-- 활성화 토글 -->
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0;">
+            <div style="position:relative;width:44px;height:24px;">
+              <input type="checkbox" name="enabled_{{ item.key }}" value="1"
+                     {% if item.enabled %}checked{% endif %}
+                     onchange="this.closest('[data-item]').querySelector('.item-detail').classList.toggle('hidden', !this.checked)"
+                     style="position:absolute;opacity:0;width:0;height:0;">
+              <div style="position:absolute;inset:0;background:{% if item.enabled %}#3b82f6{% else %}#cbd5e1{% endif %};border-radius:999px;transition:.2s;"></div>
+              <div style="position:absolute;top:3px;left:{% if item.enabled %}23px{% else %}3px{% endif %};width:18px;height:18px;background:#fff;border-radius:999px;transition:.2s;"></div>
+            </div>
+            <span style="font-size:.8rem;color:#64748b;">사용</span>
+          </label>
+        </div>
+
+        <!-- 금액 설정 (토글 ON일 때 표시) -->
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;{% if not item.enabled %}display:none{% endif %}" class="item-detail-{{ item.key }}">
+          <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;">
+
+            {% if item.calc_type == 'pct_of_base' %}
+            <!-- 기본급 % 방식 -->
+            <div>
+              <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">지급률 (기본급 대비 %)</label>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" name="pct_{{ item.key }}" value="{{ item.pct or item.default_pct or 100 }}"
+                       min="0" max="1000" style="width:90px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.875rem;">
+                <span style="color:#64748b;font-size:.8rem;">%</span>
+              </div>
+              <div style="font-size:.72rem;color:#94a3b8;margin-top:3px;">기본급 × 설정값% 로 자동계산</div>
+            </div>
+
+            {% elif item.calc_type == 'grade_pct' %}
+            <!-- 성과등급별 % 방식 -->
+            <div style="width:100%;">
+              <div style="font-size:.75rem;color:#64748b;font-weight:600;margin-bottom:8px;">성과등급별 지급률 (기본급 × % / 12개월)</div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                {% set grade_pct = item.grade_pct or {'S':20,'A':15,'B':10,'C':5,'D':0} %}
+                {% for grade in ['S','A','B','C','D'] %}
+                <div style="text-align:center;">
+                  <div style="font-size:.75rem;font-weight:700;color:{% if grade=='S' %}#dc2626{% elif grade=='A' %}#d97706{% elif grade=='B' %}#16a34a{% elif grade=='C' %}#2563eb{% else %}#94a3b8{% endif %};margin-bottom:4px;">{{ grade }}</div>
+                  <div style="display:flex;align-items:center;gap:4px;">
+                    <input type="number" name="pct_{{ item.key }}_{{ grade }}" value="{{ grade_pct[grade] }}"
+                           min="0" max="100" style="width:60px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:.8rem;text-align:center;">
+                    <span style="color:#64748b;font-size:.75rem;">%</span>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+              <div style="font-size:.72rem;color:#94a3b8;margin-top:6px;">성과등급 결과가 있는 직원에게 연봉 × 지급률 / 12 가 월 급여에 반영됩니다</div>
+            </div>
+
+            {% elif item.calc_type == 'company_pct' %}
+            <!-- CI: 회사 달성률 기반 -->
+            <div>
+              <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">기준 지급률 (기본급 대비 %)</label>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" name="pct_{{ item.key }}" value="{{ item.pct or item.default_pct or 10 }}"
+                       min="0" max="200" style="width:90px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.875rem;">
+                <span style="color:#64748b;font-size:.8rem;">%</span>
+              </div>
+              <div style="font-size:.72rem;color:#94a3b8;margin-top:3px;">급여 생성 시 입력한 달성률 × 기준율로 계산</div>
+            </div>
+
+            {% else %}
+            <!-- 고정 금액 방식 -->
+            <div>
+              <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">월 지급액 (원)</label>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" name="amount_{{ item.key }}" value="{{ item.amount or item.monthly_limit or 0 }}"
+                       min="0" step="10000" style="width:140px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.875rem;">
+                <span style="color:#64748b;font-size:.8rem;">원</span>
+              </div>
+              {% if item.monthly_limit %}
+              <div style="font-size:.72rem;color:#16a34a;margin-top:3px;">
+                비과세 한도: {{ '{:,}'.format(item.monthly_limit) }}원 / 월
+              </div>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            <div style="flex:1;min-width:160px;">
+              <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">메모 (내부용)</label>
+              <input type="text" name="note_{{ item.key }}" value="{{ item.note or '' }}"
+                     placeholder="예: 전 직원 적용, 2026년 1월부터"
+                     style="width:100%;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.8rem;">
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endfor %}
+
+  <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:8px;">
+    <button type="submit" class="btn btn-primary" style="padding:10px 32px;">저장하기</button>
+  </div>
+  </form>
+
+</div>
+
+<script>
+// 토글 체크박스 → 하위 금액 폼 show/hide
+document.querySelectorAll('input[type=checkbox]').forEach(cb => {
+  cb.addEventListener('change', function() {
+    const key = this.name.replace('enabled_', '');
+    const detail = document.querySelector('.item-detail-' + key);
+    if (detail) {
+      detail.style.display = this.checked ? 'block' : 'none';
+    }
+    // 카드 스타일 변경
+    const card = this.closest('[style*="border:"]');
+    if (card) {
+      card.style.borderColor = this.checked ? '#bfdbfe' : '#f1f5f9';
+      card.style.background  = this.checked ? '#f0f7ff'  : '#fafafa';
+    }
+  });
+});
+</script>
+{% endblock %}
