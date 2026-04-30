@@ -29,7 +29,7 @@
       </div>
 
       {% for item in items_in_cat %}
-      <div style="border:1px solid {% if item.enabled %}#bfdbfe{% else %}#f1f5f9{% endif %};border-radius:12px;padding:18px;margin-bottom:12px;background:{% if item.enabled %}#f0f7ff{% else %}#fafafa{% endif %};transition:all .2s;">
+      <div data-key="{{ item.key }}" style="border:1px solid {% if item.enabled %}#bfdbfe{% else %}#f1f5f9{% endif %};border-radius:12px;padding:18px;margin-bottom:12px;background:{% if item.enabled %}#f0f7ff{% else %}#fafafa{% endif %};transition:all .2s;">
         <div style="display:flex;align-items:flex-start;gap:14px;">
 
           <!-- 아이콘 + 토글 -->
@@ -58,14 +58,13 @@
           </div>
 
           <!-- 활성화 토글 -->
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0;" onclick="toggleBenefit('{{ item.key }}')">
             <div style="position:relative;width:44px;height:24px;">
-              <input type="checkbox" name="enabled_{{ item.key }}" value="1"
+              <input type="checkbox" name="enabled_{{ item.key }}" id="chk_{{ item.key }}" value="1"
                      {% if item.enabled %}checked{% endif %}
-                     onchange="this.closest('[data-item]').querySelector('.item-detail').classList.toggle('hidden', !this.checked)"
                      style="position:absolute;opacity:0;width:0;height:0;">
-              <div style="position:absolute;inset:0;background:{% if item.enabled %}#3b82f6{% else %}#cbd5e1{% endif %};border-radius:999px;transition:.2s;"></div>
-              <div style="position:absolute;top:3px;left:{% if item.enabled %}23px{% else %}3px{% endif %};width:18px;height:18px;background:#fff;border-radius:999px;transition:.2s;"></div>
+              <div id="track_{{ item.key }}" style="position:absolute;inset:0;background:{{ '#3b82f6' if item.enabled else '#cbd5e1' }};border-radius:999px;transition:background .2s;"></div>
+              <div id="knob_{{ item.key }}"  style="position:absolute;top:3px;left:{{ '23px' if item.enabled else '3px' }};width:18px;height:18px;background:#fff;border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
             </div>
             <span style="font-size:.8rem;color:#64748b;">사용</span>
           </label>
@@ -158,21 +157,29 @@
 </div>
 
 <script>
-// 토글 체크박스 → 하위 금액 폼 show/hide
-document.querySelectorAll('input[type=checkbox]').forEach(cb => {
-  cb.addEventListener('change', function() {
-    const key = this.name.replace('enabled_', '');
-    const detail = document.querySelector('.item-detail-' + key);
-    if (detail) {
-      detail.style.display = this.checked ? 'block' : 'none';
-    }
-    // 카드 스타일 변경
-    const card = this.closest('[style*="border:"]');
-    if (card) {
-      card.style.borderColor = this.checked ? '#bfdbfe' : '#f1f5f9';
-      card.style.background  = this.checked ? '#f0f7ff'  : '#fafafa';
-    }
-  });
-});
+function toggleBenefit(key) {
+  const chk   = document.getElementById('chk_'   + key);
+  const track = document.getElementById('track_' + key);
+  const knob  = document.getElementById('knob_'  + key);
+  const detail = document.querySelector('.item-detail-' + key);
+  const card  = chk.closest('[data-key]');
+
+  // 체크 상태 토글
+  chk.checked = !chk.checked;
+  const on = chk.checked;
+
+  // 비주얼 업데이트
+  track.style.background = on ? '#3b82f6' : '#cbd5e1';
+  knob.style.left        = on ? '23px'    : '3px';
+
+  // 금액 설정 영역 show/hide
+  if (detail) detail.style.display = on ? 'block' : 'none';
+
+  // 카드 테두리·배경 변경
+  if (card) {
+    card.style.borderColor = on ? '#bfdbfe' : '#f1f5f9';
+    card.style.background  = on ? '#f0f7ff' : '#fafafa';
+  }
+}
 </script>
 {% endblock %}
