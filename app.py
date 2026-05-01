@@ -5547,16 +5547,28 @@ def admin_benefits():
             platform     = request.form.get(f'platform_{key}', '').strip() or None
             note         = request.form.get(f'note_{key}', '').strip() or None
             payment_type = meta.get('payment_type', 'monthly_fixed')
+            # grade_pct 방식 — 등급별 % 저장 (JSON)
+            grade_pct_json = None
+            if meta.get('calc_type') == 'grade_pct':
+                grade_map = {}
+                for g in ['S', 'A', 'B', 'C', 'D']:
+                    val = request.form.get(f'pct_{key}_{g}', '')
+                    try:
+                        grade_map[g] = int(val)
+                    except (ValueError, TypeError):
+                        grade_map[g] = meta.get('grade_pct', {}).get(g, 0)
+                grade_pct_json = json.dumps(grade_map, ensure_ascii=False)
             db.execute(
                 'INSERT INTO benefit_configs '
-                '(key, enabled, payment_type, amount, annual_limit, pct, platform, note) '
-                'VALUES (?,?,?,?,?,?,?,?) '
+                '(key, enabled, payment_type, amount, annual_limit, pct, grade_pct_json, platform, note) '
+                'VALUES (?,?,?,?,?,?,?,?,?) '
                 'ON CONFLICT(key) DO UPDATE SET '
                 'enabled=excluded.enabled, payment_type=excluded.payment_type, '
                 'amount=excluded.amount, annual_limit=excluded.annual_limit, '
-                'pct=excluded.pct, platform=excluded.platform, '
+                'pct=excluded.pct, grade_pct_json=excluded.grade_pct_json, '
+                'platform=excluded.platform, '
                 'note=excluded.note, updated_at=CURRENT_TIMESTAMP',
-                (key, enabled, payment_type, amount, annual_limit, pct, platform, note)
+                (key, enabled, payment_type, amount, annual_limit, pct, grade_pct_json, platform, note)
             )
         db.commit()
         flash('복리후생 설정이 저장되었습니다.', 'success')
@@ -5676,6 +5688,36 @@ def admin_bonus_pay():
     """상여·성과급 별도 지급 관리."""
     db = get_db()
 
+    def _calc_bonus_amount(emp_id, emp_base, calc_type, cfg, meta, achievement_pct=None):
+        """직원 1명의 상여 금액 계산. (grade_pct는 DB 저장값 우선)"""
+        amount = 0
+        grade  = None
+        if calc_type == 'pct_of_base':
+            pct    = (cfg['pct'] or meta.get('default_pct', 100)) / 100
+            amount = int((emp_base or 0) * pct)
+        elif calc_type == 'company_pct':
+            base_pct = (cfg['pct'] or meta.get('default_pct', 10)) / 100
+            ach      = (achievement_pct or 100) / 100
+            amount   = int((emp_base or 0) * base_pct * ach)
+        elif calc_type == 'grade_pct':
+            review = db.execute(
+                """SELECT overall_grade FROM performance_reviews
+                   WHERE reviewee_id=? ORDER BY submitted_at DESC LIMIT 1""",
+                (emp_id,)
+            ).fetchone()
+            grade = review['overall_grade'] if review and review['overall_grade'] else None
+            # DB 저장 grade_pct 우선, 없으면 BENEFIT_CATALOG 기본값
+            if cfg['grade_pct_json']:
+                try:
+                    grade_map = json.loads(cfg['grade_pct_json'])
+                except (ValueError, TypeError):
+                    grade_map = meta.get('grade_pct', {'S':20,'A':15,'B':10,'C':5,'D':0})
+            else:
+                grade_map = meta.get('grade_pct', {'S':20,'A':15,'B':10,'C':5,'D':0})
+            pct_val = grade_map.get(grade or 'C', 0) / 100
+            amount  = int((emp_base or 0) * pct_val / 12)
+        return amount, grade
+
     if request.method == 'POST':
         bonus_type      = request.form.get('bonus_type', '').strip()
         pay_date        = request.form.get('pay_date', '').strip()
@@ -5690,7 +5732,6 @@ def admin_bonus_pay():
         meta            = BENEFIT_CATALOG.get(bonus_type, {})
         calc_type       = meta.get('calc_type', 'pct_of_base')
 
-        # 활성화된 설정 로드
         cfg = db.execute(
             "SELECT * FROM benefit_configs WHERE key=? AND enabled=1", (bonus_type,)
         ).fetchone()
@@ -5698,34 +5739,17 @@ def admin_bonus_pay():
             flash('해당 항목이 비활성화 상태입니다. 복리후생 설정에서 먼저 활성화하세요.', 'error')
             return redirect(url_for('admin_bonus_pay'))
 
-        # 대상 직원 전체
         employees = db.execute(
-            "SELECT id, name, base_salary FROM users WHERE status='active' AND role NOT IN ('admin','recruiter')"
+            "SELECT u.id, u.name, COALESCE(s.base_salary, 0) AS base_salary "
+            "FROM users u LEFT JOIN employee_salary s ON u.id=s.user_id "
+            "WHERE u.status='active' AND u.role NOT IN ('admin','recruiter')"
         ).fetchall()
 
         inserted = 0
         for emp in employees:
-            amount = 0
-            if calc_type == 'pct_of_base':
-                pct    = (cfg['pct'] or meta.get('default_pct', 100)) / 100
-                amount = int((emp['base_salary'] or 0) * pct)
-            elif calc_type == 'company_pct':
-                base_pct = (cfg['pct'] or meta.get('default_pct', 10)) / 100
-                ach      = (achievement_pct or 100) / 100
-                amount   = int((emp['base_salary'] or 0) * base_pct * ach)
-            elif calc_type == 'grade_pct':
-                # 최근 성과등급 조회
-                review = db.execute(
-                    """SELECT overall_grade FROM performance_reviews
-                       WHERE reviewee_id=? ORDER BY submitted_at DESC LIMIT 1""",
-                    (emp['id'],)
-                ).fetchone()
-                grade = review['overall_grade'] if review and review['overall_grade'] else 'C'
-                cfg_grade_pct_json = cfg['pct']  # pct 컬럼에 JSON 저장 여부 확인 필요
-                grade_map = meta.get('grade_pct', {'S': 20, 'A': 15, 'B': 10, 'C': 5, 'D': 0})
-                pct_val   = grade_map.get(grade, 0) / 100
-                amount    = int((emp['base_salary'] or 0) * pct_val / 12)
-
+            amount, _ = _calc_bonus_amount(
+                emp['id'], emp['base_salary'], calc_type, cfg, meta, achievement_pct
+            )
             if amount > 0:
                 db.execute(
                     "INSERT INTO bonus_payments (user_id, bonus_type, amount, pay_date, note) VALUES (?,?,?,?,?)",
@@ -5745,6 +5769,36 @@ def admin_bonus_pay():
     ]
     bonus_items.sort(key=lambda x: x.get('sort', 99))
 
+    # 직원별 성과등급 미리보기 데이터 (grade_pct 타입 전용)
+    employees_preview = db.execute(
+        "SELECT u.id, u.name, u.emp_no, d.name AS dept_name, COALESCE(s.base_salary, 0) AS base_salary "
+        "FROM users u "
+        "LEFT JOIN departments d ON u.department_id=d.id "
+        "LEFT JOIN employee_salary s ON u.id=s.user_id "
+        "WHERE u.status='active' AND u.role NOT IN ('admin','recruiter') "
+        "ORDER BY d.name, u.name"
+    ).fetchall()
+
+    # 각 직원의 최근 성과등급 매핑
+    grade_map_all = {}
+    for row in db.execute(
+        """SELECT reviewee_id, overall_grade
+           FROM performance_reviews pr
+           WHERE submitted_at = (
+               SELECT MAX(submitted_at) FROM performance_reviews
+               WHERE reviewee_id = pr.reviewee_id
+           )"""
+    ).fetchall():
+        grade_map_all[row['reviewee_id']] = row['overall_grade']
+
+    # 활성화된 benefit_configs 로드
+    active_configs = {
+        r['key']: dict(r)
+        for r in db.execute(
+            "SELECT * FROM benefit_configs WHERE enabled=1 AND payment_type='separate_bonus'"
+        ).fetchall()
+    }
+
     # 기존 지급 내역
     history = db.execute(
         """SELECT bp.*, u.name AS emp_name
@@ -5760,6 +5814,9 @@ def admin_bonus_pay():
                            bonus_items=bonus_items,
                            history=history,
                            benefit_names=benefit_names,
+                           employees_preview=employees_preview,
+                           grade_map_all=grade_map_all,
+                           active_configs=active_configs,
                            active_page='benefits')
 
 

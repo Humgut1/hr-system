@@ -435,16 +435,17 @@ def init_db(db_path: str = None):
             );
 
             CREATE TABLE IF NOT EXISTS benefit_configs (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                key          TEXT NOT NULL UNIQUE,
-                enabled      INTEGER NOT NULL DEFAULT 0,
-                payment_type TEXT NOT NULL DEFAULT 'monthly_fixed',
-                amount       INTEGER NOT NULL DEFAULT 0,
-                annual_limit INTEGER,
-                pct          INTEGER,
-                platform     TEXT,
-                note         TEXT,
-                updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                key            TEXT NOT NULL UNIQUE,
+                enabled        INTEGER NOT NULL DEFAULT 0,
+                payment_type   TEXT NOT NULL DEFAULT 'monthly_fixed',
+                amount         INTEGER NOT NULL DEFAULT 0,
+                annual_limit   INTEGER,
+                pct            INTEGER,
+                grade_pct_json TEXT,
+                platform       TEXT,
+                note           TEXT,
+                updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS employee_benefit_overrides (
@@ -639,6 +640,8 @@ def init_db(db_path: str = None):
             c.execute('ALTER TABLE benefit_configs ADD COLUMN annual_limit INTEGER')
         if 'platform' not in bc_cols:
             c.execute('ALTER TABLE benefit_configs ADD COLUMN platform TEXT')
+        if 'grade_pct_json' not in bc_cols:
+            c.execute('ALTER TABLE benefit_configs ADD COLUMN grade_pct_json TEXT')
 
         # payslips 컬럼 마이그레이션
         payslip_cols = {r[1] for r in c.execute('PRAGMA table_info(payslips)').fetchall()}
