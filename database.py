@@ -435,13 +435,16 @@ def init_db(db_path: str = None):
             );
 
             CREATE TABLE IF NOT EXISTS benefit_configs (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                key        TEXT NOT NULL UNIQUE,
-                enabled    INTEGER NOT NULL DEFAULT 0,
-                amount     INTEGER NOT NULL DEFAULT 0,
-                pct        INTEGER,
-                note       TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                key          TEXT NOT NULL UNIQUE,
+                enabled      INTEGER NOT NULL DEFAULT 0,
+                payment_type TEXT NOT NULL DEFAULT 'monthly_fixed',
+                amount       INTEGER NOT NULL DEFAULT 0,
+                annual_limit INTEGER,
+                pct          INTEGER,
+                platform     TEXT,
+                note         TEXT,
+                updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS employee_benefit_overrides (
@@ -453,6 +456,45 @@ def init_db(db_path: str = None):
                 note        TEXT,
                 updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(user_id, benefit_key)
+            );
+
+            CREATE TABLE IF NOT EXISTS benefit_claims (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL REFERENCES users(id),
+                benefit_key TEXT NOT NULL,
+                amount      INTEGER NOT NULL,
+                description TEXT,
+                receipt_url TEXT,
+                status      TEXT NOT NULL DEFAULT 'pending'
+                                CHECK(status IN ('pending','approved','rejected')),
+                approved_by INTEGER REFERENCES users(id),
+                reject_reason TEXT,
+                claimed_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                processed_at TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS welfare_point_ledger (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL REFERENCES users(id),
+                delta       INTEGER NOT NULL,
+                reason      TEXT NOT NULL,
+                balance_after INTEGER NOT NULL DEFAULT 0,
+                ref_id      INTEGER,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS bonus_payments (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                benefit_key TEXT NOT NULL,
+                user_id     INTEGER NOT NULL REFERENCES users(id),
+                base_salary INTEGER NOT NULL DEFAULT 0,
+                amount      INTEGER NOT NULL,
+                pct         INTEGER,
+                grade       TEXT,
+                achievement_pct INTEGER,
+                note        TEXT,
+                paid_by     INTEGER NOT NULL REFERENCES users(id),
+                paid_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS notifications (
@@ -591,6 +633,15 @@ def init_db(db_path: str = None):
             c.execute('ALTER TABLE users ADD COLUMN termination_reason TEXT')
         if 'work_type' not in existing:
             c.execute('ALTER TABLE users ADD COLUMN work_type TEXT NOT NULL DEFAULT "standard"')
+
+        # benefit_configs 컬럼 마이그레이션
+        bc_cols = {r[1] for r in c.execute('PRAGMA table_info(benefit_configs)').fetchall()}
+        if 'payment_type' not in bc_cols:
+            c.execute("ALTER TABLE benefit_configs ADD COLUMN payment_type TEXT NOT NULL DEFAULT 'monthly_fixed'")
+        if 'annual_limit' not in bc_cols:
+            c.execute('ALTER TABLE benefit_configs ADD COLUMN annual_limit INTEGER')
+        if 'platform' not in bc_cols:
+            c.execute('ALTER TABLE benefit_configs ADD COLUMN platform TEXT')
 
         # payslips 컬럼 마이그레이션
         payslip_cols = {r[1] for r in c.execute('PRAGMA table_info(payslips)').fetchall()}

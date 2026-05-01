@@ -285,10 +285,11 @@ def fmt_krw(amount: int) -> str:
 
 # ── 복리후생·비과세 카탈로그 (소득세법 §12) ─────────────────────
 BENEFIT_CATALOG = {
-    # ── 비과세 수당 ──────────────────────────────────────────────
+    # ── ① 매월 급여명세서 반영 (monthly_fixed) ────────────────────
     'meal': {
         'name': '식대',
         'category': 'nontax',
+        'payment_type': 'monthly_fixed',
         'tax_exempt': True,
         'monthly_limit': 200_000,
         'legal_basis': '소득세법 시행령 §12①3',
@@ -301,6 +302,7 @@ BENEFIT_CATALOG = {
     'transport': {
         'name': '교통비',
         'category': 'nontax',
+        'payment_type': 'monthly_fixed',
         'tax_exempt': True,
         'monthly_limit': 200_000,
         'legal_basis': '소득세법 시행령 §12①1',
@@ -313,6 +315,7 @@ BENEFIT_CATALOG = {
     'car_allowance': {
         'name': '자가운전보조금',
         'category': 'nontax',
+        'payment_type': 'monthly_fixed',
         'tax_exempt': True,
         'monthly_limit': 200_000,
         'legal_basis': '소득세법 시행령 §12①2',
@@ -325,6 +328,7 @@ BENEFIT_CATALOG = {
     'childcare': {
         'name': '육아수당',
         'category': 'nontax',
+        'payment_type': 'monthly_fixed',
         'tax_exempt': True,
         'monthly_limit': 100_000,
         'legal_basis': '소득세법 시행령 §12①9',
@@ -337,6 +341,7 @@ BENEFIT_CATALOG = {
     'tuition': {
         'name': '학자금 지원',
         'category': 'nontax',
+        'payment_type': 'monthly_fixed',
         'tax_exempt': True,
         'monthly_limit': 100_000,
         'legal_basis': '소득세법 시행령 §12①10',
@@ -349,6 +354,7 @@ BENEFIT_CATALOG = {
     'research_allowance': {
         'name': '연구보조비',
         'category': 'nontax',
+        'payment_type': 'monthly_fixed',
         'tax_exempt': True,
         'monthly_limit': 200_000,
         'legal_basis': '소득세법 시행령 §12①4',
@@ -358,26 +364,31 @@ BENEFIT_CATALOG = {
         'icon': 'fa-flask',
         'sort': 6,
     },
-    # ── 복리후생 (과세) ───────────────────────────────────────────
+    # ── ② 복지포인트 / 연간 예산형 (annual_budget) ───────────────
     'welfare_point': {
         'name': '복지포인트',
         'category': 'welfare',
+        'payment_type': 'annual_budget',
         'tax_exempt': False,
         'monthly_limit': None,
-        'legal_basis': '소득세법 §20 (근로소득 — 과세)',
-        'description': '포인트 지급 시점에 근로소득 과세. 연간 한도 없음. (비과세 아님 주의)',
+        'legal_basis': '소득세법 §20 (근로소득 — 과세, 2024 대법원)',
+        'description': '베네피아·이지웰 등 외부 플랫폼 위탁 또는 자체 운영. 급여명세서 별도 관리, 연말정산 시 합산.',
         'default_amount': 0,
         'conditions': None,
         'icon': 'fa-gift',
         'sort': 10,
+        'platform_options': ['베네피아', '이지웰(현대)', '베네핏허브', '자체 운영'],
     },
+    # ── ③ 영수증 환급형 (reimbursement) ──────────────────────────
     'health_support': {
         'name': '건강검진 지원',
         'category': 'welfare',
+        'payment_type': 'reimbursement',
         'tax_exempt': False,
         'monthly_limit': None,
-        'legal_basis': '소득세법 §20 (복리후생비)',
-        'description': '연간 건강검진 비용 지원. 과세 대상',
+        'annual_limit': None,
+        'legal_basis': '법정 의무검진 범위 내 비과세, 추가항목 과세',
+        'description': '직원이 영수증 제출 → HR 승인 → 환급. 법정 건강검진은 비과세, 프리미엄 항목 초과분 과세.',
         'default_amount': 0,
         'conditions': None,
         'icon': 'fa-heartbeat',
@@ -386,23 +397,40 @@ BENEFIT_CATALOG = {
     'gym_support': {
         'name': '피트니스·운동 지원',
         'category': 'welfare',
+        'payment_type': 'reimbursement',
         'tax_exempt': False,
         'monthly_limit': None,
-        'legal_basis': '소득세법 §20 (복리후생비)',
-        'description': '헬스장·운동 관련 비용 지원. 과세 대상',
+        'annual_limit': None,
+        'legal_basis': '소득세법 §20 (복리후생비 — 과세)',
+        'description': '헬스장·운동 관련 영수증 제출 환급. 전액 과세.',
         'default_amount': 0,
         'conditions': None,
         'icon': 'fa-dumbbell',
         'sort': 12,
     },
-    # ── 상여·성과급 (과세) ───────────────────────────────────────
+    'self_dev': {
+        'name': '자기계발비',
+        'category': 'welfare',
+        'payment_type': 'reimbursement',
+        'tax_exempt': False,
+        'monthly_limit': None,
+        'annual_limit': None,
+        'legal_basis': '소득세법 §20 (복리후생비 — 과세)',
+        'description': '도서구입·강의·자격증 취득 비용 영수증 환급.',
+        'default_amount': 0,
+        'conditions': None,
+        'icon': 'fa-book',
+        'sort': 13,
+    },
+    # ── ④ 상여·성과급 별도 지급 (separate_bonus) ─────────────────
     'holiday_bonus_lunar': {
         'name': '설 상여금',
         'category': 'bonus',
+        'payment_type': 'separate_bonus',
         'tax_exempt': False,
         'monthly_limit': None,
         'legal_basis': '소득세법 §20 (상여 — 과세)',
-        'description': '설 명절 상여금. 과세 (평균임금 산입). 기본급 대비 %로 설정',
+        'description': '설 명절 별도 지급. 과세. 2024 대법원: 이익배분형은 퇴직금 평균임금 제외.',
         'default_amount': 0,
         'conditions': None,
         'icon': 'fa-moon',
@@ -413,10 +441,11 @@ BENEFIT_CATALOG = {
     'holiday_bonus_chuseok': {
         'name': '추석 상여금',
         'category': 'bonus',
+        'payment_type': 'separate_bonus',
         'tax_exempt': False,
         'monthly_limit': None,
         'legal_basis': '소득세법 §20 (상여 — 과세)',
-        'description': '추석 명절 상여금. 과세 (평균임금 산입). 기본급 대비 %로 설정',
+        'description': '추석 명절 별도 지급. 과세. 퇴직금 평균임금 제외.',
         'default_amount': 0,
         'conditions': None,
         'icon': 'fa-star',
@@ -427,10 +456,11 @@ BENEFIT_CATALOG = {
     'pi_bonus': {
         'name': '성과급 PI (개인)',
         'category': 'bonus',
+        'payment_type': 'separate_bonus',
         'tax_exempt': False,
         'monthly_limit': None,
         'legal_basis': '소득세법 §20 (상여 — 과세)',
-        'description': '개인 성과등급 기반 인센티브. 등급(S/A/B/C/D)별 지급률 설정',
+        'description': '개인 성과등급 기반. 연 1~2회 별도 지급. 성과등급(S/A/B/C/D)별 연봉 대비 % 설정.',
         'default_amount': 0,
         'conditions': None,
         'icon': 'fa-chart-line',
@@ -441,10 +471,11 @@ BENEFIT_CATALOG = {
     'ci_bonus': {
         'name': '성과급 CI (회사)',
         'category': 'bonus',
+        'payment_type': 'separate_bonus',
         'tax_exempt': False,
         'monthly_limit': None,
         'legal_basis': '소득세법 §20 (상여 — 과세)',
-        'description': '회사 목표 달성률 기반 인센티브. 달성률 × 기본급 비율로 계산',
+        'description': '회사 목표 달성률 기반. 연 1회 별도 지급. 기본급 대비 % × 달성률로 계산.',
         'default_amount': 0,
         'conditions': None,
         'icon': 'fa-building',
@@ -454,11 +485,19 @@ BENEFIT_CATALOG = {
     },
 }
 
-# 카테고리 한글 레이블
+# 지급 방식 레이블
+PAYMENT_TYPE_LABELS = {
+    'monthly_fixed':  ('매월 급여명세서 반영',    '매월 고정 금액으로 급여명세서에 자동 포함됩니다.'),
+    'annual_budget':  ('복지포인트 / 연간 예산',  '연간 1인당 예산을 설정합니다. 급여명세서와 별도로 관리되며 연말정산 시 합산됩니다.'),
+    'reimbursement':  ('영수증 환급',             '직원이 영수증을 제출하면 HR이 승인 후 환급합니다. 연간 한도를 설정하세요.'),
+    'separate_bonus': ('상여·성과급 별도 지급',   '급여 생성과 분리된 별도 지급 버튼으로 실행합니다. 퇴직금 평균임금에서 제외됩니다.'),
+}
+
+# 카테고리 한글 레이블 (하위 호환)
 BENEFIT_CATEGORY_LABELS = {
     'nontax':  '비과세 수당',
-    'welfare': '복리후생 (과세)',
-    'bonus':   '상여·성과급 (과세)',
+    'welfare': '복리후생',
+    'bonus':   '상여·성과급',
 }
 
 
