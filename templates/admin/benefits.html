@@ -3,154 +3,342 @@
 {% block page_title %}복리후생 · 비과세 설정{% endblock %}
 
 {% block content %}
-<div style="max-width:900px;margin:0 auto;">
+<div style="max-width:960px;margin:0 auto;">
 
-  <p style="color:#64748b;font-size:.875rem;margin-bottom:24px;">
-    회사에서 지급하는 복리후생 항목을 활성화하고 금액을 설정하세요.
-    설정된 항목은 매월 급여 생성 시 자동으로 반영됩니다.
-    <strong>비과세 항목은 법정 한도 내 금액이 소득세 과세표준에서 제외</strong>되며,
-    한도 초과분은 자동으로 과세 처리됩니다.
-  </p>
+  <!-- 안내 배너 -->
+  <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:16px 20px;margin-bottom:28px;display:flex;gap:14px;align-items:flex-start;">
+    <i class="fas fa-info-circle" style="color:#0284c7;margin-top:2px;flex-shrink:0;"></i>
+    <div style="font-size:.82rem;color:#0369a1;line-height:1.6;">
+      복리후생 항목을 4가지 지급 방식으로 관리합니다.
+      <strong>① 매월 급여명세서</strong>에 자동 반영되는 항목,
+      <strong>② 연간 예산</strong>으로 운영하는 복지포인트,
+      <strong>③ 영수증 환급</strong>으로 직원이 신청하는 항목,
+      <strong>④ 명절·성과급</strong> 별도 지급 항목을 설정하세요.
+    </div>
+  </div>
 
   <form method="POST">
-  {% for category_key, category_label in category_labels.items() %}
-    {% set items_in_cat = benefit_items | selectattr('category', 'equalto', category_key) | list %}
-    {% if items_in_cat %}
-    <div class="card" style="padding:24px;margin-bottom:20px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;">
-        {% if category_key == 'nontax' %}
-          <span style="background:#dcfce7;color:#16a34a;font-size:.7rem;font-weight:700;padding:3px 10px;border-radius:999px;">비과세</span>
-        {% elif category_key == 'welfare' %}
-          <span style="background:#fef9c3;color:#854d0e;font-size:.7rem;font-weight:700;padding:3px 10px;border-radius:999px;">과세</span>
-        {% else %}
-          <span style="background:#fee2e2;color:#991b1b;font-size:.7rem;font-weight:700;padding:3px 10px;border-radius:999px;">과세 (상여)</span>
-        {% endif %}
-        <h3 style="font-size:.95rem;font-weight:700;margin:0;">{{ category_label }}</h3>
+
+  {# ── ① 매월 급여명세서 반영 ─────────────────────────────── #}
+  {% set section = sections.get('monthly_fixed', []) %}
+  {% if section %}
+  <div class="card" style="padding:24px;margin-bottom:24px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;">
+      <div style="width:36px;height:36px;background:#3b82f6;border-radius:10px;display:flex;align-items:center;justify-content:center;">
+        <i class="fas fa-file-invoice-dollar" style="color:#fff;font-size:15px;"></i>
       </div>
-
-      {% for item in items_in_cat %}
-      <div data-key="{{ item.key }}" style="border:1px solid {% if item.enabled %}#bfdbfe{% else %}#f1f5f9{% endif %};border-radius:12px;padding:18px;margin-bottom:12px;background:{% if item.enabled %}#f0f7ff{% else %}#fafafa{% endif %};transition:all .2s;">
-        <div style="display:flex;align-items:flex-start;gap:14px;">
-
-          <!-- 아이콘 + 토글 -->
-          <div style="width:40px;height:40px;background:{% if item.enabled %}#3b82f6{% else %}#e2e8f0{% endif %};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-            <i class="fas {{ item.icon }}" style="color:{% if item.enabled %}#fff{% else %}#94a3b8{% endif %};font-size:15px;"></i>
-          </div>
-
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px;">
-              <strong style="font-size:.9rem;">{{ item.name }}</strong>
-              {% if item.tax_exempt %}
-                <span style="background:#dcfce7;color:#166534;font-size:.7rem;font-weight:600;padding:1px 7px;border-radius:4px;">
-                  비과세 {% if item.monthly_limit %}월 {{ '{:,}'.format(item.monthly_limit) }}원 한도{% endif %}
-                </span>
-              {% else %}
-                <span style="background:#fef9c3;color:#713f12;font-size:.7rem;font-weight:600;padding:1px 7px;border-radius:4px;">과세</span>
-              {% endif %}
-              <span style="color:#94a3b8;font-size:.72rem;">{{ item.legal_basis }}</span>
-            </div>
-            <p style="font-size:.8rem;color:#64748b;margin:0 0 6px;">{{ item.description }}</p>
-            {% if item.conditions %}
-            <p style="font-size:.75rem;color:#f59e0b;margin:0 0 8px;">
-              <i class="fas fa-exclamation-circle"></i> {{ item.conditions }}
-            </p>
-            {% endif %}
-          </div>
-
-          <!-- 활성화 토글 -->
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0;" onclick="toggleBenefit('{{ item.key }}')">
-            <div style="position:relative;width:44px;height:24px;">
-              <input type="checkbox" name="enabled_{{ item.key }}" id="chk_{{ item.key }}" value="1"
-                     {% if item.enabled %}checked{% endif %}
-                     style="position:absolute;opacity:0;width:0;height:0;">
-              <div id="track_{{ item.key }}" style="position:absolute;inset:0;background:{{ '#3b82f6' if item.enabled else '#cbd5e1' }};border-radius:999px;transition:background .2s;"></div>
-              <div id="knob_{{ item.key }}"  style="position:absolute;top:3px;left:{{ '23px' if item.enabled else '3px' }};width:18px;height:18px;background:#fff;border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
-            </div>
-            <span style="font-size:.8rem;color:#64748b;">사용</span>
-          </label>
-        </div>
-
-        <!-- 금액 설정 (토글 ON일 때 표시) -->
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;{% if not item.enabled %}display:none{% endif %}" class="item-detail-{{ item.key }}">
-          <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;">
-
-            {% if item.calc_type == 'pct_of_base' %}
-            <!-- 기본급 % 방식 -->
-            <div>
-              <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">지급률 (기본급 대비 %)</label>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <input type="number" name="pct_{{ item.key }}" value="{{ item.pct or item.default_pct or 100 }}"
-                       min="0" max="1000" style="width:90px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.875rem;">
-                <span style="color:#64748b;font-size:.8rem;">%</span>
-              </div>
-              <div style="font-size:.72rem;color:#94a3b8;margin-top:3px;">기본급 × 설정값% 로 자동계산</div>
-            </div>
-
-            {% elif item.calc_type == 'grade_pct' %}
-            <!-- 성과등급별 % 방식 -->
-            <div style="width:100%;">
-              <div style="font-size:.75rem;color:#64748b;font-weight:600;margin-bottom:8px;">성과등급별 지급률 (기본급 × % / 12개월)</div>
-              <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                {% set grade_pct = item.grade_pct or {'S':20,'A':15,'B':10,'C':5,'D':0} %}
-                {% for grade in ['S','A','B','C','D'] %}
-                <div style="text-align:center;">
-                  <div style="font-size:.75rem;font-weight:700;color:{% if grade=='S' %}#dc2626{% elif grade=='A' %}#d97706{% elif grade=='B' %}#16a34a{% elif grade=='C' %}#2563eb{% else %}#94a3b8{% endif %};margin-bottom:4px;">{{ grade }}</div>
-                  <div style="display:flex;align-items:center;gap:4px;">
-                    <input type="number" name="pct_{{ item.key }}_{{ grade }}" value="{{ grade_pct[grade] }}"
-                           min="0" max="100" style="width:60px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:.8rem;text-align:center;">
-                    <span style="color:#64748b;font-size:.75rem;">%</span>
-                  </div>
-                </div>
-                {% endfor %}
-              </div>
-              <div style="font-size:.72rem;color:#94a3b8;margin-top:6px;">성과등급 결과가 있는 직원에게 연봉 × 지급률 / 12 가 월 급여에 반영됩니다</div>
-            </div>
-
-            {% elif item.calc_type == 'company_pct' %}
-            <!-- CI: 회사 달성률 기반 -->
-            <div>
-              <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">기준 지급률 (기본급 대비 %)</label>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <input type="number" name="pct_{{ item.key }}" value="{{ item.pct or item.default_pct or 10 }}"
-                       min="0" max="200" style="width:90px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.875rem;">
-                <span style="color:#64748b;font-size:.8rem;">%</span>
-              </div>
-              <div style="font-size:.72rem;color:#94a3b8;margin-top:3px;">급여 생성 시 입력한 달성률 × 기준율로 계산</div>
-            </div>
-
-            {% else %}
-            <!-- 고정 금액 방식 -->
-            <div>
-              <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">월 지급액 (원)</label>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <input type="number" name="amount_{{ item.key }}" value="{{ item.amount or item.monthly_limit or 0 }}"
-                       min="0" step="10000" style="width:140px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.875rem;">
-                <span style="color:#64748b;font-size:.8rem;">원</span>
-              </div>
-              {% if item.monthly_limit %}
-              <div style="font-size:.72rem;color:#16a34a;margin-top:3px;">
-                비과세 한도: {{ '{:,}'.format(item.monthly_limit) }}원 / 월
-              </div>
-              {% endif %}
-            </div>
-            {% endif %}
-
-            <div style="flex:1;min-width:160px;">
-              <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">메모 (내부용)</label>
-              <input type="text" name="note_{{ item.key }}" value="{{ item.note or '' }}"
-                     placeholder="예: 전 직원 적용, 2026년 1월부터"
-                     style="width:100%;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.8rem;">
-            </div>
-          </div>
-        </div>
+      <div>
+        <h3 style="font-size:.95rem;font-weight:700;margin:0;">① 매월 급여명세서 반영 (비과세 수당)</h3>
+        <p style="font-size:.75rem;color:#64748b;margin:0;">활성화하면 매월 급여 생성 시 자동으로 포함됩니다. 비과세 한도 초과분은 자동 과세 처리.</p>
       </div>
-      {% endfor %}
     </div>
-    {% endif %}
-  {% endfor %}
 
-  <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:8px;">
-    <button type="submit" class="btn btn-primary" style="padding:10px 32px;">저장하기</button>
+    {% for item in section %}
+    <div data-key="{{ item.key }}" style="border:1px solid {% if item.enabled %}#bfdbfe{% else %}#f1f5f9{% endif %};border-radius:12px;padding:16px;margin-bottom:10px;background:{% if item.enabled %}#f0f7ff{% else %}#fafafa{% endif %};transition:all .2s;">
+      <div style="display:flex;align-items:flex-start;gap:12px;">
+        <div style="width:38px;height:38px;background:{% if item.enabled %}#3b82f6{% else %}#e2e8f0{% endif %};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas {{ item.icon }}" style="color:{% if item.enabled %}#fff{% else %}#94a3b8{% endif %};font-size:14px;"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
+            <strong style="font-size:.88rem;">{{ item.name }}</strong>
+            <span style="background:#dcfce7;color:#166534;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">
+              비과세 월 {{ '{:,}'.format(item.monthly_limit) }}원 한도
+            </span>
+            <span style="color:#94a3b8;font-size:.7rem;">{{ item.legal_basis }}</span>
+          </div>
+          <p style="font-size:.78rem;color:#64748b;margin:0 0 4px;">{{ item.description }}</p>
+          {% if item.conditions %}
+          <p style="font-size:.72rem;color:#f59e0b;margin:0;"><i class="fas fa-exclamation-circle"></i> {{ item.conditions }}</p>
+          {% endif %}
+        </div>
+        <!-- 활성화 토글 -->
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex-shrink:0;" onclick="toggleBenefit('{{ item.key }}')">
+          <div style="position:relative;width:42px;height:22px;">
+            <input type="checkbox" name="enabled_{{ item.key }}" id="chk_{{ item.key }}" value="1"
+                   {% if item.enabled %}checked{% endif %}
+                   style="position:absolute;opacity:0;width:0;height:0;">
+            <div id="track_{{ item.key }}" style="position:absolute;inset:0;background:{{ '#3b82f6' if item.enabled else '#cbd5e1' }};border-radius:999px;transition:background .2s;"></div>
+            <div id="knob_{{ item.key }}"  style="position:absolute;top:2px;left:{{ '22px' if item.enabled else '2px' }};width:18px;height:18px;background:#fff;border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+          </div>
+          <span style="font-size:.78rem;color:#64748b;">사용</span>
+        </label>
+      </div>
+
+      <!-- 금액 설정 영역 -->
+      <div class="item-detail-{{ item.key }}" style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;{% if not item.enabled %}display:none{% endif %}">
+        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+          <div>
+            <label style="font-size:.72rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">월 지급액 (원)</label>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input type="number" name="amount_{{ item.key }}" value="{{ item.amount or item.monthly_limit or 0 }}"
+                     min="0" step="10000" style="width:130px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
+              <span style="color:#64748b;font-size:.78rem;">원</span>
+            </div>
+            <div style="font-size:.7rem;color:#16a34a;margin-top:2px;">비과세 한도: {{ '{:,}'.format(item.monthly_limit) }}원 / 월</div>
+          </div>
+          <div style="flex:1;min-width:140px;">
+            <label style="font-size:.72rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">메모 (내부용)</label>
+            <input type="text" name="note_{{ item.key }}" value="{{ item.note or '' }}"
+                   placeholder="예: 전 직원 적용"
+                   style="width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.78rem;">
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── ② 연간 예산형 (복지포인트) ─────────────────────────── #}
+  {% set section = sections.get('annual_budget', []) %}
+  {% if section %}
+  <div class="card" style="padding:24px;margin-bottom:24px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;">
+      <div style="width:36px;height:36px;background:#8b5cf6;border-radius:10px;display:flex;align-items:center;justify-content:center;">
+        <i class="fas fa-wallet" style="color:#fff;font-size:15px;"></i>
+      </div>
+      <div>
+        <h3 style="font-size:.95rem;font-weight:700;margin:0;">② 연간 예산형 (복지포인트)</h3>
+        <p style="font-size:.75rem;color:#64748b;margin:0;">연간 1인당 예산을 설정하세요. 급여명세서와 별도 관리되며 연말정산 시 합산됩니다.</p>
+      </div>
+    </div>
+
+    {% for item in section %}
+    <div data-key="{{ item.key }}" style="border:1px solid {% if item.enabled %}#e9d5ff{% else %}#f1f5f9{% endif %};border-radius:12px;padding:16px;margin-bottom:10px;background:{% if item.enabled %}#faf5ff{% else %}#fafafa{% endif %};transition:all .2s;">
+      <div style="display:flex;align-items:flex-start;gap:12px;">
+        <div style="width:38px;height:38px;background:{% if item.enabled %}#8b5cf6{% else %}#e2e8f0{% endif %};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas {{ item.icon }}" style="color:{% if item.enabled %}#fff{% else %}#94a3b8{% endif %};font-size:14px;"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
+            <strong style="font-size:.88rem;">{{ item.name }}</strong>
+            <span style="background:#fef3c7;color:#92400e;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">과세 (2024 대법원)</span>
+            <span style="color:#94a3b8;font-size:.7rem;">{{ item.legal_basis }}</span>
+          </div>
+          <p style="font-size:.78rem;color:#64748b;margin:0;">{{ item.description }}</p>
+        </div>
+        <!-- 활성화 토글 -->
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex-shrink:0;" onclick="toggleBenefit('{{ item.key }}')">
+          <div style="position:relative;width:42px;height:22px;">
+            <input type="checkbox" name="enabled_{{ item.key }}" id="chk_{{ item.key }}" value="1"
+                   {% if item.enabled %}checked{% endif %}
+                   style="position:absolute;opacity:0;width:0;height:0;">
+            <div id="track_{{ item.key }}" style="position:absolute;inset:0;background:{{ '#8b5cf6' if item.enabled else '#cbd5e1' }};border-radius:999px;transition:background .2s;"></div>
+            <div id="knob_{{ item.key }}"  style="position:absolute;top:2px;left:{{ '22px' if item.enabled else '2px' }};width:18px;height:18px;background:#fff;border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+          </div>
+          <span style="font-size:.78rem;color:#64748b;">사용</span>
+        </label>
+      </div>
+
+      <div class="item-detail-{{ item.key }}" style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;{% if not item.enabled %}display:none{% endif %}">
+        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+          <div>
+            <label style="font-size:.72rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">1인당 연간 예산 (원)</label>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input type="number" name="annual_limit_{{ item.key }}" value="{{ item.annual_limit or 0 }}"
+                     min="0" step="100000" style="width:160px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
+              <span style="color:#64748b;font-size:.78rem;">원 / 년</span>
+            </div>
+          </div>
+          {% if item.platform_options %}
+          <div>
+            <label style="font-size:.72rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">운영 플랫폼</label>
+            <select name="platform_{{ item.key }}" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.82rem;background:#fff;">
+              <option value="">직접 선택</option>
+              {% for opt in item.platform_options %}
+              <option value="{{ opt }}" {% if item.platform == opt %}selected{% endif %}>{{ opt }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+          <div style="flex:1;min-width:140px;">
+            <label style="font-size:.72rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">메모 (내부용)</label>
+            <input type="text" name="note_{{ item.key }}" value="{{ item.note or '' }}"
+                   placeholder="예: 매년 1월 1일 지급"
+                   style="width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.78rem;">
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── ③ 영수증 환급형 ─────────────────────────────────────── #}
+  {% set section = sections.get('reimbursement', []) %}
+  {% if section %}
+  <div class="card" style="padding:24px;margin-bottom:24px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;">
+      <div style="width:36px;height:36px;background:#059669;border-radius:10px;display:flex;align-items:center;justify-content:center;">
+        <i class="fas fa-receipt" style="color:#fff;font-size:15px;"></i>
+      </div>
+      <div>
+        <h3 style="font-size:.95rem;font-weight:700;margin:0;">③ 영수증 환급형</h3>
+        <p style="font-size:.75rem;color:#64748b;margin:0;">직원이 영수증을 제출하면 HR이 승인 후 환급합니다. 1인당 연간 한도를 설정하세요.</p>
+      </div>
+    </div>
+
+    {% for item in section %}
+    <div data-key="{{ item.key }}" style="border:1px solid {% if item.enabled %}#bbf7d0{% else %}#f1f5f9{% endif %};border-radius:12px;padding:16px;margin-bottom:10px;background:{% if item.enabled %}#f0fdf4{% else %}#fafafa{% endif %};transition:all .2s;">
+      <div style="display:flex;align-items:flex-start;gap:12px;">
+        <div style="width:38px;height:38px;background:{% if item.enabled %}#059669{% else %}#e2e8f0{% endif %};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas {{ item.icon }}" style="color:{% if item.enabled %}#fff{% else %}#94a3b8{% endif %};font-size:14px;"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
+            <strong style="font-size:.88rem;">{{ item.name }}</strong>
+            <span style="background:#fef3c7;color:#92400e;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">과세</span>
+            <span style="color:#94a3b8;font-size:.7rem;">{{ item.legal_basis }}</span>
+          </div>
+          <p style="font-size:.78rem;color:#64748b;margin:0;">{{ item.description }}</p>
+        </div>
+        <!-- 활성화 토글 -->
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex-shrink:0;" onclick="toggleBenefit('{{ item.key }}')">
+          <div style="position:relative;width:42px;height:22px;">
+            <input type="checkbox" name="enabled_{{ item.key }}" id="chk_{{ item.key }}" value="1"
+                   {% if item.enabled %}checked{% endif %}
+                   style="position:absolute;opacity:0;width:0;height:0;">
+            <div id="track_{{ item.key }}" style="position:absolute;inset:0;background:{{ '#059669' if item.enabled else '#cbd5e1' }};border-radius:999px;transition:background .2s;"></div>
+            <div id="knob_{{ item.key }}"  style="position:absolute;top:2px;left:{{ '22px' if item.enabled else '2px' }};width:18px;height:18px;background:#fff;border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+          </div>
+          <span style="font-size:.78rem;color:#64748b;">사용</span>
+        </label>
+      </div>
+
+      <div class="item-detail-{{ item.key }}" style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;{% if not item.enabled %}display:none{% endif %}">
+        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+          <div>
+            <label style="font-size:.72rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">1인당 연간 한도 (원)</label>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input type="number" name="annual_limit_{{ item.key }}" value="{{ item.annual_limit or 0 }}"
+                     min="0" step="100000" style="width:160px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
+              <span style="color:#64748b;font-size:.78rem;">원 / 년</span>
+            </div>
+            <div style="font-size:.7rem;color:#94a3b8;margin-top:2px;">0 입력 시 한도 없음</div>
+          </div>
+          <div style="flex:1;min-width:140px;">
+            <label style="font-size:.72rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">메모 (내부용)</label>
+            <input type="text" name="note_{{ item.key }}" value="{{ item.note or '' }}"
+                   placeholder="예: 영수증 30일 이내 제출"
+                   style="width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.78rem;">
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── ④ 상여·성과급 별도 지급 ─────────────────────────────── #}
+  {% set section = sections.get('separate_bonus', []) %}
+  {% if section %}
+  <div class="card" style="padding:24px;margin-bottom:24px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;">
+      <div style="width:36px;height:36px;background:#dc2626;border-radius:10px;display:flex;align-items:center;justify-content:center;">
+        <i class="fas fa-trophy" style="color:#fff;font-size:15px;"></i>
+      </div>
+      <div>
+        <h3 style="font-size:.95rem;font-weight:700;margin:0;">④ 상여·성과급 별도 지급</h3>
+        <p style="font-size:.75rem;color:#64748b;margin:0;">연간 지급 기준을 설정하세요. 실제 지급은 <a href="{{ url_for('admin_bonus_pay') }}" style="color:#3b82f6;">상여 지급 관리</a> 페이지에서 별도 진행합니다.</p>
+      </div>
+    </div>
+
+    {% for item in section %}
+    <div data-key="{{ item.key }}" style="border:1px solid {% if item.enabled %}#fecaca{% else %}#f1f5f9{% endif %};border-radius:12px;padding:16px;margin-bottom:10px;background:{% if item.enabled %}#fff5f5{% else %}#fafafa{% endif %};transition:all .2s;">
+      <div style="display:flex;align-items:flex-start;gap:12px;">
+        <div style="width:38px;height:38px;background:{% if item.enabled %}#dc2626{% else %}#e2e8f0{% endif %};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas {{ item.icon }}" style="color:{% if item.enabled %}#fff{% else %}#94a3b8{% endif %};font-size:14px;"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
+            <strong style="font-size:.88rem;">{{ item.name }}</strong>
+            <span style="background:#fee2e2;color:#991b1b;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">과세 (상여)</span>
+            <span style="color:#94a3b8;font-size:.7rem;">{{ item.legal_basis }}</span>
+          </div>
+          <p style="font-size:.78rem;color:#64748b;margin:0;">{{ item.description }}</p>
+        </div>
+        <!-- 활성화 토글 -->
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex-shrink:0;" onclick="toggleBenefit('{{ item.key }}')">
+          <div style="position:relative;width:42px;height:22px;">
+            <input type="checkbox" name="enabled_{{ item.key }}" id="chk_{{ item.key }}" value="1"
+                   {% if item.enabled %}checked{% endif %}
+                   style="position:absolute;opacity:0;width:0;height:0;">
+            <div id="track_{{ item.key }}" style="position:absolute;inset:0;background:{{ '#dc2626' if item.enabled else '#cbd5e1' }};border-radius:999px;transition:background .2s;"></div>
+            <div id="knob_{{ item.key }}"  style="position:absolute;top:2px;left:{{ '22px' if item.enabled else '2px' }};width:18px;height:18px;background:#fff;border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+          </div>
+          <span style="font-size:.78rem;color:#64748b;">사용</span>
+        </label>
+      </div>
+
+      <div class="item-detail-{{ item.key }}" style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;{% if not item.enabled %}display:none{% endif %}">
+        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+
+          {% if item.calc_type == 'pct_of_base' %}
+          <div>
+            <label style="font-size:.72rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">지급률 (기본급 대비 %)</label>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input type="number" name="pct_{{ item.key }}" value="{{ item.pct or item.default_pct or 100 }}"
+                     min="0" max="1000" style="width:90px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
+              <span style="color:#64748b;font-size:.78rem;">%</span>
+            </div>
+            <div style="font-size:.7rem;color:#94a3b8;margin-top:2px;">기본급 × 설정값%</div>
+          </div>
+
+          {% elif item.calc_type == 'grade_pct' %}
+          <div style="width:100%;">
+            <div style="font-size:.72rem;color:#64748b;font-weight:600;margin-bottom:8px;">성과등급별 지급률 (기본급 × % / 12개월)</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              {% set grade_pct = item.grade_pct or {'S':20,'A':15,'B':10,'C':5,'D':0} %}
+              {% for grade in ['S','A','B','C','D'] %}
+              <div style="text-align:center;">
+                <div style="font-size:.72rem;font-weight:700;color:{% if grade=='S' %}#dc2626{% elif grade=='A' %}#d97706{% elif grade=='B' %}#16a34a{% elif grade=='C' %}#2563eb{% else %}#94a3b8{% endif %};margin-bottom:4px;">{{ grade }}</div>
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <input type="number" name="pct_{{ item.key }}_{{ grade }}" value="{{ grade_pct[grade] }}"
+                         min="0" max="100" style="width:56px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:.8rem;text-align:center;">
+                  <span style="color:#64748b;font-size:.72rem;">%</span>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            <div style="font-size:.7rem;color:#94a3b8;margin-top:4px;">성과등급 결과가 있는 직원에게 연봉 × 지급률 / 12 적용</div>
+          </div>
+
+          {% elif item.calc_type == 'company_pct' %}
+          <div>
+            <label style="font-size:.72rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">기준 지급률 (기본급 대비 %)</label>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input type="number" name="pct_{{ item.key }}" value="{{ item.pct or item.default_pct or 10 }}"
+                     min="0" max="200" style="width:90px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
+              <span style="color:#64748b;font-size:.78rem;">%</span>
+            </div>
+            <div style="font-size:.7rem;color:#94a3b8;margin-top:2px;">지급 시 회사 달성률 × 기준율로 계산</div>
+          </div>
+          {% endif %}
+
+          <div style="flex:1;min-width:140px;">
+            <label style="font-size:.72rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">메모 (내부용)</label>
+            <input type="text" name="note_{{ item.key }}" value="{{ item.note or '' }}"
+                   placeholder="예: 매년 설 전월 지급"
+                   style="width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.78rem;">
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+    <div style="display:flex;gap:12px;">
+      <a href="{{ url_for('admin_benefit_claims') }}" class="btn" style="background:#f1f5f9;color:#475569;padding:9px 20px;font-size:.85rem;">
+        <i class="fas fa-receipt"></i> 환급 신청 관리
+      </a>
+      <a href="{{ url_for('admin_bonus_pay') }}" class="btn" style="background:#f1f5f9;color:#475569;padding:9px 20px;font-size:.85rem;">
+        <i class="fas fa-trophy"></i> 상여 지급 관리
+      </a>
+    </div>
+    <button type="submit" class="btn btn-primary" style="padding:9px 32px;">저장하기</button>
   </div>
   </form>
 
@@ -158,27 +346,44 @@
 
 <script>
 function toggleBenefit(key) {
-  const chk   = document.getElementById('chk_'   + key);
-  const track = document.getElementById('track_' + key);
-  const knob  = document.getElementById('knob_'  + key);
+  const chk    = document.getElementById('chk_'   + key);
+  const track  = document.getElementById('track_' + key);
+  const knob   = document.getElementById('knob_'  + key);
   const detail = document.querySelector('.item-detail-' + key);
-  const card  = chk.closest('[data-key]');
+  const card   = chk.closest('[data-key]');
 
-  // 체크 상태 토글
   chk.checked = !chk.checked;
   const on = chk.checked;
 
-  // 비주얼 업데이트
-  track.style.background = on ? '#3b82f6' : '#cbd5e1';
-  knob.style.left        = on ? '23px'    : '3px';
+  // 섹션별 색상 (payment_type 기반 data-color가 없으므로 track 현재 색에서 추론)
+  const sectionCard = card.closest('.card');
+  const headerIcon  = sectionCard ? sectionCard.querySelector('div[style*="border-radius:10px"]') : null;
+  let activeColor   = '#3b82f6';
+  if (headerIcon) {
+    const bg = headerIcon.style.background;
+    if (bg.includes('8b5cf6')) activeColor = '#8b5cf6';
+    else if (bg.includes('059669')) activeColor = '#059669';
+    else if (bg.includes('dc2626')) activeColor = '#dc2626';
+  }
 
-  // 금액 설정 영역 show/hide
+  track.style.background = on ? activeColor : '#cbd5e1';
+  knob.style.left        = on ? '22px' : '2px';
   if (detail) detail.style.display = on ? 'block' : 'none';
 
-  // 카드 테두리·배경 변경
   if (card) {
-    card.style.borderColor = on ? '#bfdbfe' : '#f1f5f9';
-    card.style.background  = on ? '#f0f7ff' : '#fafafa';
+    // 섹션별 테두리/배경 색
+    const borderMap = { '#3b82f6': ['#bfdbfe','#f0f7ff'], '#8b5cf6': ['#e9d5ff','#faf5ff'], '#059669': ['#bbf7d0','#f0fdf4'], '#dc2626': ['#fecaca','#fff5f5'] };
+    const colors    = borderMap[activeColor] || ['#bfdbfe','#f0f7ff'];
+    card.style.borderColor = on ? colors[0] : '#f1f5f9';
+    card.style.background  = on ? colors[1] : '#fafafa';
+
+    // 아이콘 박스 색
+    const iconBox = card.querySelector('div[style*="border-radius:10px"]');
+    if (iconBox) {
+      iconBox.style.background = on ? activeColor : '#e2e8f0';
+      const ico = iconBox.querySelector('i');
+      if (ico) ico.style.color = on ? '#fff' : '#94a3b8';
+    }
   }
 }
 </script>

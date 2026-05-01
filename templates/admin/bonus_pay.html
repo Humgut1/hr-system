@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% block title %}상여·성과급 지급 관리 — TalentCore{% endblock %}
+{% block page_title %}상여·성과급 지급 관리{% endblock %}
+
+{% block content %}
+<div style="max-width:960px;margin:0 auto;">
+
+  <!-- 지급 폼 -->
+  <div class="card" style="padding:28px;margin-bottom:28px;">
+    <h3 style="font-size:.95rem;font-weight:700;margin:0 0 6px;">새 상여 지급</h3>
+    <p style="font-size:.8rem;color:#64748b;margin:0 0 20px;">활성화된 상여 항목을 선택하고 지급하면 전체 활성 직원에게 자동 계산되어 지급 내역이 기록됩니다.</p>
+
+    <form method="POST" onsubmit="return confirm('선택한 상여를 전 직원에게 지급하시겠습니까?')">
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;">
+
+        <div>
+          <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:5px;">상여 유형 <span style="color:#ef4444;">*</span></label>
+          <select name="bonus_type" id="bonusType" required onchange="updateCalcHint(this.value)"
+                  style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;background:#fff;min-width:180px;">
+            <option value="">선택하세요</option>
+            {% for item in bonus_items %}
+            <option value="{{ item.key }}" data-calc="{{ item.calc_type }}">{{ item.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:5px;">지급일 <span style="color:#ef4444;">*</span></label>
+          <input type="date" name="pay_date" required
+                 style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
+        </div>
+
+        <!-- CI 달성률 입력 (company_pct 타입일 때만 표시) -->
+        <div id="achievementBlock" style="display:none;">
+          <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:5px;">회사 달성률 (%)</label>
+          <input type="number" name="achievement_pct" id="achievementPct" min="0" max="200" value="100"
+                 style="width:100px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
+        </div>
+
+        <div style="flex:1;min-width:160px;">
+          <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:5px;">메모</label>
+          <input type="text" name="note" placeholder="예: 2026년 설 상여"
+                 style="width:100%;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="padding:9px 24px;white-space:nowrap;">
+          <i class="fas fa-paper-plane"></i> 지급 실행
+        </button>
+      </div>
+
+      <!-- 계산 방식 안내 -->
+      <div id="calcHint" style="margin-top:12px;padding:10px 14px;background:#f8fafc;border-radius:8px;font-size:.78rem;color:#64748b;display:none;"></div>
+    </form>
+  </div>
+
+  <!-- 항목 설명 카드 -->
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px;">
+    {% for item in bonus_items %}
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 18px;min-width:180px;flex:1;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <i class="fas {{ item.icon }}" style="color:#64748b;font-size:13px;"></i>
+        <strong style="font-size:.83rem;">{{ item.name }}</strong>
+      </div>
+      <div style="font-size:.72rem;color:#94a3b8;">
+        {% if item.calc_type == 'pct_of_base' %}기본급 × %
+        {% elif item.calc_type == 'grade_pct' %}성과등급별 연봉 × % / 12
+        {% elif item.calc_type == 'company_pct' %}기본급 × % × 달성률
+        {% else %}고정금액
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- 지급 내역 -->
+  <h3 style="font-size:.92rem;font-weight:700;margin:0 0 14px;color:#374151;">지급 내역</h3>
+
+  {% if history %}
+  <div class="card" style="padding:0;overflow:hidden;">
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="background:#f8fafc;">
+          <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">직원</th>
+          <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">상여 유형</th>
+          <th style="padding:11px 16px;text-align:right;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">지급액</th>
+          <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">지급일</th>
+          <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">메모</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set ns = namespace(cur_date=None, cur_type=None) %}
+        {% for h in history %}
+        {% if h.pay_date != ns.cur_date or h.bonus_type != ns.cur_type %}
+        {% set ns.cur_date = h.pay_date %}
+        {% set ns.cur_type = h.bonus_type %}
+        <tr style="background:#f8fafc;">
+          <td colspan="5" style="padding:8px 16px;font-size:.75rem;font-weight:700;color:#475569;border-top:2px solid #e2e8f0;">
+            {{ benefit_names.get(h.bonus_type, h.bonus_type) }} — {{ h.pay_date }}
+            {% if h.note %}<span style="font-weight:400;color:#94a3b8;margin-left:8px;">{{ h.note }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+        <tr style="border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+          <td style="padding:10px 16px 10px 24px;font-size:.85rem;">{{ h.emp_name }}</td>
+          <td style="padding:10px 16px;font-size:.82rem;color:#64748b;">{{ benefit_names.get(h.bonus_type, h.bonus_type) }}</td>
+          <td style="padding:10px 16px;text-align:right;font-size:.88rem;font-weight:600;color:#111827;">₩{{ '{:,}'.format(h.amount) }}</td>
+          <td style="padding:10px 16px;font-size:.82rem;color:#94a3b8;">{{ h.pay_date }}</td>
+          <td style="padding:10px 16px;font-size:.78rem;color:#64748b;">{{ h.note or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:50px 20px;color:#94a3b8;">
+    <i class="fas fa-trophy" style="font-size:2.5rem;margin-bottom:12px;display:block;"></i>
+    <p style="font-size:.9rem;">지급 내역이 없습니다.</p>
+  </div>
+  {% endif %}
+
+  <div style="margin-top:20px;">
+    <a href="{{ url_for('admin_benefits') }}" style="color:#64748b;font-size:.83rem;text-decoration:none;">
+      <i class="fas fa-arrow-left"></i> 복리후생 설정으로 돌아가기
+    </a>
+  </div>
+</div>
+
+<script>
+const calcHints = {
+  'pct_of_base':   '기본급 × 설정된 지급률(%)로 계산됩니다.',
+  'grade_pct':     '최근 성과등급(S/A/B/C/D)에 따라 기본급 × 등급별 % / 12로 계산됩니다.',
+  'company_pct':   '기본급 × 기준율(%) × 달성률(%)로 계산됩니다.',
+};
+
+function updateCalcHint(key) {
+  const sel  = document.getElementById('bonusType');
+  const opt  = sel.options[sel.selectedIndex];
+  const calc = opt ? opt.getAttribute('data-calc') : '';
+  const hint = document.getElementById('calcHint');
+  const achBlock = document.getElementById('achievementBlock');
+
+  if (key && calcHints[calc]) {
+    hint.textContent = '계산 방식: ' + calcHints[calc];
+    hint.style.display = 'block';
+  } else {
+    hint.style.display = 'none';
+  }
+
+  achBlock.style.display = (calc === 'company_pct') ? 'block' : 'none';
+}
+</script>
+{% endblock %}

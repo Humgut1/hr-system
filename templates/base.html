@@ -179,6 +179,12 @@
         <a href="{{ url_for('admin_benefits') }}" class="nav-item{% if active_page == 'benefits' %} active{% endif %}" title="Benefits">
           <i class="fas fa-gift"></i><span>Benefits</span>
         </a>
+        <a href="{{ url_for('admin_benefit_claims') }}" class="nav-item{% if active_page == 'benefit_claims' %} active{% endif %}" title="Benefit Claims" style="padding-left:28px;">
+          <i class="fas fa-receipt"></i><span>환급 신청</span>
+        </a>
+        <a href="{{ url_for('admin_bonus_pay') }}" class="nav-item{% if active_page == 'bonus_pay' %} active{% endif %}" title="Bonus Pay" style="padding-left:28px;">
+          <i class="fas fa-trophy"></i><span>상여 지급</span>
+        </a>
         <a href="{{ url_for('overtime_monitor') }}" class="nav-item{% if active_page == 'overtime_monitor' %} active{% endif %}" title="52h Monitor">
           <i class="fas fa-clock"></i><span>52h Monitor</span>
         </a>

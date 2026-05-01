@@ -13,7 +13,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from payroll_utils import (calc_payslip, calc_annual_leave, fmt_krw,
                            calc_severance, check_min_wage, MIN_WAGE_MONTHLY,
                            calc_day_hours, calc_extra_pay,
-                           BENEFIT_CATALOG, BENEFIT_CATEGORY_LABELS,
+                           BENEFIT_CATALOG, BENEFIT_CATEGORY_LABELS, PAYMENT_TYPE_LABELS,
                            calc_prorated_salary, calc_unused_leave_pay,
                            calc_separation_settlement)
 from master_db import (
@@ -2735,9 +2735,9 @@ def admin_payroll():
                 holiday_rows   = db.execute('SELECT date FROM public_holidays WHERE date BETWEEN ? AND ?', (first_day, last_day)).fetchall()
                 month_holidays = {h['date'] for h in holiday_rows}
 
-                # 회사 복리후생 설정 로드 (활성화된 항목만)
+                # 월 급여 반영 항목만 로드 (payment_type='monthly_fixed')
                 benefit_cfg_rows = db.execute(
-                    'SELECT * FROM benefit_configs WHERE enabled=1'
+                    "SELECT * FROM benefit_configs WHERE enabled=1 AND payment_type='monthly_fixed'"
                 ).fetchall()
                 company_benefits = {r['key']: dict(r) for r in benefit_cfg_rows}
 
@@ -5533,60 +5533,233 @@ def admin_holidays():
 @app.route('/admin/benefits', methods=['GET', 'POST'])
 @admin_required
 def admin_benefits():
-    """복리후생·비과세 항목 회사 설정 페이지."""
+    """복리후생·비과세 항목 회사 설정 — 4가지 지급 방식으로 분류."""
     db = get_db()
 
     if request.method == 'POST':
-        import json as _json
-        for key in BENEFIT_CATALOG:
-            enabled = 1 if request.form.get(f'enabled_{key}') else 0
-            amount  = int(request.form.get(f'amount_{key}', 0) or 0)
-            pct     = request.form.get(f'pct_{key}')
-            pct     = int(pct) if pct and pct.strip().isdigit() else None
-            note    = request.form.get(f'note_{key}', '').strip() or None
+        for key, meta in BENEFIT_CATALOG.items():
+            enabled      = 1 if request.form.get(f'enabled_{key}') else 0
+            amount       = int(request.form.get(f'amount_{key}', 0) or 0)
+            annual_limit = request.form.get(f'annual_limit_{key}')
+            annual_limit = int(annual_limit) if annual_limit and annual_limit.strip().isdigit() else None
+            pct          = request.form.get(f'pct_{key}')
+            pct          = int(pct) if pct and str(pct).strip().isdigit() else None
+            platform     = request.form.get(f'platform_{key}', '').strip() or None
+            note         = request.form.get(f'note_{key}', '').strip() or None
+            payment_type = meta.get('payment_type', 'monthly_fixed')
             db.execute(
-                'INSERT INTO benefit_configs (key, enabled, amount, pct, note) '
-                'VALUES (?, ?, ?, ?, ?) '
+                'INSERT INTO benefit_configs '
+                '(key, enabled, payment_type, amount, annual_limit, pct, platform, note) '
+                'VALUES (?,?,?,?,?,?,?,?) '
                 'ON CONFLICT(key) DO UPDATE SET '
-                'enabled=excluded.enabled, amount=excluded.amount, '
-                'pct=excluded.pct, note=excluded.note, '
-                'updated_at=CURRENT_TIMESTAMP',
-                (key, enabled, amount, pct, note)
+                'enabled=excluded.enabled, payment_type=excluded.payment_type, '
+                'amount=excluded.amount, annual_limit=excluded.annual_limit, '
+                'pct=excluded.pct, platform=excluded.platform, '
+                'note=excluded.note, updated_at=CURRENT_TIMESTAMP',
+                (key, enabled, payment_type, amount, annual_limit, pct, platform, note)
             )
         db.commit()
         flash('복리후생 설정이 저장되었습니다.', 'success')
         return redirect(url_for('admin_benefits'))
 
     # 현재 설정 로드
-    rows = db.execute('SELECT * FROM benefit_configs').fetchall()
-    configs = {r['key']: dict(r) for r in rows}
+    configs = {r['key']: dict(r) for r in db.execute('SELECT * FROM benefit_configs').fetchall()}
 
-    # BENEFIT_CATALOG + 저장된 설정 병합
-    benefit_items = []
+    # payment_type별로 그룹화
+    sections = {pt: [] for pt in PAYMENT_TYPE_LABELS}
     for key, meta in sorted(BENEFIT_CATALOG.items(), key=lambda x: x[1].get('sort', 99)):
         cfg = configs.get(key, {})
-        benefit_items.append({
-            'key':           key,
-            'name':          meta['name'],
-            'category':      meta['category'],
-            'tax_exempt':    meta['tax_exempt'],
-            'monthly_limit': meta.get('monthly_limit'),
-            'legal_basis':   meta['legal_basis'],
-            'description':   meta['description'],
-            'conditions':    meta.get('conditions'),
-            'icon':          meta.get('icon', 'fa-circle'),
-            'calc_type':     meta.get('calc_type'),
-            'grade_pct':     meta.get('grade_pct'),
-            'default_pct':   meta.get('default_pct'),
-            'enabled':       cfg.get('enabled', 0),
-            'amount':        cfg.get('amount', meta.get('default_amount', 0)),
-            'pct':           cfg.get('pct', meta.get('default_pct')),
-            'note':          cfg.get('note', ''),
+        pt  = meta.get('payment_type', 'monthly_fixed')
+        sections[pt].append({
+            'key':             key,
+            'name':            meta['name'],
+            'category':        meta['category'],
+            'payment_type':    pt,
+            'tax_exempt':      meta['tax_exempt'],
+            'monthly_limit':   meta.get('monthly_limit'),
+            'annual_limit':    cfg.get('annual_limit', meta.get('annual_limit')),
+            'legal_basis':     meta['legal_basis'],
+            'description':     meta['description'],
+            'conditions':      meta.get('conditions'),
+            'icon':            meta.get('icon', 'fa-circle'),
+            'calc_type':       meta.get('calc_type'),
+            'grade_pct':       meta.get('grade_pct'),
+            'default_pct':     meta.get('default_pct'),
+            'platform_options':meta.get('platform_options', []),
+            'enabled':         cfg.get('enabled', 0),
+            'amount':          cfg.get('amount', meta.get('default_amount', 0)),
+            'pct':             cfg.get('pct', meta.get('default_pct')),
+            'platform':        cfg.get('platform', ''),
+            'note':            cfg.get('note', ''),
         })
 
     return render_template('admin/benefits.html',
-                           benefit_items=benefit_items,
-                           category_labels=BENEFIT_CATEGORY_LABELS,
+                           sections=sections,
+                           payment_type_labels=PAYMENT_TYPE_LABELS,
+                           active_page='benefits')
+
+
+# ── 환급 신청 관리 ───────────────────────────────────────────────
+@app.route('/admin/benefit-claims')
+@admin_required
+def admin_benefit_claims():
+    """영수증 환급 신청 목록 및 승인/반려 관리."""
+    db  = get_db()
+    tab = request.args.get('tab', 'pending')
+
+    status_filter = {'pending': 'pending', 'approved': 'approved', 'rejected': 'rejected', 'all': None}
+    sf = status_filter.get(tab, 'pending')
+
+    if sf:
+        claims = db.execute(
+            """SELECT bc.*, u.name AS emp_name, u.emp_no
+               FROM benefit_claims bc
+               JOIN users u ON bc.user_id = u.id
+               WHERE bc.status = ?
+               ORDER BY bc.submitted_at DESC""",
+            (sf,)
+        ).fetchall()
+    else:
+        claims = db.execute(
+            """SELECT bc.*, u.name AS emp_name, u.emp_no
+               FROM benefit_claims bc
+               JOIN users u ON bc.user_id = u.id
+               ORDER BY bc.submitted_at DESC"""
+        ).fetchall()
+
+    # 항목명 매핑
+    benefit_names = {k: v['name'] for k, v in BENEFIT_CATALOG.items()}
+    counts = {
+        'pending':  db.execute("SELECT COUNT(*) FROM benefit_claims WHERE status='pending'").fetchone()[0],
+        'approved': db.execute("SELECT COUNT(*) FROM benefit_claims WHERE status='approved'").fetchone()[0],
+        'rejected': db.execute("SELECT COUNT(*) FROM benefit_claims WHERE status='rejected'").fetchone()[0],
+    }
+
+    return render_template('admin/benefit_claims.html',
+                           claims=claims,
+                           benefit_names=benefit_names,
+                           tab=tab, counts=counts,
+                           active_page='benefits')
+
+
+@app.route('/admin/benefit-claims/<int:claim_id>/<action>', methods=['POST'])
+@admin_required
+def admin_benefit_claim_action(claim_id, action):
+    """환급 신청 승인 / 반려."""
+    if action not in ('approve', 'reject'):
+        abort(400)
+    db     = get_db()
+    claim  = db.execute('SELECT * FROM benefit_claims WHERE id=?', (claim_id,)).fetchone()
+    if not claim:
+        abort(404)
+    if claim['status'] != 'pending':
+        flash('이미 처리된 신청입니다.', 'warning')
+        return redirect(url_for('admin_benefit_claims'))
+
+    new_status = 'approved' if action == 'approve' else 'rejected'
+    reviewer   = session.get('user_name', '')
+    note       = request.form.get('note', '').strip()
+    db.execute(
+        "UPDATE benefit_claims SET status=?, reviewer_name=?, reviewer_note=?, reviewed_at=CURRENT_TIMESTAMP WHERE id=?",
+        (new_status, reviewer, note or None, claim_id)
+    )
+    db.commit()
+    label = '승인' if action == 'approve' else '반려'
+    flash(f'환급 신청이 {label}되었습니다.', 'success')
+    return redirect(url_for('admin_benefit_claims'))
+
+
+# ── 상여·성과급 지급 관리 ────────────────────────────────────────
+@app.route('/admin/bonus-pay', methods=['GET', 'POST'])
+@admin_required
+def admin_bonus_pay():
+    """상여·성과급 별도 지급 관리."""
+    db = get_db()
+
+    if request.method == 'POST':
+        bonus_type      = request.form.get('bonus_type', '').strip()
+        pay_date        = request.form.get('pay_date', '').strip()
+        achievement_pct = request.form.get('achievement_pct', '')
+        note            = request.form.get('note', '').strip()
+
+        if not bonus_type or not pay_date:
+            flash('상여 유형과 지급일을 입력하세요.', 'error')
+            return redirect(url_for('admin_bonus_pay'))
+
+        achievement_pct = float(achievement_pct) if achievement_pct else None
+        meta            = BENEFIT_CATALOG.get(bonus_type, {})
+        calc_type       = meta.get('calc_type', 'pct_of_base')
+
+        # 활성화된 설정 로드
+        cfg = db.execute(
+            "SELECT * FROM benefit_configs WHERE key=? AND enabled=1", (bonus_type,)
+        ).fetchone()
+        if not cfg:
+            flash('해당 항목이 비활성화 상태입니다. 복리후생 설정에서 먼저 활성화하세요.', 'error')
+            return redirect(url_for('admin_bonus_pay'))
+
+        # 대상 직원 전체
+        employees = db.execute(
+            "SELECT id, name, base_salary FROM users WHERE status='active' AND role NOT IN ('admin','recruiter')"
+        ).fetchall()
+
+        inserted = 0
+        for emp in employees:
+            amount = 0
+            if calc_type == 'pct_of_base':
+                pct    = (cfg['pct'] or meta.get('default_pct', 100)) / 100
+                amount = int((emp['base_salary'] or 0) * pct)
+            elif calc_type == 'company_pct':
+                base_pct = (cfg['pct'] or meta.get('default_pct', 10)) / 100
+                ach      = (achievement_pct or 100) / 100
+                amount   = int((emp['base_salary'] or 0) * base_pct * ach)
+            elif calc_type == 'grade_pct':
+                # 최근 성과등급 조회
+                review = db.execute(
+                    """SELECT overall_grade FROM performance_reviews
+                       WHERE reviewee_id=? ORDER BY submitted_at DESC LIMIT 1""",
+                    (emp['id'],)
+                ).fetchone()
+                grade = review['overall_grade'] if review and review['overall_grade'] else 'C'
+                cfg_grade_pct_json = cfg['pct']  # pct 컬럼에 JSON 저장 여부 확인 필요
+                grade_map = meta.get('grade_pct', {'S': 20, 'A': 15, 'B': 10, 'C': 5, 'D': 0})
+                pct_val   = grade_map.get(grade, 0) / 100
+                amount    = int((emp['base_salary'] or 0) * pct_val / 12)
+
+            if amount > 0:
+                db.execute(
+                    "INSERT INTO bonus_payments (user_id, bonus_type, amount, pay_date, note) VALUES (?,?,?,?,?)",
+                    (emp['id'], bonus_type, amount, pay_date, note or None)
+                )
+                inserted += 1
+
+        db.commit()
+        flash(f'{meta.get("name", bonus_type)} 지급 완료 — {inserted}명, 지급일 {pay_date}', 'success')
+        return redirect(url_for('admin_bonus_pay'))
+
+    # 상여 유형 목록 (separate_bonus만)
+    bonus_items = [
+        {'key': k, **v}
+        for k, v in BENEFIT_CATALOG.items()
+        if v.get('payment_type') == 'separate_bonus'
+    ]
+    bonus_items.sort(key=lambda x: x.get('sort', 99))
+
+    # 기존 지급 내역
+    history = db.execute(
+        """SELECT bp.*, u.name AS emp_name
+           FROM bonus_payments bp
+           JOIN users u ON bp.user_id = u.id
+           ORDER BY bp.pay_date DESC, bp.created_at DESC
+           LIMIT 200"""
+    ).fetchall()
+
+    benefit_names = {k: v['name'] for k, v in BENEFIT_CATALOG.items()}
+
+    return render_template('admin/bonus_pay.html',
+                           bonus_items=bonus_items,
+                           history=history,
+                           benefit_names=benefit_names,
                            active_page='benefits')
 
 
