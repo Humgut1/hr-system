@@ -459,18 +459,19 @@ def init_db(db_path: str = None):
             );
 
             CREATE TABLE IF NOT EXISTS benefit_claims (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id     INTEGER NOT NULL REFERENCES users(id),
-                benefit_key TEXT NOT NULL,
-                amount      INTEGER NOT NULL,
-                description TEXT,
-                receipt_url TEXT,
-                status      TEXT NOT NULL DEFAULT 'pending'
-                                CHECK(status IN ('pending','approved','rejected')),
-                approved_by INTEGER REFERENCES users(id),
-                reject_reason TEXT,
-                claimed_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                processed_at TIMESTAMP
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id       INTEGER NOT NULL REFERENCES users(id),
+                benefit_key   TEXT NOT NULL,
+                amount        INTEGER NOT NULL,
+                expense_date  TEXT,
+                description   TEXT,
+                receipt_url   TEXT,
+                status        TEXT NOT NULL DEFAULT 'pending'
+                                  CHECK(status IN ('pending','approved','rejected')),
+                reviewer_name TEXT,
+                reviewer_note TEXT,
+                submitted_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                reviewed_at   TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS welfare_point_ledger (
@@ -484,17 +485,13 @@ def init_db(db_path: str = None):
             );
 
             CREATE TABLE IF NOT EXISTS bonus_payments (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                benefit_key TEXT NOT NULL,
-                user_id     INTEGER NOT NULL REFERENCES users(id),
-                base_salary INTEGER NOT NULL DEFAULT 0,
-                amount      INTEGER NOT NULL,
-                pct         INTEGER,
-                grade       TEXT,
-                achievement_pct INTEGER,
-                note        TEXT,
-                paid_by     INTEGER NOT NULL REFERENCES users(id),
-                paid_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id         INTEGER NOT NULL REFERENCES users(id),
+                bonus_type      TEXT NOT NULL,
+                amount          INTEGER NOT NULL,
+                pay_date        TEXT,
+                note            TEXT,
+                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS notifications (
@@ -649,6 +646,28 @@ def init_db(db_path: str = None):
             c.execute('ALTER TABLE payslips ADD COLUMN bonus_pay INTEGER NOT NULL DEFAULT 0')
         if 'benefits_json' not in payslip_cols:
             c.execute('ALTER TABLE payslips ADD COLUMN benefits_json TEXT')
+
+        # benefit_claims 컬럼 마이그레이션 (구 스키마 → 신 스키마)
+        bc_claim_cols = {r[1] for r in c.execute('PRAGMA table_info(benefit_claims)').fetchall()}
+        if 'submitted_at' not in bc_claim_cols:
+            c.execute('ALTER TABLE benefit_claims ADD COLUMN submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
+        if 'reviewed_at' not in bc_claim_cols:
+            c.execute('ALTER TABLE benefit_claims ADD COLUMN reviewed_at TIMESTAMP')
+        if 'reviewer_name' not in bc_claim_cols:
+            c.execute('ALTER TABLE benefit_claims ADD COLUMN reviewer_name TEXT')
+        if 'reviewer_note' not in bc_claim_cols:
+            c.execute('ALTER TABLE benefit_claims ADD COLUMN reviewer_note TEXT')
+        if 'expense_date' not in bc_claim_cols:
+            c.execute('ALTER TABLE benefit_claims ADD COLUMN expense_date TEXT')
+
+        # bonus_payments 컬럼 마이그레이션 (구 스키마 → 신 스키마)
+        bp_cols = {r[1] for r in c.execute('PRAGMA table_info(bonus_payments)').fetchall()}
+        if 'bonus_type' not in bp_cols:
+            c.execute('ALTER TABLE bonus_payments ADD COLUMN bonus_type TEXT NOT NULL DEFAULT ""')
+        if 'pay_date' not in bp_cols:
+            c.execute('ALTER TABLE bonus_payments ADD COLUMN pay_date TEXT')
+        if 'created_at' not in bp_cols:
+            c.execute('ALTER TABLE bonus_payments ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
 
         # checkins 컬럼 마이그레이션
         checkin_cols = {r[1] for r in c.execute('PRAGMA table_info(checkins)').fetchall()}
