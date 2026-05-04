@@ -1049,6 +1049,44 @@ def employee_detail(emp_id):
         (emp_id,)
     ).fetchall()
 
+    # 복리후생 탭 데이터
+    company_benefit_cfgs = {
+        r['key']: dict(r)
+        for r in db.execute("SELECT * FROM benefit_configs WHERE enabled=1").fetchall()
+    }
+    emp_benefit_overrides = {
+        r['benefit_key']: dict(r)
+        for r in db.execute(
+            "SELECT * FROM employee_benefit_overrides WHERE user_id=?", (emp_id,)
+        ).fetchall()
+    }
+    # 전사 활성 항목 + 직원 오버라이드 병합
+    benefit_rows = []
+    for key, meta in sorted(BENEFIT_CATALOG.items(), key=lambda x: x[1].get('sort', 99)):
+        cfg = company_benefit_cfgs.get(key)
+        if not cfg:
+            continue   # 전사에서 비활성화된 항목은 표시 안함
+        ovr = emp_benefit_overrides.get(key)
+        benefit_rows.append({
+            'key':           key,
+            'name':          meta['name'],
+            'icon':          meta.get('icon', 'fa-circle'),
+            'payment_type':  meta.get('payment_type'),
+            'tax_exempt':    meta.get('tax_exempt', False),
+            'monthly_limit': meta.get('monthly_limit'),
+            'legal_basis':   meta.get('legal_basis', ''),
+            'description':   meta.get('description', ''),
+            'conditions':    meta.get('conditions'),
+            # 전사 기본값
+            'company_amount': cfg.get('amount', 0),
+            'company_pct':    cfg.get('pct'),
+            # 오버라이드 여부 및 값
+            'has_override':   ovr is not None,
+            'ovr_enabled':    ovr['enabled'] if ovr else True,
+            'ovr_amount':     ovr['amount']  if ovr else None,
+            'ovr_note':       ovr['note']    if ovr else '',
+        })
+
     return render_template('employees/detail.html',
                            emp=emp, payslips=payslips, leaves=leaves,
                            goals=goals, cycle=cycle,
@@ -1059,9 +1097,48 @@ def employee_detail(emp_id):
                            action_departments=action_departments,
                            action_positions=action_positions,
                            action_managers=action_managers,
+                           benefit_rows=benefit_rows,
                            today=date.today().isoformat(),
                            leave_labels=LEAVE_LABELS,
                            active_page='employees')
+
+
+@app.route('/employees/<int:emp_id>/benefits', methods=['POST'])
+@admin_required
+def employee_benefits_save(emp_id):
+    """직원별 복리후생 오버라이드 저장."""
+    db = get_db()
+    if not db.execute('SELECT 1 FROM users WHERE id=?', (emp_id,)).fetchone():
+        abort(404)
+
+    for key in BENEFIT_CATALOG:
+        # 폼에 해당 key가 존재하는 경우만 처리 (오버라이드 ON 체크박스)
+        has_override = request.form.get(f'override_{key}') == '1'
+        if not has_override:
+            # 오버라이드 제거 (전사 기본값으로 복귀)
+            db.execute(
+                'DELETE FROM employee_benefit_overrides WHERE user_id=? AND benefit_key=?',
+                (emp_id, key)
+            )
+            continue
+
+        enabled = 0 if request.form.get(f'disabled_{key}') == '1' else 1
+        raw_amt = request.form.get(f'amount_{key}', '').strip()
+        amount  = int(raw_amt) if raw_amt.isdigit() else 0
+        note    = request.form.get(f'note_{key}', '').strip() or None
+
+        db.execute(
+            'INSERT INTO employee_benefit_overrides (user_id, benefit_key, amount, enabled, note) '
+            'VALUES (?,?,?,?,?) '
+            'ON CONFLICT(user_id, benefit_key) DO UPDATE SET '
+            'amount=excluded.amount, enabled=excluded.enabled, '
+            'note=excluded.note, updated_at=CURRENT_TIMESTAMP',
+            (emp_id, key, amount, enabled, note)
+        )
+
+    db.commit()
+    flash('복리후생 오버라이드가 저장되었습니다.', 'success')
+    return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-benefits')
 
 
 @app.route('/employees/new', methods=['GET', 'POST'])

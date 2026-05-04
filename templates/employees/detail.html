@@ -256,6 +256,9 @@
   <button class="tab-btn" data-tab="pay">급여</button>
   <button class="tab-btn" data-tab="leave">근태/휴가</button>
   <button class="tab-btn" data-tab="perf">성과</button>
+  {% if session.user_role == 'admin' %}
+  <button class="tab-btn" data-tab="benefits">복리후생</button>
+  {% endif %}
 </div>
 
 <div class="tab-panel active" id="tab-basic">
@@ -531,6 +534,132 @@
   </div>
 </div>
 
+{% if session.user_role == 'admin' %}
+<div class="tab-panel" id="tab-benefits">
+  {% if benefit_rows %}
+  <form method="POST" action="{{ url_for('employee_benefits_save', emp_id=emp.id) }}">
+
+    <!-- 안내 -->
+    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:.82rem;color:#0369a1;line-height:1.6;">
+      <i class="fas fa-info-circle" style="margin-right:6px;"></i>
+      전사 기본 설정을 기반으로 이 직원에게만 다르게 적용할 항목을 설정하세요.
+      <strong>오버라이드 ON</strong>이면 아래 금액·활성화 여부가 우선 적용됩니다.
+      오버라이드 OFF이면 전사 기본값을 그대로 사용합니다.
+    </div>
+
+    {% set pt_labels = {'monthly_fixed':'매월 급여 반영','annual_budget':'연간 예산형','reimbursement':'영수증 환급형','separate_bonus':'상여·성과급'} %}
+    {% set cur_pt = namespace(val=None) %}
+    {% for row in benefit_rows %}
+
+      {% if row.payment_type != cur_pt.val %}
+      {% if not loop.first %}</div>{% endif %}
+      {% set cur_pt.val = row.payment_type %}
+      <div style="margin-bottom:16px;">
+      <div style="font-size:.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;padding-left:2px;">
+        {{ pt_labels.get(row.payment_type, row.payment_type) }}
+      </div>
+      {% endif %}
+
+      {% set is_ovr = row.has_override %}
+      <div style="border:1px solid {% if is_ovr %}#bfdbfe{% else %}#f1f5f9{% endif %};border-radius:12px;padding:16px;margin-bottom:8px;background:{% if is_ovr %}#f0f7ff{% else %}#fafafa{% endif %};" id="brow_{{ row.key }}">
+        <div style="display:flex;align-items:flex-start;gap:12px;">
+
+          <!-- 아이콘 -->
+          <div style="width:36px;height:36px;background:{% if is_ovr %}#3b82f6{% else %}#e2e8f0{% endif %};border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="fas {{ row.icon }}" style="color:{% if is_ovr %}#fff{% else %}#94a3b8{% endif %};font-size:13px;"></i>
+          </div>
+
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px;">
+              <strong style="font-size:.88rem;">{{ row.name }}</strong>
+              {% if row.tax_exempt and row.monthly_limit %}
+              <span style="background:#dcfce7;color:#166534;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">비과세 {{ '{:,}'.format(row.monthly_limit) }}원 한도</span>
+              {% else %}
+              <span style="background:#fef3c7;color:#92400e;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">과세</span>
+              {% endif %}
+            </div>
+            <div style="font-size:.75rem;color:#94a3b8;">
+              전사 기본값:
+              {% if row.company_pct %}기본급 × {{ row.company_pct }}%
+              {% elif row.company_amount %}월 {{ '{:,}'.format(row.company_amount) }}원
+              {% else %}—{% endif %}
+            </div>
+          </div>
+
+          <!-- 오버라이드 토글 -->
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;" onclick="toggleOverride('{{ row.key }}')">
+              <span style="font-size:.75rem;color:#64748b;">오버라이드</span>
+              <div style="position:relative;width:40px;height:21px;">
+                <input type="checkbox" name="override_{{ row.key }}" id="ovr_{{ row.key }}" value="1"
+                       {% if is_ovr %}checked{% endif %}
+                       style="position:absolute;opacity:0;width:0;height:0;">
+                <div id="otrack_{{ row.key }}" style="position:absolute;inset:0;background:{{ '#3b82f6' if is_ovr else '#cbd5e1' }};border-radius:999px;transition:background .2s;"></div>
+                <div id="oknob_{{ row.key }}"  style="position:absolute;top:2px;left:{{ '21px' if is_ovr else '2px' }};width:17px;height:17px;background:#fff;border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- 오버라이드 상세 설정 (토글 ON일 때 표시) -->
+        <div id="odetail_{{ row.key }}" style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;{% if not is_ovr %}display:none{% endif %}">
+          <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+
+            <!-- 비활성화 체크박스 -->
+            <div>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.8rem;color:#374151;">
+                <input type="checkbox" name="disabled_{{ row.key }}" value="1"
+                       {% if is_ovr and not row.ovr_enabled %}checked{% endif %}
+                       style="width:15px;height:15px;accent-color:#ef4444;">
+                이 직원은 제외 (비활성화)
+              </label>
+              <div style="font-size:.7rem;color:#94a3b8;margin-top:2px;">체크하면 급여 생성 시 이 항목 미포함</div>
+            </div>
+
+            <!-- 금액 오버라이드 -->
+            {% if row.payment_type == 'monthly_fixed' %}
+            <div>
+              <label style="font-size:.72rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">개인 지급액 (원)</label>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" name="amount_{{ row.key }}"
+                       value="{{ row.ovr_amount if row.ovr_amount is not none else row.company_amount }}"
+                       min="0" step="10000"
+                       placeholder="{{ row.company_amount }}"
+                       style="width:140px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
+                <span style="font-size:.78rem;color:#94a3b8;">원 (기본: {{ '{:,}'.format(row.company_amount) }}원)</span>
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- 메모 -->
+            <div style="flex:1;min-width:140px;">
+              <label style="font-size:.72rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">사유 / 메모</label>
+              <input type="text" name="note_{{ row.key }}" value="{{ row.ovr_note or '' }}"
+                     placeholder="예: 임원 패키지, 자녀 없음"
+                     style="width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.78rem;">
+            </div>
+          </div>
+        </div>
+      </div>
+
+    {% endfor %}
+    </div><!-- last section close -->
+
+    <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+      <button type="submit" class="btn btn-primary" style="padding:9px 28px;">저장하기</button>
+    </div>
+  </form>
+
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8;">
+    <i class="fas fa-gift" style="font-size:2.5rem;margin-bottom:12px;display:block;"></i>
+    <p style="font-size:.9rem;">전사 복리후생 설정이 없습니다.</p>
+    <a href="{{ url_for('admin_benefits') }}" class="btn btn-primary" style="margin-top:12px;">복리후생 설정하러 가기</a>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 {% if session.user_role == 'admin' and emp.status == 'active' %}
 <div class="overlay" id="actionModal" style="display:none;" onclick="if(event.target===this)closeActionModal()">
   <div class="modal" style="width:min(640px, 92vw);">
@@ -679,6 +808,31 @@ function openActionModal() {
 function closeActionModal() {
   var modal = document.getElementById('actionModal');
   if (modal) modal.style.display = 'none';
+}
+
+function toggleOverride(key) {
+  var chk    = document.getElementById('ovr_'    + key);
+  var track  = document.getElementById('otrack_' + key);
+  var knob   = document.getElementById('oknob_'  + key);
+  var detail = document.getElementById('odetail_' + key);
+  var card   = document.getElementById('brow_'   + key);
+
+  chk.checked = !chk.checked;
+  var on = chk.checked;
+
+  track.style.background = on ? '#3b82f6' : '#cbd5e1';
+  knob.style.left        = on ? '21px'    : '2px';
+  if (detail) detail.style.display = on ? 'block' : 'none';
+  if (card) {
+    card.style.borderColor = on ? '#bfdbfe' : '#f1f5f9';
+    card.style.background  = on ? '#f0f7ff' : '#fafafa';
+    var iconBox = card.querySelector('div[style*="border-radius:9px"]');
+    if (iconBox) {
+      iconBox.style.background = on ? '#3b82f6' : '#e2e8f0';
+      var ico = iconBox.querySelector('i');
+      if (ico) ico.style.color = on ? '#fff' : '#94a3b8';
+    }
+  }
 }
 </script>
 {% endblock %}
