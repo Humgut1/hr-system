@@ -43,17 +43,12 @@
         <a href="{{ url_for('dashboard') }}" class="nav-item{% if active_page == 'home' %} active{% endif %}" title="Dashboard">
           <i class="fas fa-home"></i><span>Dashboard</span>
         </a>
-        {% if not user_features or 'attendance' in user_features %}
         <a href="{{ url_for('attendance_home') }}" class="nav-item{% if active_page == 'attendance_home' %} active{% endif %}" title="Attendance">
           <i class="fas fa-clock"></i><span>Attendance</span>
         </a>
         <a href="{{ url_for('leave_my') }}" class="nav-item{% if active_page == 'leave' %} active{% endif %}" title="My Leaves">
           <i class="fas fa-umbrella-beach"></i><span>My Leaves</span>
         </a>
-        <a href="{{ url_for('flex_schedule') }}" class="nav-item{% if active_page == 'flex_schedule' %} active{% endif %}" title="Flex Schedule">
-          <i class="fas fa-th"></i><span>Flex Schedule</span>
-        </a>
-        {% endif %}
       </div>
 
       <div class="nav-section-divider"></div>
@@ -63,16 +58,12 @@
         <div class="nav-category-btn" style="cursor:default;">
           <span>Pay &amp; Docs</span>
         </div>
-        {% if not user_features or 'payroll' in user_features %}
         <a href="{{ url_for('payroll_list') }}" class="nav-item{% if active_page == 'payroll' %} active{% endif %}" title="Payslips">
           <i class="fas fa-won-sign"></i><span>Payslips</span>
         </a>
-        {% endif %}
-        {% if not user_features or 'certificates' in user_features %}
         <a href="{{ url_for('certificates_hub') }}" class="nav-item{% if active_page == 'certificates' %} active{% endif %}" title="Documents">
           <i class="fas fa-folder-open"></i><span>Documents</span>
         </a>
-        {% endif %}
         {% if session.user_role != 'guest' %}
         <a href="{{ url_for('contracts_list') }}" class="nav-item{% if active_page == 'contracts' %} active{% endif %}" title="Contracts">
           <i class="fas fa-file-signature"></i><span>Contracts</span>
@@ -87,16 +78,12 @@
         <div class="nav-category-btn" style="cursor:default;">
           <span>Growth</span>
         </div>
-        {% if not user_features or 'performance' in user_features %}
         <a href="{{ url_for('performance') }}" class="nav-item{% if active_page == 'performance' %} active{% endif %}" title="Performance">
           <i class="fas fa-chart-line"></i><span>Performance</span>
         </a>
-        {% endif %}
-        {% if not user_features or 'peer_review' in user_features %}
         <a href="{{ url_for('peer_reviews_page') }}" class="nav-item{% if active_page == 'peer' %} active{% endif %}" title="Peer Review">
           <i class="fas fa-star"></i><span>Peer Review</span>
         </a>
-        {% endif %}
       </div>
 
       <div class="nav-section-divider"></div>
@@ -106,16 +93,12 @@
         <div class="nav-category-btn" style="cursor:default;">
           <span>Company</span>
         </div>
-        {% if not user_features or 'announcements' in user_features %}
         <a href="{{ url_for('announcements') }}" class="nav-item{% if active_page == 'announcements' %} active{% endif %}" title="Announcements">
           <i class="fas fa-bullhorn"></i><span>Announcements</span>
         </a>
-        {% endif %}
-        {% if not user_features or 'org_chart' in user_features %}
         <a href="{{ url_for('org_chart') }}" class="nav-item{% if active_page == 'org' %} active{% endif %}" title="Org Chart">
           <i class="fas fa-sitemap"></i><span>Org Chart</span>
         </a>
-        {% endif %}
       </div>
 
       <!-- ── TEAM (매니저+) ─────────────────────────── -->
@@ -134,11 +117,9 @@
         <a href="{{ url_for('termination_requests') }}" class="nav-item{% if active_page == 'termination_requests' %} active{% endif %}" title="Termination">
           <i class="fas fa-user-clock"></i><span>Termination</span>
         </a>
-        {% if not user_features or 'peer_review' in user_features %}
         <a href="{{ url_for('peer_assignments') }}" class="nav-item{% if active_page == 'peer_assignments' %} active{% endif %}" title="Peer Assignments">
           <i class="fas fa-user-plus"></i><span>Peer Assignments</span>
         </a>
-        {% endif %}
       </div>
       {% endif %}
 
@@ -149,21 +130,12 @@
         <div class="nav-category-btn" style="cursor:default;">
           <span>Admin</span>
         </div>
-        {% if not user_features or 'payroll' in user_features %}
         <a href="{{ url_for('admin_payroll') }}" class="nav-item{% if active_page == 'admin_payroll' %} active{% endif %}" title="Payroll Admin">
           <i class="fas fa-coins"></i><span>Payroll Admin</span>
         </a>
-        {% endif %}
-        {% if not user_features or 'recruiting' in user_features %}
         <a href="{{ url_for('recruit_postings') }}" class="nav-item{% if active_page == 'recruit' %} active{% endif %}" title="Recruiting">
           <i class="fas fa-user-tie"></i><span>Recruiting</span>
         </a>
-        {% endif %}
-        {% if not user_features or 'calibration' in user_features %}
-        <a href="{{ url_for('calibration') }}" class="nav-item{% if active_page == 'calibration' %} active{% endif %}" title="Calibration">
-          <i class="fas fa-scale-balanced"></i><span>Calibration</span>
-        </a>
-        {% endif %}
         <a href="{{ url_for('people_analytics') }}" class="nav-item{% if active_page == 'analytics' %} active{% endif %}" title="Analytics">
           <i class="fas fa-chart-pie"></i><span>Analytics</span>
         </a>
@@ -188,24 +160,11 @@
         <a href="{{ url_for('overtime_monitor') }}" class="nav-item{% if active_page == 'overtime_monitor' %} active{% endif %}" title="52h Monitor">
           <i class="fas fa-clock"></i><span>52h Monitor</span>
         </a>
-        <!-- 구독 관리 -->
-        <a href="{{ url_for('billing') }}" class="nav-item{% if active_page == 'billing' %} active{% endif %}" title="Subscription" style="position:relative;">
-          <i class="fas fa-credit-card"></i><span>Subscription</span>
-          {% if sub_state %}
-            {% if sub_state.state in ('trial_warning',) %}
-              <span style="margin-left:auto;font-size:10px;font-weight:700;background:#f59e0b;color:#fff;padding:2px 6px;border-radius:999px;">D-{{ sub_state.days_left }}</span>
-            {% elif sub_state.state in ('grace','payment_failed') %}
-              <span style="margin-left:auto;font-size:10px;font-weight:700;background:#ef4444;color:#fff;padding:2px 6px;border-radius:999px;">만료</span>
-            {% elif sub_state.state == 'active' %}
-              <span style="margin-left:auto;font-size:10px;font-weight:700;background:#22c55e;color:#fff;padding:2px 6px;border-radius:999px;">활성</span>
-            {% endif %}
-          {% endif %}
-        </a>
       </div>
       {% endif %}
 
       <!-- ── RECRUITER 전용 ─────────────────────────── -->
-      {% if session.user_role == 'recruiter' and (not user_features or 'recruiting' in user_features) %}
+      {% if session.user_role == 'recruiter' %}
       <div class="nav-section-divider"></div>
       <div class="nav-section-body">
         <div class="nav-category-btn" style="cursor:default;"><span>Recruit</span></div>
@@ -234,25 +193,6 @@
 
   <!-- ══ 메인 ══════════════════════════════════════ -->
   <div class="main-wrapper">
-
-    <!-- ── 구독 상태 배너 ──────────────────────────── -->
-    {% if sub_state %}
-      {% if sub_state.state == 'trial_warning' %}
-      <div style="background:#fffbeb;border-bottom:1px solid #fde68a;padding:10px 24px;display:flex;align-items:center;gap:12px;font-size:13px;">
-        <i class="fas fa-clock" style="color:#f59e0b;"></i>
-        <span style="font-weight:600;color:#92400e;">무료 체험 <strong>{{ sub_state.days_left }}일</strong> 남았어요.</span>
-        <span style="color:#78350f;">카드를 등록하면 체험 종료 후에도 계속 사용할 수 있어요.</span>
-        <a href="{{ url_for('billing') }}" style="margin-left:auto;background:#f59e0b;color:#fff;padding:5px 14px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">카드 등록하기</a>
-      </div>
-      {% elif sub_state.state in ('grace', 'payment_failed') %}
-      <div style="background:#fef2f2;border-bottom:1px solid #fecaca;padding:10px 24px;display:flex;align-items:center;gap:12px;font-size:13px;">
-        <i class="fas fa-exclamation-triangle" style="color:#ef4444;"></i>
-        <span style="font-weight:600;color:#991b1b;">체험 기간이 만료되었어요.</span>
-        <span style="color:#7f1d1d;">유예 기간 <strong>{{ sub_state.days_left }}일</strong> 안에 카드를 등록하지 않으면 데이터 조회도 중단돼요. 현재 조회만 가능해요.</span>
-        <a href="{{ url_for('billing') }}" style="margin-left:auto;background:#ef4444;color:#fff;padding:5px 14px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">지금 등록하기</a>
-      </div>
-      {% endif %}
-    {% endif %}
 
     <header class="header">
       <div class="header-left">
@@ -310,9 +250,6 @@
             {% if session.user_role == 'admin' %}
             <a href="{{ url_for('admin_settings') }}" class="user-dropdown-item">
               <i class="fas fa-building"></i> Company Settings
-            </a>
-            <a href="{{ url_for('onboarding') }}" class="user-dropdown-item">
-              <i class="fas fa-sliders"></i> Feature Settings
             </a>
             {% endif %}
             <div style="height:1px; background:var(--border); margin:6px 0;"></div>
@@ -437,7 +374,6 @@ document.addEventListener('click', function(e) {
     {label:'Job Postings', url:'{{ url_for("recruit_postings") }}', icon:'fa-file-signature'},
     {label:'Pipeline', url:'{{ url_for("recruit_pipeline") }}', icon:'fa-user-tie'},
     {label:'Dept & Grade', url:'{{ url_for("departments") }}', icon:'fa-layer-group'},
-    {label:'Calibration', url:'{{ url_for("calibration") }}', icon:'fa-scale-balanced'},
     {label:'People Analytics', url:'{{ url_for("people_analytics") }}', icon:'fa-chart-pie'},
     {label:'Reports', url:'{{ url_for("export_hub") }}', icon:'fa-file-excel'},
     {label:'Company Settings', url:'{{ url_for("admin_settings") }}', icon:'fa-building'},
