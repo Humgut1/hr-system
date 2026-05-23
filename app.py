@@ -369,7 +369,25 @@ def admin_setup():
         default_meal_allowance      = int(s.get('default_meal_allowance', 200000) or 0)
         default_transport_allowance = int(s.get('default_transport_allowance', 100000) or 0)
 
-        # ── Step 5: 성과관리 ─────────────────────────────────
+        # ── Step 5: 복리후생 활성화 ─────────────────────────
+        selected_benefits = set(s.getlist('benefits'))
+        for key, meta in BENEFIT_CATALOG.items():
+            enabled = 1 if key in selected_benefits else 0
+            db.execute('''
+                INSERT INTO benefit_configs
+                    (benefit_key, enabled, amount, payment_type, annual_limit, platform)
+                VALUES (?,?,?,?,?,?)
+                ON CONFLICT(benefit_key) DO UPDATE SET
+                    enabled=excluded.enabled
+            ''', (
+                key, enabled,
+                meta.get('default_amount', 0),
+                meta.get('payment_type', 'monthly_fixed'),
+                meta.get('annual_limit'),
+                None,
+            ))
+
+        # ── Step 6: 성과관리 ─────────────────────────────────
         perf_cycle       = s.get('perf_cycle', 'semiannual')
         use_peer_review  = 1 if s.get('use_peer_review') else 0
         use_self_review  = 1 if s.get('use_self_review') else 0
@@ -426,7 +444,8 @@ def admin_setup():
 
     config  = get_company_config()
     company = get_company_info()
-    return render_template('admin/setup.html', config=config, company=company)
+    return render_template('admin/setup.html', config=config, company=company,
+                           benefit_catalog=BENEFIT_CATALOG)
 
 
 @app.route('/admin/settings', methods=['GET', 'POST'])
