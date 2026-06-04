@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>임금 시스템 현황 분석 + 개선 제안 — TalentCore</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif; background: #f1f5f9; color: #1e293b; font-size: 14px; }
+
+.page { max-width: 1200px; margin: 0 auto; padding: 32px 20px 80px; }
+h1 { font-size: 24px; font-weight: 900; margin-bottom: 6px; }
+.subtitle { font-size: 14px; color: #64748b; margin-bottom: 36px; }
+
+/* 탭 */
+.tabs { display: flex; gap: 4px; border-bottom: 2px solid #e2e8f0; margin-bottom: 28px; position: sticky; top: 0; background: #f1f5f9; z-index: 10; padding-top: 12px; }
+.tab-btn { padding: 10px 20px; border: none; background: none; font-size: 14px; font-weight: 700; color: #94a3b8; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; font-family: inherit; transition: all .15s; }
+.tab-btn:hover { color: #1e293b; }
+.tab-btn.active { color: #1e40af; border-bottom-color: #1e40af; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* 카드 */
+.card { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; margin-bottom: 16px; overflow: hidden; }
+.card-head { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+.card-title { font-weight: 800; font-size: 15px; }
+.card-body { padding: 20px; }
+
+/* 섹션 레이블 */
+.section-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: #94a3b8; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.section-label::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+
+/* 프로세스 플로우 */
+.flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; }
+.flow-step { flex: 1; min-width: 140px; }
+.flow-step-inner { border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 14px; margin: 0 4px; height: 100%; }
+.flow-step-inner.admin { border-color: #bfdbfe; background: #eff6ff; }
+.flow-step-inner.employee { border-color: #bbf7d0; background: #f0fdf4; }
+.flow-step-inner.system { border-color: #e9d5ff; background: #faf5ff; }
+.flow-step-inner.alert  { border-color: #fecdd3; background: #fff1f2; }
+.fs-icon { font-size: 20px; margin-bottom: 8px; }
+.fs-title { font-size: 13px; font-weight: 800; margin-bottom: 4px; }
+.fs-desc { font-size: 11px; color: #64748b; line-height: 1.5; }
+.flow-arrow { display: flex; align-items: center; padding: 0 2px; color: #94a3b8; font-size: 18px; align-self: center; }
+
+/* 기능 테이블 */
+.feat-table { width: 100%; border-collapse: collapse; }
+.feat-table th { background: #f8fafc; padding: 10px 14px; font-size: 12px; font-weight: 800; text-align: left; border-bottom: 1px solid #e2e8f0; }
+.feat-table td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #f8fafc; vertical-align: top; line-height: 1.6; }
+.feat-table tr:hover td { background: #f8fafc; }
+.tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+.tag-ok   { background: #dcfce7; color: #166534; }
+.tag-warn { background: #fef3c7; color: #92400e; }
+.tag-miss { background: #fee2e2; color: #991b1b; }
+.tag-new  { background: #ede9fe; color: #6d28d9; }
+.tag-imp  { background: #eff6ff; color: #1e40af; }
+
+/* 개선 카드 */
+.improve-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.imp-card { border-radius: 12px; padding: 18px; border: 1.5px solid #e2e8f0; background: #fff; }
+.imp-card.priority-high { border-color: #fca5a5; }
+.imp-card.priority-mid  { border-color: #fcd34d; }
+.imp-card.priority-low  { border-color: #bbf7d0; }
+.imp-title { font-size: 14px; font-weight: 800; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.imp-desc { font-size: 12px; color: #475569; line-height: 1.6; margin-bottom: 10px; }
+.imp-ref { font-size: 11px; color: #94a3b8; }
+.imp-badge { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 20px; }
+.imp-badge.high { background: #fee2e2; color: #991b1b; }
+.imp-badge.mid  { background: #fef3c7; color: #92400e; }
+.imp-badge.low  { background: #dcfce7; color: #166534; }
+
+/* 비교 테이블 */
+.compare-table { width: 100%; border-collapse: collapse; }
+.compare-table th { background: #1e3a8a; color: #fff; padding: 12px 14px; font-size: 12px; font-weight: 700; text-align: left; }
+.compare-table th:first-child { background: #1e293b; }
+.compare-table td { padding: 10px 14px; font-size: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+.compare-table tr:nth-child(even) td { background: #f8fafc; }
+.c-yes  { color: #166534; font-weight: 700; }
+.c-no   { color: #dc2626; }
+.c-part { color: #92400e; }
+
+/* 급여 계산 흐름 */
+.calc-flow { display: grid; grid-template-columns: 1fr 40px 1fr 40px 1fr 40px 1fr; gap: 0; align-items: center; }
+.calc-box { border-radius: 10px; padding: 14px; text-align: center; }
+.calc-box.income  { background: #eff6ff; border: 1.5px solid #bfdbfe; }
+.calc-box.deduct  { background: #fff1f2; border: 1.5px solid #fecdd3; }
+.calc-box.net     { background: #f0fdf4; border: 1.5px solid #bbf7d0; }
+.calc-box.formula { background: #f5f3ff; border: 1.5px solid #ddd6fe; }
+.calc-box .cb-title { font-size: 12px; font-weight: 800; margin-bottom: 8px; }
+.calc-box .cb-item  { font-size: 11px; color: #475569; line-height: 1.8; }
+.calc-arrow { font-size: 24px; color: #94a3b8; text-align: center; }
+.calc-op    { font-size: 20px; font-weight: 900; color: #ef4444; text-align: center; }
+
+/* 법령 뱃지 */
+.law-chip { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #f5f3ff; color: #6d28d9; margin-right: 4px; margin-bottom: 3px; }
+
+/* 구조 다이어그램 */
+.arch-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.arch-box { border-radius: 10px; padding: 14px; border: 1px solid #e2e8f0; }
+.arch-box.blue   { background: #eff6ff; border-color: #bfdbfe; }
+.arch-box.green  { background: #f0fdf4; border-color: #bbf7d0; }
+.arch-box.purple { background: #f5f3ff; border-color: #ddd6fe; }
+.arch-box.red    { background: #fff1f2; border-color: #fecdd3; }
+.arch-title { font-size: 12px; font-weight: 800; margin-bottom: 8px; }
+.arch-item  { font-size: 11px; color: #475569; padding: 3px 0; border-bottom: 1px solid rgba(0,0,0,.05); display: flex; align-items: center; gap: 6px; }
+.arch-item:last-child { border-bottom: none; }
+
+/* 개선 전/후 비교 */
+.before-after { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ba-box { border-radius: 10px; padding: 16px; }
+.ba-box.before { background: #fef2f2; border: 1.5px solid #fecaca; }
+.ba-box.after  { background: #f0fdf4; border: 1.5px solid #bbf7d0; }
+.ba-title { font-size: 12px; font-weight: 800; margin-bottom: 10px; }
+.ba-item { font-size: 12px; line-height: 1.8; padding-left: 14px; position: relative; }
+.ba-item::before { content: '·'; position: absolute; left: 0; }
+.ba-box.after .ba-item::before { content: '✓'; color: #22c55e; font-weight: 900; }
+.ba-box.before .ba-item::before { content: '✗'; color: #ef4444; font-weight: 900; }
+
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>💰 임금 시스템 현황 분석 + 개선 제안</h1>
+  <p class="subtitle">TalentCore v0.44 기준 · Workday / Rippling / BambooHR / Gusto 참고</p>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('current', this)">① 현황 전체 맵</button>
+    <button class="tab-btn" onclick="showTab('calc', this)">② 계산 구조</button>
+    <button class="tab-btn" onclick="showTab('gaps', this)">③ 타 시스템 비교</button>
+    <button class="tab-btn" onclick="showTab('improve', this)">④ 개선 제안</button>
+    <button class="tab-btn" onclick="showTab('priority', this)">⑤ 우선순위</button>
+  </div>
+
+
+  <!-- ══════════ TAB 1: 현황 전체 맵 ══════════ -->
+  <div id="tab-current" class="tab-content active">
+
+    <!-- 전체 구조 -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">📐 현재 시스템 전체 구조</span></div>
+      <div class="card-body">
+        <div class="arch-grid">
+          <div class="arch-box blue">
+            <div class="arch-title">👤 직원 (Employee)</div>
+            <div class="arch-item"><span>📄</span> 급여명세서 목록 조회</div>
+            <div class="arch-item"><span>📄</span> 월별 명세서 상세 보기</div>
+            <div class="arch-item"><span>📋</span> 증명서 발급 (원천징수 등)</div>
+          </div>
+          <div class="arch-box purple">
+            <div class="arch-title">🛡 HR Admin — 급여 관리</div>
+            <div class="arch-item"><span>⚙️</span> 직원별 기본급 설정</div>
+            <div class="arch-item"><span>▶️</span> 월 급여 일괄 생성</div>
+            <div class="arch-item"><span>📊</span> 연봉 기준표 (직급×직군)</div>
+            <div class="arch-item"><span>🎁</span> 복리후생 설정</div>
+            <div class="arch-item"><span>🏆</span> 상여·성과급 지급</div>
+            <div class="arch-item"><span>🧾</span> 환급 신청 처리</div>
+            <div class="arch-item"><span>📤</span> Excel 내보내기</div>
+          </div>
+          <div class="arch-box green">
+            <div class="arch-title">🤖 자동 계산 엔진</div>
+            <div class="arch-item"><span>✅</span> 4대보험 (국민연금·건강·고용·산재)</div>
+            <div class="arch-item"><span>✅</span> 소득세 + 지방소득세</div>
+            <div class="arch-item"><span>✅</span> 비과세 한도 자동 적용</div>
+            <div class="arch-item"><span>✅</span> 연장·야간·휴일 수당</div>
+            <div class="arch-item"><span>✅</span> §54 휴게시간 공제</div>
+            <div class="arch-item"><span>✅</span> 최저임금 체크</div>
+            <div class="arch-item"><span>✅</span> 퇴직금 산정 (3개월 평균임금)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 월 급여 생성 프로세스 -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">🔄 월 급여 생성 프로세스 (현재)</span></div>
+      <div class="card-body">
+        <div class="flow">
+          <div class="flow-step">
+            <div class="flow-step-inner admin">
+              <div class="fs-icon">⚙️</div>
+              <div class="fs-title">① 기본급 설정</div>
+              <div class="fs-desc">admin_payroll에서 직원별 기본급·식대·교통비 입력</div>
+            </div>
+          </div>
+          <div class="flow-arrow">›</div>
+          <div class="flow-step">
+            <div class="flow-step-inner system">
+              <div class="fs-icon">🕐</div>
+              <div class="fs-title">② 근태 집계</div>
+              <div class="fs-desc">checkins에서 해당 월 overtime·night·holiday_min 자동 합산</div>
+            </div>
+          </div>
+          <div class="flow-arrow">›</div>
+          <div class="flow-step">
+            <div class="flow-step-inner system">
+              <div class="fs-icon">🎁</div>
+              <div class="fs-title">③ 복리후생 반영</div>
+              <div class="fs-desc">benefit_configs에서 monthly_fixed 항목 자동 적용, 직원별 override 확인</div>
+            </div>
+          </div>
+          <div class="flow-arrow">›</div>
+          <div class="flow-step">
+            <div class="flow-step-inner system">
+              <div class="fs-icon">🧮</div>
+              <div class="fs-title">④ 공제 계산</div>
+              <div class="fs-desc">calc_payslip() — 4대보험·소득세·지방소득세 자동 계산</div>
+            </div>
+          </div>
+          <div class="flow-arrow">›</div>
+          <div class="flow-step">
+            <div class="flow-step-inner admin">
+              <div class="fs-icon">▶️</div>
+              <div class="fs-title">⑤ 일괄 생성</div>
+              <div class="fs-desc">Admin이 년/월 선택 후 "생성" 버튼 — payslips 테이블에 INSERT</div>
+            </div>
+          </div>
+          <div class="flow-arrow">›</div>
+          <div class="flow-step">
+            <div class="flow-step-inner employee">
+              <div class="fs-icon">📄</div>
+              <div class="fs-title">⑥ 직원 조회</div>
+              <div class="fs-desc">/payroll에서 목록, /payroll/년/월 에서 명세서 상세 확인</div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:14px; padding:12px 16px; background:#fff7ed; border-radius:8px; font-size:12px; color:#92400e;">
+          ⚠️ <strong>현재 문제</strong>: 생성 전 미리보기 없음. 한 번 생성하면 삭제 기능 없음. 생성 완료 후 직원에게 알림 없음.
+        </div>
+      </div>
+    </div>
+
+    <!-- DB 테이블 구조 -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">🗄 핵심 DB 테이블</span></div>
+      <div class="card-body">
+        <table class="feat-table">
+          <thead>
+            <tr><th>테이블</th><th>용도</th><th>주요 컬럼</th><th>현황</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>employee_salary</strong></td>
+              <td>직원별 급여 설정</td>
+              <td>base_salary, meal_allowance, transport_allowance</td>
+              <td><span class="tag tag-warn">⚠ 이력 없음</span></td>
+            </tr>
+            <tr>
+              <td><strong>payslips</strong></td>
+              <td>월별 급여명세서</td>
+              <td>gross_pay, total_deduction, net_pay, overtime_pay, bonus_pay, benefits_json</td>
+              <td><span class="tag tag-ok">✓ 정상</span></td>
+            </tr>
+            <tr>
+              <td><strong>benefit_configs</strong></td>
+              <td>복리후생 회사 설정</td>
+              <td>key, enabled, payment_type, amount, pct, grade_pct_json</td>
+              <td><span class="tag tag-ok">✓ 정상</span></td>
+            </tr>
+            <tr>
+              <td><strong>employee_benefit_overrides</strong></td>
+              <td>직원별 복리후생 예외</td>
+              <td>user_id, benefit_key, enabled, amount</td>
+              <td><span class="tag tag-ok">✓ 정상</span></td>
+            </tr>
+            <tr>
+              <td><strong>bonus_payments</strong></td>
+              <td>상여·성과급 지급 기록</td>
+              <td>user_id, bonus_type, amount, pay_date</td>
+              <td><span class="tag tag-ok">✓ 정상</span></td>
+            </tr>
+            <tr>
+              <td><strong>severance_payments</strong></td>
+              <td>퇴직금 기록</td>
+              <td>user_id, severance_amount, tenure_days</td>
+              <td><span class="tag tag-ok">✓ 정상</span></td>
+            </tr>
+            <tr>
+              <td><strong>salary_grades</strong></td>
+              <td>직급별 연봉 기준표</td>
+              <td>grade, job_family_id, min_salary, mid_salary, max_salary</td>
+              <td><span class="tag tag-warn">⚠ 참고만, 실제 미연동</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 비과세 항목 현황 -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">💡 비과세·공제 항목 현황</span></div>
+      <div class="card-body">
+        <table class="feat-table">
+          <thead>
+            <tr><th>항목</th><th>법령 근거</th><th>한도</th><th>구현 상태</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>식대</td><td><span class="law-chip">소득세법 §12①3</span></td><td>월 20만원</td><td><span class="tag tag-ok">✓ 구현됨</span></td></tr>
+            <tr><td>교통비 (대중교통)</td><td><span class="law-chip">소득세법 §12①1</span></td><td>월 20만원</td><td><span class="tag tag-ok">✓ 구현됨</span></td></tr>
+            <tr><td>자가운전보조금</td><td><span class="law-chip">소득세법 §12①2</span></td><td>월 20만원</td><td><span class="tag tag-ok">✓ 구현됨</span></td></tr>
+            <tr><td>육아수당</td><td><span class="law-chip">소득세법 §12①9</span></td><td>월 10만원</td><td><span class="tag tag-ok">✓ 구현됨</span></td></tr>
+            <tr><td>학자금</td><td><span class="law-chip">소득세법 §12①10</span></td><td>월 10만원</td><td><span class="tag tag-ok">✓ 구현됨</span></td></tr>
+            <tr><td>연구보조비</td><td><span class="law-chip">소득세법 §12①4</span></td><td>월 20만원</td><td><span class="tag tag-ok">✓ 구현됨</span></td></tr>
+            <tr><td>야간근로수당 (생산직)</td><td><span class="law-chip">소득세법 §12①3</span></td><td>월 240만원</td><td><span class="tag tag-miss">✗ 미구현</span></td></tr>
+            <tr><td>국외근로소득</td><td><span class="law-chip">소득세법 §12①4</span></td><td>월 300만원</td><td><span class="tag tag-miss">✗ 해당없음</span></td></tr>
+            <tr><td>연장·야간 수당 (§56)</td><td><span class="law-chip">근로기준법 §56</span></td><td>별도 가산</td><td><span class="tag tag-ok">✓ 구현됨</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- ══════════ TAB 2: 계산 구조 ══════════ -->
+  <div id="tab-calc" class="tab-content">
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">🧮 급여 계산 흐름 (현재 구현)</span></div>
+      <div class="card-body">
+        <div class="calc-flow">
+          <div class="calc-box income">
+            <div class="cb-title">📥 총지급액<br>(Gross Pay)</div>
+            <div class="cb-item">기본급</div>
+            <div class="cb-item">+ 식대</div>
+            <div class="cb-item">+ 교통비</div>
+            <div class="cb-item">+ 연장수당</div>
+            <div class="cb-item">+ 복리후생</div>
+            <div class="cb-item">+ 상여 (별도)</div>
+          </div>
+          <div class="calc-op">−</div>
+          <div class="calc-box deduct">
+            <div class="cb-title">📤 공제합계</div>
+            <div class="cb-item">국민연금 4.5%</div>
+            <div class="cb-item">건강보험 3.545%</div>
+            <div class="cb-item">장기요양 ×12.95%</div>
+            <div class="cb-item">고용보험 0.9%</div>
+            <div class="cb-item">소득세 (누진세율)</div>
+            <div class="cb-item">지방소득세 ×10%</div>
+          </div>
+          <div class="calc-op">=</div>
+          <div class="calc-box net">
+            <div class="cb-title">💰 실수령액<br>(Net Pay)</div>
+            <div class="cb-item" style="font-size:14px; font-weight:900; color:#166534;">Gross − 공제</div>
+          </div>
+          <div class="calc-arrow">→</div>
+          <div class="calc-box formula">
+            <div class="cb-title">🔢 추가 계산</div>
+            <div class="cb-item">연장 ×1.5배</div>
+            <div class="cb-item">야간 ×0.5가산</div>
+            <div class="cb-item">휴일 8h↓ ×1.5</div>
+            <div class="cb-item">휴일 8h↑ ×2.0</div>
+            <div class="cb-item">비과세 자동공제</div>
+          </div>
+        </div>
+
+        <div style="margin-top:20px;">
+          <div class="section-label">4대보험 요율 (2026년 기준)</div>
+          <table class="feat-table">
+            <thead><tr><th>항목</th><th>근로자 부담</th><th>사용자 부담</th><th>과세 기준</th><th>비고</th></tr></thead>
+            <tbody>
+              <tr><td>국민연금</td><td>4.5%</td><td>4.5%</td><td>과세소득</td><td>상한: 월 590만원 × 9%</td></tr>
+              <tr><td>건강보험</td><td>3.545%</td><td>3.545%</td><td>과세소득</td><td></td></tr>
+              <tr><td>장기요양보험</td><td>건강보험료 × 12.95%</td><td>건강보험료 × 12.95%</td><td>—</td><td>건강보험에 부과</td></tr>
+              <tr><td>고용보험</td><td>0.9%</td><td>0.9~1.85%</td><td>과세소득</td><td>사용자 부담률 인원 규모별 상이</td></tr>
+              <tr><td>산재보험</td><td>0%</td><td>업종별 0.6~18.6%</td><td>—</td><td>현재 미구현 (사용자 전액)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:20px;">
+          <div class="section-label">소득세 누진세율 (현재 구현 방식)</div>
+          <table class="feat-table">
+            <thead><tr><th>연 과세표준</th><th>세율</th><th>누진공제</th></tr></thead>
+            <tbody>
+              <tr><td>1,400만원 이하</td><td>6%</td><td>—</td></tr>
+              <tr><td>1,400만~5,000만원</td><td>15%</td><td>126만원</td></tr>
+              <tr><td>5,000만~8,800만원</td><td>24%</td><td>576만원</td></tr>
+              <tr><td>8,800만~1.5억원</td><td>35%</td><td>1,544만원</td></tr>
+              <tr><td>1.5억~3억원</td><td>38%</td><td>1,994만원</td></tr>
+              <tr><td>3억~5억원</td><td>40%</td><td>2,594만원</td></tr>
+              <tr><td>5억원 초과</td><td>42%</td><td>3,594만원</td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:8px; font-size:11px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:6px;">
+            ※ 현재 구현: 연간 과세표준 기준 단순 누진 계산 → 12로 나눠 월 소득세 산출. <br>
+            실무 정확도: 근로소득 간이세액표(국세청 고시)와 소폭 차이 있을 수 있음. 연말정산 미구현.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- ══════════ TAB 3: 타 시스템 비교 ══════════ -->
+  <div id="tab-gaps" class="tab-content">
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">🌐 타 HR 솔루션과 기능 비교</span></div>
+      <div class="card-body">
+        <div style="overflow-x:auto;">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>기능</th>
+              <th>TalentCore (현재)</th>
+              <th>Workday</th>
+              <th>Rippling</th>
+              <th>BambooHR</th>
+              <th>Gusto</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>기본급 설정</strong></td>
+              <td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td>
+            </tr>
+            <tr>
+              <td><strong>4대보험 자동계산</strong></td>
+              <td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-part">△ 미국기준</td><td class="c-yes">✓</td>
+            </tr>
+            <tr>
+              <td><strong>비과세 자동 처리</strong></td>
+              <td class="c-yes">✓ (7종)</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-no">✗</td><td class="c-yes">✓</td>
+            </tr>
+            <tr>
+              <td><strong>연장·야간·휴일 수당</strong></td>
+              <td class="c-yes">✓ (§56)</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-part">△</td><td class="c-yes">✓</td>
+            </tr>
+            <tr>
+              <td><strong>급여 생성 미리보기</strong></td>
+              <td class="c-no">✗ 없음</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td>
+            </tr>
+            <tr>
+              <td><strong>급여 수정/재계산</strong></td>
+              <td class="c-no">✗ 삭제 불가</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td>
+            </tr>
+            <tr>
+              <td><strong>급여 이력 (salary history)</strong></td>
+              <td class="c-no">✗ 현재값만</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td>
+            </tr>
+            <tr>
+              <td><strong>연말정산</strong></td>
+              <td class="c-no">✗ 미구현</td><td class="c-yes">✓</td><td class="c-part">△ 미국기준</td><td class="c-no">✗</td><td class="c-yes">✓</td>
+            </tr>
+            <tr>
+              <td><strong>일할계산 (중도입퇴사)</strong></td>
+              <td class="c-part">△ 코드만</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td>
+            </tr>
+            <tr>
+              <td><strong>급여 캘린더 (지급일)</strong></td>
+              <td class="c-no">✗ 없음</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td>
+            </tr>
+            <tr>
+              <td><strong>급여명세서 이메일 발송</strong></td>
+              <td class="c-no">✗ 없음</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td>
+            </tr>
+            <tr>
+              <td><strong>급여 밴드 (pay band)</strong></td>
+              <td class="c-part">△ 기준표만</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-no">✗</td>
+            </tr>
+            <tr>
+              <td><strong>일괄 인상 (% raise)</strong></td>
+              <td class="c-no">✗ 없음</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td>
+            </tr>
+            <tr>
+              <td><strong>복리후생 통합 관리</strong></td>
+              <td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td>
+            </tr>
+            <tr>
+              <td><strong>성과 연동 상여</strong></td>
+              <td class="c-yes">✓ (PI/CI)</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-part">△</td><td class="c-no">✗</td>
+            </tr>
+            <tr>
+              <td><strong>퇴직금 자동계산</strong></td>
+              <td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-part">△ 미국기준</td><td class="c-no">✗</td><td class="c-no">✗</td>
+            </tr>
+            <tr>
+              <td><strong>급여 시뮬레이터</strong></td>
+              <td class="c-no">✗ 없음</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-no">✗</td><td class="c-part">△</td>
+            </tr>
+            <tr>
+              <td><strong>Compa-ratio 분석</strong></td>
+              <td class="c-part">△ Analytics에 일부</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-yes">✓</td><td class="c-no">✗</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+        <div style="margin-top:12px; font-size:12px; color:#64748b;">
+          ✓ 완전 구현 &nbsp;·&nbsp; △ 부분 구현 &nbsp;·&nbsp; ✗ 미구현
+        </div>
+      </div>
+    </div>
+
+    <!-- 현재 pain points -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">⚠️ 현재 주요 문제점</span></div>
+      <div class="card-body">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div style="padding:14px; background:#fff1f2; border-radius:10px; border:1px solid #fecaca;">
+            <div style="font-weight:800; color:#991b1b; margin-bottom:10px;">🔴 심각 (사용성 저하)</div>
+            <div style="font-size:12px; line-height:2; color:#475569;">
+              · 급여 생성 전 미리보기 없음 → 실수 후 복구 불가<br>
+              · 급여명세서 삭제·재생성 기능 없음<br>
+              · 급여 수정 이력 없음 (현재값만 저장)<br>
+              · 직원에게 급여 확정 알림 없음
+            </div>
+          </div>
+          <div style="padding:14px; background:#fff7ed; border-radius:10px; border:1px solid #fed7aa;">
+            <div style="font-weight:800; color:#92400e; margin-bottom:10px;">🟠 중요 (기능 부족)</div>
+            <div style="font-size:12px; line-height:2; color:#475569;">
+              · 일할계산 UI 없음 (코드만 있고 버튼 없음)<br>
+              · 연봉 기준표 ↔ 실제 급여 미연동<br>
+              · 일괄 인상 (% 올리기) 기능 없음<br>
+              · 급여 캘린더 (지급 예정일) 없음
+            </div>
+          </div>
+          <div style="padding:14px; background:#fefce8; border-radius:10px; border:1px solid #fde68a;">
+            <div style="font-weight:800; color:#713f12; margin-bottom:10px;">🟡 개선 필요 (UX)</div>
+            <div style="font-size:12px; line-height:2; color:#475569;">
+              · Admin 급여 페이지가 너무 많은 기능 혼재<br>
+              · 직원 급여명세서 UI 단조로움<br>
+              · 복리후생 설정과 급여명세서 연결 불명확
+            </div>
+          </div>
+          <div style="padding:14px; background:#f0fdf4; border-radius:10px; border:1px solid #bbf7d0;">
+            <div style="font-weight:800; color:#166534; margin-bottom:10px;">🟢 잘 되는 것</div>
+            <div style="font-size:12px; line-height:2; color:#475569;">
+              · 4대보험·소득세 자동계산 정확<br>
+              · 비과세 한도 자동 처리<br>
+              · 연장·야간·휴일 수당 (§56) 정확<br>
+              · 퇴직금·미사용연차 자동 계산<br>
+              · 성과 연동 상여금 (PI/CI)
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- ══════════ TAB 4: 개선 제안 ══════════ -->
+  <div id="tab-improve" class="tab-content">
+
+    <div class="section-label">🔴 높은 우선순위</div>
+    <div class="improve-grid" style="margin-bottom:20px;">
+
+      <div class="imp-card priority-high">
+        <div class="imp-title">
+          <span class="imp-badge high">긴급</span>
+          📋 급여 생성 미리보기 + 승인 단계
+        </div>
+        <div class="imp-desc">
+          현재: 버튼 하나로 즉시 생성 → 실수 복구 불가<br>
+          개선: 생성 전 "미리보기 모달" 표시 → 직원 목록·금액 확인 → 확인 클릭 시 생성<br>
+          생성 후 확정 취소 (월 마감 전 재생성 허용)
+        </div>
+        <div class="imp-ref">참고: Gusto "Run Payroll" 3단계 / Rippling 미리보기 드릴다운</div>
+      </div>
+
+      <div class="imp-card priority-high">
+        <div class="imp-title">
+          <span class="imp-badge high">긴급</span>
+          📜 급여 이력 (Salary History)
+        </div>
+        <div class="imp-desc">
+          현재: employee_salary 테이블에 현재값만 저장 (이전 급여 알 수 없음)<br>
+          개선: salary_history 테이블 추가 → 변경일·변경 사유·변경자 기록<br>
+          직원 프로필 상세에서 급여 변경 이력 타임라인 표시
+        </div>
+        <div class="imp-ref">참고: Workday Compensation History / BambooHR Salary History</div>
+      </div>
+
+      <div class="imp-card priority-high">
+        <div class="imp-title">
+          <span class="imp-badge high">긴급</span>
+          🔔 급여명세서 확정 알림
+        </div>
+        <div class="imp-desc">
+          현재: 급여 생성해도 직원이 직접 들어가서 확인해야 함<br>
+          개선: 급여 생성 시 전 직원에게 인앱 알림 "이번 달 급여명세서가 확정됐습니다"<br>
+          향후: 이메일 발송 옵션 추가
+        </div>
+        <div class="imp-ref">참고: 모든 HR SaaS 공통 기능</div>
+      </div>
+
+      <div class="imp-card priority-high">
+        <div class="imp-title">
+          <span class="imp-badge high">긴급</span>
+          ✏️ 중도 입퇴사 일할계산 UI
+        </div>
+        <div class="imp-desc">
+          현재: calc_prorated_salary() 함수는 있지만 급여 생성 시 자동 적용 안 됨<br>
+          개선: 입사일·퇴사일 기준으로 해당 월 자동 일할계산 적용<br>
+          관리자가 일할 여부 수동 override 가능
+        </div>
+        <div class="imp-ref">참고: 근로기준법 — 월 중도 근무자 일할 지급 의무</div>
+      </div>
+
+    </div>
+
+    <div class="section-label">🟡 중간 우선순위</div>
+    <div class="improve-grid" style="margin-bottom:20px;">
+
+      <div class="imp-card priority-mid">
+        <div class="imp-title">
+          <span class="imp-badge mid">중요</span>
+          📅 급여 캘린더 + 지급 예정일
+        </div>
+        <div class="imp-desc">
+          매월 급여 지급일, 4대보험 납부일, 원천세 신고 기한을 캘린더로 표시<br>
+          "이번 달 급여 처리 완료율" 대시보드 위젯<br>
+          지급일 D-3 알림
+        </div>
+        <div class="imp-ref">참고: Rippling 급여 캘린더 / Gusto Payroll Timeline</div>
+      </div>
+
+      <div class="imp-card priority-mid">
+        <div class="imp-title">
+          <span class="imp-badge mid">중요</span>
+          📊 일괄 인상 (Bulk Salary Raise)
+        </div>
+        <div class="imp-desc">
+          연봉 협상 시즌: 전 직원 또는 부서별로 일정 % 일괄 인상<br>
+          인상 전/후 시뮬레이션 → 전체 인건비 증가액 미리 보기<br>
+          적용 확인 후 실행
+        </div>
+        <div class="imp-ref">참고: Workday Compensation Review Cycle</div>
+      </div>
+
+      <div class="imp-card priority-mid">
+        <div class="imp-title">
+          <span class="imp-badge mid">중요</span>
+          💰 급여 시뮬레이터
+        </div>
+        <div class="imp-desc">
+          채용/연봉협상 시: 제안 연봉 입력 → 실수령액, 4대보험, 소득세 즉시 계산<br>
+          Admin 전용 도구 또는 직원도 접근 가능<br>
+          "이 급여로 바꾸면 회사 부담 총액은?" 계산
+        </div>
+        <div class="imp-ref">참고: Gusto Salary Calculator / 잡플래닛 연봉계산기</div>
+      </div>
+
+      <div class="imp-card priority-mid">
+        <div class="imp-title">
+          <span class="imp-badge mid">중요</span>
+          🏦 연봉 기준표 실제 연동
+        </div>
+        <div class="imp-desc">
+          현재 salary_grades 테이블은 참고용 — 실제 급여와 미연동<br>
+          개선: 직원 직급·직군으로 salary_grades 범위 조회 → 현재 급여 위치 표시 (Compa-ratio)<br>
+          직원 프로필에서 "내 급여 밴드 위치" 확인
+        </div>
+        <div class="imp-ref">참고: Workday Pay Range / Rippling Band Position</div>
+      </div>
+
+    </div>
+
+    <div class="section-label">🟢 낮은 우선순위 (장기)</div>
+    <div class="improve-grid">
+
+      <div class="imp-card priority-low">
+        <div class="imp-title">
+          <span class="imp-badge low">장기</span>
+          📝 연말정산 워크플로우
+        </div>
+        <div class="imp-desc">
+          직원이 공제 항목 직접 입력 (부양가족, 보험료, 교육비 등)<br>
+          국세청 간이세액표 기반 정산 계산<br>
+          1월 급여에 환급/추가납부 자동 반영
+        </div>
+        <div class="imp-ref">참고: 국세청 근로소득 간이세액표 / Workday Year-End</div>
+      </div>
+
+      <div class="imp-card priority-low">
+        <div class="imp-title">
+          <span class="imp-badge low">장기</span>
+          💳 비용청구 (Expense Claims)
+        </div>
+        <div class="imp-desc">
+          현재 복리후생 환급과 별도로 일반 업무비용 청구 모듈<br>
+          영수증 첨부 → 매니저 승인 → 급여 반영 or 별도 지급
+        </div>
+        <div class="imp-ref">참고: Rippling Expense Management</div>
+      </div>
+
+      <div class="imp-card priority-low">
+        <div class="imp-title">
+          <span class="imp-badge low">장기</span>
+          📧 급여명세서 이메일 발송
+        </div>
+        <div class="imp-desc">
+          급여 확정 시 PDF 급여명세서를 직원 이메일로 자동 발송<br>
+          SMTP 설정 + PDF 생성 필요
+        </div>
+        <div class="imp-ref">참고: 모든 주요 HR SaaS 공통</div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ══════════ TAB 5: 우선순위 + 구현 계획 ══════════ -->
+  <div id="tab-priority" class="tab-content">
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">🗺 구현 로드맵 (제안)</span></div>
+      <div class="card-body">
+        <table class="feat-table">
+          <thead>
+            <tr><th>순위</th><th>기능</th><th>난이도</th><th>임팩트</th><th>변경 범위</th><th>추천 여부</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>1</strong></td>
+              <td>급여 생성 미리보기 모달</td>
+              <td><span class="tag tag-warn">중</span></td>
+              <td><span class="tag tag-miss">높음</span></td>
+              <td>admin/payroll.html + JS</td>
+              <td><span class="tag tag-ok">✓ 바로 시작</span></td>
+            </tr>
+            <tr>
+              <td><strong>2</strong></td>
+              <td>급여 확정 알림 (직원)</td>
+              <td><span class="tag tag-ok">낮</span></td>
+              <td><span class="tag tag-miss">높음</span></td>
+              <td>app.py generate 로직에 add_notification 추가</td>
+              <td><span class="tag tag-ok">✓ 바로 시작</span></td>
+            </tr>
+            <tr>
+              <td><strong>3</strong></td>
+              <td>급여 이력 테이블 추가</td>
+              <td><span class="tag tag-warn">중</span></td>
+              <td><span class="tag tag-warn">높음</span></td>
+              <td>database.py + 직원 프로필</td>
+              <td><span class="tag tag-ok">✓ 바로 시작</span></td>
+            </tr>
+            <tr>
+              <td><strong>4</strong></td>
+              <td>일괄 인상 (% Raise)</td>
+              <td><span class="tag tag-warn">중</span></td>
+              <td><span class="tag tag-warn">중간</span></td>
+              <td>admin/payroll.html 새 섹션</td>
+              <td><span class="tag tag-ok">✓ 바로 시작</span></td>
+            </tr>
+            <tr>
+              <td><strong>5</strong></td>
+              <td>중도 입퇴사 일할계산 UI</td>
+              <td><span class="tag tag-warn">중</span></td>
+              <td><span class="tag tag-warn">중간</span></td>
+              <td>generate 로직 수정</td>
+              <td><span class="tag tag-imp">다음 스프린트</span></td>
+            </tr>
+            <tr>
+              <td><strong>6</strong></td>
+              <td>급여 시뮬레이터</td>
+              <td><span class="tag tag-ok">낮</span></td>
+              <td><span class="tag tag-warn">중간</span></td>
+              <td>새 페이지 (/payroll/simulator)</td>
+              <td><span class="tag tag-imp">다음 스프린트</span></td>
+            </tr>
+            <tr>
+              <td><strong>7</strong></td>
+              <td>연봉 밴드 연동 (Compa-ratio)</td>
+              <td><span class="tag tag-miss">높음</span></td>
+              <td><span class="tag tag-imp">중간</span></td>
+              <td>salary_grades 연동 + 직원 프로필</td>
+              <td><span class="tag tag-warn">검토 필요</span></td>
+            </tr>
+            <tr>
+              <td><strong>8</strong></td>
+              <td>연말정산</td>
+              <td><span class="tag tag-miss">높음</span></td>
+              <td><span class="tag tag-miss">높음</span></td>
+              <td>신규 모듈 (대규모)</td>
+              <td><span class="tag tag-miss">장기 검토</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Before / After 비교 -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">🔄 개선 전 / 후 비교</span></div>
+      <div class="card-body">
+        <div class="before-after">
+          <div class="ba-box before">
+            <div class="ba-title">현재 (As-Is)</div>
+            <div class="ba-item">급여 생성 = 버튼 하나, 되돌리기 불가</div>
+            <div class="ba-item">기본급 수정해도 이력 없음</div>
+            <div class="ba-item">직원이 급여 생성 사실 모름</div>
+            <div class="ba-item">연봉 기준표는 그냥 표만 있음</div>
+            <div class="ba-item">중도 입퇴사 일할 수동 처리</div>
+            <div class="ba-item">Admin 페이지 기능 과밀 (복잡)</div>
+          </div>
+          <div class="ba-box after">
+            <div class="ba-title">개선 후 (To-Be)</div>
+            <div class="ba-item">생성 전 미리보기 → 확인 후 확정 + 재계산 가능</div>
+            <div class="ba-item">salary_history 테이블 → 변경 이력 타임라인</div>
+            <div class="ba-item">급여 확정 시 인앱 알림 자동 발송</div>
+            <div class="ba-item">직원 프로필에 Compa-ratio 표시</div>
+            <div class="ba-item">입사일 기반 자동 일할계산 적용</div>
+            <div class="ba-item">탭으로 분리: 급여생성 / 이력 / 복리후생 / 시뮬레이터</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:16px 20px; background:#eff6ff; border-radius:12px; border:1px solid #bfdbfe; font-size:13px; line-height:1.8;">
+      <strong style="color:#1e40af;">💡 추천 작업 순서</strong><br>
+      <strong>①</strong> 급여 생성 미리보기 + 직원 알림 (낮음 난이도, 높은 임팩트)<br>
+      <strong>②</strong> 급여 이력 테이블 + UI (중간 난이도, 나중에 할수록 데이터 손실)<br>
+      <strong>③</strong> 일괄 인상 + 시뮬레이터 (Admin 업무 효율화)<br>
+      <strong>④</strong> 중도 입퇴사 자동 일할 (법적 의무 관련)<br>
+      <br>
+      위 4개가 완료되면 현재 국내 중소기업 HR SaaS 시장에서 상위권 기능 수준이 됩니다.
+    </div>
+  </div>
+
+</div>
+
+<script>
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>

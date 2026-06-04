@@ -1,8 +1,40 @@
 {% extends 'base.html' %}
-{% block title %}Payroll Admin{% endblock %}
-{% block page_title %}Payroll Admin{% endblock %}
+{% block title %}급여 관리{% endblock %}
+{% block page_title %}급여 관리{% endblock %}
 
 {% block content %}
+
+<!-- 탭 네비게이션 -->
+<div style="display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:24px;">
+  <button class="tab-nav-btn active" onclick="switchPayTab('generate', this)">
+    <i class="fas fa-cogs"></i> 급여 생성
+  </button>
+  <button class="tab-nav-btn" onclick="switchPayTab('raise', this)">
+    <i class="fas fa-chart-line"></i> 일괄 인상
+  </button>
+  <button class="tab-nav-btn" onclick="switchPayTab('bonus', this)">
+    <i class="fas fa-trophy"></i> 상여 지급
+  </button>
+  <button class="tab-nav-btn" onclick="switchPayTab('claims', this)">
+    <i class="fas fa-receipt"></i> 환급 신청
+  </button>
+</div>
+<style>
+.tab-nav-btn {
+  padding:9px 18px; font-size:13px; font-weight:700;
+  color:var(--tx-3); cursor:pointer; border:none; background:none;
+  border-bottom:2px solid transparent; margin-bottom:-2px;
+  font-family:inherit; display:flex; align-items:center; gap:6px;
+  transition:all .15s;
+}
+.tab-nav-btn:hover { color:var(--text); }
+.tab-nav-btn.active { color:var(--primary); border-bottom-color:var(--primary); }
+.pay-tab-panel { display:none; }
+.pay-tab-panel.active { display:block; }
+</style>
+
+<div id="pay-panel-generate" class="pay-tab-panel active">
+
 
 {% if msg %}
 <div style="background:#f0fdf4; border:1px solid #bbf7d0; color:var(--green);
@@ -285,6 +317,77 @@
   </div>
 </div>
 
+</div>{# /pay-panel-generate #}
+
+<!-- 일괄 인상 탭 -->
+<div id="pay-panel-raise" class="pay-tab-panel">
+  <div style="padding:20px 0 10px; display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <div>
+      <div style="font-size:16px; font-weight:800;">일괄 급여 인상</div>
+      <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">전체 또는 부서별 % 인상 후 시뮬레이션 확인</div>
+    </div>
+    <a href="{{ url_for('payroll_bulk_raise') }}" class="btn btn-primary">
+      <i class="fas fa-external-link-alt"></i> 일괄 인상 페이지 열기
+    </a>
+  </div>
+  <div class="card">
+    <div class="card-body" style="text-align:center; padding:40px; color:var(--tx-3);">
+      <i class="fas fa-chart-line" style="font-size:32px; margin-bottom:12px; display:block; opacity:.3;"></i>
+      인상률 시뮬레이션 · 부서별 차등 적용 · 이력 자동 기록
+      <br><br>
+      <a href="{{ url_for('payroll_bulk_raise') }}" class="btn btn-primary">
+        <i class="fas fa-chart-line"></i> 일괄 인상 시작
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- 상여 지급 탭 -->
+<div id="pay-panel-bonus" class="pay-tab-panel">
+  <div style="padding:20px 0 10px; display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <div>
+      <div style="font-size:16px; font-weight:800;">상여 지급</div>
+      <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">성과급·명절상여·특별상여 지급 내역 관리</div>
+    </div>
+    <a href="{{ url_for('admin_bonus_pay') }}" class="btn btn-primary">
+      <i class="fas fa-external-link-alt"></i> 상여 지급 페이지 열기
+    </a>
+  </div>
+  <div class="card">
+    <div class="card-body" style="text-align:center; padding:40px; color:var(--tx-3);">
+      <i class="fas fa-trophy" style="font-size:32px; margin-bottom:12px; display:block; opacity:.3;"></i>
+      PI / CI 성과급 · 명절 상여 · 특별 인센티브
+      <br><br>
+      <a href="{{ url_for('admin_bonus_pay') }}" class="btn btn-primary">
+        <i class="fas fa-trophy"></i> 상여 지급 관리
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- 환급 신청 탭 -->
+<div id="pay-panel-claims" class="pay-tab-panel">
+  <div style="padding:20px 0 10px; display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <div>
+      <div style="font-size:16px; font-weight:800;">복리후생 환급 신청</div>
+      <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">직원 환급 신청 검토 및 처리</div>
+    </div>
+    <a href="{{ url_for('admin_benefit_claims') }}" class="btn btn-primary">
+      <i class="fas fa-external-link-alt"></i> 환급 관리 페이지 열기
+    </a>
+  </div>
+  <div class="card">
+    <div class="card-body" style="text-align:center; padding:40px; color:var(--tx-3);">
+      <i class="fas fa-receipt" style="font-size:32px; margin-bottom:12px; display:block; opacity:.3;"></i>
+      영수증 환급 · 학자금 · 의료비 등 복리후생 정산
+      <br><br>
+      <a href="{{ url_for('admin_benefit_claims') }}" class="btn btn-primary">
+        <i class="fas fa-receipt"></i> 환급 신청 관리
+      </a>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -404,6 +507,22 @@
   document.getElementById('cancelBtn').addEventListener('click', closeModal);
   modal.addEventListener('click', function(e){ if(e.target===modal) closeModal(); });
 }());
+
+// ── 급여관리 탭 전환 ────────────────────────────────────────
+function switchPayTab(id, btn) {
+  document.querySelectorAll('.pay-tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('pay-panel-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+// URL 파라미터로 탭 자동 선택
+(function() {
+  var tab = new URLSearchParams(location.search).get('tab');
+  if (tab) {
+    var btn = document.querySelector('[onclick*="switchPayTab(\'' + tab + '\'"]');
+    if (btn) switchPayTab(tab, btn);
+  }
+})();
 
 // ── 미리보기 모달 ──────────────────────────────────────────
 function krwFmt(n) { return Number(n).toLocaleString('ko-KR') + '₩'; }

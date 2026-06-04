@@ -5077,13 +5077,19 @@ def people_analytics():
     open_reqs = db.execute("SELECT COUNT(*) FROM job_postings WHERE status='open'").fetchone()[0]
     high_risk_count = sum(1 for e in risk_employees if e['level'] == 'high')
 
+    # export 탭용 추가 데이터
+    cycles      = db.execute('SELECT id, name FROM performance_cycles ORDER BY id DESC').fetchall()
+    today_year  = today.year
+    today_month = today.month
+
     return render_template('analytics/index.html',
         active_page='analytics',
         total_active=total_active, turnover_rate=turnover_rate,
         avg_tenure=avg_tenure, open_reqs=open_reqs, high_risk_count=high_risk_count,
         dept_headcount=dept_headcount, grade_headcount=grade_headcount,
         monthly_turnover=monthly_turnover, leave_util=leave_util,
-        compa_rows=compa_rows, risk_employees=risk_employees
+        compa_rows=compa_rows, risk_employees=risk_employees,
+        cycles=cycles, today_year=today_year, today_month=today_month
     )
 
 

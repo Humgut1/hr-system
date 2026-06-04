@@ -75,6 +75,7 @@
     <button class="settings-tab" onclick="switchTab('leave')"><i class="fas fa-umbrella-beach" style="margin-right:6px;"></i>휴가 정책</button>
     <button class="settings-tab" onclick="switchTab('payroll')"><i class="fas fa-won-sign" style="margin-right:6px;"></i>급여 설정</button>
     <button class="settings-tab" onclick="switchTab('perf')"><i class="fas fa-chart-line" style="margin-right:6px;"></i>성과관리</button>
+    <button class="settings-tab" onclick="switchTab('links')"><i class="fas fa-external-link-alt" style="margin-right:6px;"></i>바로가기</button>
   </div>
 
   <form method="POST">
@@ -479,6 +480,32 @@
     </div>
 
   </form>
+
+  <!-- 바로가기 탭 -->
+  <div class="settings-panel" id="tab-links" style="max-width:100%;">
+    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; padding-top:4px;">
+      {% for icon, color, label, url in [
+        ('fa-layer-group',    '#dbeafe:#1d4ed8',  '부서·직급 관리',   url_for('departments')),
+        ('fa-calendar-alt',   '#fef9c3:#854d0e',  '공휴일 관리',       url_for('admin_holidays')),
+        ('fa-gift',           '#fce7f3:#be185d',  '복리후생 설정',     url_for('admin_benefits')),
+        ('fa-receipt',        '#dcfce7:#166534',  '환급 신청 관리',    url_for('admin_benefit_claims')),
+        ('fa-trophy',         '#ede9fe:#6d28d9',  '상여 지급 관리',    url_for('admin_bonus_pay')),
+        ('fa-clock',          '#ffedd5:#c2410c',  '52시간 모니터',     url_for('overtime_monitor')),
+        ('fa-calendar-check', '#f0fdf4:#166534',  'Company Settings',  url_for('admin_settings')),
+        ('fa-chart-pie',      '#eff6ff:#1d4ed8',  '분석·보고서',       url_for('people_analytics')),
+      ] %}
+      {% set bg, fg = color.split(':') %}
+      <a href="{{ url }}" style="display:flex;align-items:center;gap:12px;padding:16px;background:#fff;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:box-shadow .15s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.08)'" onmouseout="this.style.boxShadow='none'">
+        <div style="width:36px;height:36px;border-radius:8px;background:{{ bg }};color:{{ fg }};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas {{ icon }}"></i>
+        </div>
+        <span style="font-size:13px;font-weight:700;">{{ label }}</span>
+        <i class="fas fa-chevron-right" style="margin-left:auto;font-size:11px;color:var(--tx-3);"></i>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 

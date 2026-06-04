@@ -35,142 +35,79 @@
 
     <nav class="nav sidebar-nav" style="padding:4px 8px;">
 
-      <!-- ── WORK ───────────────────────────────────── -->
+      <!-- ── 나 ─────────────────────────────────────── -->
       <div class="nav-section-body">
-        <div class="nav-category-btn" style="cursor:default;">
-          <span>Work</span>
-        </div>
-        <a href="{{ url_for('dashboard') }}" class="nav-item{% if active_page == 'home' %} active{% endif %}" title="Dashboard">
-          <i class="fas fa-home"></i><span>Dashboard</span>
-        </a>
+        <div class="nav-category-btn" style="cursor:default;"><span>나</span></div>
         <a href="{{ url_for('attendance_home') }}" class="nav-item{% if active_page == 'attendance_home' %} active{% endif %}" title="근태">
           <i class="fas fa-clock"></i><span>근태</span>
+        </a>
+        <a href="{{ url_for('payroll_list') }}" class="nav-item{% if active_page == 'payroll' %} active{% endif %}" title="급여">
+          <i class="fas fa-won-sign"></i><span>급여</span>
+        </a>
+        <a href="{{ url_for('performance') }}" class="nav-item{% if active_page in ('performance','peer') %} active{% endif %}" title="성과">
+          <i class="fas fa-chart-line"></i><span>성과</span>
+        </a>
+        <a href="{{ url_for('dashboard') }}" class="nav-item{% if active_page == 'home' %} active{% endif %}" title="홈">
+          <i class="fas fa-home"></i><span>홈</span>
         </a>
       </div>
 
       <div class="nav-section-divider"></div>
 
-      <!-- ── PAY & DOCS ─────────────────────────────── -->
+      <!-- ── 회사 ────────────────────────────────────── -->
       <div class="nav-section-body">
-        <div class="nav-category-btn" style="cursor:default;">
-          <span>Pay &amp; Docs</span>
-        </div>
-        <a href="{{ url_for('payroll_list') }}" class="nav-item{% if active_page == 'payroll' %} active{% endif %}" title="Payslips">
-          <i class="fas fa-won-sign"></i><span>Payslips</span>
+        <div class="nav-category-btn" style="cursor:default;"><span>회사</span></div>
+        <a href="{{ url_for('announcements') }}" class="nav-item{% if active_page == 'announcements' %} active{% endif %}" title="공지사항">
+          <i class="fas fa-bullhorn"></i><span>공지사항</span>
         </a>
-        <a href="{{ url_for('certificates_hub') }}" class="nav-item{% if active_page == 'certificates' %} active{% endif %}" title="Documents">
-          <i class="fas fa-folder-open"></i><span>Documents</span>
+        <a href="{{ url_for('org_chart') }}" class="nav-item{% if active_page == 'org' %} active{% endif %}" title="조직도">
+          <i class="fas fa-sitemap"></i><span>조직도</span>
+        </a>
+        <a href="{{ url_for('certificates_hub') }}" class="nav-item{% if active_page == 'certificates' %} active{% endif %}" title="증명서">
+          <i class="fas fa-folder-open"></i><span>증명서</span>
         </a>
         {% if session.user_role != 'guest' %}
-        <a href="{{ url_for('contracts_list') }}" class="nav-item{% if active_page == 'contracts' %} active{% endif %}" title="Contracts">
-          <i class="fas fa-file-signature"></i><span>Contracts</span>
+        <a href="{{ url_for('contracts_list') }}" class="nav-item{% if active_page == 'contracts' %} active{% endif %}" title="계약서">
+          <i class="fas fa-file-signature"></i><span>계약서</span>
         </a>
         {% endif %}
       </div>
 
-      <div class="nav-section-divider"></div>
-
-      <!-- ── GROWTH ─────────────────────────────────── -->
-      <div class="nav-section-body">
-        <div class="nav-category-btn" style="cursor:default;">
-          <span>Growth</span>
-        </div>
-        <a href="{{ url_for('performance') }}" class="nav-item{% if active_page == 'performance' %} active{% endif %}" title="Performance">
-          <i class="fas fa-chart-line"></i><span>Performance</span>
-        </a>
-        <a href="{{ url_for('peer_reviews_page') }}" class="nav-item{% if active_page == 'peer' %} active{% endif %}" title="Peer Review">
-          <i class="fas fa-star"></i><span>Peer Review</span>
-        </a>
-      </div>
-
-      <div class="nav-section-divider"></div>
-
-      <!-- ── COMPANY ────────────────────────────────── -->
-      <div class="nav-section-body">
-        <div class="nav-category-btn" style="cursor:default;">
-          <span>Company</span>
-        </div>
-        <a href="{{ url_for('announcements') }}" class="nav-item{% if active_page == 'announcements' %} active{% endif %}" title="Announcements">
-          <i class="fas fa-bullhorn"></i><span>Announcements</span>
-        </a>
-        <a href="{{ url_for('org_chart') }}" class="nav-item{% if active_page == 'org' %} active{% endif %}" title="Org Chart">
-          <i class="fas fa-sitemap"></i><span>Org Chart</span>
-        </a>
-      </div>
-
-      <!-- ── TEAM (매니저+) ─────────────────────────── -->
+      <!-- ── 팀 (매니저+) ──────────────────────────── -->
       {% if session.user_role in ('admin', 'manager') %}
       <div class="nav-section-divider"></div>
       <div class="nav-section-body">
-        <div class="nav-category-btn" style="cursor:default;">
-          <span>Team</span>
-        </div>
-        <a href="{{ url_for('employees') }}" class="nav-item{% if active_page == 'employees' %} active{% endif %}" title="Employees">
-          <i class="fas fa-users"></i><span>Employees</span>
+        <div class="nav-category-btn" style="cursor:default;"><span>팀</span></div>
+        <a href="{{ url_for('employees') }}" class="nav-item{% if active_page in ('employees','termination_requests') %} active{% endif %}" title="팀원 관리">
+          <i class="fas fa-users"></i><span>팀원 관리</span>
         </a>
-        <a href="{{ url_for('termination_requests') }}" class="nav-item{% if active_page == 'termination_requests' %} active{% endif %}" title="Termination">
-          <i class="fas fa-user-clock"></i><span>Termination</span>
-        </a>
-        <a href="{{ url_for('peer_assignments') }}" class="nav-item{% if active_page == 'peer_assignments' %} active{% endif %}" title="Peer Assignments">
-          <i class="fas fa-user-plus"></i><span>Peer Assignments</span>
+        <a href="{{ url_for('peer_assignments') }}" class="nav-item{% if active_page == 'peer_assignments' %} active{% endif %}" title="다면평가 배정">
+          <i class="fas fa-star"></i><span>다면평가 배정</span>
         </a>
       </div>
       {% endif %}
 
-      <!-- ── ADMIN ──────────────────────────────────── -->
-      {% if session.user_role == 'admin' %}
+      <!-- ── 관리자 ─────────────────────────────────── -->
+      {% if session.user_role in ('admin', 'recruiter') %}
       <div class="nav-section-divider"></div>
       <div class="nav-section-body">
-        <div class="nav-category-btn" style="cursor:default;">
-          <span>Admin</span>
-        </div>
-        <a href="{{ url_for('admin_payroll') }}" class="nav-item{% if active_page == 'admin_payroll' %} active{% endif %}" title="Payroll Admin">
-          <i class="fas fa-coins"></i><span>Payroll Admin</span>
+        <div class="nav-category-btn" style="cursor:default;"><span>관리자</span></div>
+        {% if session.user_role == 'admin' %}
+        <a href="{{ url_for('admin_payroll') }}" class="nav-item{% if active_page in ('admin_payroll','bulk_raise','bonus_pay','benefit_claims') %} active{% endif %}" title="급여 관리">
+          <i class="fas fa-coins"></i><span>급여 관리</span>
         </a>
-        <a href="{{ url_for('payroll_bulk_raise') }}" class="nav-item{% if active_page == 'bulk_raise' %} active{% endif %}" title="Bulk Raise">
-          <i class="fas fa-chart-line"></i><span>Bulk Raise</span>
+        {% endif %}
+        <a href="{{ url_for('recruit_postings') }}" class="nav-item{% if active_page in ('recruit','recruit_pipeline','recruiter') %} active{% endif %}" title="채용 관리">
+          <i class="fas fa-user-tie"></i><span>채용 관리</span>
         </a>
-        <a href="{{ url_for('recruit_postings') }}" class="nav-item{% if active_page == 'recruit' %} active{% endif %}" title="Recruiting">
-          <i class="fas fa-user-tie"></i><span>Recruiting</span>
+        {% if session.user_role == 'admin' %}
+        <a href="{{ url_for('people_analytics') }}" class="nav-item{% if active_page in ('analytics','export') %} active{% endif %}" title="분석·보고서">
+          <i class="fas fa-chart-pie"></i><span>분석·보고서</span>
         </a>
-        <a href="{{ url_for('people_analytics') }}" class="nav-item{% if active_page == 'analytics' %} active{% endif %}" title="Analytics">
-          <i class="fas fa-chart-pie"></i><span>Analytics</span>
+        <a href="{{ url_for('admin_settings') }}" class="nav-item{% if active_page in ('settings','departments','holidays','benefits','overtime_monitor') %} active{% endif %}" title="설정">
+          <i class="fas fa-cog"></i><span>설정</span>
         </a>
-        <a href="{{ url_for('export_hub') }}" class="nav-item{% if active_page == 'export' %} active{% endif %}" title="Reports">
-          <i class="fas fa-file-excel"></i><span>Reports</span>
-        </a>
-        <a href="{{ url_for('departments') }}" class="nav-item{% if active_page == 'departments' %} active{% endif %}" title="Dept & Grade">
-          <i class="fas fa-layer-group"></i><span>Dept &amp; Grade</span>
-        </a>
-        <a href="{{ url_for('admin_holidays') }}" class="nav-item{% if active_page == 'holidays' %} active{% endif %}" title="Holidays">
-          <i class="fas fa-calendar-alt"></i><span>Holidays</span>
-        </a>
-        <a href="{{ url_for('admin_benefits') }}" class="nav-item{% if active_page == 'benefits' %} active{% endif %}" title="Benefits">
-          <i class="fas fa-gift"></i><span>Benefits</span>
-        </a>
-        <a href="{{ url_for('admin_benefit_claims') }}" class="nav-item{% if active_page == 'benefit_claims' %} active{% endif %}" title="Benefit Claims" style="padding-left:28px;">
-          <i class="fas fa-receipt"></i><span>환급 신청</span>
-        </a>
-        <a href="{{ url_for('admin_bonus_pay') }}" class="nav-item{% if active_page == 'bonus_pay' %} active{% endif %}" title="Bonus Pay" style="padding-left:28px;">
-          <i class="fas fa-trophy"></i><span>상여 지급</span>
-        </a>
-        <a href="{{ url_for('overtime_monitor') }}" class="nav-item{% if active_page == 'overtime_monitor' %} active{% endif %}" title="52h Monitor">
-          <i class="fas fa-clock"></i><span>52h Monitor</span>
-        </a>
-      </div>
-      {% endif %}
-
-      <!-- ── RECRUITER 전용 ─────────────────────────── -->
-      {% if session.user_role == 'recruiter' %}
-      <div class="nav-section-divider"></div>
-      <div class="nav-section-body">
-        <div class="nav-category-btn" style="cursor:default;"><span>Recruit</span></div>
-        <a href="{{ url_for('recruit_postings') }}" class="nav-item{% if active_page == 'recruit' %} active{% endif %}" title="Job Postings">
-          <i class="fas fa-file-alt"></i><span>Job Postings</span>
-        </a>
-        <a href="{{ url_for('recruit_pipeline') }}" class="nav-item{% if active_page == 'recruit_pipeline' %} active{% endif %}" title="Pipeline">
-          <i class="fas fa-user-tie"></i><span>Pipeline</span>
-        </a>
+        {% endif %}
       </div>
       {% endif %}
 

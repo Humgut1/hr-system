@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>휴가 관리 UI 제안 — TalentCore</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif; background: #f1f5f9; color: #1e293b; font-size: 14px; }
+
+/* ── 프로토타입 탭 스위처 ── */
+.proto-bar { background: #0f172a; padding: 12px 20px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; position: sticky; top: 0; z-index: 999; }
+.proto-bar span { color: #94a3b8; font-size: 12px; font-weight: 700; margin-right: 8px; }
+.proto-btn { padding: 6px 14px; border-radius: 6px; border: none; font-size: 12px; font-weight: 700; cursor: pointer; background: #1e293b; color: #94a3b8; transition: all .15s; }
+.proto-btn:hover, .proto-btn.active { background: #3b82f6; color: #fff; }
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* ── 공통 레이아웃 ── */
+.page { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+.page-header { margin-bottom: 24px; }
+.page-header h1 { font-size: 22px; font-weight: 900; margin-bottom: 4px; }
+.page-header p  { font-size: 13px; color: #64748b; }
+.card { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; }
+.card-head { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+.card-title { font-weight: 800; font-size: 15px; }
+.card-body  { padding: 20px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; font-family: inherit; transition: opacity .15s; }
+.btn:hover { opacity: .85; }
+.btn-primary { background: #1e40af; color: #fff; }
+.btn-ghost   { background: #f1f5f9; color: #334155; }
+.btn-sm      { padding: 6px 14px; font-size: 12px; }
+input[type=date], input[type=text] { width: 100%; padding: 9px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px; font-family: inherit; outline: none; }
+input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px #dbeafe; }
+label { font-size: 12px; font-weight: 700; color: #475569; display: block; margin-bottom: 5px; }
+
+/* ══════════════════════════════════════════════════
+   SCREEN A: 통합 근태 홈 (탭 구조 유지, 재택은 버튼으로)
+══════════════════════════════════════════════════ */
+
+/* 체크인 헤더 */
+.ci-header { background: linear-gradient(135deg,#0f2544,#1e3a8a); border-radius: 14px; padding: 22px 26px; color: #fff; display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.ci-info .ci-date { font-size: 20px; font-weight: 900; }
+.ci-info .ci-day  { font-size: 12px; opacity: .6; margin-top: 2px; }
+.ci-times { display: flex; gap: 24px; align-items: center; }
+.ci-time-item { text-align: center; }
+.ci-time-item .tl { font-size: 11px; opacity: .65; margin-bottom: 3px; }
+.ci-time-item .tv { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ci-time-item .tv.empty { opacity: .3; font-size: 14px; }
+.ci-divider { font-size: 18px; opacity: .3; margin-top: 10px; }
+.ci-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.btn-ci { padding: 10px 22px; border-radius: 10px; border: none; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit; }
+.btn-ci.checkout { background: #f97316; color: #fff; }
+.btn-ci.done     { background: rgba(255,255,255,.15); color: #fff; cursor: default; }
+.btn-remote { padding: 8px 16px; border-radius: 8px; border: 1.5px solid rgba(255,255,255,.3); background: transparent; color: rgba(255,255,255,.85); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 6px; }
+.btn-remote.active { background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.7); }
+
+/* 주간 바 */
+.weekly-bar-wrap { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; }
+.wb-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.wb-title { font-size: 13px; font-weight: 700; }
+.wb-badge { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 20px; background: #dcfce7; color: #166534; }
+.wb-nums { display: flex; align-items: baseline; gap: 4px; margin-bottom: 8px; }
+.wb-nums .big { font-size: 28px; font-weight: 900; color: #1e40af; }
+.wb-nums .small { font-size: 13px; color: #64748b; }
+.wb-track { height: 8px; background: #e2e8f0; border-radius: 99px; overflow: hidden; position: relative; margin-bottom: 5px; }
+.wb-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #22c55e, #16a34a); width: 46%; }
+.wb-mark { position: absolute; top: 0; left: 76.9%; height: 100%; width: 2px; background: #fca5a5; }
+.wb-labels { display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; }
+
+/* 2-col grid */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+@media(max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+
+/* 연차 카드 */
+.balance-card .bal-big { font-size: 40px; font-weight: 900; color: #1e40af; line-height: 1; }
+.balance-card .bal-sub { font-size: 12px; color: #64748b; margin-top: 4px; margin-bottom: 14px; }
+.bal-bar { height: 6px; background: #e2e8f0; border-radius: 99px; overflow: hidden; margin-bottom: 5px; }
+.bal-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #1e40af, #0891b2); width: 7%; }
+.bal-btns { display: flex; gap: 8px; margin-top: 14px; }
+
+/* 이달 출근 */
+.month-grid { display: flex; flex-wrap: wrap; gap: 4px; }
+.m-dot { width: 32px; height: 32px; border-radius: 7px; background: #dbeafe; color: #1e40af; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+.m-dot.today { background: #1e40af; color: #fff; }
+.m-dot .mt  { font-size: 9px; font-weight: 500; opacity: .8; }
+
+/* ══════════════════════════════════════════════════
+   SCREEN B: 신규 휴가 신청 (2-패널 위자드)
+══════════════════════════════════════════════════ */
+.wizard-layout { display: grid; grid-template-columns: 1fr 360px; gap: 20px; }
+@media(max-width: 768px) { .wizard-layout { grid-template-columns: 1fr; } }
+
+/* 왼쪽: 신청 폼 */
+.wizard-left { display: flex; flex-direction: column; gap: 16px; }
+
+/* 스텝 인디케이터 */
+.step-bar { display: flex; gap: 0; margin-bottom: 4px; }
+.sb-step { flex: 1; display: flex; align-items: center; gap: 8px; padding: 10px 0; }
+.sb-step:not(:last-child)::after { content: '›'; font-size: 18px; color: #cbd5e1; margin-left: 8px; }
+.sb-num { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex-shrink: 0; }
+.sb-step.done   .sb-num { background: #22c55e; color: #fff; }
+.sb-step.active .sb-num { background: #1e40af; color: #fff; }
+.sb-step.wait   .sb-num { background: #e2e8f0; color: #94a3b8; }
+.sb-step .sb-txt { font-size: 12px; font-weight: 700; }
+.sb-step.done   .sb-txt { color: #166534; }
+.sb-step.active .sb-txt { color: #1e40af; }
+.sb-step.wait   .sb-txt { color: #94a3b8; }
+
+/* 유형 선택 그룹 */
+.type-group { margin-bottom: 20px; }
+.type-group-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: #94a3b8; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.type-group-label::after { content: ''; flex: 1; height: 1px; background: #f1f5f9; }
+.type-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.type-card {
+  border: 2px solid #e2e8f0; border-radius: 12px; padding: 12px 14px;
+  cursor: pointer; transition: all .15s; background: #fff; position: relative;
+}
+.type-card:hover  { border-color: #93c5fd; background: #eff6ff; }
+.type-card.sel    { border-color: #1e40af; background: #eff6ff; }
+.type-card .tc-icon { font-size: 18px; margin-bottom: 8px; }
+.type-card .tc-name { font-size: 13px; font-weight: 800; color: var(--tx-1,#1e293b); margin-bottom: 3px; }
+.type-card .tc-sub  { font-size: 11px; color: #64748b; line-height: 1.4; }
+.type-card .tc-badge {
+  display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px;
+  border-radius: 20px; margin-top: 6px;
+}
+.tc-badge.annual   { background: #fef3c7; color: #92400e; }
+.tc-badge.nontax   { background: #dcfce7; color: #166534; }
+.tc-badge.hr-req   { background: #f5f3ff; color: #6d28d9; }
+.type-card .tc-chk { position: absolute; top: 8px; right: 8px; width: 18px; height: 18px; border-radius: 50%; background: #1e40af; display: none; align-items: center; justify-content: center; }
+.type-card.sel .tc-chk { display: flex; }
+.tc-chk i { font-size: 9px; color: #fff; }
+
+/* 날짜 + 정보 섹션 */
+.date-section { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.date-notice { grid-column: 1/-1; padding: 10px 14px; background: #eff6ff; border-radius: 8px; font-size: 12px; color: #1e40af; }
+
+/* 오른쪽 패널 */
+.info-panel { display: flex; flex-direction: column; gap: 14px; }
+
+/* 신청 요약 카드 */
+.summary-card { background: linear-gradient(135deg, #1e3a8a, #0369a1); border-radius: 14px; padding: 20px; color: #fff; }
+.sc-label { font-size: 11px; opacity: .7; margin-bottom: 4px; }
+.sc-type  { font-size: 18px; font-weight: 900; margin-bottom: 12px; }
+.sc-row   { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.1); font-size: 13px; }
+.sc-row:last-child { border-bottom: none; }
+.sc-key { opacity: .7; }
+.sc-val { font-weight: 700; }
+.sc-val.warn { color: #fca5a5; }
+.sc-val.ok   { color: #86efac; }
+
+/* 승인 흐름 */
+.flow-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; }
+.flow-title { font-size: 12px; font-weight: 800; color: #64748b; margin-bottom: 12px; text-transform: uppercase; letter-spacing: .5px; }
+.flow-steps { display: flex; align-items: center; gap: 4px; }
+.fs-node { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 56px; }
+.fs-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.fs-icon.done    { background: #dcfce7; color: #22c55e; }
+.fs-icon.active  { background: #1e40af; color: #fff; }
+.fs-icon.wait    { background: #f1f5f9; color: #94a3b8; }
+.fs-icon.skip    { background: #f0fdf4; color: #22c55e; font-size: 10px; font-weight: 700; }
+.fs-label { font-size: 10px; color: #94a3b8; text-align: center; line-height: 1.3; font-weight: 700; }
+.fs-label.active { color: #1e40af; }
+.fs-arrow { color: #cbd5e1; font-size: 12px; flex-shrink: 0; }
+
+/* 법령 요약 */
+.law-box { background: #f8fafc; border-radius: 10px; padding: 14px; font-size: 12px; color: #475569; line-height: 1.7; }
+.law-box .law-title { font-weight: 800; color: #1e293b; margin-bottom: 8px; font-size: 13px; }
+.law-row { display: flex; gap: 8px; margin-bottom: 6px; }
+.law-key { color: #94a3b8; flex-shrink: 0; font-weight: 700; min-width: 52px; }
+.law-val b { color: #1e40af; }
+.law-val .warn { color: #dc2626; font-weight: 700; }
+
+/* ══════════════════════════════════════════════════
+   SCREEN C: 캘린더 (팀 부재 + 공휴일 통합)
+══════════════════════════════════════════════════ */
+.cal-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.cal-nav { display: flex; align-items: center; gap: 10px; }
+.cal-nav button { width: 34px; height: 34px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; cursor: pointer; font-size: 14px; color: #475569; }
+.cal-month { font-size: 18px; font-weight: 900; }
+.cal-legend { display: flex; gap: 12px; margin-left: auto; flex-wrap: wrap; }
+.leg-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #64748b; }
+.leg-dot { width: 10px; height: 10px; border-radius: 3px; }
+
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #e2e8f0; border-radius: 12px; overflow: hidden; }
+.cal-head { background: #f8fafc; padding: 10px 0; text-align: center; font-size: 12px; font-weight: 800; color: #64748b; }
+.cal-head.sun { color: #ef4444; }
+.cal-head.sat { color: #3b82f6; }
+.cal-cell { background: #fff; min-height: 90px; padding: 8px; position: relative; }
+.cal-cell.other-m { background: #fafafa; }
+.cal-cell.today   { background: #eff6ff; }
+.cal-cell.holiday { background: #fff7ed; }
+.cal-num { font-size: 13px; font-weight: 800; color: #334155; margin-bottom: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+.cal-cell.today .cal-num { background: #1e40af; color: #fff; }
+.cal-cell.holiday .cal-num { color: #ef4444; }
+.worked-dot { position: absolute; bottom: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; }
+.cal-event { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-annual  { background: #dbeafe; color: #1e40af; }
+.ev-maternity { background: #fce7f3; color: #9d174d; }
+.ev-sick    { background: #fff7ed; color: #c2410c; }
+.ev-holiday { background: #ffedd5; color: #9a3412; font-weight: 700; font-size: 10px; }
+
+/* 오른쪽: 오늘 부재 + 이달 요약 */
+.cal-layout { display: grid; grid-template-columns: 1fr 280px; gap: 16px; }
+@media(max-width: 900px) { .cal-layout { grid-template-columns: 1fr; } }
+.cal-side { display: flex; flex-direction: column; gap: 12px; }
+
+.absent-list { display: flex; flex-direction: column; gap: 8px; }
+.absent-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #f8fafc; border-radius: 8px; }
+.absent-avatar { width: 32px; height: 32px; border-radius: 50%; background: #dbeafe; color: #1e40af; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex-shrink: 0; }
+.absent-name { font-size: 13px; font-weight: 700; }
+.absent-type { font-size: 11px; color: #64748b; }
+
+/* ══════════════════════════════════════════════════
+   공통 플래시 배너
+══════════════════════════════════════════════════ */
+.flash-success { padding: 12px 16px; background: #dcfce7; border-radius: 10px; color: #166534; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+
+<!-- 프로토타입 네비 -->
+<div class="proto-bar">
+  <span>UI 제안</span>
+  <button class="proto-btn active" onclick="show('home', this)">① 근태 홈 (재택 버튼 분리)</button>
+  <button class="proto-btn" onclick="show('request', this)">② 신규 신청 (2-패널 위자드)</button>
+  <button class="proto-btn" onclick="show('request-hr', this)">③ 신청 — HR 직행 유형</button>
+  <button class="proto-btn" onclick="show('calendar', this)">④ 캘린더 (팀 부재 통합)</button>
+</div>
+
+<!-- ══════════════ SCREEN A: 근태 홈 ══════════════ -->
+<div id="screen-home" class="screen active">
+<div class="page">
+  <div class="page-header">
+    <h1>근태</h1>
+    <p>2026년 06월 02일 (월)</p>
+  </div>
+
+  <!-- 탭 -->
+  <div style="display:flex; gap:4px; border-bottom:2px solid #e2e8f0; margin-bottom:20px;">
+    <div style="padding:9px 18px; font-weight:800; font-size:14px; color:#1e40af; border-bottom:2px solid #1e40af; margin-bottom:-2px; cursor:pointer;">홈</div>
+    <div style="padding:9px 18px; font-weight:600; font-size:14px; color:#94a3b8; cursor:pointer;" onclick="show('request',document.querySelectorAll('.proto-btn')[1])">휴가
+      <span style="background:#ef4444; color:#fff; border-radius:99px; font-size:10px; font-weight:800; padding:1px 6px; margin-left:4px;">2</span>
+    </div>
+    <div style="padding:9px 18px; font-weight:600; font-size:14px; color:#94a3b8; cursor:pointer;" onclick="show('calendar',document.querySelectorAll('.proto-btn')[3])">캘린더</div>
+  </div>
+
+  <!-- 체크인 카드 (재택 버튼 포함) -->
+  <div class="ci-header">
+    <div class="ci-info">
+      <div class="ci-date">June 02, 2026</div>
+      <div class="ci-day">Monday</div>
+    </div>
+    <div class="ci-times">
+      <div class="ci-time-item">
+        <div class="tl">출근</div>
+        <div class="tv">09:12</div>
+      </div>
+      <div class="ci-divider">→</div>
+      <div class="ci-time-item">
+        <div class="tl">퇴근</div>
+        <div class="tv empty">--:--</div>
+      </div>
+    </div>
+    <div class="ci-actions">
+      <button class="btn-ci checkout"><i class="fas fa-sign-out-alt"></i> 퇴근</button>
+      <button class="btn-remote" id="remoteBtn" onclick="toggleRemote(this)">
+        <i class="fas fa-laptop-house"></i> 재택 근무
+      </button>
+    </div>
+  </div>
+
+  <!-- 주간 근무시간 -->
+  <div class="weekly-bar-wrap">
+    <div class="wb-top">
+      <span class="wb-title">이번 주 근무시간 <span style="font-size:11px; color:#94a3b8; font-weight:400;">(§53 주 52시간)</span></span>
+      <span class="wb-badge">✓ 정상</span>
+    </div>
+    <div class="wb-nums">
+      <span class="big">24.0</span>
+      <span class="small">/ 52h · 06/01~06/07</span>
+    </div>
+    <div class="wb-track">
+      <div class="wb-fill"></div>
+      <div class="wb-mark"></div>
+    </div>
+    <div class="wb-labels"><span>소정근로 40h</span><span>한도까지 28h 여유</span></div>
+  </div>
+
+  <!-- 연차 + 이달 출근 -->
+  <div class="two-col">
+    <div class="card balance-card">
+      <div class="card-head">
+        <span class="card-title">연차 잔여</span>
+        <span style="font-size:12px; color:#94a3b8;">2026</span>
+      </div>
+      <div class="card-body">
+        <div class="bal-big">12</div>
+        <div class="bal-sub">/ 15일 · 사용 3일</div>
+        <div class="bal-bar"><div class="bal-fill" style="width:20%;"></div></div>
+        <div style="font-size:11px; color:#94a3b8; margin-top:4px;">사용 20% · 잔여 80%</div>
+        <div class="bal-btns">
+          <button class="btn btn-primary btn-sm" onclick="show('request',document.querySelectorAll('.proto-btn')[1])" style="flex:1; justify-content:center;">
+            <i class="fas fa-plus"></i> 휴가 신청
+          </button>
+          <button class="btn btn-ghost btn-sm" style="flex:1; justify-content:center;" onclick="show('request',document.querySelectorAll('.proto-btn')[1])">내역 보기</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">이달 출근</span>
+        <span style="font-size:12px; color:#94a3b8;">June</span>
+      </div>
+      <div class="card-body">
+        <div class="month-grid">
+          <div class="m-dot today"><span>02</span><span class="mt">09:12</span></div>
+        </div>
+        <div style="margin-top:10px; font-size:12px; color:#94a3b8;">1일 출근 · 정규 0h · 연장 0h</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 설계 포인트 메모 -->
+  <div style="margin-top:8px; padding:14px 18px; background:#fef9c3; border-radius:10px; font-size:12px; color:#713f12; line-height:1.7; border:1px solid #fde68a;">
+    <strong>💡 설계 포인트</strong><br>
+    · <b>재택근무</b> → 체크인 카드 우측에 토글 버튼으로 분리. 휴가가 아니라 근무 방식이라 leave_requests 테이블에서 제거하는 게 맞음<br>
+    · 재택 on/off 기록은 checkins 테이블의 별도 컬럼(is_remote)으로 관리<br>
+    · 연차 잔여 카드의 "휴가 신청" 버튼 → 바로 신청 폼으로 이동
+  </div>
+</div>
+</div>
+
+<!-- ══════════════ SCREEN B: 신청 — 일반 유형 ══════════════ -->
+<div id="screen-request" class="screen">
+<div class="page">
+  <div style="margin-bottom:16px;">
+    <a href="#" style="font-size:13px; color:#64748b; text-decoration:none;" onclick="show('home',document.querySelectorAll('.proto-btn')[0])">← 근태 홈</a>
+  </div>
+  <div class="page-header">
+    <h1>휴가 신청</h1>
+    <p>유형을 선택하면 관련 법령과 급여 정보를 바로 확인할 수 있습니다.</p>
+  </div>
+
+  <!-- 스텝 바 -->
+  <div style="background:#fff; border-radius:12px; border:1px solid #e2e8f0; padding:16px 20px; margin-bottom:20px; display:flex; gap:0;">
+    <div class="sb-step active">
+      <div class="sb-num">1</div>
+      <div class="sb-txt">유형 선택</div>
+    </div>
+    <div style="flex:1; height:2px; background:#e2e8f0; margin-top:13px; margin-right:12px; margin-left:-8px;"></div>
+    <div class="sb-step wait">
+      <div class="sb-num">2</div>
+      <div class="sb-txt">날짜·사유</div>
+    </div>
+    <div style="flex:1; height:2px; background:#e2e8f0; margin-top:13px; margin-right:12px; margin-left:-8px;"></div>
+    <div class="sb-step wait">
+      <div class="sb-num">3</div>
+      <div class="sb-txt">확인 · 제출</div>
+    </div>
+  </div>
+
+  <div class="wizard-layout">
+    <!-- 왼쪽: 유형 선택 -->
+    <div class="wizard-left">
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">휴가 유형 선택</span>
+          <span style="font-size:12px; color:#64748b;">클릭하면 상세 정보가 우측에 표시됩니다</span>
+        </div>
+        <div class="card-body" style="padding:16px 20px;">
+
+          <!-- 연차형 -->
+          <div class="type-group">
+            <div class="type-group-label">연차 소진형</div>
+            <div class="type-cards">
+              <div class="type-card sel" onclick="selectType(this,'annual')">
+                <div class="tc-icon">🏖</div>
+                <div class="tc-name">연차휴가</div>
+                <div class="tc-sub">잔여 12일 사용 가능</div>
+                <div class="tc-badge annual">연차 차감</div>
+                <div class="tc-chk"><i class="fas fa-check"></i></div>
+              </div>
+              <div class="type-card" onclick="selectType(this,'half')">
+                <div class="tc-icon">🌤</div>
+                <div class="tc-name">반차</div>
+                <div class="tc-sub">오전 / 오후 선택</div>
+                <div class="tc-badge annual">0.5일 차감</div>
+                <div class="tc-chk"><i class="fas fa-check"></i></div>
+              </div>
+              <div class="type-card" onclick="selectType(this,'sick')">
+                <div class="tc-icon">🤒</div>
+                <div class="tc-name">병가</div>
+                <div class="tc-sub">3일 이하: 매니저만<br>4일↑: HR 추가</div>
+                <div class="tc-badge annual">연차 차감</div>
+                <div class="tc-chk"><i class="fas fa-check"></i></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 법정 특별 -->
+          <div class="type-group">
+            <div class="type-group-label">법정 특별휴가 — 연차 비차감</div>
+            <div class="type-cards">
+              <div class="type-card" onclick="selectType(this,'menstrual')">
+                <div class="tc-icon">🌸</div>
+                <div class="tc-name">생리휴가</div>
+                <div class="tc-sub">월 1일 · 서류 불필요</div>
+                <div class="tc-badge nontax">무급 (법정)</div>
+                <div class="tc-chk"><i class="fas fa-check"></i></div>
+              </div>
+              <div class="type-card" onclick="selectType(this,'bereavement')">
+                <div class="tc-icon">🎗</div>
+                <div class="tc-name">경조사</div>
+                <div class="tc-sub">최대 5일 · 서류 필요</div>
+                <div class="tc-badge nontax">유급</div>
+                <div class="tc-chk"><i class="fas fa-check"></i></div>
+              </div>
+              <div class="type-card" onclick="selectType(this,'military')">
+                <div class="tc-icon">🛡</div>
+                <div class="tc-name">예비군·공가</div>
+                <div class="tc-sub">소집 통지서 필요</div>
+                <div class="tc-badge nontax">유급 (법정)</div>
+                <div class="tc-chk"><i class="fas fa-check"></i></div>
+              </div>
+              <div class="type-card" onclick="selectType(this,'compensation')">
+                <div class="tc-icon">🔄</div>
+                <div class="tc-name">대체휴무</div>
+                <div class="tc-sub">초과근무 대체</div>
+                <div class="tc-badge nontax">수당 대체</div>
+                <div class="tc-chk"><i class="fas fa-check"></i></div>
+              </div>
+              <div class="type-card" onclick="selectType(this,'family')">
+                <div class="tc-icon">👨‍👩‍👧</div>
+                <div class="tc-name">가족돌봄</div>
+                <div class="tc-sub">연 90일 한도</div>
+                <div class="tc-badge nontax">무급</div>
+                <div class="tc-chk"><i class="fas fa-check"></i></div>
+              </div>
+              <div class="type-card" onclick="selectType(this,'fertility')">
+                <div class="tc-icon">🏥</div>
+                <div class="tc-name">난임치료</div>
+                <div class="tc-sub">연 3일 한도</div>
+                <div class="tc-badge nontax">1일 유급</div>
+                <div class="tc-chk"><i class="fas fa-check"></i></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- HR 필요 -->
+          <div class="type-group">
+            <div class="type-group-label" style="color:#7c3aed;">
+              <i class="fas fa-user-shield" style="color:#7c3aed;"></i>
+              HR 승인 필요 (고용보험 연동)
+            </div>
+            <div class="type-cards">
+              <div class="type-card" onclick="show('request-hr',document.querySelectorAll('.proto-btn')[2])">
+                <div class="tc-icon">🍼</div>
+                <div class="tc-name">출산전후휴가</div>
+                <div class="tc-sub">90일 · 다태아 120일</div>
+                <div class="tc-badge hr-req">HR 직행</div>
+                <div class="tc-chk"><i class="fas fa-check"></i></div>
+              </div>
+              <div class="type-card" onclick="show('request-hr',document.querySelectorAll('.proto-btn')[2])">
+                <div class="tc-icon">🤱</div>
+                <div class="tc-name">육아휴직</div>
+                <div class="tc-sub">최대 1년 · 고용보험</div>
+                <div class="tc-badge hr-req">HR 직행</div>
+                <div class="tc-chk"><i class="fas fa-check"></i></div>
+              </div>
+              <div class="type-card" onclick="show('request-hr',document.querySelectorAll('.proto-btn')[2])">
+                <div class="tc-icon">👶</div>
+                <div class="tc-name">배우자출산휴가</div>
+                <div class="tc-sub">10일 유급</div>
+                <div class="tc-badge hr-req">매니저→HR</div>
+                <div class="tc-chk"><i class="fas fa-check"></i></div>
+              </div>
+              <div class="type-card" onclick="show('request-hr',document.querySelectorAll('.proto-btn')[2])">
+                <div class="tc-icon">💔</div>
+                <div class="tc-name">유산·사산</div>
+                <div class="tc-sub">임신주수별 일수</div>
+                <div class="tc-badge hr-req">HR 직행</div>
+                <div class="tc-chk"><i class="fas fa-check"></i></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- 오른쪽: 정보 패널 (연차 선택 기준) -->
+    <div class="info-panel">
+
+      <!-- 신청 요약 -->
+      <div class="summary-card">
+        <div class="sc-label">신청 중인 휴가</div>
+        <div class="sc-type" id="scType">🏖 연차휴가</div>
+        <div class="sc-row">
+          <span class="sc-key">기간</span>
+          <span class="sc-val">날짜 선택 후 표시</span>
+        </div>
+        <div class="sc-row">
+          <span class="sc-key">일수</span>
+          <span class="sc-val">—</span>
+        </div>
+        <div class="sc-row">
+          <span class="sc-key">연차 차감</span>
+          <span class="sc-val warn">—</span>
+        </div>
+        <div class="sc-row">
+          <span class="sc-key">신청 후 잔여</span>
+          <span class="sc-val ok">12일 → ?</span>
+        </div>
+      </div>
+
+      <!-- 승인 흐름 -->
+      <div class="flow-card">
+        <div class="flow-title">승인 흐름</div>
+        <div class="flow-steps" id="flowSteps">
+          <div class="fs-node">
+            <div class="fs-icon done"><i class="fas fa-user"></i></div>
+            <div class="fs-label active">신청</div>
+          </div>
+          <div class="fs-arrow">›</div>
+          <div class="fs-node">
+            <div class="fs-icon active"><i class="fas fa-user-tie"></i></div>
+            <div class="fs-label active">매니저<br>승인</div>
+          </div>
+          <div class="fs-arrow">›</div>
+          <div class="fs-node">
+            <div class="fs-icon skip" style="font-size:9px;">SKIP</div>
+            <div class="fs-label">HR<br>검토</div>
+          </div>
+          <div class="fs-arrow">›</div>
+          <div class="fs-node">
+            <div class="fs-icon wait"><i class="fas fa-flag-checkered"></i></div>
+            <div class="fs-label">확정</div>
+          </div>
+        </div>
+        <div id="flowNote" style="margin-top:10px; font-size:11px; color:#1e40af; background:#eff6ff; padding:8px 10px; border-radius:6px; line-height:1.5;">
+          ✓ 매니저 승인 시 <strong>즉시 확정</strong>됩니다. HR 별도 검토 없음.
+        </div>
+      </div>
+
+      <!-- 법령 요약 -->
+      <div class="law-box" id="lawBox">
+        <div class="law-title">📋 연차유급휴가 — 근로기준법 §60</div>
+        <div class="law-row">
+          <span class="law-key">임금</span>
+          <span class="law-val"><b>통상임금 100% 유급</b> (사업주 부담)</span>
+        </div>
+        <div class="law-row">
+          <span class="law-key">부여</span>
+          <span class="law-val">1년 이상 근속: 15일 기본 + 2년마다 1일 추가 (최대 25일)</span>
+        </div>
+        <div class="law-row">
+          <span class="law-key">서류</span>
+          <span class="law-val">불필요</span>
+        </div>
+        <div class="law-row">
+          <span class="law-key">주의</span>
+          <span class="law-val"><span class="warn">미사용 시 연차수당 지급</span> (촉진 절차 이행 시 면제)</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══════════════ SCREEN C: HR 직행 유형 ══════════════ -->
+<div id="screen-request-hr" class="screen">
+<div class="page">
+  <div style="margin-bottom:16px;">
+    <a href="#" onclick="show('request',document.querySelectorAll('.proto-btn')[1])" style="font-size:13px; color:#64748b; text-decoration:none;">← 유형 선택으로</a>
+  </div>
+  <div class="page-header">
+    <h1>🍼 출산전후휴가 신청</h1>
+    <p>고용보험 급여 신청이 수반되어 HR Admin이 직접 처리합니다.</p>
+  </div>
+
+  <!-- HR 직행 알림 배너 -->
+  <div style="padding:14px 18px; background:#f5f3ff; border:1px solid #ddd6fe; border-radius:12px; margin-bottom:20px; display:flex; gap:12px; align-items:flex-start;">
+    <div style="width:38px; height:38px; background:#ede9fe; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#7c3aed; flex-shrink:0;"><i class="fas fa-user-shield"></i></div>
+    <div>
+      <div style="font-weight:800; color:#4c1d95; margin-bottom:4px;">이 휴가는 HR Admin이 직접 처리합니다</div>
+      <div style="font-size:12px; color:#6d28d9; line-height:1.6;">출산전후휴가는 고용보험 급여 신청과 인사발령 처리가 필요합니다. 신청 후 HR담당자가 연락할 예정이며, 서류를 미리 준비해 주세요. 통상 3~5 영업일 소요.</div>
+    </div>
+  </div>
+
+  <div class="wizard-layout">
+    <div class="wizard-left">
+      <div class="card">
+        <div class="card-head"><span class="card-title">신청 정보 입력</span></div>
+        <div class="card-body">
+          <div style="margin-bottom:16px;">
+            <label>유형</label>
+            <div style="padding:10px 14px; background:#f8fafc; border-radius:8px; font-weight:700; color:#7c3aed; font-size:13px;">
+              🍼 출산전후휴가 (90일 · 다태아 120일)
+            </div>
+          </div>
+          <div class="date-section" style="margin-bottom:16px;">
+            <div>
+              <label>시작일 (출산 전 또는 출산일)</label>
+              <input type="date" value="2026-07-15">
+            </div>
+            <div>
+              <label>종료일 (자동 계산)</label>
+              <input type="date" value="2026-10-12" style="background:#f8fafc; color:#64748b;">
+            </div>
+            <div class="date-notice">
+              <i class="fas fa-info-circle"></i>
+              출산 후 최소 <strong>45일 이상</strong> 포함되어야 합니다 (근기법 §74②). 종료일은 90일로 자동 계산됩니다.
+            </div>
+          </div>
+          <div style="margin-bottom:16px;">
+            <label>사유 / 메모 (선택)</label>
+            <input type="text" placeholder="예: 출산예정일 2026-07-20">
+          </div>
+
+          <!-- 제출 서류 체크리스트 -->
+          <div style="padding:14px; background:#fef9c3; border-radius:10px; border:1px solid #fde68a; margin-bottom:16px;">
+            <div style="font-weight:800; font-size:13px; color:#713f12; margin-bottom:10px;"><i class="fas fa-clipboard-list"></i> 제출 서류 안내 (HR에 직접 제출)</div>
+            <div style="display:flex; flex-direction:column; gap:8px; font-size:12px; color:#713f12;">
+              <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer; color:#713f12; font-weight:400;">
+                <input type="checkbox" style="margin-top:2px; width:auto;"> <span><strong>출산예정일확인서</strong> (출산 전 신청 시) 또는 <strong>출생증명서</strong> (출산 후)</span>
+              </label>
+              <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer; color:#713f12; font-weight:400;">
+                <input type="checkbox" style="margin-top:2px; width:auto;"> <span>사내 출산전후휴가 신청서 (온라인 신청으로 대체 가능)</span>
+              </label>
+              <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer; color:#713f12; font-weight:400;">
+                <input type="checkbox" style="margin-top:2px; width:auto;"> <span>고용보험 급여 신청서 (HR이 대행 신청 가능)</span>
+              </label>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" style="width:100%; justify-content:center; padding:12px;">
+            <i class="fas fa-paper-plane"></i> HR에 신청 제출
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 오른쪽 패널 -->
+    <div class="info-panel">
+      <div class="summary-card" style="background:linear-gradient(135deg,#4c1d95,#0369a1);">
+        <div class="sc-label">신청 중인 휴가</div>
+        <div class="sc-type">🍼 출산전후휴가</div>
+        <div class="sc-row"><span class="sc-key">기간</span><span class="sc-val">07/15 ~ 10/12 (90일)</span></div>
+        <div class="sc-row"><span class="sc-key">연차 차감</span><span class="sc-val ok">없음</span></div>
+        <div class="sc-row"><span class="sc-key">소요시간</span><span class="sc-val">3~5 영업일</span></div>
+      </div>
+
+      <div class="flow-card">
+        <div class="flow-title">승인 흐름</div>
+        <div class="flow-steps">
+          <div class="fs-node">
+            <div class="fs-icon done"><i class="fas fa-user"></i></div>
+            <div class="fs-label active">신청</div>
+          </div>
+          <div class="fs-arrow">›</div>
+          <div class="fs-node">
+            <div class="fs-icon skip" style="font-size:9px;">SKIP</div>
+            <div class="fs-label">매니저</div>
+          </div>
+          <div class="fs-arrow">›</div>
+          <div class="fs-node">
+            <div class="fs-icon active"><i class="fas fa-user-shield"></i></div>
+            <div class="fs-label active">HR<br>처리</div>
+          </div>
+          <div class="fs-arrow">›</div>
+          <div class="fs-node">
+            <div class="fs-icon wait"><i class="fas fa-flag-checkered"></i></div>
+            <div class="fs-label">확정</div>
+          </div>
+        </div>
+        <div style="margin-top:10px; font-size:11px; color:#6d28d9; background:#f5f3ff; padding:8px 10px; border-radius:6px; line-height:1.5;">
+          매니저 단계 없이 HR Admin이 직접 처리합니다.
+        </div>
+      </div>
+
+      <div class="law-box">
+        <div class="law-title">📋 출산전후휴가 — 근로기준법 §74</div>
+        <div class="law-row"><span class="law-key">임금</span>
+          <span class="law-val">
+            <b>우선지원기업: 90일 전액 고용보험</b><br>
+            대기업: 최초 60일 사업주 + 30일 고용보험<br>
+            상한액: 월 <b>230만원</b>
+          </span>
+        </div>
+        <div class="law-row"><span class="law-key">기간</span><span class="law-val">90일 (다태아 120일) · 출산 후 <span class="warn">최소 45일 이상</span></span></div>
+        <div class="law-row"><span class="law-key">분할</span><span class="law-val">출산 전 최대 44일 분할 사용 가능</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══════════════ SCREEN D: 캘린더 ══════════════ -->
+<div id="screen-calendar" class="screen">
+<div class="page">
+  <div class="page-header">
+    <h1>근태</h1>
+    <p>2026년 06월 02일 (월)</p>
+  </div>
+
+  <!-- 탭 -->
+  <div style="display:flex; gap:4px; border-bottom:2px solid #e2e8f0; margin-bottom:20px;">
+    <div style="padding:9px 18px; font-weight:600; font-size:14px; color:#94a3b8; cursor:pointer;" onclick="show('home',document.querySelectorAll('.proto-btn')[0])">홈</div>
+    <div style="padding:9px 18px; font-weight:600; font-size:14px; color:#94a3b8; cursor:pointer;" onclick="show('request',document.querySelectorAll('.proto-btn')[1])">휴가</div>
+    <div style="padding:9px 18px; font-weight:800; font-size:14px; color:#1e40af; border-bottom:2px solid #1e40af; margin-bottom:-2px; cursor:pointer;">캘린더</div>
+  </div>
+
+  <div class="cal-layout">
+    <!-- 캘린더 메인 -->
+    <div>
+      <div class="cal-header">
+        <div class="cal-nav">
+          <button>‹</button>
+          <span class="cal-month">2026년 6월</span>
+          <button>›</button>
+        </div>
+        <div class="cal-legend">
+          <div class="leg-item"><div class="leg-dot" style="background:#dbeafe;"></div> 내 휴가</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#f3e8ff;"></div> 팀원 휴가</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#ffedd5;"></div> 공휴일</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#22c55e; border-radius:50%;"></div> 출근</div>
+        </div>
+      </div>
+
+      <div class="cal-grid">
+        <div class="cal-head sun">일</div>
+        <div class="cal-head">월</div>
+        <div class="cal-head">화</div>
+        <div class="cal-head">수</div>
+        <div class="cal-head">목</div>
+        <div class="cal-head">금</div>
+        <div class="cal-head sat">토</div>
+
+        <!-- 1주 -->
+        <div class="cal-cell other-m"><div class="cal-num" style="color:#94a3b8;">25</div></div>
+        <div class="cal-cell other-m"><div class="cal-num" style="color:#94a3b8;">26</div></div>
+        <div class="cal-cell other-m"><div class="cal-num" style="color:#94a3b8;">27</div></div>
+        <div class="cal-cell other-m"><div class="cal-num" style="color:#94a3b8;">28</div></div>
+        <div class="cal-cell other-m"><div class="cal-num" style="color:#94a3b8;">29</div></div>
+        <div class="cal-cell other-m"><div class="cal-num" style="color:#94a3b8;">30</div></div>
+        <div class="cal-cell other-m"><div class="cal-num" style="color:#94a3b8;">31</div></div>
+
+        <!-- 2주 (6/1) -->
+        <div class="cal-cell"><div class="cal-num" style="color:#ef4444;">1</div></div>
+        <div class="cal-cell today"><div class="cal-num">2</div>
+          <div class="worked-dot"></div>
+        </div>
+        <div class="cal-cell"><div class="cal-num">3</div>
+          <div class="cal-event" style="background:#f3e8ff; color:#7c3aed;">이승준 연차</div>
+        </div>
+        <div class="cal-cell"><div class="cal-num">4</div>
+          <div class="cal-event" style="background:#f3e8ff; color:#7c3aed;">이승준 연차</div>
+        </div>
+        <div class="cal-cell"><div class="cal-num">5</div></div>
+        <div class="cal-cell"><div class="cal-num">6</div></div>
+        <div class="cal-cell"><div class="cal-num" style="color:#3b82f6;">7</div></div>
+
+        <!-- 3주 -->
+        <div class="cal-cell"><div class="cal-num" style="color:#ef4444;">8</div></div>
+        <div class="cal-cell"><div class="cal-num">9</div>
+          <div class="cal-event ev-annual">내 연차</div>
+        </div>
+        <div class="cal-cell"><div class="cal-num">10</div>
+          <div class="cal-event ev-annual">내 연차</div>
+        </div>
+        <div class="cal-cell"><div class="cal-num">11</div>
+          <div class="cal-event ev-annual">내 연차</div>
+          <div class="cal-event" style="background:#f3e8ff; color:#7c3aed;">박민아 병가</div>
+        </div>
+        <div class="cal-cell"><div class="cal-num">12</div>
+          <div class="cal-event" style="background:#f3e8ff; color:#7c3aed;">박민아 병가</div>
+        </div>
+        <div class="cal-cell"><div class="cal-num">13</div></div>
+        <div class="cal-cell"><div class="cal-num" style="color:#3b82f6;">14</div></div>
+
+        <!-- 4주 -->
+        <div class="cal-cell holiday"><div class="cal-num" style="color:#ef4444;">15</div>
+          <div class="cal-event ev-holiday">광복절</div>
+        </div>
+        <div class="cal-cell"><div class="cal-num">16</div></div>
+        <div class="cal-cell"><div class="cal-num">17</div></div>
+        <div class="cal-cell"><div class="cal-num">18</div></div>
+        <div class="cal-cell"><div class="cal-num">19</div></div>
+        <div class="cal-cell"><div class="cal-num">20</div></div>
+        <div class="cal-cell"><div class="cal-num" style="color:#3b82f6;">21</div></div>
+
+        <!-- 5주 -->
+        <div class="cal-cell"><div class="cal-num" style="color:#ef4444;">22</div></div>
+        <div class="cal-cell"><div class="cal-num">23</div></div>
+        <div class="cal-cell"><div class="cal-num">24</div></div>
+        <div class="cal-cell"><div class="cal-num">25</div></div>
+        <div class="cal-cell"><div class="cal-num">26</div></div>
+        <div class="cal-cell"><div class="cal-num">27</div></div>
+        <div class="cal-cell"><div class="cal-num" style="color:#3b82f6;">28</div></div>
+
+        <!-- 6주 -->
+        <div class="cal-cell"><div class="cal-num" style="color:#ef4444;">29</div></div>
+        <div class="cal-cell"><div class="cal-num">30</div></div>
+        <div class="cal-cell other-m"><div class="cal-num" style="color:#94a3b8;">1</div></div>
+        <div class="cal-cell other-m"><div class="cal-num" style="color:#94a3b8;">2</div></div>
+        <div class="cal-cell other-m"><div class="cal-num" style="color:#94a3b8;">3</div></div>
+        <div class="cal-cell other-m"><div class="cal-num" style="color:#94a3b8;">4</div></div>
+        <div class="cal-cell other-m"><div class="cal-num" style="color:#94a3b8;">5</div></div>
+      </div>
+    </div>
+
+    <!-- 오른쪽 사이드 -->
+    <div class="cal-side">
+      <!-- 오늘 부재 -->
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">오늘 부재</span>
+          <span style="font-size:12px; color:#64748b;">06/02</span>
+        </div>
+        <div class="card-body" style="padding:12px 16px;">
+          <div style="text-align:center; color:#94a3b8; font-size:12px; padding:12px 0;">
+            <i class="fas fa-check-circle" style="color:#22c55e; font-size:20px; display:block; margin-bottom:6px;"></i>
+            오늘 부재 중인 팀원이 없습니다
+          </div>
+        </div>
+      </div>
+
+      <!-- 이달 부재 예정 -->
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">이달 팀 부재 일정</span>
+        </div>
+        <div class="card-body" style="padding:12px 16px;">
+          <div class="absent-list">
+            <div class="absent-item">
+              <div class="absent-avatar">이</div>
+              <div>
+                <div class="absent-name">이승준</div>
+                <div class="absent-type">연차 · 06/03~04</div>
+              </div>
+            </div>
+            <div class="absent-item">
+              <div class="absent-avatar" style="background:#fce7f3; color:#9d174d;">나</div>
+              <div>
+                <div class="absent-name">나 (내 일정)</div>
+                <div class="absent-type">연차 · 06/09~11</div>
+              </div>
+            </div>
+            <div class="absent-item">
+              <div class="absent-avatar" style="background:#fff7ed; color:#c2410c;">박</div>
+              <div>
+                <div class="absent-name">박민아</div>
+                <div class="absent-type">병가 · 06/11~12</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 설계 포인트 -->
+      <div style="padding:12px 16px; background:#fef9c3; border-radius:10px; font-size:11px; color:#713f12; line-height:1.7; border:1px solid #fde68a;">
+        <strong>💡 캘린더 개선 포인트</strong><br>
+        · 팀원 부재 + 본인 출근 기록 통합 표시<br>
+        · 공휴일 자동 표시 (public_holidays)<br>
+        · 오늘 부재 / 이달 일정 사이드 패널<br>
+        · 날짜 클릭 → 해당일 부재 상세 + 빠른 신청
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+function show(id, btn) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.proto-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+function toggleRemote(btn) {
+  btn.classList.toggle('active');
+  btn.innerHTML = btn.classList.contains('active')
+    ? '<i class="fas fa-laptop-house"></i> 재택 중 ✓'
+    : '<i class="fas fa-laptop-house"></i> 재택 근무';
+}
+
+const TYPE_INFO = {
+  annual:      { icon:'🏖', name:'연차휴가',     flow:'manager_only', note:'매니저 승인 즉시 확정. HR 불필요.', law:'근로기준법 §60 · 통상임금 100% 유급' },
+  half:        { icon:'🌤', name:'반차',          flow:'manager_only', note:'매니저 승인 즉시 확정.', law:'근로기준법 §60 · 0.5일 연차 차감' },
+  sick:        { icon:'🤒', name:'병가',          flow:'manager_or_hr', note:'3일 이하: 매니저만. 4일 이상: 매니저→HR 필요.', law:'취업규칙 · 연차 차감' },
+  menstrual:   { icon:'🌸', name:'생리휴가',      flow:'manager_only', note:'매니저에게 통보만. 즉시 확정.', law:'근로기준법 §73 · 법정 무급' },
+  bereavement: { icon:'🎗', name:'경조사',        flow:'manager_hr',   note:'매니저 검토 → HR 서류 확인 후 확정.', law:'취업규칙 · 유급 (사망 5일 등)' },
+  military:    { icon:'🛡', name:'예비군·공가',   flow:'manager_hr',   note:'소집 통지서 HR 제출 필요.', law:'병역법 §44 · 유급 (법정)' },
+  compensation:{ icon:'🔄', name:'대체휴무',      flow:'manager_only', note:'매니저 승인 즉시 확정.', law:'근로기준법 §57 · 수당 대체' },
+  family:      { icon:'👨‍👩‍👧', name:'가족돌봄휴직', flow:'manager_hr', note:'매니저 검토 → HR 확인.', law:'남녀고용평등법 §22의2 · 무급' },
+  fertility:   { icon:'🏥', name:'난임치료휴가',  flow:'manager_hr',   note:'진단서 HR 제출 필요.', law:'남녀고용평등법 §18의3 · 1일 유급' },
+};
+
+function selectType(card, type) {
+  document.querySelectorAll('.type-card').forEach(c => c.classList.remove('sel'));
+  card.classList.add('sel');
+  const info = TYPE_INFO[type] || {};
+  document.getElementById('scType').textContent = (info.icon || '') + ' ' + (info.name || type);
+  document.getElementById('flowNote').textContent = info.note || '';
+  document.getElementById('lawBox').querySelector('.law-title').textContent = '📋 ' + (info.name || '') + ' — ' + (info.law || '');
+
+  const fs = document.getElementById('flowSteps');
+  if (info.flow === 'manager_only') {
+    fs.innerHTML = `
+      <div class="fs-node"><div class="fs-icon done"><i class="fas fa-user"></i></div><div class="fs-label active">신청</div></div>
+      <div class="fs-arrow">›</div>
+      <div class="fs-node"><div class="fs-icon active"><i class="fas fa-user-tie"></i></div><div class="fs-label active">매니저<br>승인</div></div>
+      <div class="fs-arrow">›</div>
+      <div class="fs-node"><div class="fs-icon skip" style="font-size:9px;">SKIP</div><div class="fs-label">HR</div></div>
+      <div class="fs-arrow">›</div>
+      <div class="fs-node"><div class="fs-icon wait"><i class="fas fa-flag-checkered"></i></div><div class="fs-label">확정</div></div>`;
+    document.getElementById('flowNote').style.color = '#1e40af';
+    document.getElementById('flowNote').style.background = '#eff6ff';
+  } else if (info.flow === 'manager_hr') {
+    fs.innerHTML = `
+      <div class="fs-node"><div class="fs-icon done"><i class="fas fa-user"></i></div><div class="fs-label active">신청</div></div>
+      <div class="fs-arrow">›</div>
+      <div class="fs-node"><div class="fs-icon active"><i class="fas fa-user-tie"></i></div><div class="fs-label active">매니저</div></div>
+      <div class="fs-arrow">›</div>
+      <div class="fs-node"><div class="fs-icon wait"><i class="fas fa-user-shield"></i></div><div class="fs-label">HR</div></div>
+      <div class="fs-arrow">›</div>
+      <div class="fs-node"><div class="fs-icon wait"><i class="fas fa-flag-checkered"></i></div><div class="fs-label">확정</div></div>`;
+    document.getElementById('flowNote').style.color = '#6d28d9';
+    document.getElementById('flowNote').style.background = '#f5f3ff';
+  } else {
+    fs.innerHTML = `
+      <div class="fs-node"><div class="fs-icon done"><i class="fas fa-user"></i></div><div class="fs-label active">신청</div></div>
+      <div class="fs-arrow">›</div>
+      <div class="fs-node"><div class="fs-icon wait"><i class="fas fa-user-tie"></i></div><div class="fs-label">매니저</div></div>
+      <div class="fs-arrow">›</div>
+      <div class="fs-node"><div class="fs-icon active"><i class="fas fa-user-shield"></i></div><div class="fs-label active">HR</div></div>
+      <div class="fs-arrow">›</div>
+      <div class="fs-node"><div class="fs-icon wait"><i class="fas fa-flag-checkered"></i></div><div class="fs-label">확정</div></div>`;
+  }
+}
+</script>
+</body>
+</html>

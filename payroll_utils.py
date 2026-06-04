@@ -18,22 +18,44 @@
 import calendar as _cal
 from datetime import date, datetime, time as dtime, timedelta
 
+# ══ 근로기준법 시간 상수 ══════════════════════════════════════════
+# §50  소정근로시간
+DAILY_WORK_MAX   = 480   # 1일 8시간 = 480분
+WEEKLY_WORK_STD  = 2400  # 1주 40시간 = 2400분
+# §53  연장근로 한도
+WEEKLY_OT_MAX    = 720   # 1주 12시간 = 720분
+WEEKLY_TOTAL_MAX = 3120  # 1주 최대 52시간 = 3120분
+WEEKLY_WARNING   = 2880  # 경고선 48시간 = 2880분
+# 월 환산 근로시간: (주 40h + 주휴 8h) × 52주 / 12개월 = 208.67 → 209h
+MONTHLY_STD_HOURS = 209
+
 # ── 최저임금 (최저임금법, 2026년) ─────────────────────────────
-MIN_WAGE_HOURLY  = 10_030          # 시간급 (원) — 2025년 고시, 2026년 예상치
-MIN_WAGE_MONTHLY = 10_030 * 209    # 월 환산 (주 40h 기준 월 209h) = 2,096,270원
+MIN_WAGE_HOURLY  = 10_030                          # 시간급 (원)
+MIN_WAGE_MONTHLY = MIN_WAGE_HOURLY * MONTHLY_STD_HOURS   # 월 환산 = 2,096,270원
 
 
-def check_min_wage(base_salary: int) -> dict:
+def check_min_wage(base_salary: int,
+                   monthly_hours: int = MONTHLY_STD_HOURS) -> dict:
     """
-    기본급이 최저임금 월 환산액 미달 여부 확인.
-    Returns: {'ok': bool, 'shortage': int, 'min_monthly': int}
+    기본급이 최저임금 미달 여부 확인.
+
+    Args:
+        base_salary   : 월 기본급 (원)
+        monthly_hours : 월 소정근로시간 (전일제=209h, 파트타임은 실제 시간)
+
+    Returns:
+        ok, shortage, min_monthly, min_hourly, effective_hourly
     """
-    shortage = max(0, MIN_WAGE_MONTHLY - base_salary)
+    min_monthly      = MIN_WAGE_HOURLY * monthly_hours
+    shortage         = max(0, min_monthly - base_salary)
+    effective_hourly = round(base_salary / monthly_hours) if monthly_hours else 0
     return {
-        'ok':          shortage == 0,
-        'shortage':    shortage,
-        'min_monthly': MIN_WAGE_MONTHLY,
-        'min_hourly':  MIN_WAGE_HOURLY,
+        'ok':              shortage == 0,
+        'shortage':        shortage,
+        'min_monthly':     min_monthly,
+        'min_hourly':      MIN_WAGE_HOURLY,
+        'effective_hourly': effective_hourly,
+        'monthly_hours':   monthly_hours,
     }
 
 
@@ -673,6 +695,27 @@ def calc_separation_settlement(
     }
 
 
+# ══ 근태 시간 계산 (근로기준법 §50 / §53 / §54 / §56) ════════════
+
+
+def _calc_break_min(raw_min: int) -> int:
+    """
+    근로기준법 §54 기준 법정 휴게시간 공제.
+
+    - 4시간 이상 ~ 8시간 미만 : 30분 이상 (본 함수는 정확히 30분 적용)
+    - 8시간 이상              : 1시간 이상 (본 함수는 정확히 60분 적용)
+    - 4시간 미만              : 휴게 의무 없음 (0분)
+
+    실무 주의: 실제 사업장에서 취업규칙으로 더 긴 휴게를 부여할 수 있으나,
+    법정 최소값을 기준으로 적용함.
+    """
+    if raw_min >= 480:
+        return 60
+    elif raw_min >= 240:
+        return 30
+    return 0
+
+
 # ── 연장·야간 근로 계산 (근로기준법 §56) ─────────────────────
 def _calc_night_overlap(start_dt: datetime, end_dt: datetime) -> int:
     """
@@ -704,31 +747,50 @@ def calc_day_hours(date_str: str, check_in_str: str, check_out_str: str) -> dict
     """
     하루 체크인/아웃에서 정규·연장·야간 근무 분 계산.
 
+    근로기준법 적용:
+      §54  휴게시간 — 4h 이상 30분, 8h 이상 60분 자동 공제
+      §50  소정근로 — 하루 8시간(480분) 초과분을 overtime_min으로 분리
+      §56  야간근로 — 22:00~06:00 구간 별도 집계 (수당 계산용)
+
     Args:
         date_str      : 'YYYY-MM-DD'
         check_in_str  : 'HH:MM'
         check_out_str : 'HH:MM'
 
     Returns dict:
-        total_min, regular_min (≤480), overtime_min (>480), night_min
+        raw_min      : 체크인~체크아웃 실 경과 분 (휴게 공제 전)
+        break_min    : §54 공제 휴게시간 (분)
+        total_min    : 실 근로시간 (raw_min - break_min)
+        regular_min  : 소정근로 (≤ 480분)
+        overtime_min : 연장근로 (> 480분)
+        night_min    : 야간근로 22:00~06:00 (수당 계산용, total_min에 이미 포함)
     """
     try:
         ci = datetime.strptime(f'{date_str} {check_in_str}',  '%Y-%m-%d %H:%M')
         co = datetime.strptime(f'{date_str} {check_out_str}', '%Y-%m-%d %H:%M')
     except (ValueError, TypeError):
-        return {'total_min': 0, 'regular_min': 0, 'overtime_min': 0, 'night_min': 0}
+        return {
+            'raw_min': 0, 'break_min': 0, 'total_min': 0,
+            'regular_min': 0, 'overtime_min': 0, 'night_min': 0,
+        }
 
     # 퇴근이 출근보다 이르면 자정을 넘긴 것으로 처리
     if co <= ci:
         co += timedelta(days=1)
 
-    total_min   = int((co - ci).total_seconds() / 60)
-    night_min   = _calc_night_overlap(ci, co)
-    DAILY_MAX   = 480  # 8시간 = 480분
-    regular_min = min(total_min, DAILY_MAX)
-    overtime_min = max(0, total_min - DAILY_MAX)
+    raw_min   = int((co - ci).total_seconds() / 60)
+    break_min = _calc_break_min(raw_min)      # §54 법정 휴게시간 공제
+    total_min = max(0, raw_min - break_min)   # 실 근로시간
+
+    regular_min  = min(total_min, DAILY_WORK_MAX)        # §50 소정근로
+    overtime_min = max(0, total_min - DAILY_WORK_MAX)    # §53 연장근로
+
+    # 야간 계산은 휴게 공제 전 원 구간 기준 (수당 계산 시 실제 체류 시간이 기준)
+    night_min = _calc_night_overlap(ci, co)
 
     return {
+        'raw_min':      raw_min,
+        'break_min':    break_min,
         'total_min':    total_min,
         'regular_min':  regular_min,
         'overtime_min': overtime_min,
@@ -782,5 +844,80 @@ def calc_extra_pay(overtime_min: int, night_min: int, base_salary: int,
         'night_pay':       night_pay,
         'holiday_pay':     holiday_pay,
         'total_extra_pay': overtime_pay + night_pay + holiday_pay,
-        'hourly_wage':     round(base_salary / 209),
+        'hourly_wage':     round(base_salary / MONTHLY_STD_HOURS),
+    }
+
+
+# ══ 주간 근로시간 집계 (근로기준법 §53) ═══════════════════════════
+
+
+def get_week_bounds(date_str: str) -> tuple:
+    """
+    해당 날짜가 속하는 주(週) 월요일~일요일 날짜 반환.
+
+    근로기준법에서 "1주"의 기산점은 취업규칙으로 정하되 미정 시 관행으로 결정.
+    본 시스템은 월요일 기산을 기본값으로 적용.
+
+    Returns: (monday_str, sunday_str)  'YYYY-MM-DD' 형식
+    """
+    d      = date.fromisoformat(date_str)
+    monday = d - timedelta(days=d.weekday())   # weekday(): 월=0, 일=6
+    sunday = monday + timedelta(days=6)
+    return monday.isoformat(), sunday.isoformat()
+
+
+def calc_weekly_hours(db, user_id: int, date_str: str) -> dict:
+    """
+    해당 날짜가 속하는 주(월~일)의 누적 근로시간 집계 및 §53 위반 여부 판정.
+
+    근로기준법 §53:
+      - 연장근로 = 소정근로(40h) 초과분
+      - 휴일근로도 연장근로 한도(12h)에 포함 (2018년 개정)
+      - 1주 최대 52시간 (5인 이상 사업장 전면 적용, 2021.7.1~)
+
+    Args:
+        db       : SQLite connection (get_db() 반환값)
+        user_id  : 직원 ID
+        date_str : 'YYYY-MM-DD' — 집계할 날짜가 속한 주를 특정
+
+    Returns dict:
+        week_start    : 해당 주 월요일 (YYYY-MM-DD)
+        week_end      : 해당 주 일요일 (YYYY-MM-DD)
+        total_min     : 주 실 근로시간 합계 (분)
+        total_h       : 주 실 근로시간 합계 (시간, 소수점 1자리)
+        weekly_ot_min : 주 40시간 초과분 (분)
+        remain_min    : 52시간까지 남은 분 (0 이하면 위반)
+        remain_h      : 52시간까지 남은 시간
+        is_warning    : 48시간 이상 52시간 이하 (경고)
+        is_violation  : 52시간 초과 (위반)
+        over_min      : 초과 분 (위반 시)
+        over_h        : 초과 시간 (위반 시)
+        days_worked   : 해당 주 체크인 일수
+    """
+    monday, sunday = get_week_bounds(date_str)
+
+    rows = db.execute(
+        'SELECT regular_min, overtime_min FROM checkins '
+        'WHERE user_id = ? AND date BETWEEN ? AND ?',
+        (user_id, monday, sunday)
+    ).fetchall()
+
+    total_min    = sum(r['regular_min'] + r['overtime_min'] for r in rows)
+    weekly_ot    = max(0, total_min - WEEKLY_WORK_STD)
+    remain_min   = max(0, WEEKLY_TOTAL_MAX - total_min)
+    over_min     = max(0, total_min - WEEKLY_TOTAL_MAX)
+
+    return {
+        'week_start':    monday,
+        'week_end':      sunday,
+        'total_min':     total_min,
+        'total_h':       round(total_min / 60, 1),
+        'weekly_ot_min': weekly_ot,
+        'remain_min':    remain_min,
+        'remain_h':      round(remain_min / 60, 1),
+        'is_warning':    WEEKLY_WARNING <= total_min <= WEEKLY_TOTAL_MAX,
+        'is_violation':  total_min > WEEKLY_TOTAL_MAX,
+        'over_min':      over_min,
+        'over_h':        round(over_min / 60, 1),
+        'days_worked':   len(rows),
     }

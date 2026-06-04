@@ -1,0 +1,547 @@
+{% extends 'base.html' %}
+{% block title %}휴가 상세{% endblock %}
+{% block page_title %}휴가 신청 상세{% endblock %}
+
+{% block head %}
+<style>
+/* ── 헤더 카드 ─────────────────────────────────────── */
+.req-header {
+  border-radius: 16px; padding: 24px 28px; color: #fff;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  flex-wrap: wrap; gap: 16px; margin-bottom: 16px;
+}
+.req-header.flow-manager-only { background: linear-gradient(135deg,#1e3a8a,#0891b2); }
+.req-header.flow-manager-hr   { background: linear-gradient(135deg,#6d28d9,#0891b2); }
+.req-header.flow-hr-direct    { background: linear-gradient(135deg,#991b1b,#7c3aed); }
+.req-header.status-approved   { background: linear-gradient(135deg,#065f46,#0891b2); }
+.req-header.status-rejected   { background: linear-gradient(135deg,#7f1d1d,#dc2626); }
+.req-header.status-cancelled  { background: linear-gradient(135deg,#374151,#6b7280); }
+.req-type-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,.2); padding: 4px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 700; margin-bottom: 10px;
+}
+.req-title  { font-size: 20px; font-weight: 900; margin-bottom: 6px; }
+.req-period { font-size: 13px; opacity: .8; }
+.req-days   { font-size: 36px; font-weight: 900; line-height: 1; }
+.req-days-sub { font-size: 11px; opacity: .7; margin-top: 4px; text-align: right; }
+
+/* ── 상태 배너 ─────────────────────────────────────── */
+.status-banner {
+  border-radius: 12px; padding: 14px 18px;
+  display: flex; align-items: center; gap: 14px; margin-bottom: 16px;
+}
+.status-banner.wait-manager { background:#eff6ff; border:1px solid #bfdbfe; }
+.status-banner.wait-hr      { background:#f5f3ff; border:1px solid #ddd6fe; }
+.status-banner.approved     { background:#f0fdf4; border:1px solid #bbf7d0; }
+.status-banner.rejected     { background:#fff1f2; border:1px solid #fecdd3; }
+.status-banner.cancelled    { background:#f8fafc; border:1px solid #e2e8f0; }
+.sb-icon {
+  width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+.wait-manager .sb-icon { background:#dbeafe; color:#1e40af; }
+.wait-hr      .sb-icon { background:#ede9fe; color:#7c3aed; }
+.approved     .sb-icon { background:#dcfce7; color:#22c55e; }
+.rejected     .sb-icon { background:#fee2e2; color:#ef4444; }
+.cancelled    .sb-icon { background:#f1f5f9; color:#94a3b8; }
+.sb-title { font-weight: 800; font-size: 14px; margin-bottom: 2px; }
+.sb-desc  { font-size: 12px; color: #64748b; }
+
+/* ── 스텝퍼 ───────────────────────────────────────── */
+.stepper { display: flex; align-items: flex-start; }
+.step { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
+.step:not(:last-child)::after {
+  content: ''; position: absolute; top: 17px; left: calc(50% + 18px);
+  width: calc(100% - 36px); height: 2px; background: #e2e8f0; z-index: 0;
+}
+.step.step-done::after   { background: #22c55e; }
+.step.step-active::after { background: #bfdbfe; }
+.step-icon {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800; z-index: 1; position: relative;
+  border: 2px solid #e2e8f0; background: #f1f5f9; color: #94a3b8;
+}
+.step-done   .step-icon { background:#22c55e; color:#fff; border-color:#22c55e; }
+.step-active .step-icon { background:#1e40af; color:#fff; border-color:#1e40af; box-shadow:0 0 0 4px #dbeafe; }
+.step-skip   .step-icon { background:#f0fdf4; color:#22c55e; border-color:#bbf7d0; }
+.step-rejected .step-icon { background:#fee2e2; color:#ef4444; border-color:#fca5a5; }
+.step-label { margin-top: 8px; font-size: 11px; font-weight: 700; color: #94a3b8; text-align: center; line-height: 1.4; }
+.step-done   .step-label { color: #166534; }
+.step-active .step-label { color: #1e40af; }
+.step-rejected .step-label { color: #dc2626; }
+.step-sub { font-size: 10px; color: #94a3b8; text-align: center; margin-top: 2px; }
+
+/* ── 타임라인 ─────────────────────────────────────── */
+.timeline { list-style: none; padding: 0; }
+.tl-item  { display: flex; gap: 12px; padding-bottom: 16px; position: relative; }
+.tl-item:not(:last-child)::before {
+  content: ''; position: absolute; left: 14px; top: 30px;
+  width: 2px; height: calc(100% - 8px); background: #e2e8f0;
+}
+.tl-dot {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 11px;
+}
+.tl-dot.done   { background:#dcfce7; color:#22c55e; }
+.tl-dot.active { background:#dbeafe; color:#1e40af; }
+.tl-dot.wait   { background:#f1f5f9; color:#94a3b8; }
+.tl-dot.bad    { background:#fee2e2; color:#ef4444; }
+.tl-title { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
+.tl-meta  { font-size: 11px; color: #94a3b8; }
+.tl-note  { font-size: 12px; color: #64748b; margin-top: 5px; padding: 8px 10px; background: #f8fafc; border-radius: 8px; line-height: 1.5; }
+.tl-note.bad { background:#fff1f2; color:#991b1b; }
+
+/* ── 법령 패널 ────────────────────────────────────── */
+.legal-panel { border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 16px; }
+.legal-toggle {
+  padding: 14px 18px; background: #f8fafc;
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 700; font-size: 13px; cursor: pointer;
+  border: none; width: 100%; text-align: left; font-family: inherit;
+  justify-content: space-between;
+}
+.legal-body { padding: 16px 18px; border-top: 1px solid #f1f5f9; }
+.legal-row { display: flex; gap: 12px; margin-bottom: 12px; }
+.legal-row:last-child { margin-bottom: 0; }
+.legal-key { font-size: 11px; font-weight: 700; color: #64748b; min-width: 72px; padding-top: 2px; }
+.legal-val { font-size: 13px; color: #1e293b; line-height: 1.6; flex: 1; white-space: pre-line; }
+.legal-val b { color: #1e40af; }
+.legal-val .warn { color: #dc2626; font-weight: 700; }
+.pay-chip {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 11px;
+  font-weight: 700; padding: 3px 9px; border-radius: 20px; margin-bottom: 8px;
+}
+.pay-chip.ins { background:#eff6ff; color:#1e40af; }
+.pay-chip.emp { background:#f0fdf4; color:#166534; }
+.pay-chip.unp { background:#fff7ed; color:#92400e; }
+
+/* ── 서류 목록 ────────────────────────────────────── */
+.doc-list { list-style: none; padding: 0; }
+.doc-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+.doc-item:last-child { border-bottom: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- 뒤로가기 -->
+<div style="margin-bottom:14px;">
+  <a href="{{ url_for('attendance_home', tab='leaves') }}"
+     style="font-size:13px; color:var(--tx-3); text-decoration:none;">
+    ← 휴가 내역으로
+  </a>
+</div>
+
+{% set status = req.status %}
+{% set flow   = approval_flow %}
+
+<!-- ── 헤더 카드 ─────────────────────────────────────────── -->
+{% if status == 'approved' %}
+  {% set hdr_cls = 'status-approved' %}
+{% elif status == 'rejected' %}
+  {% set hdr_cls = 'status-rejected' %}
+{% elif status == 'cancelled' %}
+  {% set hdr_cls = 'status-cancelled' %}
+{% elif flow == 'hr_direct' %}
+  {% set hdr_cls = 'flow-hr-direct' %}
+{% elif flow == 'manager_hr' %}
+  {% set hdr_cls = 'flow-manager-hr' %}
+{% else %}
+  {% set hdr_cls = 'flow-manager-only' %}
+{% endif %}
+
+<div class="req-header {{ hdr_cls }}">
+  <div>
+    <div class="req-type-badge">
+      <i class="fas {{ meta.icon or 'fa-calendar' }}"></i>
+      {{ meta.label or req.type }}
+    </div>
+    <div class="req-title">{{ req.start_date }}
+      {% if req.start_date != req.end_date %} ~ {{ req.end_date }}{% endif %}
+    </div>
+    <div class="req-period">
+      신청일 {{ req.created_at[:10] if req.created_at else '—' }}
+      {% if meta.law %} · {{ meta.law }}{% endif %}
+    </div>
+  </div>
+  <div style="text-align:right;">
+    <div class="req-days">{{ req.days }}일</div>
+    <div class="req-days-sub">
+      {% if meta.deduct == 'annual' %}연차 차감{% else %}연차 비차감{% endif %}<br>
+      {% if status == 'approved' %}✅ 승인 완료
+      {% elif status == 'rejected' %}❌ 반려
+      {% elif status == 'cancelled' %}취소됨
+      {% elif current_awaiting == 'hr' %}HR 검토 중
+      {% else %}매니저 검토 중{% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ── 현재 상태 배너 ───────────────────────────────────────── -->
+{% if status == 'pending' and current_awaiting == 'manager' %}
+<div class="status-banner wait-manager">
+  <div class="sb-icon"><i class="fas fa-user-clock"></i></div>
+  <div>
+    <div class="sb-title">매니저 검토 대기 중</div>
+    <div class="sb-desc">
+      {% if flow == 'manager_only' %}매니저 승인 시 즉시 확정됩니다.
+      {% else %}매니저 검토 → HR 최종 승인 순서로 진행됩니다.{% endif %}
+    </div>
+  </div>
+</div>
+{% elif status == 'pending' and current_awaiting == 'hr' %}
+<div class="status-banner wait-hr">
+  <div class="sb-icon"><i class="fas fa-user-shield"></i></div>
+  <div>
+    <div class="sb-title">HR Admin 검토 대기 중</div>
+    <div class="sb-desc">고용보험 신청·서류 확인이 필요한 유형입니다. HR이 직접 처리합니다. 통상 3~5 영업일 소요.</div>
+  </div>
+</div>
+{% elif status == 'reviewed' %}
+<div class="status-banner wait-hr">
+  <div class="sb-icon"><i class="fas fa-user-shield"></i></div>
+  <div>
+    <div class="sb-title">HR Admin 최종 승인 대기 중</div>
+    <div class="sb-desc">매니저 검토가 완료됐습니다. HR Admin의 최종 확인이 필요합니다.</div>
+  </div>
+</div>
+{% elif status == 'approved' %}
+<div class="status-banner approved">
+  <div class="sb-icon"><i class="fas fa-check-circle"></i></div>
+  <div>
+    <div class="sb-title">승인 완료</div>
+    <div class="sb-desc">휴가가 확정됐습니다. 해당 기간 급여는 정상 지급됩니다.</div>
+  </div>
+</div>
+{% elif status == 'rejected' %}
+<div class="status-banner rejected">
+  <div class="sb-icon"><i class="fas fa-times-circle"></i></div>
+  <div>
+    <div class="sb-title">반려됨
+      {% if req.reject_reason %} — {{ req.reject_reason }}{% endif %}
+    </div>
+    <div class="sb-desc">반려 사유 확인 후 재신청하거나 담당 매니저에게 문의하세요.</div>
+  </div>
+</div>
+{% elif status == 'cancelled' %}
+<div class="status-banner cancelled">
+  <div class="sb-icon"><i class="fas fa-ban"></i></div>
+  <div>
+    <div class="sb-title">취소된 신청</div>
+    <div class="sb-desc">본인이 취소한 신청입니다.</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── 승인 스텝퍼 ───────────────────────────────────────────── -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-head"><span class="card-title">승인 단계</span></div>
+  <div class="card-body">
+    <div class="stepper">
+
+      <!-- Step 1: 신청 -->
+      <div class="step step-done">
+        <div class="step-icon"><i class="fas fa-check"></i></div>
+        <div class="step-label">신청 완료</div>
+        <div class="step-sub">{{ req.created_at[:10] if req.created_at else '' }}</div>
+      </div>
+
+      <!-- Step 2: 매니저 or 스킵 -->
+      {% if flow == 'hr_direct' %}
+      <div class="step step-skip">
+        <div class="step-icon"><i class="fas fa-forward"></i></div>
+        <div class="step-label">매니저<br>검토</div>
+        <div class="step-sub">HR 직행</div>
+      </div>
+      {% elif status in ('pending',) and current_awaiting == 'manager' %}
+      <div class="step step-active">
+        <div class="step-icon"><i class="fas fa-user"></i></div>
+        <div class="step-label">매니저<br>검토</div>
+        <div class="step-sub">대기 중</div>
+      </div>
+      {% elif status == 'rejected' and not req.manager_id %}
+      <div class="step step-rejected">
+        <div class="step-icon"><i class="fas fa-times"></i></div>
+        <div class="step-label">매니저<br>검토</div>
+        <div class="step-sub">반려</div>
+      </div>
+      {% elif req.manager_id or status in ('reviewed','approved') %}
+      <div class="step step-done">
+        <div class="step-icon"><i class="fas fa-check"></i></div>
+        <div class="step-label">매니저<br>검토</div>
+        <div class="step-sub">{{ req.manager_approver_name or '완료' }}</div>
+      </div>
+      {% else %}
+      <div class="step">
+        <div class="step-icon"><i class="fas fa-user"></i></div>
+        <div class="step-label">매니저<br>검토</div>
+        <div class="step-sub">—</div>
+      </div>
+      {% endif %}
+
+      <!-- Step 3: HR -->
+      {% if flow == 'manager_only' %}
+      <div class="step step-skip">
+        <div class="step-icon"><i class="fas fa-forward"></i></div>
+        <div class="step-label">HR<br>검토</div>
+        <div class="step-sub">자동스킵</div>
+      </div>
+      {% elif status in ('pending','reviewed') and current_awaiting == 'hr' %}
+      <div class="step step-active">
+        <div class="step-icon"><i class="fas fa-user-shield"></i></div>
+        <div class="step-label">HR<br>검토·승인</div>
+        <div class="step-sub">대기 중</div>
+      </div>
+      {% elif status == 'rejected' and req.hr_id %}
+      <div class="step step-rejected">
+        <div class="step-icon"><i class="fas fa-times"></i></div>
+        <div class="step-label">HR<br>검토</div>
+        <div class="step-sub">반려</div>
+      </div>
+      {% elif status == 'approved' and req.hr_id %}
+      <div class="step step-done">
+        <div class="step-icon"><i class="fas fa-check"></i></div>
+        <div class="step-label">HR<br>최종 승인</div>
+        <div class="step-sub">{{ req.hr_approver_name or '완료' }}</div>
+      </div>
+      {% else %}
+      <div class="step">
+        <div class="step-icon"><i class="fas fa-user-shield"></i></div>
+        <div class="step-label">HR<br>검토</div>
+        <div class="step-sub">—</div>
+      </div>
+      {% endif %}
+
+      <!-- Step 4: 확정 -->
+      {% if status == 'approved' %}
+      <div class="step step-done">
+        <div class="step-icon"><i class="fas fa-flag-checkered"></i></div>
+        <div class="step-label">확정</div>
+        <div class="step-sub">완료</div>
+      </div>
+      {% elif status in ('rejected','cancelled') %}
+      <div class="step step-rejected">
+        <div class="step-icon"><i class="fas fa-ban"></i></div>
+        <div class="step-label">종료</div>
+        <div class="step-sub">{{ '반려' if status == 'rejected' else '취소' }}</div>
+      </div>
+      {% else %}
+      <div class="step">
+        <div class="step-icon"><i class="fas fa-flag-checkered"></i></div>
+        <div class="step-label">확정</div>
+        <div class="step-sub">대기</div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- 흐름 안내 메시지 -->
+    <div style="margin-top:14px; padding:10px 14px; border-radius:8px; font-size:12px;
+      {% if flow == 'manager_only' %}background:#eff6ff; color:#1e40af;
+      {% elif flow == 'hr_direct' %}background:#f5f3ff; color:#6d28d9;
+      {% else %}background:#faf5ff; color:#6d28d9;{% endif %}">
+      <i class="fas fa-info-circle"></i>
+      {% if flow == 'manager_only' %}
+        <strong>연차·반차·재택·외출·대체휴무·생리휴가</strong>는 매니저 승인 즉시 확정됩니다.
+      {% elif flow == 'hr_direct' %}
+        <strong>{{ meta.label }}</strong>은(는) 고용보험 신청·인사발령이 수반되어 HR Admin이 직접 처리합니다.
+      {% else %}
+        <strong>{{ meta.label }}</strong>은(는) 서류 확인이 필요하여 매니저 검토 후 HR이 최종 확정합니다.
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ── 처리 타임라인 ─────────────────────────────────────────── -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-head"><span class="card-title">처리 이력</span></div>
+  <div class="card-body">
+    <ul class="timeline">
+      <li class="tl-item">
+        <div class="tl-dot done"><i class="fas fa-check"></i></div>
+        <div>
+          <div class="tl-title">신청 제출 — {{ req.user_name }}</div>
+          <div class="tl-meta">{{ req.created_at[:16] if req.created_at else '—' }}</div>
+          {% if req.reason %}
+          <div class="tl-note">사유: {{ req.reason }}</div>
+          {% endif %}
+        </div>
+      </li>
+
+      {% if flow == 'hr_direct' %}
+      <li class="tl-item">
+        <div class="tl-dot {{ 'done' if status != 'pending' else 'active' }}">
+          <i class="fas fa-forward"></i>
+        </div>
+        <div>
+          <div class="tl-title">매니저 단계 자동 스킵 → HR 직행</div>
+          <div class="tl-meta">{{ req.created_at[:16] if req.created_at else '' }} (자동)</div>
+          <div class="tl-note">{{ meta.label }}은(는) 고용보험 급여 신청이 수반되어 HR이 직접 처리합니다.</div>
+        </div>
+      </li>
+      {% endif %}
+
+      {% if req.manager_id and req.manager_approved_at %}
+      <li class="tl-item">
+        <div class="tl-dot done"><i class="fas fa-user"></i></div>
+        <div>
+          <div class="tl-title">매니저 검토 완료 — {{ req.manager_approver_name or '매니저' }}</div>
+          <div class="tl-meta">{{ req.manager_approved_at[:16] if req.manager_approved_at else '' }}</div>
+          {% if flow == 'manager_only' %}
+          <div class="tl-note">매니저 승인 = 즉시 확정 (HR 검토 불필요 유형).</div>
+          {% else %}
+          <div class="tl-note">HR Admin에게 최종 승인 요청이 발송됐습니다.</div>
+          {% endif %}
+        </div>
+      </li>
+      {% elif flow != 'hr_direct' and status in ('pending', 'reviewed') %}
+      <li class="tl-item">
+        <div class="tl-dot active"><i class="fas fa-user"></i></div>
+        <div>
+          <div class="tl-title">매니저 검토 대기 중</div>
+          <div class="tl-meta">—</div>
+        </div>
+      </li>
+      {% endif %}
+
+      {% if req.hr_id and req.hr_approved_at %}
+      <li class="tl-item">
+        <div class="tl-dot done"><i class="fas fa-user-shield"></i></div>
+        <div>
+          <div class="tl-title">HR 최종 승인 — {{ req.hr_approver_name or 'HR Admin' }}</div>
+          <div class="tl-meta">{{ req.hr_approved_at[:16] if req.hr_approved_at else '' }}</div>
+        </div>
+      </li>
+      {% elif status in ('pending','reviewed') and current_awaiting == 'hr' %}
+      <li class="tl-item">
+        <div class="tl-dot active"><i class="fas fa-user-shield"></i></div>
+        <div>
+          <div class="tl-title">HR 검토 대기 중</div>
+          <div class="tl-meta">—</div>
+        </div>
+      </li>
+      {% endif %}
+
+      {% if status == 'rejected' %}
+      <li class="tl-item">
+        <div class="tl-dot bad"><i class="fas fa-times"></i></div>
+        <div>
+          <div class="tl-title" style="color:#dc2626;">반려됨</div>
+          <div class="tl-meta">—</div>
+          {% if req.reject_reason %}
+          <div class="tl-note bad">반려 사유: {{ req.reject_reason }}</div>
+          {% endif %}
+        </div>
+      </li>
+      {% elif status == 'approved' %}
+      <li class="tl-item">
+        <div class="tl-dot done"><i class="fas fa-flag-checkered"></i></div>
+        <div>
+          <div class="tl-title">확정 완료</div>
+          <div class="tl-meta">휴가 기간 급여 정상 지급</div>
+        </div>
+      </li>
+      {% endif %}
+    </ul>
+
+    {% if can_cancel %}
+    <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
+      <form method="POST" action="{{ url_for('leave_cancel', req_id=req.id) }}" style="margin:0;">
+        <button type="submit" class="btn btn-ghost btn-sm" style="color:#ef4444;"
+                onclick="return confirm('신청을 취소하시겠습니까?')">
+          <i class="fas fa-times"></i> 신청 취소
+        </button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── 법령 안내 ─────────────────────────────────────────────── -->
+{% if meta.law or meta.pay_info %}
+<div class="legal-panel">
+  <button class="legal-toggle" onclick="toggleLegal(this)">
+    <span><i class="fas fa-scale-balanced" style="color:#1e40af; margin-right:8px;"></i>
+    법령 안내 — {{ meta.label }}</span>
+    <i class="fas fa-chevron-down" style="color:#94a3b8;"></i>
+  </button>
+  <div class="legal-body" id="legalBody" style="display:none;">
+    {% if meta.law %}
+    <div class="legal-row">
+      <div class="legal-key">법적 근거</div>
+      <div class="legal-val"><b>{{ meta.law }}</b></div>
+    </div>
+    {% endif %}
+    {% if meta.pay_info %}
+    <div class="legal-row">
+      <div class="legal-key">임금 지급</div>
+      <div class="legal-val">
+        {% if '고용보험' in meta.pay_info %}
+          <span class="pay-chip ins"><i class="fas fa-building-columns"></i> 고용보험</span><br>
+        {% elif '사업주' in meta.pay_info or '유급' in meta.pay_info %}
+          <span class="pay-chip emp"><i class="fas fa-building"></i> 사업주 부담</span><br>
+        {% elif '무급' in meta.pay_info %}
+          <span class="pay-chip unp"><i class="fas fa-circle-minus"></i> 무급</span><br>
+        {% endif %}
+        {{ meta.pay_info }}
+      </div>
+    </div>
+    {% endif %}
+    {% if meta.desc %}
+    <div class="legal-row">
+      <div class="legal-key">안내</div>
+      <div class="legal-val">{{ meta.desc }}</div>
+    </div>
+    {% endif %}
+    {% if meta.max_days %}
+    <div class="legal-row">
+      <div class="legal-key">최대 일수</div>
+      <div class="legal-val">{{ meta.max_days }}일
+        {% if meta.fixed_days %} (고정 {{ meta.fixed_days }}일){% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ── 제출 서류 안내 ─────────────────────────────────────────── -->
+{% if meta.requires_docs and meta.docs_note %}
+<div class="card" style="margin-top:16px;">
+  <div class="card-head">
+    <span class="card-title"><i class="fas fa-file-alt" style="color:#7c3aed; margin-right:8px;"></i>제출 서류</span>
+  </div>
+  <div class="card-body">
+    <ul class="doc-list">
+      {% for line in meta.docs_note.split(' — ') %}
+      {% if line.strip() %}
+      <li class="doc-item">
+        <i class="fas fa-check-circle" style="color:#22c55e; margin-top:2px; flex-shrink:0;"></i>
+        <span>{{ line.strip() }}</span>
+      </li>
+      {% endif %}
+      {% endfor %}
+    </ul>
+    {% if flow in ('manager_hr', 'hr_direct') %}
+    <div style="margin-top:10px; padding:9px 12px; background:#fff7ed; border-radius:8px; font-size:12px; color:#92400e;">
+      <i class="fas fa-exclamation-triangle"></i>
+      서류 미제출 시 반려될 수 있습니다. HR Admin에게 직접 제출하거나 채팅/이메일로 문의하세요.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<script>
+function toggleLegal(btn) {
+  var body = document.getElementById('legalBody');
+  var icon = btn.querySelector('i.fa-chevron-down, i.fa-chevron-up');
+  var open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  if (icon) icon.className = open ? 'fas fa-chevron-up' : 'fas fa-chevron-down';
+}
+</script>
+
+{% endblock %}

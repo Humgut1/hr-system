@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>휴가 신청 상세 — TalentCore 프로토타입</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+  background: #f1f5f9; color: #1e293b; font-size: 14px;
+}
+.page-wrap { max-width: 780px; margin: 0 auto; padding: 32px 16px 64px; }
+
+/* ── 탭 스위처 (프로토타입용) ─── */
+.demo-tabs { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+.demo-tab {
+  padding: 7px 16px; border-radius: 20px; border: 1px solid #e2e8f0;
+  background: #fff; font-size: 12px; font-weight: 600; cursor: pointer;
+  color: #64748b;
+}
+.demo-tab.active { background: #1e40af; color: #fff; border-color: #1e40af; }
+
+.scenario { display: none; }
+.scenario.active { display: block; }
+
+/* ── 공통 카드 ─── */
+.card {
+  background: #fff; border-radius: 16px;
+  border: 1px solid #e2e8f0; margin-bottom: 16px; overflow: hidden;
+}
+.card-head {
+  padding: 16px 20px; border-bottom: 1px solid #f1f5f9;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.card-title { font-weight: 800; font-size: 15px; }
+.card-body { padding: 20px; }
+
+/* ── 신청 요약 헤더 ─── */
+.req-header {
+  border-radius: 16px; padding: 24px 28px; color: #fff; margin-bottom: 16px;
+  display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;
+}
+.req-header.flow-manager { background: linear-gradient(135deg, #1e40af, #0891b2); }
+.req-header.flow-manager-hr { background: linear-gradient(135deg, #7c3aed, #0891b2); }
+.req-header.flow-hr-direct { background: linear-gradient(135deg, #dc2626, #9333ea); }
+.req-type-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,.2); padding: 5px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 700; margin-bottom: 10px;
+}
+.req-title { font-size: 22px; font-weight: 900; margin-bottom: 6px; }
+.req-period { font-size: 14px; opacity: .85; }
+.req-days { font-size: 36px; font-weight: 900; }
+.req-days-label { font-size: 12px; opacity: .7; margin-top: 2px; text-align: right; }
+
+/* ── 승인 단계 스텝퍼 ─── */
+.stepper { display: flex; align-items: flex-start; gap: 0; padding: 4px 0; }
+.step { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
+.step::after {
+  content: ''; position: absolute; top: 18px; left: calc(50% + 18px);
+  width: calc(100% - 36px); height: 2px; background: #e2e8f0; z-index: 0;
+}
+.step:last-child::after { display: none; }
+.step-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800; z-index: 1; position: relative;
+  border: 2px solid #e2e8f0;
+}
+.step.done .step-icon   { background: #22c55e; color: #fff; border-color: #22c55e; }
+.step.active .step-icon { background: #1e40af; color: #fff; border-color: #1e40af; box-shadow: 0 0 0 4px #dbeafe; }
+.step.wait .step-icon   { background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0; }
+.step.skip .step-icon   { background: #f0fdf4; color: #22c55e; border-color: #bbf7d0; }
+.step.rejected .step-icon { background: #fee2e2; color: #ef4444; border-color: #fca5a5; }
+.step-label { margin-top: 8px; font-size: 11px; font-weight: 700; color: #64748b; text-align: center; line-height: 1.4; }
+.step.active .step-label { color: #1e40af; }
+.step.done .step-label   { color: #166534; }
+.step.rejected .step-label { color: #ef4444; }
+.step-sub { font-size: 10px; color: #94a3b8; text-align: center; margin-top: 2px; }
+
+/* ── 현재 대기 중 배너 ─── */
+.waiting-banner {
+  border-radius: 12px; padding: 14px 18px;
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+}
+.waiting-banner.manager { background: #eff6ff; border: 1px solid #bfdbfe; }
+.waiting-banner.hr      { background: #f5f3ff; border: 1px solid #ddd6fe; }
+.waiting-banner.done    { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.waiting-banner.rejected{ background: #fff1f2; border: 1px solid #fecdd3; }
+.wb-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.waiting-banner.manager .wb-icon { background: #dbeafe; color: #1e40af; }
+.waiting-banner.hr .wb-icon      { background: #ede9fe; color: #7c3aed; }
+.waiting-banner.done .wb-icon    { background: #dcfce7; color: #22c55e; }
+.waiting-banner.rejected .wb-icon{ background: #fee2e2; color: #ef4444; }
+.wb-title { font-weight: 800; font-size: 14px; margin-bottom: 2px; }
+.wb-desc  { font-size: 12px; color: #64748b; }
+
+/* ── 타임라인 ─── */
+.timeline { padding-left: 0; list-style: none; }
+.tl-item { display: flex; gap: 12px; padding-bottom: 16px; position: relative; }
+.tl-item:not(:last-child)::before {
+  content: ''; position: absolute; left: 15px; top: 30px;
+  width: 2px; height: calc(100% - 8px); background: #e2e8f0;
+}
+.tl-dot {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 12px;
+}
+.tl-dot.done { background: #dcfce7; color: #22c55e; }
+.tl-dot.active { background: #dbeafe; color: #1e40af; }
+.tl-dot.wait { background: #f1f5f9; color: #94a3b8; }
+.tl-content .tl-title { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
+.tl-content .tl-meta  { font-size: 11px; color: #94a3b8; }
+.tl-content .tl-note  { font-size: 12px; color: #64748b; margin-top: 4px; background: #f8fafc; padding: 6px 10px; border-radius: 6px; }
+
+/* ── 법령 정보 패널 ─── */
+.legal-panel { border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }
+.legal-header {
+  padding: 12px 16px; background: #f8fafc;
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 700; font-size: 13px; cursor: pointer;
+  border-bottom: 1px solid #e2e8f0;
+}
+.legal-body { padding: 16px; display: none; }
+.legal-body.open { display: block; }
+.legal-row { display: flex; gap: 12px; margin-bottom: 12px; }
+.legal-row:last-child { margin-bottom: 0; }
+.legal-key { font-size: 11px; font-weight: 700; color: #64748b; min-width: 80px; padding-top: 1px; }
+.legal-val { font-size: 13px; color: #1e293b; line-height: 1.6; flex: 1; }
+.legal-val .highlight { color: #1e40af; font-weight: 700; }
+.legal-val .warn { color: #dc2626; font-weight: 700; }
+
+.pay-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 20px;
+  margin-bottom: 8px;
+}
+.pay-badge.insured  { background: #eff6ff; color: #1e40af; }
+.pay-badge.employer { background: #f0fdf4; color: #166534; }
+.pay-badge.unpaid   { background: #fff7ed; color: #92400e; }
+
+/* ── 필요 서류 ─── */
+.docs-list { list-style: none; padding: 0; }
+.docs-list li {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px;
+}
+.docs-list li:last-child { border-bottom: none; }
+.docs-list .doc-icon { color: #22c55e; margin-top: 1px; flex-shrink: 0; }
+
+/* ── 연봉 영향 계산기 ─── */
+.impact-box {
+  background: #f8fafc; border-radius: 10px; padding: 14px 16px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.impact-item .imp-label { font-size: 11px; color: #64748b; margin-bottom: 3px; }
+.impact-item .imp-val   { font-size: 16px; font-weight: 800; }
+.impact-item .imp-val.plus  { color: #16a34a; }
+.impact-item .imp-val.minus { color: #dc2626; }
+.impact-item .imp-val.same  { color: #1e40af; }
+.impact-note { font-size: 11px; color: #94a3b8; margin-top: 8px; grid-column: 1/-1; }
+
+/* ── 섹션 헤더 ─── */
+.section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #94a3b8; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <div style="margin-bottom:20px;">
+    <div style="font-size:12px; color:#94a3b8; margin-bottom:4px;">← 근태 / 휴가</div>
+    <h1 style="font-size:20px; font-weight:900;">휴가 신청 상세</h1>
+  </div>
+
+  <!-- 시나리오 스위처 (프로토타입용) -->
+  <div class="demo-tabs">
+    <button class="demo-tab active" onclick="showScene(0, this)">① 연차 — 대기중 (매니저)</button>
+    <button class="demo-tab" onclick="showScene(1, this)">② 육아휴직 — HR 직행</button>
+    <button class="demo-tab" onclick="showScene(2, this)">③ 경조사 — 매니저→HR</button>
+    <button class="demo-tab" onclick="showScene(3, this)">④ 출산전후휴가 — 승인완료</button>
+    <button class="demo-tab" onclick="showScene(4, this)">⑤ 병가 — 반려됨</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       시나리오 ① 연차 — 매니저 대기중
+  ══════════════════════════════════════════════ -->
+  <div class="scenario active" id="scene0">
+    <div class="req-header flow-manager">
+      <div>
+        <div class="req-type-badge"><i class="fas fa-umbrella-beach"></i> 연차휴가</div>
+        <div class="req-title">2026년 06월 09일 ~ 06월 11일</div>
+        <div class="req-period">신청일 2026-06-02 · 근거: 근로기준법 §60</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="req-days">3일</div>
+        <div class="req-days-label">연차 차감<br>잔여 12일 → 9일</div>
+      </div>
+    </div>
+
+    <!-- 현재 상태 배너 -->
+    <div class="waiting-banner manager">
+      <div class="wb-icon"><i class="fas fa-user-clock"></i></div>
+      <div>
+        <div class="wb-title">매니저 검토 대기 중</div>
+        <div class="wb-desc">박준호 매니저에게 승인 요청이 발송됐습니다. 매니저 승인 시 즉시 확정됩니다.</div>
+      </div>
+    </div>
+
+    <!-- 승인 스텝퍼 -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">승인 진행 단계</span></div>
+      <div class="card-body">
+        <div class="stepper">
+          <div class="step done">
+            <div class="step-icon"><i class="fas fa-check"></i></div>
+            <div class="step-label">신청 완료</div>
+            <div class="step-sub">06-02 14:30</div>
+          </div>
+          <div class="step active">
+            <div class="step-icon"><i class="fas fa-user"></i></div>
+            <div class="step-label">매니저 검토</div>
+            <div class="step-sub">박준호</div>
+          </div>
+          <div class="step skip">
+            <div class="step-icon"><i class="fas fa-forward"></i></div>
+            <div class="step-label">HR 검토</div>
+            <div class="step-sub">연차: 스킵</div>
+          </div>
+          <div class="step wait">
+            <div class="step-icon"><i class="fas fa-flag"></i></div>
+            <div class="step-label">확정</div>
+            <div class="step-sub">—</div>
+          </div>
+        </div>
+        <div style="margin-top:16px; padding:12px 14px; background:#eff6ff; border-radius:8px; font-size:12px; color:#1e40af;">
+          <i class="fas fa-info-circle"></i>
+          <strong>연차·반차·재택·외출</strong>는 매니저 승인 = 즉시 확정됩니다. HR 별도 검토 없이 처리됩니다.
+        </div>
+      </div>
+    </div>
+
+    <!-- 법령 정보 -->
+    <div class="card">
+      <div class="card-head" style="cursor:pointer;" onclick="toggleLegal(this)">
+        <span class="card-title"><i class="fas fa-scale-balanced" style="color:#1e40af; margin-right:8px;"></i>법령 안내 — 연차유급휴가</span>
+        <i class="fas fa-chevron-down" style="color:#94a3b8;"></i>
+      </div>
+      <div class="card-body legal-body open">
+        <div class="legal-row">
+          <div class="legal-key">법적 근거</div>
+          <div class="legal-val"><span class="highlight">근로기준법 제60조</span> — 사용자는 1년간 80% 이상 출근한 근로자에게 15일의 유급휴가를 주어야 합니다.</div>
+        </div>
+        <div class="legal-row">
+          <div class="legal-key">임금 지급</div>
+          <div class="legal-val">
+            <span class="pay-badge employer"><i class="fas fa-building"></i> 사업주 부담</span><br>
+            <span class="highlight">통상임금 100%</span> 유급 처리. 해당 기간 급여 전액 지급됩니다.
+          </div>
+        </div>
+        <div class="legal-row">
+          <div class="legal-key">연차 산정</div>
+          <div class="legal-val">1년 이상: 15일 기본 + 2년마다 1일 추가 (최대 25일). 1년 미만: 매월 1일 부여 (최대 11일).</div>
+        </div>
+        <div class="legal-row">
+          <div class="legal-key">미사용 시</div>
+          <div class="legal-val"><span class="warn">연차 소멸 전 미사용분 → 통상임금으로 보상</span> (연차수당). 촉진 절차 이행 시 회사 면제 가능.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       시나리오 ② 육아휴직 — HR 직행 (대기)
+  ══════════════════════════════════════════════ -->
+  <div class="scenario" id="scene1">
+    <div class="req-header flow-hr-direct">
+      <div>
+        <div class="req-type-badge"><i class="fas fa-baby-carriage"></i> 육아휴직</div>
+        <div class="req-title">2026년 07월 01일 ~ 2026년 12월 31일</div>
+        <div class="req-period">신청일 2026-06-02 · 근거: 남녀고용평등법 §19</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="req-days">184일</div>
+        <div class="req-days-label">연차 비차감<br>고용보험 급여 신청</div>
+      </div>
+    </div>
+
+    <div class="waiting-banner hr">
+      <div class="wb-icon"><i class="fas fa-user-shield"></i></div>
+      <div>
+        <div class="wb-title">HR Admin 검토 대기 중</div>
+        <div class="wb-desc">육아휴직은 고용보험 급여 신청과 인사발령이 수반됩니다. HR이 직접 처리합니다. 통상 3~5 영업일 소요.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">승인 진행 단계</span></div>
+      <div class="card-body">
+        <div class="stepper">
+          <div class="step done">
+            <div class="step-icon"><i class="fas fa-check"></i></div>
+            <div class="step-label">신청 완료</div>
+            <div class="step-sub">06-02 09:15</div>
+          </div>
+          <div class="step skip">
+            <div class="step-icon"><i class="fas fa-forward"></i></div>
+            <div class="step-label">매니저 검토</div>
+            <div class="step-sub">HR 직행</div>
+          </div>
+          <div class="step active">
+            <div class="step-icon"><i class="fas fa-user-shield"></i></div>
+            <div class="step-label">HR 검토·승인</div>
+            <div class="step-sub">HR Admin</div>
+          </div>
+          <div class="step wait">
+            <div class="step-icon"><i class="fas fa-flag"></i></div>
+            <div class="step-label">확정 + 발령</div>
+            <div class="step-sub">—</div>
+          </div>
+        </div>
+        <div style="margin-top:16px; padding:12px 14px; background:#f5f3ff; border-radius:8px; font-size:12px; color:#6d28d9;">
+          <i class="fas fa-info-circle"></i>
+          <strong>육아휴직·출산전후휴가·유산사산휴가·육아기근로단축</strong>은 고용보험 급여 신청이 필요하여 HR Admin이 직접 처리합니다.
+        </div>
+      </div>
+    </div>
+
+    <!-- 서류 안내 -->
+    <div class="card">
+      <div class="card-head"><span class="card-title"><i class="fas fa-file-alt" style="color:#7c3aed; margin-right:8px;"></i>제출 서류</span></div>
+      <div class="card-body">
+        <ul class="docs-list">
+          <li><i class="fas fa-check-circle doc-icon"></i><div><strong>자녀 출생증명서</strong> (원본 1부) — HR에 직접 제출</div></li>
+          <li><i class="fas fa-check-circle doc-icon"></i><div><strong>육아휴직 신청서</strong> (사내 양식) — 온라인 신청으로 대체 가능</div></li>
+          <li><i class="fas fa-clock doc-icon" style="color:#f59e0b;"></i><div><strong>고용보험 육아휴직급여 신청서</strong> — HR이 대행 신청 가능</div></li>
+        </ul>
+        <div style="font-size:12px; color:#dc2626; margin-top:12px; padding:10px 12px; background:#fff1f2; border-radius:8px;">
+          <i class="fas fa-exclamation-triangle"></i>
+          <strong>30일 전 신청 의무</strong> — 법령상 육아휴직 시작 30일 전에 서면으로 신청해야 합니다.
+        </div>
+      </div>
+    </div>
+
+    <!-- 급여 영향 -->
+    <div class="card">
+      <div class="card-head"><span class="card-title"><i class="fas fa-won-sign" style="color:#10b981; margin-right:8px;"></i>휴직 기간 급여 안내</span></div>
+      <div class="card-body">
+        <span class="pay-badge insured"><i class="fas fa-building-columns"></i> 고용보험 지급</span>
+        <div class="impact-box">
+          <div class="impact-item">
+            <div class="imp-label">1~3개월 (7월~9월)</div>
+            <div class="imp-val same">통상임금 80%</div>
+          </div>
+          <div class="impact-item">
+            <div class="imp-label">상한액</div>
+            <div class="imp-val same">월 150만원</div>
+          </div>
+          <div class="impact-item">
+            <div class="imp-label">4개월 이후 (10월~)</div>
+            <div class="imp-val minus">통상임금 50%</div>
+          </div>
+          <div class="impact-item">
+            <div class="imp-label">상한액</div>
+            <div class="imp-val minus">월 120만원</div>
+          </div>
+          <div class="impact-note">* 복직 후 6개월 근속 시 나머지 25%를 일시금으로 추가 지급합니다. 4대보험은 휴직 기간 중 납부 유예 가능.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       시나리오 ③ 경조사 — 매니저→HR 2단계
+  ══════════════════════════════════════════════ -->
+  <div class="scenario" id="scene2">
+    <div class="req-header flow-manager-hr">
+      <div>
+        <div class="req-type-badge"><i class="fas fa-ribbon"></i> 경조사휴가</div>
+        <div class="req-title">2026년 06월 10일 ~ 06월 14일</div>
+        <div class="req-period">신청일 2026-06-03 · 사유: 부친상</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="req-days">5일</div>
+        <div class="req-days-label">연차 비차감<br>서류 제출 필요</div>
+      </div>
+    </div>
+
+    <div class="waiting-banner manager">
+      <div class="wb-icon"><i class="fas fa-user-clock"></i></div>
+      <div>
+        <div class="wb-title">1단계: 매니저 검토 대기 중</div>
+        <div class="wb-desc">박준호 매니저 → 검토 후 HR Admin 최종 승인 순서로 진행됩니다.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">승인 진행 단계</span></div>
+      <div class="card-body">
+        <div class="stepper">
+          <div class="step done">
+            <div class="step-icon"><i class="fas fa-check"></i></div>
+            <div class="step-label">신청 완료</div>
+            <div class="step-sub">06-03 08:45</div>
+          </div>
+          <div class="step active">
+            <div class="step-icon"><i class="fas fa-user"></i></div>
+            <div class="step-label">매니저 검토</div>
+            <div class="step-sub">박준호</div>
+          </div>
+          <div class="step wait">
+            <div class="step-icon"><i class="fas fa-user-shield"></i></div>
+            <div class="step-label">HR 최종 승인</div>
+            <div class="step-sub">HR Admin</div>
+          </div>
+          <div class="step wait">
+            <div class="step-icon"><i class="fas fa-flag"></i></div>
+            <div class="step-label">확정</div>
+            <div class="step-sub">—</div>
+          </div>
+        </div>
+        <div style="margin-top:16px; padding:12px 14px; background:#faf5ff; border-radius:8px; font-size:12px; color:#6d28d9;">
+          <i class="fas fa-info-circle"></i>
+          <strong>경조사·배우자출산·예비군·가족돌봄·난임치료</strong>는 서류 확인이 필요하여 매니저 검토 후 HR이 최종 확정합니다.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title"><i class="fas fa-file-alt" style="color:#7c3aed; margin-right:8px;"></i>제출 서류 (HR 확인용)</span></div>
+      <div class="card-body">
+        <ul class="docs-list">
+          <li><i class="fas fa-check-circle doc-icon"></i><div><strong>사망진단서 또는 부고장</strong> — 복귀 후 5일 이내 HR 제출</div></li>
+          <li><i class="fas fa-clock doc-icon" style="color:#f59e0b;"></i><div>가족관계증명서 (필요 시) — HR 요청 시 제출</div></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       시나리오 ④ 출산전후휴가 — 승인 완료
+  ══════════════════════════════════════════════ -->
+  <div class="scenario" id="scene3">
+    <div class="req-header flow-hr-direct" style="background:linear-gradient(135deg,#065f46,#0891b2);">
+      <div>
+        <div class="req-type-badge"><i class="fas fa-baby"></i> 출산전후휴가</div>
+        <div class="req-title">2026년 07월 15일 ~ 2026년 10월 12일</div>
+        <div class="req-period">신청일 2026-06-01 · 근거: 근로기준법 §74</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="req-days">90일</div>
+        <div class="req-days-label">연차 비차감<br>✅ HR 최종 승인 완료</div>
+      </div>
+    </div>
+
+    <div class="waiting-banner done">
+      <div class="wb-icon"><i class="fas fa-check-circle"></i></div>
+      <div>
+        <div class="wb-title">승인 완료 — HR Admin이 최종 확정했습니다</div>
+        <div class="wb-desc">고용보험 출산전후휴가급여가 신청되었습니다. 7월 15일부터 휴가가 시작됩니다.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">승인 완료 타임라인</span></div>
+      <div class="card-body">
+        <ul class="timeline">
+          <li class="tl-item">
+            <div class="tl-dot done"><i class="fas fa-check"></i></div>
+            <div class="tl-content">
+              <div class="tl-title">신청 제출</div>
+              <div class="tl-meta">2026-06-01 10:22</div>
+            </div>
+          </li>
+          <li class="tl-item">
+            <div class="tl-dot done"><i class="fas fa-forward"></i></div>
+            <div class="tl-content">
+              <div class="tl-title">매니저 단계 자동 스킵 → HR 직행</div>
+              <div class="tl-meta">2026-06-01 10:22 (자동)</div>
+              <div class="tl-note">출산전후휴가는 고용보험 신청이 수반되어 HR이 직접 처리합니다.</div>
+            </div>
+          </li>
+          <li class="tl-item">
+            <div class="tl-dot done"><i class="fas fa-user-shield"></i></div>
+            <div class="tl-content">
+              <div class="tl-title">HR Admin 최종 승인</div>
+              <div class="tl-meta">2026-06-02 14:05 · HR 관리자</div>
+              <div class="tl-note">출생예정일 확인서 검토 완료. 고용보험 급여 신청 처리됨.</div>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title"><i class="fas fa-won-sign" style="color:#10b981; margin-right:8px;"></i>급여 지급 안내</span></div>
+      <div class="card-body">
+        <span class="pay-badge insured"><i class="fas fa-building-columns"></i> 고용보험 지급 (우선지원기업 기준)</span>
+        <div class="impact-box">
+          <div class="impact-item">
+            <div class="imp-label">전체 90일 급여</div>
+            <div class="imp-val plus">통상임금 100%</div>
+          </div>
+          <div class="impact-item">
+            <div class="imp-label">월 상한액</div>
+            <div class="imp-val plus">230만원</div>
+          </div>
+          <div class="impact-note">* 우선지원대상기업(중소기업)은 90일 전액 고용보험 지원. 대기업은 최초 60일 사업주, 나머지 30일 고용보험.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       시나리오 ⑤ 병가 — 반려됨
+  ══════════════════════════════════════════════ -->
+  <div class="scenario" id="scene4">
+    <div class="req-header" style="background:linear-gradient(135deg,#7f1d1d,#dc2626);">
+      <div>
+        <div class="req-type-badge"><i class="fas fa-kit-medical"></i> 병가</div>
+        <div class="req-title">2026년 06월 05일 ~ 06월 11일</div>
+        <div class="req-period">신청일 2026-06-04 · 취업규칙 기준</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="req-days">5일</div>
+        <div class="req-days-label">❌ 반려됨<br>진단서 미제출</div>
+      </div>
+    </div>
+
+    <div class="waiting-banner rejected">
+      <div class="wb-icon"><i class="fas fa-times-circle"></i></div>
+      <div>
+        <div class="wb-title">반려 — 사유: 진단서 미제출</div>
+        <div class="wb-desc">4일 이상 병가는 의사 진단서가 필요합니다. 서류 첨부 후 재신청해 주세요.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">처리 타임라인</span></div>
+      <div class="card-body">
+        <ul class="timeline">
+          <li class="tl-item">
+            <div class="tl-dot done"><i class="fas fa-check"></i></div>
+            <div class="tl-content">
+              <div class="tl-title">신청 제출</div>
+              <div class="tl-meta">2026-06-04 07:30</div>
+            </div>
+          </li>
+          <li class="tl-item">
+            <div class="tl-dot" style="background:#fee2e2; color:#ef4444;"><i class="fas fa-times"></i></div>
+            <div class="tl-content">
+              <div class="tl-title" style="color:#dc2626;">매니저 반려</div>
+              <div class="tl-meta">2026-06-04 09:45 · 박준호</div>
+              <div class="tl-note" style="background:#fff1f2; color:#991b1b;">4일 이상 병가 신청 시 의사 진단서 제출이 필요합니다. 서류 첨부 후 재신청 바랍니다.</div>
+            </div>
+          </li>
+        </ul>
+        <div style="margin-top:16px; display:flex; gap:8px;">
+          <button style="flex:1; padding:10px; background:#1e40af; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer; font-family:inherit;">
+            <i class="fas fa-redo"></i> 서류 첨부 후 재신청
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function showScene(idx, btn) {
+  document.querySelectorAll('.scenario').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.demo-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('scene' + idx).classList.add('active');
+  btn.classList.add('active');
+}
+function toggleLegal(header) {
+  const body = header.nextElementSibling;
+  const icon = header.querySelector('.fa-chevron-down, .fa-chevron-up');
+  body.classList.toggle('open');
+  if (icon) icon.className = body.classList.contains('open') ? 'fas fa-chevron-up' : 'fas fa-chevron-down';
+}
+</script>
+</body>
+</html>
