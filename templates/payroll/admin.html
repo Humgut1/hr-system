@@ -21,33 +21,82 @@
 
   <!-- Bulk payslip generation -->
   <div class="card">
-    <div class="card-head"><span class="card-title">Generate Monthly Payslips</span></div>
+    <div class="card-head">
+      <span class="card-title">Generate Monthly Payslips</span>
+      <a href="{{ url_for('payroll_bulk_raise') }}" class="btn btn-ghost btn-sm">
+        <i class="fas fa-chart-line"></i> Bulk Raise
+      </a>
+    </div>
     <div class="card-body">
-      <form method="POST" action="{{ url_for('admin_payroll') }}">
-        <input type="hidden" name="action" value="generate">
-        <div class="grid-2" style="gap:12px; margin-bottom:14px;">
-          <div class="field" style="margin:0;">
-            <label class="form-label">Year</label>
-            <input type="number" name="year" class="input"
-                   value="2026" min="2020" max="2099" required>
-          </div>
-          <div class="field" style="margin:0;">
-            <label class="form-label">Month</label>
-            <select name="month" class="input">
-              {% for m in range(1, 13) %}
-              <option value="{{ m }}" {% if m == 4 %}selected{% endif %}>{{ m }}</option>
-              {% endfor %}
-            </select>
-          </div>
+      <div class="grid-2" style="gap:12px; margin-bottom:14px;">
+        <div class="field" style="margin:0;">
+          <label class="form-label">Year</label>
+          <input type="number" id="genYear" class="input"
+                 value="2026" min="2020" max="2099">
         </div>
-        <p style="font-size:12px; color:var(--tx-3); margin-bottom:12px;">
-          <i class="fas fa-info-circle"></i>
-          Generates payslips for all active employees with salary data. Skips already generated months.
-        </p>
-        <button type="submit" class="btn btn-primary">
-          <i class="fas fa-cogs"></i> Generate Payslips
-        </button>
+        <div class="field" style="margin:0;">
+          <label class="form-label">Month</label>
+          <select id="genMonth" class="input">
+            {% for m in range(1, 13) %}
+            <option value="{{ m }}" {% if m == 4 %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <p style="font-size:12px; color:var(--tx-3); margin-bottom:14px;">
+        <i class="fas fa-info-circle"></i>
+        미리보기에서 금액을 확인 후 확정하세요. 이미 생성된 월은 건너뜁니다.
+      </p>
+      <button type="button" id="previewBtn" class="btn btn-primary">
+        <i class="fas fa-eye"></i> 미리보기
+      </button>
+
+      <!-- 실제 생성 hidden form -->
+      <form id="generateForm" method="POST" action="{{ url_for('admin_payroll') }}" style="display:none;">
+        <input type="hidden" name="action" value="generate">
+        <input type="hidden" name="year"  id="hiddenYear">
+        <input type="hidden" name="month" id="hiddenMonth">
       </form>
+    </div>
+  </div>
+
+  <!-- 미리보기 모달 -->
+  <div id="previewModal" style="display:none; position:fixed; inset:0;
+       background:rgba(0,0,0,.5); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:14px; width:900px; max-width:96vw;
+                max-height:90vh; overflow:hidden; display:flex; flex-direction:column;
+                box-shadow:0 24px 64px rgba(0,0,0,.2);">
+      <div style="padding:20px 24px; border-bottom:1px solid var(--border);
+                  display:flex; align-items:center; justify-content:space-between; flex-shrink:0;">
+        <div>
+          <div id="previewTitle" style="font-size:16px; font-weight:800;"></div>
+          <div id="previewSub"   style="font-size:12px; color:var(--tx-3); margin-top:2px;"></div>
+        </div>
+        <button onclick="closePreview()" style="background:none;border:none;font-size:20px;color:var(--tx-3);cursor:pointer;">✕</button>
+      </div>
+      <div style="overflow-y:auto; flex:1; padding:16px 24px;">
+        <div id="previewLoading" style="text-align:center; padding:40px; color:var(--tx-3);">
+          <i class="fas fa-spinner fa-spin" style="font-size:24px;"></i>
+          <div style="margin-top:12px;">계산 중...</div>
+        </div>
+        <table id="previewTable" class="tbl" style="display:none; width:100%;">
+          <thead>
+            <tr>
+              <th>이름</th><th>부서</th><th>기본급</th>
+              <th>총지급액</th><th>공제액</th><th>실수령액</th><th>상태</th>
+            </tr>
+          </thead>
+          <tbody id="previewBody"></tbody>
+          <tfoot id="previewFoot" style="font-weight:800; background:#f0fdf4;"></tfoot>
+        </table>
+      </div>
+      <div style="padding:16px 24px; border-top:1px solid var(--border);
+                  display:flex; justify-content:flex-end; gap:10px; flex-shrink:0;">
+        <button onclick="closePreview()" class="btn btn-ghost">취소</button>
+        <button id="confirmBtn" class="btn btn-primary" onclick="confirmGenerate()">
+          <i class="fas fa-check"></i> <span id="confirmLabel">확정 생성</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -206,6 +255,14 @@
             </div>
           </div>
 
+          <div class="field">
+            <label class="form-label">
+              변경 사유
+              <span style="font-size:11px; color:var(--tx-3); font-weight:400;">— 선택 입력</span>
+            </label>
+            <input type="text" name="reason" class="input" placeholder="예: 2026년 정기 인상, 직급 승진 등">
+          </div>
+
           <div style="display:flex; gap:10px; margin-top:20px;">
             <button type="submit" class="btn btn-primary">
               <i class="fas fa-save"></i> Save
@@ -347,5 +404,72 @@
   document.getElementById('cancelBtn').addEventListener('click', closeModal);
   modal.addEventListener('click', function(e){ if(e.target===modal) closeModal(); });
 }());
+
+// ── 미리보기 모달 ──────────────────────────────────────────
+function krwFmt(n) { return Number(n).toLocaleString('ko-KR') + '₩'; }
+
+document.getElementById('previewBtn').addEventListener('click', function() {
+  var year  = document.getElementById('genYear').value;
+  var month = document.getElementById('genMonth').value;
+  document.getElementById('previewTitle').textContent = year + '년 ' + month + '월 급여 생성 미리보기';
+  document.getElementById('previewSub').textContent   = '계산 중...';
+  document.getElementById('previewTable').style.display  = 'none';
+  document.getElementById('previewLoading').style.display = 'block';
+  document.getElementById('previewModal').style.display   = 'flex';
+
+  var fd = new FormData();
+  fd.append('year', year); fd.append('month', month);
+  fetch('{{ url_for("payroll_preview") }}', { method:'POST', body: fd })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      document.getElementById('previewLoading').style.display = 'none';
+      document.getElementById('previewTable').style.display   = 'table';
+      document.getElementById('previewSub').textContent =
+        '신규 ' + data.new_count + '건 · 총 실수령 합계 ' + krwFmt(data.total_net);
+      document.getElementById('confirmLabel').textContent = '확정 생성 (' + data.new_count + '건)';
+      document.getElementById('confirmBtn').disabled = data.new_count === 0;
+
+      var tbody = document.getElementById('previewBody');
+      tbody.innerHTML = '';
+      data.rows.forEach(function(r) {
+        var tr = document.createElement('tr');
+        if (r.already) tr.style.opacity = '0.4';
+        tr.innerHTML =
+          '<td><strong>' + r.name + '</strong></td>' +
+          '<td>' + r.dept + '</td>' +
+          '<td>' + krwFmt(r.base) + '</td>' +
+          '<td>' + (r.already ? '—' : krwFmt(r.gross)) + '</td>' +
+          '<td style="color:#dc2626;">' + (r.already ? '—' : '-' + krwFmt(r.deduction)) + '</td>' +
+          '<td style="font-weight:700; color:#166534;">' + (r.already ? '—' : krwFmt(r.net)) + '</td>' +
+          '<td>' + (r.already
+            ? '<span style="font-size:11px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:20px;font-weight:700;">이미생성</span>'
+            : '<span style="font-size:11px;background:#dcfce7;color:#166534;padding:2px 8px;border-radius:20px;font-weight:700;">신규</span>'
+          ) + '</td>';
+        tbody.appendChild(tr);
+      });
+
+      var tfoot = document.getElementById('previewFoot');
+      tfoot.innerHTML = '<tr><td colspan="5" style="padding:10px 14px;">총 실수령 합계 (신규 ' + data.new_count + '명)</td>' +
+        '<td style="padding:10px 14px; color:#166534;">' + krwFmt(data.total_net) + '</td><td></td></tr>';
+
+      // hidden form에 값 세팅
+      document.getElementById('hiddenYear').value  = year;
+      document.getElementById('hiddenMonth').value = month;
+    })
+    .catch(function() {
+      alert('미리보기 로딩 실패. 다시 시도해주세요.');
+      closePreview();
+    });
+});
+
+function closePreview() {
+  document.getElementById('previewModal').style.display = 'none';
+}
+function confirmGenerate() {
+  document.getElementById('generateForm').submit();
+}
+document.getElementById('previewModal').addEventListener('click', function(e) {
+  if (e.target === this) closePreview();
+});
 </script>
 {% endblock %}

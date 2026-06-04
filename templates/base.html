@@ -43,11 +43,8 @@
         <a href="{{ url_for('dashboard') }}" class="nav-item{% if active_page == 'home' %} active{% endif %}" title="Dashboard">
           <i class="fas fa-home"></i><span>Dashboard</span>
         </a>
-        <a href="{{ url_for('attendance_home') }}" class="nav-item{% if active_page == 'attendance_home' %} active{% endif %}" title="Attendance">
-          <i class="fas fa-clock"></i><span>Attendance</span>
-        </a>
-        <a href="{{ url_for('leave_my') }}" class="nav-item{% if active_page == 'leave' %} active{% endif %}" title="My Leaves">
-          <i class="fas fa-umbrella-beach"></i><span>My Leaves</span>
+        <a href="{{ url_for('attendance_home') }}" class="nav-item{% if active_page == 'attendance_home' %} active{% endif %}" title="근태">
+          <i class="fas fa-clock"></i><span>근태</span>
         </a>
       </div>
 
@@ -111,9 +108,6 @@
         <a href="{{ url_for('employees') }}" class="nav-item{% if active_page == 'employees' %} active{% endif %}" title="Employees">
           <i class="fas fa-users"></i><span>Employees</span>
         </a>
-        <a href="{{ url_for('attendance') }}" class="nav-item{% if active_page == 'attendance' %} active{% endif %}" title="Approvals">
-          <i class="fas fa-check-circle"></i><span>Approvals</span>
-        </a>
         <a href="{{ url_for('termination_requests') }}" class="nav-item{% if active_page == 'termination_requests' %} active{% endif %}" title="Termination">
           <i class="fas fa-user-clock"></i><span>Termination</span>
         </a>
@@ -132,6 +126,9 @@
         </div>
         <a href="{{ url_for('admin_payroll') }}" class="nav-item{% if active_page == 'admin_payroll' %} active{% endif %}" title="Payroll Admin">
           <i class="fas fa-coins"></i><span>Payroll Admin</span>
+        </a>
+        <a href="{{ url_for('payroll_bulk_raise') }}" class="nav-item{% if active_page == 'bulk_raise' %} active{% endif %}" title="Bulk Raise">
+          <i class="fas fa-chart-line"></i><span>Bulk Raise</span>
         </a>
         <a href="{{ url_for('recruit_postings') }}" class="nav-item{% if active_page == 'recruit' %} active{% endif %}" title="Recruiting">
           <i class="fas fa-user-tie"></i><span>Recruiting</span>
@@ -352,9 +349,8 @@ document.addEventListener('click', function(e) {
   var NAV_ITEMS = [
     {% if session.user_role %}
     {label:'Dashboard', url:'{{ url_for("dashboard") }}', icon:'fa-home'},
-    {label:'Attendance', url:'{{ url_for("attendance_home") }}', icon:'fa-clock'},
-    {label:'Request Leave', url:'{{ url_for("leave_new") }}', icon:'fa-plus-circle'},
-    {label:'My Leaves', url:'{{ url_for("leave_my") }}', icon:'fa-list-alt'},
+    {label:'근태', url:'{{ url_for("attendance_home") }}', icon:'fa-clock'},
+    {label:'휴가 신청', url:'{{ url_for("attendance_home", tab="leaves") }}', icon:'fa-umbrella-beach'},
     {label:'Payslips', url:'{{ url_for("payroll_list") }}', icon:'fa-won-sign'},
     {label:'Performance', url:'{{ url_for("performance") }}', icon:'fa-chart-line'},
     {label:'Documents', url:'{{ url_for("certificates_hub") }}', icon:'fa-folder-open'},

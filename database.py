@@ -86,7 +86,8 @@ def init_db(db_path: str = None):
                                 CHECK(type IN (
                                     'annual','half_am','half_pm','sick','remote','outing',
                                     'maternity','paternity','parental','family_care',
-                                    'bereavement','military','compensation'
+                                    'bereavement','military','compensation',
+                                    'menstrual','miscarriage','fertility','parental_reduction'
                                 )),
                 start_date  DATE NOT NULL,
                 end_date    DATE NOT NULL,
@@ -124,6 +125,20 @@ def init_db(db_path: str = None):
                 meal_allowance      INTEGER NOT NULL DEFAULT 200000,
                 transport_allowance INTEGER NOT NULL DEFAULT 100000,
                 updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS salary_history (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id             INTEGER NOT NULL REFERENCES users(id),
+                changed_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+                changed_by          INTEGER REFERENCES users(id),
+                old_base_salary     INTEGER NOT NULL DEFAULT 0,
+                new_base_salary     INTEGER NOT NULL DEFAULT 0,
+                old_meal            INTEGER NOT NULL DEFAULT 0,
+                new_meal            INTEGER NOT NULL DEFAULT 0,
+                old_transport       INTEGER NOT NULL DEFAULT 0,
+                new_transport       INTEGER NOT NULL DEFAULT 0,
+                reason              TEXT
             );
 
             CREATE TABLE IF NOT EXISTS payslips (
@@ -574,8 +589,8 @@ def init_db(db_path: str = None):
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='leave_requests'"
         ).fetchone()
         
-        # maternity가 없거나 manager_id가 없으면 재생성 마이그레이션
-        if lr_sql and ('maternity' not in lr_sql[0] or 'manager_id' not in lr_cols):
+        # 신규 유형(menstrual 등)이 없거나 manager_id가 없으면 재생성 마이그레이션
+        if lr_sql and ('menstrual' not in lr_sql[0] or 'manager_id' not in lr_cols):
             c.executescript('''
                 PRAGMA foreign_keys = OFF;
                 DROP TABLE IF EXISTS _lr_old;
@@ -682,6 +697,10 @@ def init_db(db_path: str = None):
             c.execute('ALTER TABLE checkins ADD COLUMN night_min    INTEGER DEFAULT 0')
         if 'holiday_min' not in checkin_cols:
             c.execute('ALTER TABLE checkins ADD COLUMN holiday_min  INTEGER DEFAULT 0')
+        if 'break_min' not in checkin_cols:
+            c.execute('ALTER TABLE checkins ADD COLUMN break_min    INTEGER DEFAULT 0')
+        if 'is_remote' not in checkin_cols:
+            c.execute('ALTER TABLE checkins ADD COLUMN is_remote    INTEGER DEFAULT 0')
 
         # company_config 기본 row (없으면 삽입 — setup_completed=0 유지해서 위자드 표시)
         if c.execute('SELECT COUNT(*) FROM company_config').fetchone()[0] == 0:

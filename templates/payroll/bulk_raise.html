@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% block title %}Bulk Salary Raise{% endblock %}
+{% block page_title %}Payroll{% endblock %}
+
+{% block content %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div style="background:{% if cat=='error' %}#fef2f2{% else %}#f0fdf4{% endif %};
+              border:1px solid {% if cat=='error' %}#fecaca{% else %}#bbf7d0{% endif %};
+              color:{% if cat=='error' %}#991b1b{% else %}#166534{% endif %};
+              padding:12px 16px; border-radius:var(--r-sm); margin-bottom:16px;
+              display:flex; align-items:center; gap:8px; font-weight:600;">
+    <i class="fas fa-{% if cat=='error' %}exclamation-circle{% else %}check-circle{% endif %}"></i>
+    {{ msg }}
+  </div>
+  {% endfor %}
+{% endwith %}
+
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+  <a href="{{ url_for('admin_payroll') }}" class="btn btn-ghost btn-sm">
+    <i class="fas fa-arrow-left"></i> Payroll Admin
+  </a>
+  <div>
+    <div style="font-size:18px; font-weight:800;">📊 일괄 급여 인상</div>
+    <div style="font-size:12px; color:var(--tx-3);">부서 or 전체 선택 → 인상률 입력 → 시뮬레이션 확인 후 적용</div>
+  </div>
+</div>
+
+<!-- 설정 폼 -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-head"><span class="card-title">인상 설정</span></div>
+  <div class="card-body">
+    <form method="GET" action="{{ url_for('payroll_bulk_raise') }}" id="filterForm"
+          style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-bottom:0;">
+      <div class="field" style="margin:0; min-width:160px;">
+        <label class="form-label">적용 대상</label>
+        <select name="dept_id" class="input" onchange="this.form.submit()">
+          <option value="">전체 직원 ({{ emps|length }}명)</option>
+          {% for d in departments %}
+          <option value="{{ d.id }}" {% if selected_dept == d.id|string %}selected{% endif %}>
+            {{ d.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field" style="margin:0; min-width:120px;">
+        <label class="form-label">인상률 (%)</label>
+        <input type="number" id="raiseRate" class="input" value="5.0"
+               step="0.1" min="0.1" max="100" style="width:100px;"
+               oninput="simulate()">
+      </div>
+      <div class="field" style="margin:0; flex:1; min-width:200px;">
+        <label class="form-label">인상 사유</label>
+        <input type="text" id="raiseReason" class="input"
+               value="2026년 정기 연봉 인상" placeholder="예: 2026년 정기 인상">
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 시뮬레이션 요약 -->
+<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px;">
+  <div class="card" style="margin:0; text-align:center;">
+    <div class="card-body" style="padding:14px;">
+      <div id="sumCount" style="font-size:24px; font-weight:900; color:var(--primary);">{{ emps|length }}</div>
+      <div style="font-size:12px; color:var(--tx-3); margin-top:4px;">대상 인원</div>
+    </div>
+  </div>
+  <div class="card" style="margin:0; text-align:center;">
+    <div class="card-body" style="padding:14px;">
+      <div id="sumTotalBefore" style="font-size:18px; font-weight:900; color:#64748b;">—</div>
+      <div style="font-size:12px; color:var(--tx-3); margin-top:4px;">현재 월 인건비 합계</div>
+    </div>
+  </div>
+  <div class="card" style="margin:0; text-align:center;">
+    <div class="card-body" style="padding:14px;">
+      <div id="sumIncrease" style="font-size:18px; font-weight:900; color:#16a34a;">—</div>
+      <div style="font-size:12px; color:var(--tx-3); margin-top:4px;">월 증가액</div>
+    </div>
+  </div>
+  <div class="card" style="margin:0; text-align:center;">
+    <div class="card-body" style="padding:14px;">
+      <div id="sumAnnual" style="font-size:18px; font-weight:900; color:#dc2626;">—</div>
+      <div style="font-size:12px; color:var(--tx-3); margin-top:4px;">연간 추가 인건비</div>
+    </div>
+  </div>
+</div>
+
+<!-- 직원 목록 테이블 -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-head">
+    <span class="card-title">인상 전/후 비교</span>
+    <span id="tableDesc" style="font-size:12px; color:var(--tx-3);"></span>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>이름</th><th>부서</th>
+          <th style="text-align:right;">현재 기본급</th>
+          <th style="text-align:right;">인상 후</th>
+          <th style="text-align:right;">증가액</th>
+          <th style="text-align:right;">인상률</th>
+        </tr>
+      </thead>
+      <tbody id="raiseBody">
+        {% for e in emps %}
+        <tr data-base="{{ e.base_salary }}" data-id="{{ e.id }}">
+          <td>
+            <div class="u-cell">
+              <div class="avatar-xs">{{ e.name[0] }}</div>
+              <span class="u-name">{{ e.name }}</span>
+            </div>
+          </td>
+          <td>{{ e.dept_name or '—' }}</td>
+          <td style="text-align:right; font-weight:700;">
+            {{ '{:,}'.format(e.base_salary) }}₩
+          </td>
+          <td style="text-align:right; font-weight:800; color:#166534;" class="col-new">—</td>
+          <td style="text-align:right; color:#16a34a; font-weight:700;" class="col-diff">—</td>
+          <td style="text-align:right;" class="col-pct">—</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 적용 버튼 -->
+<form method="POST" action="{{ url_for('payroll_bulk_raise') }}" id="applyForm"
+      style="display:flex; justify-content:flex-end; gap:10px; align-items:center;">
+  <input type="hidden" name="dept_id" value="{{ selected_dept or '' }}">
+  <input type="hidden" name="pct"     id="hiddenPct">
+  <input type="hidden" name="reason"  id="hiddenReason">
+  <span style="font-size:13px; color:var(--tx-3);" id="applyDesc"></span>
+  <a href="{{ url_for('admin_payroll') }}" class="btn btn-ghost">취소</a>
+  <button type="button" class="btn btn-primary" onclick="applyRaise()">
+    <i class="fas fa-check"></i> <span id="applyLabel">일괄 적용</span>
+  </button>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+var empData = [
+  {% for e in emps %}
+  { base: {{ e.base_salary }} }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+
+function krw(n) { return Math.round(n).toLocaleString('ko-KR') + '₩'; }
+
+function simulate() {
+  var pct  = parseFloat(document.getElementById('raiseRate').value) || 0;
+  var rows = document.querySelectorAll('#raiseBody tr');
+  var totalBefore = 0, totalAfter = 0;
+
+  rows.forEach(function(tr, i) {
+    var base    = parseInt(tr.dataset.base) || 0;
+    var newBase = Math.round(base * (1 + pct / 100));
+    var diff    = newBase - base;
+    totalBefore += base;
+    totalAfter  += newBase;
+    tr.querySelector('.col-new').textContent  = krw(newBase);
+    tr.querySelector('.col-diff').textContent = '+' + krw(diff);
+    tr.querySelector('.col-pct').textContent  = pct.toFixed(1) + '%';
+  });
+
+  var increase = totalAfter - totalBefore;
+  document.getElementById('sumTotalBefore').textContent = krw(totalBefore);
+  document.getElementById('sumIncrease').textContent    = '+' + krw(increase);
+  document.getElementById('sumAnnual').textContent      = '+' + krw(increase * 12);
+  document.getElementById('tableDesc').textContent      = pct.toFixed(1) + '% 인상 시뮬레이션';
+  document.getElementById('applyLabel').textContent     = '일괄 적용 (' + rows.length + '명)';
+  document.getElementById('applyDesc').textContent      =
+    rows.length + '명 · 월 추가 인건비 +' + krw(increase);
+}
+
+function applyRaise() {
+  var pct    = parseFloat(document.getElementById('raiseRate').value) || 0;
+  var reason = document.getElementById('raiseReason').value;
+  var count  = document.querySelectorAll('#raiseBody tr').length;
+  if (!confirm(count + '명의 기본급을 ' + pct + '% 인상합니다.\n사유: ' + reason + '\n\n계속하시겠습니까?')) return;
+  document.getElementById('hiddenPct').value    = pct;
+  document.getElementById('hiddenReason').value = reason;
+  document.getElementById('applyForm').submit();
+}
+
+// 페이지 로드 시 시뮬레이션 실행
+simulate();
+document.getElementById('sumCount').textContent = {{ emps|length }};
+</script>
+{% endblock %}

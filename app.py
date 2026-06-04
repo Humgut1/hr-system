@@ -13,6 +13,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from payroll_utils import (calc_payslip, calc_annual_leave, fmt_krw,
                            calc_severance, check_min_wage, MIN_WAGE_MONTHLY,
                            calc_day_hours, calc_extra_pay,
+                           get_week_bounds, calc_weekly_hours,
+                           WEEKLY_TOTAL_MAX, WEEKLY_WARNING,
                            BENEFIT_CATALOG, BENEFIT_CATEGORY_LABELS, PAYMENT_TYPE_LABELS,
                            calc_prorated_salary, calc_unused_leave_pay,
                            calc_separation_settlement)
@@ -42,6 +44,29 @@ from database import init_db
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 init_db()               # hr_system.db (테넌트 1 기본 스키마)
+
+# 체크인=체크아웃 동일 시각 오염 데이터 정리 (check_in == check_out → 분=0)
+def _fix_checkin_data():
+    import os
+    for fname in os.listdir('.'):
+        if not fname.endswith('.db') or fname == 'master.db':
+            continue
+        try:
+            _c = sqlite3.connect(fname)
+            cols = {r[1] for r in _c.execute('PRAGMA table_info(checkins)')}
+            if 'check_in' not in cols:
+                _c.close(); continue
+            _c.execute(
+                "UPDATE checkins SET regular_min=0, overtime_min=0, "
+                "night_min=0, holiday_min=0, break_min=0 "
+                "WHERE check_in IS NOT NULL AND check_out IS NOT NULL "
+                "AND check_in = check_out"
+            )
+            _c.commit()
+            _c.close()
+        except Exception:
+            pass
+_fix_checkin_data()
 
 # 연봉 기준표·부서 확장 시드 (job_families가 비어 있을 때만 자동 실행)
 def _ensure_extended_seed():
@@ -928,6 +953,14 @@ def employee_detail(emp_id):
         (emp_id,)
     ).fetchone()[0]
 
+    salary_history = db.execute(
+        'SELECT sh.*, u.name AS changed_by_name '
+        'FROM salary_history sh '
+        'LEFT JOIN users u ON sh.changed_by = u.id '
+        'WHERE sh.user_id=? ORDER BY sh.changed_at DESC LIMIT 20',
+        (emp_id,)
+    ).fetchall()
+
     severance = db.execute(
         'SELECT * FROM severance_payments WHERE user_id=? ORDER BY processed_at DESC LIMIT 1',
         (emp_id,)
@@ -1025,6 +1058,7 @@ def employee_detail(emp_id):
                            action_positions=action_positions,
                            action_managers=action_managers,
                            benefit_rows=benefit_rows,
+                           salary_history=salary_history,
                            today=date.today().isoformat(),
                            leave_labels=LEAVE_LABELS,
                            active_page='employees')
@@ -2043,95 +2077,196 @@ LEAVE_META = {
     'annual': {
         'label': '연차휴가', 'group': '연차',
         'deduct': 'annual', 'fixed_days': None, 'max_days': None,
+        'approval_flow': 'manager_only',
         'law': '근로기준법 §60',
-        'desc': '연간 부여된 유급 연차를 사용합니다. 잔여 연차 내에서 기간을 선택하세요.',
+        'pay_info': '통상임금 100% 유급 (사업주 부담)',
+        'requires_docs': False, 'docs_note': '',
+        'desc': '연간 부여된 유급 연차를 사용합니다.',
         'icon': 'fa-umbrella-beach', 'color': '#3b82f6',
     },
     'half_am': {
         'label': '오전 반차', 'group': '연차',
         'deduct': 'annual', 'fixed_days': 0.5, 'max_days': 0.5,
+        'approval_flow': 'manager_only',
         'law': '근로기준법 §60',
-        'desc': '오전(~13:00) 반일 유급휴가. 0.5일이 연차에서 차감됩니다.',
+        'pay_info': '통상임금 50% 유급',
+        'requires_docs': False, 'docs_note': '',
+        'desc': '오전(~13:00) 반일 유급휴가. 0.5일 연차 차감.',
         'icon': 'fa-sun', 'color': '#3b82f6',
     },
     'half_pm': {
         'label': '오후 반차', 'group': '연차',
         'deduct': 'annual', 'fixed_days': 0.5, 'max_days': 0.5,
+        'approval_flow': 'manager_only',
         'law': '근로기준법 §60',
-        'desc': '오후(13:00~) 반일 유급휴가. 0.5일이 연차에서 차감됩니다.',
+        'pay_info': '통상임금 50% 유급',
+        'requires_docs': False, 'docs_note': '',
+        'desc': '오후(13:00~) 반일 유급휴가. 0.5일 연차 차감.',
         'icon': 'fa-moon', 'color': '#3b82f6',
     },
+    # ── 병가 (일수에 따라 분기) ──────────────────────────────
     'sick': {
         'label': '병가', 'group': '연차',
-        'deduct': 'annual', 'fixed_days': None, 'max_days': None,
-        'law': '취업규칙',
-        'desc': '질병·부상으로 인한 휴가. 연차에서 차감됩니다. 진단서 제출이 필요할 수 있습니다.',
+        'deduct': 'annual', 'fixed_days': None, 'max_days': 60,
+        # 3일 이하: manager_only / 4일 이상: manager_hr (leave_new에서 days로 분기)
+        'approval_flow': 'manager_only',
+        'approval_hr_threshold': 3,   # 이 일수 초과 시 HR 추가 승인 필요
+        'law': '취업규칙 (법정 의무 아님)',
+        'pay_info': '취업규칙에 따라 상이. 통상 유급 처리.',
+        'requires_docs': True,
+        'docs_note': '4일 이상: 의사 진단서 제출 필요',
+        'desc': '질병·부상으로 인한 휴가. 연차에서 차감됩니다.',
         'icon': 'fa-kit-medical', 'color': '#ef4444',
     },
-    # ── 법정 특별휴가 (연차 비차감) ─────────────────────────
-    'maternity': {
-        'label': '출산전후휴가', 'group': '법정 특별휴가',
-        'deduct': 'none', 'fixed_days': 90, 'max_days': 90,
-        'law': '근로기준법 §74',
-        'desc': '출산 전후 90일 유급 보장 (다태아 120일). 출산 후 최소 45일 이상 포함되어야 합니다. 연차에서 차감되지 않습니다.',
-        'icon': 'fa-baby', 'color': '#ec4899',
-    },
-    'paternity': {
-        'label': '배우자출산휴가', 'group': '법정 특별휴가',
-        'deduct': 'none', 'fixed_days': 10, 'max_days': 10,
-        'law': '남녀고용평등법 §18의2',
-        'desc': '배우자 출산 시 10일 유급. 출산일로부터 90일 이내 사용. 연차에서 차감되지 않습니다.',
-        'icon': 'fa-person', 'color': '#8b5cf6',
-    },
-    'parental': {
-        'label': '육아휴직', 'group': '법정 특별휴가',
-        'deduct': 'none', 'fixed_days': None, 'max_days': 365,
-        'law': '남녀고용평등법 §19',
-        'desc': '만 8세 이하 자녀 양육을 위한 최대 1년 휴직. 고용보험에서 육아휴직급여 지급. 신청 30일 전 서면 통보 필요.',
-        'icon': 'fa-baby-carriage', 'color': '#10b981',
-    },
-    'family_care': {
-        'label': '가족돌봄휴직', 'group': '법정 특별휴가',
-        'deduct': 'none', 'fixed_days': None, 'max_days': 90,
-        'law': '남녀고용평등법 §22의2',
-        'desc': '가족 질병·사고·노령으로 인한 돌봄. 연간 최대 90일 무급. (단기 가족돌봄휴가: 연 10일 별도)',
-        'icon': 'fa-heart-pulse', 'color': '#f59e0b',
-    },
-    'bereavement': {
-        'label': '경조사휴가', 'group': '법정 특별휴가',
-        'deduct': 'none', 'fixed_days': None, 'max_days': 5,
-        'law': '취업규칙 (법정 아님)',
-        'desc': '경조사 발생 시 회사 규정에 따라 부여. 부모·배우자 사망 5일, 자녀·형제 3일 등 (회사별 상이). 연차에서 차감되지 않습니다.',
-        'icon': 'fa-ribbon', 'color': '#6b7280',
-    },
-    # ── 기타 (비소진형) ──────────────────────────────────────
-    'military': {
-        'label': '예비군·민방위', 'group': '기타',
-        'deduct': 'none', 'fixed_days': None, 'max_days': None,
-        'law': '병역법 §44',
-        'desc': '예비군 훈련 및 민방위 소집 기간. 유급 처리. 소집 통지서 사본 첨부 필요.',
-        'icon': 'fa-shield-halved', 'color': '#64748b',
+    # ── 법정 특별휴가 — 연차 비차감, 매니저만 ────────────────
+    'menstrual': {
+        'label': '생리휴가', 'group': '법정 특별휴가',
+        'deduct': 'none', 'fixed_days': 1, 'max_days': 1,
+        'approval_flow': 'manager_only',
+        'law': '근로기준법 §73',
+        'pay_info': '법정 무급 (취업규칙으로 유급 전환 가능)',
+        'requires_docs': False,
+        'docs_note': '서류 불필요 — 청구만으로 사용 가능 (근기법 보장)',
+        'desc': '월 1일 청구 가능. 별도 증빙 서류 불필요.',
+        'icon': 'fa-venus', 'color': '#ec4899',
     },
     'compensation': {
         'label': '대체휴무', 'group': '기타',
         'deduct': 'none', 'fixed_days': None, 'max_days': None,
+        'approval_flow': 'manager_only',
         'law': '근로기준법 §57',
-        'desc': '초과 근무 대신 부여받은 대체 휴무일. 연차에서 차감되지 않습니다.',
+        'pay_info': '연장·야간·휴일 수당 대체 지급 (수당 지급 대신 휴무)',
+        'requires_docs': False, 'docs_note': '',
+        'desc': '초과 근무 대신 부여받은 대체 휴무일.',
         'icon': 'fa-arrows-rotate', 'color': '#64748b',
     },
     'remote': {
         'label': '재택근무', 'group': '기타',
         'deduct': 'none', 'fixed_days': None, 'max_days': None,
+        'approval_flow': 'manager_only',
         'law': '취업규칙',
+        'pay_info': '통상임금 100% 유급',
+        'requires_docs': False, 'docs_note': '',
         'desc': '재택근무 신청. 연차에서 차감되지 않습니다.',
         'icon': 'fa-house-laptop', 'color': '#64748b',
     },
     'outing': {
         'label': '외출', 'group': '기타',
         'deduct': 'none', 'fixed_days': None, 'max_days': None,
+        'approval_flow': 'manager_only',
         'law': '취업규칙',
-        'desc': '업무 관련 외출. 연차에서 차감되지 않습니다.',
+        'pay_info': '통상임금 100% 유급',
+        'requires_docs': False, 'docs_note': '',
+        'desc': '업무 관련 외출.',
         'icon': 'fa-person-walking', 'color': '#64748b',
+    },
+    # ── 법정 특별휴가 — 매니저 → HR 2단계 ───────────────────
+    'paternity': {
+        'label': '배우자출산휴가', 'group': '법정 특별휴가',
+        'deduct': 'none', 'fixed_days': 10, 'max_days': 10,
+        'approval_flow': 'manager_hr',
+        'law': '근로기준법 §75 / 남녀고용평등법 §18의2',
+        'pay_info': '10일 전액 유급 (우선지원기업: 고용보험 급여 신청 가능, 상한 월 230만원)',
+        'requires_docs': True,
+        'docs_note': '출생증명서 또는 출산예정일확인서 — HR에 원본 제출',
+        'desc': '배우자 출산일로부터 90일 이내 연속 사용. 분할 1회 가능.',
+        'icon': 'fa-person', 'color': '#8b5cf6',
+    },
+    'bereavement': {
+        'label': '경조사휴가', 'group': '법정 특별휴가',
+        'deduct': 'none', 'fixed_days': None, 'max_days': 5,
+        'approval_flow': 'manager_hr',
+        'law': '취업규칙 (법정 의무 아님)',
+        'pay_info': '취업규칙 기준 유급 (본인결혼 5일, 부모·배우자사망 5일, 자녀·형제사망 3일)',
+        'requires_docs': True,
+        'docs_note': '청첩장·부고장·사망진단서 등 — 사후 5일 이내 제출',
+        'desc': '경조사 발생 시 규정 일수 부여.',
+        'icon': 'fa-ribbon', 'color': '#6b7280',
+    },
+    'military': {
+        'label': '예비군·공가', 'group': '법정 특별휴가',
+        'deduct': 'none', 'fixed_days': None, 'max_days': None,
+        'approval_flow': 'manager_hr',
+        'law': '병역법 §44 / 민방위기본법 §26',
+        'pay_info': '공무 수행 기간 유급 (법정)',
+        'requires_docs': True,
+        'docs_note': '소집통지서·출석요구서 등 공문서 사전 제출',
+        'desc': '예비군 훈련, 민방위, 기타 법정 공가.',
+        'icon': 'fa-shield-halved', 'color': '#64748b',
+    },
+    'family_care': {
+        'label': '가족돌봄휴직', 'group': '법정 특별휴가',
+        'deduct': 'none', 'fixed_days': None, 'max_days': 90,
+        'approval_flow': 'manager_hr',
+        'law': '남녀고용평등법 §22의2',
+        'pay_info': '무급 (연 10일 단기돌봄휴가는 별도 — 유급 권고)',
+        'requires_docs': True,
+        'docs_note': '가족관계증명서 + 돌봄 사유 확인서류',
+        'desc': '가족 질병·사고로 인한 돌봄. 연 최대 90일.',
+        'icon': 'fa-heart-pulse', 'color': '#f59e0b',
+    },
+    'fertility': {
+        'label': '난임치료휴가', 'group': '법정 특별휴가',
+        'deduct': 'none', 'fixed_days': None, 'max_days': 3,
+        'approval_flow': 'manager_hr',
+        'law': '남녀고용평등법 §18의3',
+        'pay_info': '1일차 유급 (고용보험 지원), 2~3일차 무급. 연 3일.',
+        'requires_docs': True,
+        'docs_note': '난임시술확인서 또는 의사진단서 제출 필요',
+        'desc': '난임 시술일에 사용. 연 3일 한도.',
+        'icon': 'fa-stethoscope', 'color': '#ec4899',
+    },
+    # ── HR 직행 (장기·고용보험 연동) ─────────────────────────
+    'maternity': {
+        'label': '출산전후휴가', 'group': 'HR 승인 필요',
+        'deduct': 'none', 'fixed_days': 90, 'max_days': 120,
+        'approval_flow': 'hr_direct',
+        'law': '근로기준법 §74',
+        'pay_info': (
+            '우선지원기업: 90일 전액 고용보험 (상한 월 230만원)\n'
+            '대기업: 최초 60일 사업주, 잔여 30일 고용보험'
+        ),
+        'requires_docs': True,
+        'docs_note': '출산예정일확인서 (출산 전) 또는 출생증명서 (출산 후) — HR 제출',
+        'desc': '출산 전후 90일 (다태아 120일) 유급. 출산 후 최소 45일 이상 포함 필수.',
+        'icon': 'fa-baby', 'color': '#ec4899',
+    },
+    'miscarriage': {
+        'label': '유산·사산휴가', 'group': 'HR 승인 필요',
+        'deduct': 'none', 'fixed_days': None, 'max_days': 90,
+        'approval_flow': 'hr_direct',
+        'law': '근로기준법 §74③',
+        'pay_info': '출산전후휴가와 동일 기준 적용 (고용보험)',
+        'requires_docs': True,
+        'docs_note': '의사 진단서 + 임신기간 확인서 (임신주수별 일수: 11주↓5일, 12~15주 10일, 16~21주 30일, 22~27주 60일, 28주↑90일)',
+        'desc': '임신 중 유산·사산 발생 시 임신주수에 따라 부여.',
+        'icon': 'fa-heart-broken', 'color': '#ef4444',
+    },
+    'parental': {
+        'label': '육아휴직', 'group': 'HR 승인 필요',
+        'deduct': 'none', 'fixed_days': None, 'max_days': 365,
+        'approval_flow': 'hr_direct',
+        'law': '남녀고용평등법 §19',
+        'pay_info': (
+            '1~3개월: 통상임금 80% (상한 월 150만원)\n'
+            '4개월 이후: 통상임금 50% (상한 월 120만원)\n'
+            '복직 후 6개월 뒤 25% 추가 지급 — 전액 고용보험'
+        ),
+        'requires_docs': True,
+        'docs_note': '육아휴직 신청서 + 자녀 출생증명서 — 30일 전 서면 신청 필수',
+        'desc': '만 8세(초등2) 이하 자녀 양육. 부부 각 1년. 분할 3회 가능.',
+        'icon': 'fa-baby-carriage', 'color': '#10b981',
+    },
+    'parental_reduction': {
+        'label': '육아기 근로단축', 'group': 'HR 승인 필요',
+        'deduct': 'none', 'fixed_days': None, 'max_days': 365,
+        'approval_flow': 'hr_direct',
+        'law': '남녀고용평등법 §19의2',
+        'pay_info': '단축 전후 임금 차액의 80% 고용보험 지원 (상한 월 200만원)',
+        'requires_docs': True,
+        'docs_note': '근로단축 신청서 + 자녀 출생증명서 — 30일 전 신청 권장',
+        'desc': '주 15~35시간으로 단축. 만 12세(초등6) 이하 자녀. 급여 변경 수반.',
+        'icon': 'fa-clock', 'color': '#0891b2',
     },
 }
 
@@ -2252,16 +2387,25 @@ def leave_my():
 def leave_new():
     error = None
     if request.method == 'POST':
-        leave_type = request.form.get('type', '')
-        start_date = request.form.get('start_date', '')
-        end_date   = request.form.get('end_date', '')
-        reason     = request.form.get('reason', '').strip()
+        leave_type    = request.form.get('type', '')
+        start_date    = request.form.get('start_date', '')
+        end_date      = request.form.get('end_date', '')
+        reason        = request.form.get('reason', '').strip()
+        duration_type = request.form.get('duration_type', 'full')  # full|am|pm|hours
+        leave_hours   = request.form.get('leave_hours', '')
+
+        # duration_type → leave_type 매핑 (연차 UI 통합)
+        if leave_type == 'annual':
+            if duration_type == 'am':
+                leave_type = 'half_am'
+            elif duration_type == 'pm':
+                leave_type = 'half_pm'
 
         if not leave_type or not start_date or not end_date:
             error = '유형, 시작일, 종료일은 필수입니다.'
         elif leave_type not in LEAVE_META:
             error = '올바르지 않은 신청 유형입니다.'
-        elif start_date > end_date:
+        elif start_date > end_date and duration_type not in ('am', 'pm', 'hours'):
             error = '종료일이 시작일보다 앞설 수 없습니다.'
         else:
             db   = get_db()
@@ -2269,10 +2413,22 @@ def leave_new():
             meta = LEAVE_META[leave_type]
 
             # 일수 계산
-            if meta['fixed_days'] is not None and meta['fixed_days'] > 0:
+            if duration_type == 'hours' and leave_hours:
+                # 시간 단위 연차 — hours/8 = days (소수)
+                try:
+                    h = float(leave_hours)
+                    h = max(0.5, min(7.5, h))  # 0.5h ~ 7.5h 범위 제한
+                except ValueError:
+                    h = 1.0
+                days      = round(h / 8, 4)
+                end_date  = start_date   # 시간 단위는 당일만
+                leave_type = 'annual'    # type은 annual로 저장
+                reason = f'{h:.0f}시간 연차' + (f' — {reason}' if reason else '')
+            elif meta['fixed_days'] is not None and meta['fixed_days'] > 0:
                 days = meta['fixed_days']
             elif leave_type in ('half_am', 'half_pm'):
-                days = 0.5
+                days     = 0.5
+                end_date = start_date   # 반차는 당일만
             elif meta['deduct'] == 'none' and leave_type not in ('remote', 'outing'):
                 days = calc_working_days(start_date, end_date)
             else:
@@ -2314,18 +2470,56 @@ def leave_new():
                 )
                 db.commit()
 
-                # 알림 발송: 매니저에게
-                emp = db.execute('SELECT name, manager_id FROM users WHERE id=?', (uid,)).fetchone()
-                if emp and emp['manager_id']:
-                    add_notification(
-                        emp['manager_id'], 'action', 'leave',
-                        f"근태 신청: {emp['name']}",
-                        f"{emp['name']}님이 {meta['label']}을(를) 신청했습니다. ({start_date} ~ {end_date})",
-                        url_for('attendance', status='pending')
-                    )
+                # ── 승인 흐름 결정 ────────────────────────────────────
+                emp = db.execute(
+                    'SELECT name, manager_id, role FROM users WHERE id=?', (uid,)
+                ).fetchone()
+                emp_name = emp['name'] if emp else str(uid)
+
+                # approval_flow: 'manager_only' | 'manager_hr' | 'hr_direct'
+                approval_flow = meta.get('approval_flow', 'manager_only')
+                # 병가: 일수에 따라 분기
+                if leave_type == 'sick' and meta.get('approval_hr_threshold'):
+                    if days > meta['approval_hr_threshold']:
+                        approval_flow = 'manager_hr'
+                # 매니저 본인 신청 → 상위 매니저 없으면 HR 직행
+                if emp and emp['role'] == 'manager' and not emp['manager_id']:
+                    approval_flow = 'hr_direct'
+
+                detail_url = url_for('attendance_home', tab='approvals')
+
+                if approval_flow == 'hr_direct':
+                    admins = db.execute("SELECT id FROM users WHERE role='admin'").fetchall()
+                    for admin in admins:
+                        add_notification(
+                            admin['id'], 'action', 'leave',
+                            f"[HR 처리 필요] {meta['label']} 신청 — {emp_name}",
+                            f"{emp_name}님이 {meta['label']}을(를) 신청했습니다. "
+                            f"({start_date} ~ {end_date}) 서류 확인 후 승인해 주세요.",
+                            detail_url
+                        )
+                else:
+                    notify_id = emp['manager_id'] if emp and emp['manager_id'] else None
+                    if notify_id:
+                        add_notification(
+                            notify_id, 'action', 'leave',
+                            f"근태 신청: {emp_name}",
+                            f"{emp_name}님이 {meta['label']}을(를) 신청했습니다. ({start_date} ~ {end_date})",
+                            detail_url
+                        )
+                    else:
+                        # 매니저 미지정 → HR 직행
+                        admins = db.execute("SELECT id FROM users WHERE role='admin'").fetchall()
+                        for admin in admins:
+                            add_notification(
+                                admin['id'], 'action', 'leave',
+                                f"근태 신청 (매니저 미지정): {emp_name}",
+                                f"{emp_name}님이 {meta['label']}을(를) 신청했습니다. ({start_date} ~ {end_date})",
+                                detail_url
+                            )
 
                 flash(f'{meta["label"]} 신청이 완료되었습니다.', 'success')
-                return redirect(url_for('leave_my'))
+                return redirect(url_for('attendance_home', tab='leaves'))
 
     # 연차 잔여일 계산 (폼에 표시용)
     db  = get_db()
@@ -2359,6 +2553,60 @@ def leave_new():
                            special_used=_json.dumps(special_used),
                            active_page='leave_new')
 
+@app.route('/leave/<int:req_id>')
+@login_required
+def leave_detail(req_id):
+    db   = get_db()
+    uid  = session['user_id']
+    role = session.get('user_role', 'employee')
+
+    req = db.execute(
+        'SELECT r.*, '
+        'u.name  AS user_name, u.department_id, '
+        'ma.name AS manager_approver_name, '
+        'ha.name AS hr_approver_name '
+        'FROM leave_requests r '
+        'JOIN  users u  ON r.user_id     = u.id '
+        'LEFT JOIN users ma ON r.manager_id  = ma.id '
+        'LEFT JOIN users ha ON r.hr_id       = ha.id '
+        'WHERE r.id = ?', (req_id,)
+    ).fetchone()
+
+    if not req:
+        abort(404)
+    if role not in ('admin', 'manager') and req['user_id'] != uid:
+        abort(403)
+
+    meta          = LEAVE_META.get(req['type'], {})
+    approval_flow = meta.get('approval_flow', 'manager_only')
+
+    # 병가 threshold 분기
+    if req['type'] == 'sick' and meta.get('approval_hr_threshold'):
+        approval_flow = (
+            'manager_only' if req['days'] <= meta['approval_hr_threshold']
+            else 'manager_hr'
+        )
+
+    # 현재 대기 역할
+    current_awaiting = None
+    if req['status'] == 'pending':
+        current_awaiting = 'hr' if approval_flow == 'hr_direct' else 'manager'
+    elif req['status'] == 'reviewed':
+        current_awaiting = 'hr'
+
+    can_cancel = (req['user_id'] == uid and req['status'] == 'pending')
+
+    return render_template(
+        'leave/detail.html',
+        req=req, meta=meta,
+        approval_flow=approval_flow,
+        current_awaiting=current_awaiting,
+        can_cancel=can_cancel,
+        labels=LEAVE_LABELS,
+        active_page='attendance_home'
+    )
+
+
 @app.route('/leave/<int:req_id>/cancel', methods=['POST'])
 @login_required
 def leave_cancel(req_id):
@@ -2367,7 +2615,7 @@ def leave_cancel(req_id):
     if req and req['user_id'] == session['user_id'] and req['status'] == 'pending':
         db.execute("UPDATE leave_requests SET status='cancelled' WHERE id=?", (req_id,))
         db.commit()
-    return redirect(url_for('leave_my'))
+    return redirect(url_for('attendance_home', tab='leaves'))
 
 @app.route('/attendance')
 @manager_or_admin
@@ -2422,53 +2670,96 @@ def attendance_approve(req_id):
     if role == 'manager':
         if req['status'] != 'pending':
             flash('매니저 검토가 불가능한 상태입니다.', 'error')
-            return redirect(url_for('attendance'))
-        # 본인의 부서원인지 확인 (또는 직속 부하인지)
-        mgr_dept = session.get('dept_id', 0)
-        if mgr_dept and req['department_id'] != mgr_dept:
+            return redirect(url_for('attendance_home', tab='approvals'))
+        # 본인 신청 자기 승인 방지
+        if req['user_id'] == uid:
+            flash('본인의 신청은 직접 승인할 수 없습니다.', 'error')
+            return redirect(url_for('attendance_home', tab='approvals'))
+        # 권한 검증: 같은 부서원 OR 직속 부하 매니저(신청자의 manager_id = 나)
+        mgr_dept = session.get('dept_id') or 0
+        is_direct_report = (req['user_manager_id'] == uid)
+        same_dept = (mgr_dept != 0 and req['department_id'] == mgr_dept)
+        if not is_direct_report and not same_dept:
             abort(403)
         
-        db.execute(
-            "UPDATE leave_requests SET status='reviewed', manager_id=?, manager_approved_at=CURRENT_TIMESTAMP WHERE id=?",
-            (uid, req_id)
-        )
-        db.commit()
+        # approval_flow 확인 → manager_only이면 즉시 확정
+        req_meta = LEAVE_META.get(req['type'], {})
+        approval_flow = req_meta.get('approval_flow', 'manager_only')
+        if req['type'] == 'sick' and req_meta.get('approval_hr_threshold'):
+            approval_flow = 'manager_only' if req['days'] <= req_meta['approval_hr_threshold'] else 'manager_hr'
 
-        # 알림 발송: HR(Admin)에게 최종 승인 요청
-        admins = db.execute("SELECT id FROM users WHERE role='admin'").fetchall()
-        for admin in admins:
-            add_notification(
-                admin['id'], 'action', 'leave',
-                f"근태 검토 완료: {req['user_id']}",
-                f"매니저가 신청 건을 검토했습니다. 최종 승인이 필요합니다.",
-                url_for('attendance', status='reviewed')
+        req_name = db.execute('SELECT name FROM users WHERE id=?', (req['user_id'],)).fetchone()
+        req_username = req_name['name'] if req_name else str(req['user_id'])
+
+        if approval_flow == 'manager_only':
+            # 매니저 승인 = 즉시 최종 확정
+            db.execute(
+                "UPDATE leave_requests SET status='approved', approver_id=?, "
+                "manager_id=?, manager_approved_at=CURRENT_TIMESTAMP WHERE id=?",
+                (uid, uid, req_id)
             )
-
-        flash('매니저 검토 승인이 완료되었습니다. HR 최종 승인을 대기합니다.', 'success')
+            db.commit()
+            add_notification(
+                req['user_id'], 'info', 'leave',
+                f"{req_meta.get('label','휴가')} 승인 완료",
+                f"신청하신 {req_meta.get('label','휴가')}이(가) 승인되었습니다.",
+                url_for('attendance_home', tab='leaves')
+            )
+            flash(f'{req_meta.get("label","휴가")} 승인이 완료되었습니다.', 'success')
+        else:
+            # manager_hr / hr_direct: 검토 완료 → HR 대기
+            db.execute(
+                "UPDATE leave_requests SET status='reviewed', manager_id=?, manager_approved_at=CURRENT_TIMESTAMP WHERE id=?",
+                (uid, req_id)
+            )
+            db.commit()
+            admins = db.execute("SELECT id FROM users WHERE role='admin'").fetchall()
+            for admin in admins:
+                add_notification(
+                    admin['id'], 'action', 'leave',
+                    f"[HR 최종 승인 필요] {req_meta.get('label','')} — {req_username}",
+                    f"매니저 검토가 완료됐습니다. HR 최종 승인이 필요합니다.",
+                    url_for('attendance_home', tab='approvals')
+                )
+            flash('매니저 검토 완료. HR 최종 승인 대기 중입니다.', 'success')
 
     # HR(Admin) 최종 승인 단계
     elif role == 'admin':
+        req_meta      = LEAVE_META.get(req['type'], {})
+        approval_flow = req_meta.get('approval_flow', 'manager_only')
+        if req['type'] == 'sick' and req_meta.get('approval_hr_threshold'):
+            approval_flow = (
+                'manager_only' if req['days'] <= req_meta['approval_hr_threshold']
+                else 'manager_hr'
+            )
+
+        # manager_hr 타입: 매니저 검토(reviewed) 완료 후에만 HR 승인 가능
+        if approval_flow == 'manager_hr' and req['status'] == 'pending':
+            flash(
+                f"이 유형({req_meta.get('label','')})은 매니저 검토가 먼저 완료되어야 합니다. "
+                f"현재 상태: 대기(pending) — 담당 매니저에게 먼저 검토를 요청하세요.",
+                'error'
+            )
+            return redirect(url_for('attendance_home', tab='approvals'))
+
         if req['status'] not in ['pending', 'reviewed']:
             flash('최종 승인이 불가능한 상태입니다.', 'error')
-            return redirect(url_for('attendance'))
-        
+            return redirect(url_for('attendance_home', tab='approvals'))
+
         db.execute(
             "UPDATE leave_requests SET status='approved', hr_id=?, hr_approved_at=CURRENT_TIMESTAMP, approver_id=? WHERE id=?",
             (uid, uid, req_id)
         )
         db.commit()
-
-        # 알림 발송: 본인에게 승인 알림
         add_notification(
             req['user_id'], 'info', 'leave',
-            "근태 승인 완료",
-            f"신청하신 근태가 최종 승인되었습니다.",
-            url_for('leave_my')
+            f"{req_meta.get('label','휴가')} 최종 승인 완료",
+            f"신청하신 {req_meta.get('label','휴가')}이(가) HR 최종 승인됐습니다.",
+            url_for('attendance_home', tab='leaves')
         )
+        flash('HR 최종 승인이 완료됐습니다.', 'success')
 
-        flash('HR 최종 승인이 완료되었습니다.', 'success')
-
-    return redirect(url_for('attendance'))
+    return redirect(url_for('attendance_home', tab='approvals'))
 
 @app.route('/attendance/<int:req_id>/reject', methods=['POST'])
 @manager_or_admin
@@ -2482,11 +2773,23 @@ def attendance_reject(req_id):
         abort(404)
     if req['status'] not in ['pending', 'reviewed']:
         flash('반려가 불가능한 상태입니다.', 'error')
-        return redirect(url_for('attendance'))
+        return redirect(url_for('attendance_home', tab='approvals'))
     
-    mgr_dept = session.get('dept_id', 0)
-    if session.get('user_role') == 'manager' and mgr_dept and req['department_id'] != mgr_dept:
-        abort(403)
+    if session.get('user_role') == 'manager':
+        cur_uid = session.get('user_id')
+        if req['user_id'] == cur_uid:
+            flash('본인의 신청은 직접 반려할 수 없습니다.', 'error')
+            return redirect(url_for('attendance_home', tab='approvals'))
+        mgr_dept = session.get('dept_id') or 0
+        # reject 라우트에서도 user_manager_id 조회
+        req_ext = db.execute(
+            'SELECT u.manager_id FROM leave_requests r JOIN users u ON r.user_id=u.id WHERE r.id=?',
+            (req_id,)
+        ).fetchone()
+        is_direct_report = req_ext and req_ext['manager_id'] == cur_uid
+        same_dept = (mgr_dept != 0 and req['department_id'] == mgr_dept)
+        if not is_direct_report and not same_dept:
+            abort(403)
     
     reason = request.form.get('reason', '').strip() or None
     db.execute(
@@ -2504,7 +2807,7 @@ def attendance_reject(req_id):
     )
 
     flash('신청이 반려되었습니다.', 'warning')
-    return redirect(url_for('attendance'))
+    return redirect(url_for('attendance_home', tab='approvals'))
 
 @app.route('/attendance/calendar')
 @login_required
@@ -2688,6 +2991,180 @@ def payroll_detail(year, month):
                            year=year, month=month, fmt_krw=fmt_krw,
                            active_page='payroll')
 
+@app.route('/payroll/preview', methods=['POST'])
+@admin_required
+def payroll_preview():
+    """급여 생성 전 미리보기 — INSERT 없이 계산 결과만 JSON 반환"""
+    import calendar as cal_mod, json as _json
+    db    = get_db()
+    year  = int(request.form.get('year', 2026))
+    month = int(request.form.get('month', 1))
+    if not (1 <= month <= 12):
+        return {'error': '올바른 월을 입력해주세요.'}, 400
+
+    first_day = f"{year}-{month:02d}-01"
+    last_day  = f"{year}-{month:02d}-{cal_mod.monthrange(year, month)[1]}"
+
+    holiday_rows   = db.execute('SELECT date FROM public_holidays WHERE date BETWEEN ? AND ?', (first_day, last_day)).fetchall()
+    month_holidays = {h['date'] for h in holiday_rows}
+
+    benefit_cfg_rows = db.execute(
+        "SELECT * FROM benefit_configs WHERE enabled=1 AND payment_type='monthly_fixed'"
+    ).fetchall()
+    company_benefits = {r['key']: dict(r) for r in benefit_cfg_rows}
+
+    emps = db.execute(
+        "SELECT u.id, u.name, d.name AS dept_name, p.name AS pos_name, "
+        "s.base_salary, s.meal_allowance, s.transport_allowance "
+        "FROM users u "
+        "JOIN employee_salary s ON u.id = s.user_id "
+        "LEFT JOIN departments d ON u.department_id = d.id "
+        "LEFT JOIN positions   p ON u.position_id   = p.id "
+        "WHERE u.status = 'active' ORDER BY d.name, u.name"
+    ).fetchall()
+
+    rows = []
+    total_net = 0
+    new_count = 0
+    for e in emps:
+        already = db.execute(
+            'SELECT 1 FROM payslips WHERE user_id=? AND year=? AND month=?',
+            (e['id'], year, month)
+        ).fetchone() is not None
+
+        if already:
+            rows.append({
+                'name': e['name'], 'dept': e['dept_name'] or '—',
+                'base': e['base_salary'], 'gross': 0, 'deduction': 0, 'net': 0,
+                'already': True
+            })
+            continue
+
+        checkins = db.execute(
+            'SELECT * FROM checkins WHERE user_id=? AND date BETWEEN ? AND ?',
+            (e['id'], first_day, last_day)
+        ).fetchall()
+        total_ot_pay = 0
+        for c in checkins:
+            is_h = c['date'] in month_holidays
+            res  = calc_extra_pay(
+                c['overtime_min'], c['night_min'], e['base_salary'],
+                is_holiday=is_h,
+                holiday_regular_min=c['regular_min'] if is_h else 0
+            )
+            total_ot_pay += res['total_extra_pay']
+
+        emp_overrides = {
+            r['benefit_key']: dict(r)
+            for r in db.execute('SELECT * FROM employee_benefit_overrides WHERE user_id=?', (e['id'],)).fetchall()
+        }
+        extra_benefits = []
+        for key, cfg in company_benefits.items():
+            meta     = BENEFIT_CATALOG.get(key, {})
+            override = emp_overrides.get(key)
+            if override and not override['enabled']:
+                continue
+            amount = override['amount'] if override else cfg['amount']
+            if not amount and cfg.get('pct'):
+                amount = int(e['base_salary'] * cfg['pct'] / 100)
+            if amount > 0:
+                extra_benefits.append({
+                    'key': key, 'name': meta.get('name', key),
+                    'amount': amount, 'tax_exempt': meta.get('tax_exempt', False),
+                    'monthly_limit': meta.get('monthly_limit'),
+                })
+
+        result = calc_payslip(
+            e['base_salary'], e['meal_allowance'], e['transport_allowance'],
+            overtime_pay=total_ot_pay, extra_benefits=extra_benefits,
+        )
+        rows.append({
+            'name': e['name'], 'dept': e['dept_name'] or '—',
+            'base': result['base_salary'],
+            'gross': result['gross_pay'],
+            'deduction': result['total_deduction'],
+            'net': result['net_pay'],
+            'already': False
+        })
+        total_net += result['net_pay']
+        new_count += 1
+
+    return {'year': year, 'month': month, 'rows': rows,
+            'total_net': total_net, 'new_count': new_count}
+
+
+@app.route('/payroll/bulk-raise', methods=['GET', 'POST'])
+@admin_required
+def payroll_bulk_raise():
+    db = get_db()
+    departments = db.execute('SELECT id, name FROM departments ORDER BY name').fetchall()
+
+    if request.method == 'POST':
+        pct       = float(request.form.get('pct', 0))
+        dept_id   = request.form.get('dept_id') or None
+        reason    = request.form.get('reason', '').strip() or f'{pct}% 일괄 인상'
+        changer   = session['user_id']
+
+        if pct <= 0 or pct > 100:
+            flash('인상률은 0~100% 사이로 입력해주세요.', 'error')
+            return redirect(url_for('payroll_bulk_raise'))
+
+        query = (
+            "SELECT u.id, s.base_salary, s.meal_allowance, s.transport_allowance "
+            "FROM users u JOIN employee_salary s ON u.id=s.user_id "
+            "WHERE u.status='active'"
+        )
+        params = []
+        if dept_id:
+            query  += " AND u.department_id=?"
+            params.append(int(dept_id))
+
+        emps = db.execute(query, params).fetchall()
+        count = 0
+        for e in emps:
+            new_base = int(e['base_salary'] * (1 + pct / 100))
+            db.execute(
+                'INSERT INTO salary_history '
+                '(user_id, changed_by, old_base_salary, new_base_salary, '
+                'old_meal, new_meal, old_transport, new_transport, reason) '
+                'VALUES (?,?,?,?,?,?,?,?,?)',
+                (e['id'], changer,
+                 e['base_salary'], new_base,
+                 e['meal_allowance'], e['meal_allowance'],
+                 e['transport_allowance'], e['transport_allowance'],
+                 reason)
+            )
+            db.execute(
+                'UPDATE employee_salary SET base_salary=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?',
+                (new_base, e['id'])
+            )
+            count += 1
+        db.commit()
+        flash(f'{count}명 기본급을 {pct}% 인상했습니다. ({reason})', 'success')
+        return redirect(url_for('payroll_bulk_raise'))
+
+    # GET — 현재 직원 급여 목록
+    dept_id = request.args.get('dept_id') or None
+    query = (
+        "SELECT u.id, u.name, d.name dept_name, s.base_salary "
+        "FROM users u "
+        "JOIN employee_salary s ON u.id=s.user_id "
+        "LEFT JOIN departments d ON u.department_id=d.id "
+        "WHERE u.status='active'"
+    )
+    params = []
+    if dept_id:
+        query += " AND u.department_id=?"
+        params.append(int(dept_id))
+    query += " ORDER BY d.name, u.name"
+    emps = db.execute(query, params).fetchall()
+
+    return render_template('payroll/bulk_raise.html',
+                           emps=emps, departments=departments,
+                           selected_dept=dept_id,
+                           active_page='admin_payroll')
+
+
 @app.route('/admin/payroll', methods=['GET', 'POST'])
 @admin_required
 def admin_payroll():
@@ -2700,11 +3177,28 @@ def admin_payroll():
 
         # 급여 정보 수정
         if action == 'update_salary':
-            uid   = request.form.get('user_id')
-            base  = int(request.form.get('base_salary', 0))
-            meal  = int(request.form.get('meal_allowance', 0))
-            trans = int(request.form.get('transport_allowance', 0))
-            mw    = check_min_wage(base)
+            uid    = int(request.form.get('user_id'))
+            base   = int(request.form.get('base_salary', 0))
+            meal   = int(request.form.get('meal_allowance', 0))
+            trans  = int(request.form.get('transport_allowance', 0))
+            reason = request.form.get('reason', '').strip()
+            mw     = check_min_wage(base)
+
+            # 변경 전 값 조회 → salary_history 기록
+            old = db.execute('SELECT * FROM employee_salary WHERE user_id=?', (uid,)).fetchone()
+            if old:
+                db.execute(
+                    'INSERT INTO salary_history '
+                    '(user_id, changed_by, old_base_salary, new_base_salary, '
+                    'old_meal, new_meal, old_transport, new_transport, reason) '
+                    'VALUES (?,?,?,?,?,?,?,?,?)',
+                    (uid, session['user_id'],
+                     old['base_salary'], base,
+                     old['meal_allowance'], meal,
+                     old['transport_allowance'], trans,
+                     reason or None)
+                )
+
             db.execute(
                 'INSERT INTO employee_salary (user_id, base_salary, meal_allowance, transport_allowance) '
                 'VALUES (?, ?, ?, ?) '
@@ -2824,6 +3318,13 @@ def admin_payroll():
                          result['income_tax'], result['local_income_tax'],
                          result['gross_pay'], result['total_deduction'], result['net_pay'],
                          _json.dumps(result.get('benefits_breakdown', []), ensure_ascii=False))
+                    )
+                    # 급여 확정 인앱 알림 발송
+                    add_notification(
+                        e['id'], 'info', 'payroll',
+                        f'{year}년 {month}월 급여명세서가 확정되었습니다',
+                        f'실수령액 {fmt_krw(result["net_pay"])}원 · 명세서를 확인해보세요.',
+                        link=f'/payroll/{year}/{month}'
                     )
                     count += 1
                 db.commit()
@@ -3626,98 +4127,331 @@ def performance_self_review(goal_id):
                            active_page='performance')
 
 
-# ── Attendance Home ─────────────────────────────────────────
+# ── Attendance (통합) ────────────────────────────────────────
 @app.route('/attendance/home')
 @login_required
 def attendance_home():
+    import calendar as cal_mod
+    import json as _json
     from datetime import date, timedelta
+
     db    = get_db()
     uid   = session['user_id']
+    role  = session.get('user_role', 'employee')
     today = date.today()
 
-    checkin = db.execute(
-        'SELECT * FROM checkins WHERE user_id=? AND date=?',
-        (uid, today.isoformat())
-    ).fetchone()
-
-    hire_row = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
-    total_leave  = calc_annual_leave(hire_row['hire_date']) if hire_row and hire_row['hire_date'] else 15
-    used_leave   = db.execute(
+    # ── 공통: 연차 계산 ──────────────────────────────────────────
+    hire_row    = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
+    total_leave = calc_annual_leave(hire_row['hire_date']) if hire_row and hire_row['hire_date'] else 15
+    used_leave  = db.execute(
         "SELECT COALESCE(SUM(days),0) FROM leave_requests "
         "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm','sick')",
         (uid,)
     ).fetchone()[0]
 
-    recent_requests = db.execute(
-        'SELECT * FROM leave_requests WHERE user_id=? ORDER BY created_at DESC LIMIT 5',
-        (uid,)
-    ).fetchall()
+    # ── TAB: 홈 ──────────────────────────────────────────────────
+    checkin = db.execute(
+        'SELECT * FROM checkins WHERE user_id=? AND date=?',
+        (uid, today.isoformat())
+    ).fetchone()
+
+    # 미체크아웃 경고 (전날 체크인만 있는 경우)
+    yesterday = (today - timedelta(days=1)).isoformat()
+    unclosed  = db.execute(
+        "SELECT * FROM checkins WHERE user_id=? AND date=? "
+        "AND check_in IS NOT NULL AND (check_out IS NULL OR check_out='')",
+        (uid, yesterday)
+    ).fetchone()
 
     first_day = today.replace(day=1)
-    if today.month == 12:
-        last_day = date(today.year + 1, 1, 1) - timedelta(days=1)
-    else:
-        last_day = date(today.year, today.month + 1, 1) - timedelta(days=1)
+    last_day  = date(today.year + (today.month // 12), (today.month % 12) + 1, 1) - timedelta(days=1)
 
-    pending = db.execute(
-        "SELECT COUNT(*) FROM leave_requests WHERE user_id=? AND status='pending'",
-        (uid,)
-    ).fetchone()[0]
-
-    # 해당 월의 근태 기록 기반 수당 합계 계산 (공휴일 반영)
     checkins_month = db.execute(
-        'SELECT * FROM checkins WHERE user_id=? AND date>=? AND date<=? ORDER BY date DESC',
+        'SELECT * FROM checkins WHERE user_id=? AND date>=? AND date<=? ORDER BY date',
         (uid, first_day.isoformat(), last_day.isoformat())
     ).fetchall()
 
-    # 해당 월의 공휴일 목록
-    holiday_rows = db.execute('SELECT date FROM public_holidays WHERE date BETWEEN ? AND ?', (first_day.isoformat(), last_day.isoformat())).fetchall()
+    holiday_rows   = db.execute(
+        'SELECT date FROM public_holidays WHERE date BETWEEN ? AND ?',
+        (first_day.isoformat(), last_day.isoformat())
+    ).fetchall()
     month_holidays = {h['date'] for h in holiday_rows}
 
-    base_row = db.execute(
+    base_row    = db.execute(
         'SELECT base_salary FROM employee_salary WHERE user_id=? ORDER BY updated_at DESC LIMIT 1',
         (uid,)
     ).fetchone()
     base_salary = base_row['base_salary'] if base_row else 0
 
-    month_regular_min = 0
-    month_overtime_min = 0
-    month_night_min = 0
-    total_extra_pay_amount = 0
-
+    month_regular_min = month_overtime_min = month_night_min = total_extra_pay_amount = 0
     for c in checkins_month:
         month_regular_min  += c['regular_min']
         month_overtime_min += c['overtime_min']
         month_night_min    += c['night_min']
-        
         is_h = c['date'] in month_holidays
-        res = calc_extra_pay(
-            c['overtime_min'], 
-            c['night_min'], 
-            base_salary,
-            is_holiday=is_h,
-            holiday_regular_min=c['regular_min'] if is_h else 0
-        )
+        res  = calc_extra_pay(c['overtime_min'], c['night_min'], base_salary,
+                              is_holiday=is_h,
+                              holiday_regular_min=c['regular_min'] if is_h else 0)
         total_extra_pay_amount += res['total_extra_pay']
 
-    # 템플릿 호환성을 위해 dict 구조 생성
-    extra_pay = {'total_extra_pay': total_extra_pay_amount}
+    extra_pay    = {'total_extra_pay': total_extra_pay_amount}
+    weekly_hours = calc_weekly_hours(db, uid, today.isoformat())
+
+    # ── TAB: 휴가 ────────────────────────────────────────────────
+    all_requests = db.execute(
+        'SELECT r.*, u.name AS approver_name '
+        'FROM leave_requests r '
+        'LEFT JOIN users u ON r.approver_id = u.id '
+        'WHERE r.user_id=? ORDER BY r.created_at DESC',
+        (uid,)
+    ).fetchall()
+
+    annual_remain = round(total_leave - float(used_leave), 1)
+    pending_leave = db.execute(
+        "SELECT COUNT(*) FROM leave_requests WHERE user_id=? AND status='pending'",
+        (uid,)
+    ).fetchone()[0]
+
+    year         = today.year
+    special_used = {}
+    for lt in ('maternity','paternity','parental','family_care',
+               'bereavement','military','compensation'):
+        row = db.execute(
+            "SELECT COALESCE(SUM(days),0) FROM leave_requests "
+            "WHERE user_id=? AND type=? AND status!='cancelled' "
+            "AND strftime('%Y',start_date)=?",
+            (uid, lt, str(year))
+        ).fetchone()
+        special_used[lt] = row[0]
+
+    # ── TAB: 캘린더 ──────────────────────────────────────────────
+    raw_month = request.args.get('month', today.strftime('%Y-%m'))
+    try:
+        cal_y, cal_m = int(raw_month[:4]), int(raw_month[5:7])
+        if not (1 <= cal_m <= 12): raise ValueError
+    except (ValueError, IndexError):
+        cal_y, cal_m = today.year, today.month
+
+    prev_m = date(cal_y, cal_m, 1) - timedelta(days=1)
+    next_m = date(cal_y, cal_m, cal_mod.monthrange(cal_y, cal_m)[1]) + timedelta(days=1)
+
+    # 해당 월 휴가 이벤트 — 본인 + 같은 부서 팀원
+    CAL_COLOR = {
+        'annual':  ('#dbeafe','#1e40af'), 'half_am': ('#dbeafe','#1e40af'),
+        'half_pm': ('#dbeafe','#1e40af'), 'sick':    ('#ffedd5','#c2410c'),
+        'outing':  ('#f5f3ff','#7c3aed'), 'maternity':('#fce7f3','#9d174d'),
+        'parental':('#f0fdf4','#166534'), 'paternity':('#ede9fe','#6d28d9'),
+    }
+    my_dept = db.execute('SELECT department_id FROM users WHERE id=?', (uid,)).fetchone()
+    dept_id_for_cal = my_dept['department_id'] if my_dept else None
+
+    cal_month_start = date(cal_y, cal_m, 1).isoformat()
+    cal_month_end   = date(cal_y, cal_m, cal_mod.monthrange(cal_y, cal_m)[1]).isoformat()
+
+    if dept_id_for_cal:
+        cal_reqs = db.execute(
+            "SELECT r.*, u.name AS user_name FROM leave_requests r "
+            "JOIN users u ON r.user_id=u.id "
+            "WHERE r.status='approved' "
+            "  AND r.start_date <= ? AND r.end_date >= ? "
+            "  AND (u.department_id=? OR r.user_id=?) "
+            "ORDER BY r.start_date",
+            (cal_month_end, cal_month_start, dept_id_for_cal, uid)
+        ).fetchall()
+    else:
+        cal_reqs = db.execute(
+            "SELECT r.*, u.name AS user_name FROM leave_requests r "
+            "JOIN users u ON r.user_id=u.id "
+            "WHERE r.status='approved' AND r.user_id=? "
+            "  AND r.start_date <= ? AND r.end_date >= ? "
+            "ORDER BY r.start_date",
+            (uid, cal_month_end, cal_month_start)
+        ).fetchall()
+
+    events_by_date = {}
+    for r in cal_reqs:
+        try:
+            sd = date.fromisoformat(r['start_date'])
+            ed = date.fromisoformat(r['end_date'])
+        except ValueError:
+            continue
+        cur = sd
+        while cur <= ed:
+            k = cur.isoformat()
+            bg, tc = CAL_COLOR.get(r['type'], ('#f1f5f9','#475569'))
+            is_mine = (r['user_id'] == uid)
+            events_by_date.setdefault(k, []).append({
+                'name':       r['user_name'],
+                'type':       LEAVE_LABELS.get(r['type'], r['type']),
+                'color':      bg if is_mine else '#f3e8ff',
+                'text_color': tc if is_mine else '#7c3aed',
+                'is_mine':    is_mine,
+            })
+            cur += timedelta(days=1)
+
+    # 오늘 부재 목록
+    today_absent = []
+    for r in cal_reqs:
+        try:
+            if r['start_date'] <= today.isoformat() <= r['end_date']:
+                today_absent.append({
+                    'name': r['user_name'],
+                    'type': LEAVE_LABELS.get(r['type'], r['type']),
+                    'is_mine': r['user_id'] == uid,
+                })
+        except Exception:
+            pass
+
+    # 이달 팀 부재 일정 (오늘 이후)
+    upcoming_absent = []
+    seen = set()
+    for r in cal_reqs:
+        key_ua = (r['user_id'], r['start_date'])
+        if key_ua in seen:
+            continue
+        seen.add(key_ua)
+        upcoming_absent.append({
+            'name': r['user_name'],
+            'type': LEAVE_LABELS.get(r['type'], r['type']),
+            'start': r['start_date'],
+            'end':   r['end_date'],
+            'is_mine': r['user_id'] == uid,
+        })
+
+    # 해당 월 체크인 날짜 집합
+    cal_checkins = {r['date'] for r in db.execute(
+        'SELECT date FROM checkins WHERE user_id=? AND date BETWEEN ? AND ? AND check_in IS NOT NULL',
+        (uid, cal_month_start, cal_month_end)
+    ).fetchall()}
+
+    holiday_dates = {h['date'] for h in holiday_rows}
+    first_cell = date(cal_y, cal_m, 1)
+    offset     = (first_cell.weekday() + 1) % 7   # 일요일 시작
+    start_cell = first_cell - timedelta(days=offset)
+    calendar_cells = []
+    cur = start_cell
+    for _ in range(42):
+        calendar_cells.append({
+            'date':          cur.isoformat(),
+            'day':           cur.day,
+            'current_month': cur.month == cal_m,
+            'is_today':      cur == today,
+            'is_holiday':    cur.isoformat() in holiday_dates,
+            'worked':        cur.isoformat() in cal_checkins,
+            'events':        events_by_date.get(cur.isoformat(), [])[:3],
+        })
+        cur += timedelta(days=1)
+
+    # ── TAB: 승인 (매니저/Admin) ─────────────────────────────────
+    approval_reqs   = []
+    reviewed_reqs   = []
+    pending_count   = 0
+    reviewed_count  = 0
+    depts           = []
+
+    if role in ('admin', 'manager'):
+        depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+        dept_f = request.args.get('dept', '')
+        apv_status = request.args.get('apv_status', 'pending')
+
+        sql = (
+            'SELECT r.*, u.name AS user_name, u.department_id, '
+            'u.manager_id AS user_manager_id, '
+            'd.name AS dept_name, p.name AS pos_name '
+            'FROM leave_requests r '
+            'JOIN users u ON r.user_id=u.id '
+            'LEFT JOIN departments d ON u.department_id=d.id '
+            'LEFT JOIN positions   p ON u.position_id=p.id '
+            'WHERE r.status=?'
+        )
+        params = [apv_status]
+        if dept_f:
+            sql += ' AND u.department_id=?'; params.append(dept_f)
+        if role == 'manager':
+            mgr_dept = session.get('dept_id') or 0
+            cur_uid  = session.get('user_id')
+            # 같은 부서 직원 OR 직속 부하 매니저(manager_id=나) 모두 표시
+            sql += ' AND (u.department_id=? OR u.manager_id=?)'
+            params += [mgr_dept, cur_uid]
+        sql += ' ORDER BY r.created_at DESC'
+
+        approval_reqs  = db.execute(sql, params).fetchall()
+        pending_count  = db.execute("SELECT COUNT(*) FROM leave_requests WHERE status='pending'").fetchone()[0]
+        reviewed_count = db.execute("SELECT COUNT(*) FROM leave_requests WHERE status='reviewed'").fetchone()[0]
+
+    active_tab = request.args.get('tab', 'home')
 
     return render_template('attendance/home.html',
-                           today=today,
-                           checkin=checkin,
-                           total_leave=total_leave,
-                           used_leave=float(used_leave),
-                           remain_leave=total_leave - float(used_leave),
-                           recent_requests=recent_requests,
-                           checkins_month=checkins_month,
-                           pending=pending,
-                           labels=LEAVE_LABELS,
-                           month_regular_min=month_regular_min,
-                           month_overtime_min=month_overtime_min,
-                           month_night_min=month_night_min,
-                           extra_pay=extra_pay,
-                           active_page='attendance_home')
+        # 공통
+        today=today, labels=LEAVE_LABELS,
+        total_leave=total_leave, used_leave=float(used_leave),
+        remain_leave=total_leave - float(used_leave),
+        annual_remain=annual_remain,
+        # 홈 탭
+        checkin=checkin, unclosed=unclosed,
+        checkins_month=checkins_month,
+        month_regular_min=month_regular_min,
+        month_overtime_min=month_overtime_min,
+        month_night_min=month_night_min,
+        extra_pay=extra_pay,
+        weekly_hours=weekly_hours,
+        # 휴가 탭
+        all_requests=all_requests, leave_meta=LEAVE_META,
+        leave_meta_json=_json.dumps({k: {
+            'label': v.get('label',''), 'icon': v.get('icon','fa-calendar'),
+            'approval_flow': v.get('approval_flow','manager_only'),
+            'approval_hr_threshold': v.get('approval_hr_threshold', None),
+            'law': v.get('law',''), 'pay_info': v.get('pay_info',''),
+            'desc': v.get('desc',''), 'requires_docs': v.get('requires_docs', False),
+            'docs_note': v.get('docs_note',''), 'deduct': v.get('deduct','none'),
+            'max_days': v.get('max_days', None), 'fixed_days': v.get('fixed_days', None),
+        } for k, v in LEAVE_META.items() if k not in ('remote','outing')}),
+        pending_leave=pending_leave,
+        special_used=_json.dumps(special_used),
+        # 캘린더 탭
+        calendar_cells=calendar_cells,
+        cal_year=cal_y, cal_month=cal_m,
+        prev_month=prev_m.strftime('%Y-%m'),
+        next_month=next_m.strftime('%Y-%m'),
+        today_absent=today_absent,
+        upcoming_absent=upcoming_absent,
+        # 승인 탭
+        approval_reqs=approval_reqs,
+        reviewed_reqs=reviewed_reqs,
+        pending_count=pending_count,
+        reviewed_count=reviewed_count,
+        depts=depts,
+        # 탭 상태
+        active_tab=active_tab,
+        active_page='attendance_home'
+    )
+
+
+@app.route('/attendance/remote', methods=['POST'])
+@login_required
+def attendance_remote():
+    """재택근무 토글 — 오늘 체크인 레코드의 is_remote를 반전."""
+    from datetime import date
+    db    = get_db()
+    uid   = session['user_id']
+    today = date.today().isoformat()
+
+    row = db.execute(
+        'SELECT id, is_remote FROM checkins WHERE user_id=? AND date=?', (uid, today)
+    ).fetchone()
+
+    if row:
+        new_val = 0 if row['is_remote'] else 1
+        db.execute('UPDATE checkins SET is_remote=? WHERE id=?', (new_val, row['id']))
+    else:
+        # 체크인 없어도 재택 표시만 등록 (check_in 없는 레코드)
+        db.execute(
+            'INSERT INTO checkins (user_id, date, is_remote) VALUES (?,?,1) '
+            'ON CONFLICT(user_id, date) DO UPDATE SET is_remote=1',
+            (uid, today)
+        )
+    db.commit()
+    return redirect(url_for('attendance_home'))
 
 
 WORK_TYPES = {
@@ -3769,17 +4503,67 @@ def do_checkout():
         'SELECT id, check_in FROM checkins WHERE user_id=? AND date=?', (uid, today)
     ).fetchone()
     if row:
-        hrs = calc_day_hours(today, row['check_in'] or '09:00', now)
+        check_in_time = row['check_in'] or '09:00'
+        # 체크인과 동일 시각이면 0분 처리 (잘못된 버튼 클릭 방지)
+        if check_in_time == now:
+            flash('체크인과 동일한 시각입니다. 퇴근 시 다시 눌러주세요.', 'warning')
+            return redirect(url_for('attendance_home'))
+
+        hrs = calc_day_hours(today, check_in_time, now)
         is_holiday = bool(db.execute(
             'SELECT 1 FROM public_holidays WHERE date=?', (today,)
         ).fetchone())
         holiday_min = hrs['regular_min'] + hrs['overtime_min'] if is_holiday else 0
         db.execute(
-            'UPDATE checkins SET check_out=?, regular_min=?, overtime_min=?, night_min=?, holiday_min=? '
+            'UPDATE checkins '
+            'SET check_out=?, regular_min=?, overtime_min=?, night_min=?, holiday_min=?, break_min=? '
             'WHERE user_id=? AND date=?',
-            (now, hrs['regular_min'], hrs['overtime_min'], hrs['night_min'], holiday_min, uid, today)
+            (now,
+             hrs['regular_min'], hrs['overtime_min'],
+             hrs['night_min'],   holiday_min,
+             hrs['break_min'],
+             uid, today)
         )
         db.commit()
+
+        # ── 주 52시간 실시간 체크 (근로기준법 §53) ────────────────
+        weekly = calc_weekly_hours(db, uid, today)
+        if weekly['is_violation']:
+            # 직속 매니저 + 모든 Admin에게 위반 알림
+            emp = db.execute(
+                'SELECT name, manager_id FROM users WHERE id=?', (uid,)
+            ).fetchone()
+            if emp and emp['manager_id']:
+                add_notification(
+                    emp['manager_id'], 'action', 'overtime',
+                    f'주 52시간 초과: {emp["name"]}',
+                    f'{emp["name"]}님이 이번 주 {weekly["total_h"]}시간 근무했습니다 '
+                    f'(법정 한도 초과 {weekly["over_h"]}시간).',
+                    url_for('overtime_monitor')
+                )
+            admins = db.execute(
+                "SELECT id FROM users WHERE role='admin'"
+            ).fetchall()
+            for admin in admins:
+                add_notification(
+                    admin['id'], 'action', 'overtime',
+                    f'주 52시간 초과 감지',
+                    f'{emp["name"] if emp else uid}님 이번 주 {weekly["total_h"]}h '
+                    f'(초과 {weekly["over_h"]}h).',
+                    url_for('overtime_monitor')
+                )
+            flash(
+                f'⚠️ 주 52시간 초과! 이번 주 총 {weekly["total_h"]}시간 근무 '
+                f'(법정 한도 초과 {weekly["over_h"]}시간). HR 담당자에게 자동 알림이 발송됐습니다.',
+                'error'
+            )
+        elif weekly['is_warning']:
+            flash(
+                f'이번 주 {weekly["total_h"]}시간 근무 중 — '
+                f'주 52시간 한도까지 {weekly["remain_h"]}시간 남았습니다.',
+                'warning'
+            )
+
     return redirect(url_for('attendance_home'))
 
 
@@ -5433,31 +6217,32 @@ def overtime_monitor():
     eight_ago  = (today - timedelta(weeks=8)).isoformat()
 
     # 직원별·주별 근무시간 집계 (checkins 기반)
+    # 주 기산: 월요일 (SQLite weekday 계산 — 0=일,1=월,...,6=토 → 월요일 기준 offset)
     rows = db.execute(
         """
         SELECT
-            u.id AS user_id,
+            u.id   AS user_id,
             u.name,
             u.emp_no,
             d.name AS dept_name,
-            strftime('%Y-%W', c.date) AS week_key,
-            MIN(c.date) AS week_start,
+            date(c.date, '-' || ((cast(strftime('%w', c.date) AS INTEGER) + 6) % 7) || ' days')
+                   AS week_start,
             SUM(c.regular_min + c.overtime_min) AS total_min,
-            SUM(c.overtime_min) AS ot_min
+            SUM(c.overtime_min)                 AS ot_min
         FROM checkins c
         JOIN users u ON c.user_id = u.id
         LEFT JOIN departments d ON u.department_id = d.id
         WHERE u.status = 'active'
           AND c.date >= ?
-        GROUP BY u.id, week_key
+        GROUP BY u.id, week_start
         ORDER BY total_min DESC
         """,
         (eight_ago,)
     ).fetchall()
 
-    # 52시간 = 3120분 기준으로 분류
-    LIMIT_MIN  = 52 * 60   # 3120
-    WARNING_MIN = 48 * 60  # 2880 (경고선: 48h)
+    # 52시간 = 3120분 기준으로 분류 (payroll_utils 상수 재사용)
+    LIMIT_MIN   = WEEKLY_TOTAL_MAX   # 3120분
+    WARNING_MIN = WEEKLY_WARNING     # 2880분
 
     violations = []
     warnings   = []
@@ -5481,16 +6266,17 @@ def overtime_monitor():
     trend_rows = db.execute(
         """
         SELECT
-            u.id AS user_id,
+            u.id  AS user_id,
             u.name,
-            strftime('%Y-%W', c.date) AS week_key,
+            date(c.date, '-' || ((cast(strftime('%w', c.date) AS INTEGER) + 6) % 7) || ' days')
+                  AS week_start,
             SUM(c.regular_min + c.overtime_min) AS total_min
         FROM checkins c
         JOIN users u ON c.user_id = u.id
         WHERE u.status = 'active'
           AND c.date >= ?
-        GROUP BY u.id, week_key
-        ORDER BY u.id, week_key
+        GROUP BY u.id, week_start
+        ORDER BY u.id, week_start
         """,
         ((today - timedelta(weeks=4)).isoformat(),)
     ).fetchall()
@@ -5505,7 +6291,7 @@ def overtime_monitor():
         name = r['name']
         if uid not in chart_data:
             chart_data[uid] = {'name': name, 'weeks': [], 'hours': []}
-        chart_data[uid]['weeks'].append(r['week_key'])
+        chart_data[uid]['weeks'].append(r['week_start'])
         chart_data[uid]['hours'].append(round(r['total_min'] / 60, 1))
 
     return render_template('admin/overtime_monitor.html',

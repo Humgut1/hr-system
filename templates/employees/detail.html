@@ -430,8 +430,8 @@
 </div>
 
 <div class="tab-panel" id="tab-pay">
-  <div class="card">
-    <div class="section-head">최근 급여 이력 (최대 6개월)</div>
+  <div class="card" style="margin-bottom:16px;">
+    <div class="section-head">최근 급여명세서 (최대 6개월)</div>
     {% if payslips %}
     {% for p in payslips %}
     <div class="pay-row">
@@ -450,6 +450,90 @@
     <div style="padding:40px; text-align:center; color:var(--text-muted); font-size:14px;">
       <i class="fas fa-file-invoice-dollar" style="font-size:28px; margin-bottom:10px; display:block; opacity:.3;"></i>
       급여 데이터가 없습니다.
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 급여 변경 이력 -->
+  <div class="card">
+    <div class="section-head">
+      급여 변경 이력
+      {% if session.get('user_role') == 'admin' %}
+      <a href="{{ url_for('admin_payroll') }}" class="btn btn-ghost btn-sm" style="float:right;">
+        <i class="fas fa-edit"></i> 급여 수정
+      </a>
+      {% endif %}
+    </div>
+    {% if salary_history %}
+    <div style="padding:4px 0;">
+      {% for h in salary_history %}
+      <div style="display:flex; align-items:flex-start; gap:14px; padding:14px 18px;
+                  border-bottom:1px solid var(--border);">
+        <!-- 타임라인 도트 -->
+        <div style="display:flex; flex-direction:column; align-items:center; padding-top:3px;">
+          <div style="width:10px; height:10px; border-radius:50%;
+                      background:{% if h.new_base_salary > h.old_base_salary %}#16a34a{% elif h.new_base_salary < h.old_base_salary %}#dc2626{% else %}#1d4ed8{% endif %};
+                      flex-shrink:0;"></div>
+        </div>
+        <!-- 내용 -->
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+              <div style="font-size:13px; font-weight:700; margin-bottom:3px;">
+                {% if h.new_base_salary != h.old_base_salary %}
+                  기본급
+                  {% if h.new_base_salary > h.old_base_salary %}
+                    <span style="color:#16a34a;">인상</span>
+                  {% else %}
+                    <span style="color:#dc2626;">삭감</span>
+                  {% endif %}
+                {% endif %}
+                {% if h.new_meal != h.old_meal or h.new_transport != h.old_transport %}
+                  {% if h.new_base_salary == h.old_base_salary %}수당 변경{% else %} + 수당 변경{% endif %}
+                {% endif %}
+              </div>
+              {% if h.new_base_salary != h.old_base_salary %}
+              <div style="font-size:12px; color:var(--text-muted);">
+                기본급 {{ "{:,}".format(h.old_base_salary) }} →
+                <strong style="color:{% if h.new_base_salary > h.old_base_salary %}#16a34a{% else %}#dc2626{% endif %};">
+                  {{ "{:,}원".format(h.new_base_salary) }}
+                </strong>
+                <span style="margin-left:6px; font-size:11px;">
+                  ({% if h.new_base_salary > h.old_base_salary %}+{% endif %}{{ "{:,}원".format(h.new_base_salary - h.old_base_salary) }})
+                </span>
+              </div>
+              {% endif %}
+              {% if h.new_meal != h.old_meal %}
+              <div style="font-size:12px; color:var(--text-muted);">
+                식대 {{ "{:,}".format(h.old_meal) }} → {{ "{:,}원".format(h.new_meal) }}
+              </div>
+              {% endif %}
+              {% if h.new_transport != h.old_transport %}
+              <div style="font-size:12px; color:var(--text-muted);">
+                교통비 {{ "{:,}".format(h.old_transport) }} → {{ "{:,}원".format(h.new_transport) }}
+              </div>
+              {% endif %}
+              {% if h.reason %}
+              <div style="font-size:11px; color:#64748b; margin-top:4px;">
+                <i class="fas fa-comment-alt" style="margin-right:4px;"></i>{{ h.reason }}
+              </div>
+              {% endif %}
+            </div>
+            <div style="text-align:right; flex-shrink:0; margin-left:12px;">
+              <div style="font-size:12px; color:var(--text-muted);">{{ h.changed_at[:10] }}</div>
+              {% if h.changed_by_name %}
+              <div style="font-size:11px; color:#94a3b8; margin-top:2px;">{{ h.changed_by_name }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="padding:32px; text-align:center; color:var(--text-muted); font-size:13px;">
+      <i class="fas fa-history" style="font-size:24px; margin-bottom:8px; display:block; opacity:.3;"></i>
+      급여 변경 이력이 없습니다.
     </div>
     {% endif %}
   </div>

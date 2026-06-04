@@ -131,6 +131,45 @@ def _seed_transactional(c, all_uids: list, admin_id: int):
     today = date.today()
     rng = random.Random(99)  # 별도 시드 — 기존 시드와 분리
 
+    # ── 0. salary_history 시드 (급여 변경 이력 데모용) ───────────
+    # 전체 직원 중 절반 정도에게 1~2회 인상 이력 생성
+    emp_salary_rows = list(c.execute(
+        "SELECT user_id, base_salary, meal_allowance, transport_allowance FROM employee_salary"
+    ))
+    rng_hist = random.Random(77)
+    history_reasons = ['정기 연봉 인상', '직급 승진', '성과 우수 인상', '역할 변경', '시장 맞춤 조정']
+    for row in emp_salary_rows:
+        uid, cur_base, cur_meal, cur_trans = row
+        # 약 60% 직원에게 이력 생성
+        if rng_hist.random() < 0.6:
+            # 1년 전 급여 (현재보다 4~8% 낮음)
+            pct1 = rng_hist.uniform(0.04, 0.08)
+            old_base1 = int(cur_base / (1 + pct1))
+            dt1 = (today - timedelta(days=rng_hist.randint(300, 400))).isoformat()
+            c.execute(
+                'INSERT OR IGNORE INTO salary_history '
+                '(user_id, changed_at, changed_by, old_base_salary, new_base_salary, '
+                'old_meal, new_meal, old_transport, new_transport, reason) '
+                'VALUES (?,?,?,?,?,?,?,?,?,?)',
+                (uid, dt1, admin_id, old_base1, cur_base,
+                 cur_meal, cur_meal, cur_trans, cur_trans,
+                 rng_hist.choice(history_reasons))
+            )
+            # 추가로 30% 는 2년 전 이력도 생성
+            if rng_hist.random() < 0.3:
+                pct2 = rng_hist.uniform(0.03, 0.06)
+                old_base2 = int(old_base1 / (1 + pct2))
+                dt2 = (today - timedelta(days=rng_hist.randint(650, 750))).isoformat()
+                c.execute(
+                    'INSERT OR IGNORE INTO salary_history '
+                    '(user_id, changed_at, changed_by, old_base_salary, new_base_salary, '
+                    'old_meal, new_meal, old_transport, new_transport, reason) '
+                    'VALUES (?,?,?,?,?,?,?,?,?,?)',
+                    (uid, dt2, admin_id, old_base2, old_base1,
+                     cur_meal, cur_meal, cur_trans, cur_trans,
+                     rng_hist.choice(history_reasons))
+                )
+
     # ── 1. 급여명세서 (최근 6개월, 전체 직원) ────────────────────
     salary_map = {}
     for row in c.execute("SELECT user_id, base_salary, meal_allowance, transport_allowance FROM employee_salary"):
