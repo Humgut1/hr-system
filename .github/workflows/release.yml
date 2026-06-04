@@ -17,11 +17,30 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Generate release notes
+        id: notes
+        run: |
+          CURRENT_TAG="${GITHUB_REF_NAME}"
+          # 바로 이전 태그 찾기
+          PREV_TAG=$(git tag --sort=-version:refname | grep -A1 "^${CURRENT_TAG}$" | tail -1)
+
+          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$CURRENT_TAG" ]; then
+            # 이전 태그 없으면 최근 20개 커밋
+            NOTES=$(git log --pretty=format:"- %s" -20)
+          else
+            NOTES=$(git log --pretty=format:"- %s" "${PREV_TAG}..${CURRENT_TAG}")
+          fi
+
+          # 멀티라인 출력 처리
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          generate_release_notes: true
+          body: ${{ steps.notes.outputs.notes }}
           draft: false
           prerelease: false
