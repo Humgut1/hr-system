@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TalentCore — 전체 모듈 오버홀 플랜</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f172a;color:#e2e8f0}
+a{color:inherit;text-decoration:none}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#1e293b}::-webkit-scrollbar-thumb{background:#475569;border-radius:3px}
+.layout{display:flex;min-height:100vh}
+/* SIDEBAR */
+.sidebar{width:280px;background:#1e293b;position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:100;border-right:1px solid #334155}
+.sb-top{padding:24px 20px 18px;border-bottom:1px solid #334155}
+.sb-brand{font-size:20px;font-weight:800;color:#f8fafc;letter-spacing:-0.5px}
+.sb-brand span{color:#7c3aed}
+.sb-sub{font-size:11px;color:#64748b;margin-top:3px}
+.sb-version{display:inline-block;margin-top:8px;background:#7c3aed22;color:#a78bfa;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;border:1px solid #7c3aed44}
+.sb-section{padding:12px 12px 4px}
+.sb-section-title{font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:1.2px;padding:4px 8px 6px}
+.sb-link{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;font-size:13px;color:#94a3b8;cursor:pointer;transition:all 0.15s}
+.sb-link:hover{background:#334155;color:#e2e8f0}
+.sb-link .mod-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.sb-link.active{background:#7c3aed22;color:#a78bfa}
+/* MAIN */
+.main{margin-left:280px;padding:48px 48px 80px}
+/* HERO */
+.hero{background:linear-gradient(135deg,#1e1b4b 0%,#312e81 40%,#1e293b 100%);border:1px solid #3730a3;border-radius:16px;padding:48px;margin-bottom:48px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-40px;right:-40px;width:300px;height:300px;background:radial-gradient(circle,#7c3aed33 0%,transparent 70%);pointer-events:none}
+.hero-badge{display:inline-block;background:#7c3aed44;color:#c4b5fd;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid #7c3aed66;margin-bottom:16px}
+.hero h1{font-size:38px;font-weight:900;color:#f8fafc;letter-spacing:-1px;line-height:1.1;margin-bottom:12px}
+.hero h1 span{color:#a78bfa}
+.hero p{color:#94a3b8;font-size:16px;line-height:1.7;max-width:600px;margin-bottom:24px}
+.hero-stats{display:flex;gap:32px}
+.hero-stat .val{font-size:28px;font-weight:800;color:#a78bfa}
+.hero-stat .lbl{font-size:12px;color:#64748b;margin-top:2px}
+/* SECTION */
+.section{margin-bottom:64px}
+.section-header{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+.section-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.section-title{font-size:24px;font-weight:800;color:#f8fafc}
+.section-sub{color:#64748b;font-size:14px;margin-bottom:28px;margin-left:54px}
+/* MODULE TABS */
+.module-card{background:#1e293b;border:1px solid #334155;border-radius:14px;overflow:hidden;margin-bottom:24px}
+.module-header{padding:20px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #334155}
+.module-header-left{display:flex;align-items:center;gap:12px}
+.module-tag{padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700}
+.module-title{font-size:17px;font-weight:700;color:#f8fafc}
+.module-body{padding:24px}
+/* GRIDS */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+/* CARDS */
+.card{background:#0f172a;border:1px solid #334155;border-radius:10px;padding:20px}
+.card-title{font-size:13px;font-weight:600;color:#f8fafc;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+/* BADGES */
+.badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600}
+.badge-p0{background:#dc262622;color:#f87171;border:1px solid #dc262644}
+.badge-p1{background:#d9770622;color:#fbbf24;border:1px solid #d9770644}
+.badge-p2{background:#1d4ed822;color:#60a5fa;border:1px solid #1d4ed844}
+.badge-s{background:#16a34a22;color:#4ade80;border:1px solid #16a34a44}
+.badge-m{background:#d9770622;color:#fbbf24;border:1px solid #d9770644}
+.badge-l{background:#dc262622;color:#f87171;border:1px solid #dc262644}
+.badge-xl{background:#7c3aed22;color:#a78bfa;border:1px solid #7c3aed44}
+/* WORKDAY BOX */
+.wb{background:#0a0f1a;border:1px solid #7c3aed44;border-left:3px solid #7c3aed;border-radius:8px;padding:16px;margin-bottom:12px}
+.wb-lbl{font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.wb-title{font-size:14px;font-weight:600;color:#f8fafc;margin-bottom:6px}
+.wb-desc{font-size:12px;color:#94a3b8;line-height:1.7}
+/* FEATURE TABLE */
+.ftable{width:100%;border-collapse:collapse}
+.ftable th{background:#0a0f1a;padding:9px 12px;text-align:left;font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.8px;border-bottom:1px solid #334155}
+.ftable td{padding:11px 12px;border-bottom:1px solid #1e293b;font-size:12px;color:#cbd5e1;vertical-align:top;line-height:1.5}
+.ftable tr:last-child td{border-bottom:none}
+.ftable tr:hover td{background:#0f172a66}
+/* CODE */
+.code{background:#0a0f1a;border:1px solid #1e3a5f;border-radius:8px;padding:18px;font-family:'Cascadia Code','Fira Code',monospace;font-size:11.5px;color:#7dd3fc;line-height:1.75;overflow-x:auto;margin-bottom:12px}
+.code .c{color:#475569}.code .k{color:#c084fc}.code .s{color:#86efac}
+/* MOCKUP */
+.mockup{background:#0a0f1a;border:1px solid #334155;border-radius:8px;padding:16px;font-family:'Cascadia Code','Fira Code',monospace;font-size:11.5px;color:#94a3b8;line-height:1.8;overflow-x:auto;white-space:pre;margin-bottom:12px}
+/* LISTS */
+.ul{list-style:none;padding:0}
+.ul li{padding:6px 0;border-bottom:1px solid #1e293b;font-size:12px;color:#94a3b8;display:flex;align-items:flex-start;gap:7px;line-height:1.6}
+.ul li:last-child{border-bottom:none}
+.ul li::before{content:"•";color:#7c3aed;flex-shrink:0}
+/* TIMELINE */
+.timeline{position:relative;padding-left:32px}
+.timeline::before{content:'';position:absolute;left:8px;top:6px;bottom:6px;width:2px;background:#334155}
+.tl-item{position:relative;margin-bottom:20px}
+.tl-dot{position:absolute;left:-28px;top:4px;width:12px;height:12px;border-radius:50%;border:2px solid #7c3aed;background:#0f172a}
+.tl-phase{font-size:11px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px}
+.tl-title{font-size:15px;font-weight:700;color:#f8fafc;margin-bottom:6px}
+.tl-desc{font-size:12px;color:#94a3b8;line-height:1.6}
+.tl-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+/* MATRIX */
+.matrix{display:grid;grid-template-columns:auto 1fr 1fr;gap:2px;margin-bottom:16px}
+.mx-cell{background:#1e293b;border:1px solid #334155;border-radius:6px;padding:12px;font-size:12px}
+.mx-header{background:#0f172a;font-size:11px;font-weight:700;color:#64748b;text-align:center;display:flex;align-items:center;justify-content:center}
+.mx-axis{background:#0f172a;font-size:11px;font-weight:700;color:#64748b;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);padding:8px}
+.mx-q1{background:#16a34a22;border-color:#16a34a44}
+.mx-q2{background:#7c3aed22;border-color:#7c3aed44}
+.mx-q3{background:#d9770622;border-color:#d9770644}
+.mx-q4{background:#475569}
+/* DIVIDER */
+hr{border:none;border-top:1px solid #1e293b;margin:48px 0}
+/* STAT */
+.stat-row{display:flex;gap:16px;margin-bottom:24px}
+.stat{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:16px 20px;flex:1;text-align:center}
+.stat .v{font-size:26px;font-weight:800;margin-bottom:3px}
+.stat .l{font-size:11px;color:#64748b}
+/* MODULE ACCENT COLORS */
+.acc-att{color:#38bdf8}.bg-att{background:#38bdf822;border-color:#38bdf844}
+.acc-pay{color:#4ade80}.bg-pay{background:#16a34a22;border-color:#16a34a44}
+.acc-per{color:#a78bfa}.bg-per{background:#7c3aed22;border-color:#7c3aed44}
+.acc-rec{color:#fb923c}.bg-rec{background:#ea580c22;border-color:#ea580c44}
+.acc-hcm{color:#f472b6}.bg-hcm{background:#db277722;border-color:#db277744}
+.acc-ben{color:#34d399}.bg-ben{background:#05966922;border-color:#05966944}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sb-top">
+    <div class="sb-brand">Talent<span>Core</span></div>
+    <div class="sb-sub">Workday 스타일 HR SaaS</div>
+    <div class="sb-version">v0.47+ 오버홀 플랜</div>
+  </div>
+
+  <div class="sb-section">
+    <div class="sb-section-title">개요</div>
+    <a class="sb-link" href="#overview"><span class="mod-dot" style="background:#64748b"></span>프로젝트 개요</a>
+    <a class="sb-link" href="#roadmap"><span class="mod-dot" style="background:#64748b"></span>전체 로드맵</a>
+    <a class="sb-link" href="#matrix"><span class="mod-dot" style="background:#64748b"></span>우선순위 매트릭스</a>
+  </div>
+
+  <div class="sb-section">
+    <div class="sb-section-title">모듈 계획</div>
+    <a class="sb-link" href="#attendance"><span class="mod-dot" style="background:#38bdf8"></span>근태·스케줄</a>
+    <a class="sb-link" href="#payroll"><span class="mod-dot" style="background:#4ade80"></span>보상·급여</a>
+    <a class="sb-link" href="#performance"><span class="mod-dot" style="background:#a78bfa"></span>성과관리</a>
+    <a class="sb-link" href="#recruiting"><span class="mod-dot" style="background:#fb923c"></span>채용 ATS</a>
+    <a class="sb-link" href="#hcm"><span class="mod-dot" style="background:#f472b6"></span>인력·조직 HCM</a>
+    <a class="sb-link" href="#benefits"><span class="mod-dot" style="background:#34d399"></span>복리후생</a>
+  </div>
+
+  <div class="sb-section">
+    <div class="sb-section-title">분석</div>
+    <a class="sb-link" href="#db-summary"><span class="mod-dot" style="background:#64748b"></span>DB 변경 요약</a>
+    <a class="sb-link" href="#effort"><span class="mod-dot" style="background:#64748b"></span>작업량 집계</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-badge">TalentCore Product Overhaul Plan</div>
+  <h1>Workday 수준의 <span>HR SaaS</span>로<br>전면 개편합니다</h1>
+  <p>200인 규모 한국 스타트업을 위한 통합 HR 플랫폼. 근태·급여·성과·채용·조직·복리후생 6개 모듈을 Workday의 핵심 패턴을 차용해 실무 수준으로 격상합니다.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><div class="val">6</div><div class="lbl">개 모듈</div></div>
+    <div class="hero-stat"><div class="val">48+</div><div class="lbl">신규 기능</div></div>
+    <div class="hero-stat"><div class="val">20+</div><div class="lbl">신규 DB 테이블</div></div>
+    <div class="hero-stat"><div class="val">3</div><div class="lbl">단계 구현 로드맵</div></div>
+  </div>
+</div>
+
+<!-- OVERVIEW -->
+<div id="overview" class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#7c3aed22;color:#a78bfa">📋</div>
+    <div class="section-title">프로젝트 개요</div>
+  </div>
+  <div class="section-sub">기술 스택 · 설계 원칙 · 현재 완성도</div>
+
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-title">기술 스택</div>
+      <ul class="ul">
+        <li>Backend: Python (Flask)</li>
+        <li>Frontend: HTML + Vanilla JS</li>
+        <li>CSS: 커스텀 style.css (외부 UI 라이브러리 금지)</li>
+        <li>DB: SQLite + 직접 SQL 쿼리 (ORM 금지)</li>
+        <li>Deploy: Railway (git push 자동 재배포)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">설계 원칙</div>
+      <ul class="ul">
+        <li>Workday 패턴 차용, 한국 맥락 적용</li>
+        <li>근로기준법 / 소득세법 기반 계산</li>
+        <li>역할별 뷰 분기 (Admin/Manager/Employee)</li>
+        <li>단일 SaaS → 멀티테넌시 아키텍처</li>
+        <li>외부 라이브러리 없이 Vanilla JS Canvas</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">현재 완성도 (v0.46)</div>
+      <ul class="ul">
+        <li>직원관리 · 조직 구조 ✅</li>
+        <li>근태 체크인/아웃 · 52시간 감시 ✅</li>
+        <li>급여 계산 · 4대보험 · 연장수당 ✅</li>
+        <li>성과 목표/평가 · 다면평가 ✅</li>
+        <li>채용 공고 · 파이프라인 칸반 ✅</li>
+        <li>전자계약 · 복리후생 설정 ✅</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ROADMAP -->
+<div id="roadmap" class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#0ea5e922;color:#38bdf8">🗺️</div>
+    <div class="section-title">전체 구현 로드맵</div>
+  </div>
+  <div class="section-sub">Phase 1~3 단계별 구현 계획</div>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-dot" style="border-color:#f87171;background:#f8717122"></div>
+      <div class="tl-phase">Phase 1 — 4~6주</div>
+      <div class="tl-title">HCM Core + 보상 기반 확립</div>
+      <div class="tl-desc">Salary Band / Compa-Ratio / Merit Matrix 도입으로 보상 체계 정비. 인터랙티브 조직도 SVG 구현. 직원 셀프서비스 프로필 편집. 9박스 캘리브레이션 UI. 근태 Work Schedule 배정 및 자동 출결 판정.</div>
+      <div class="tl-tags">
+        <span class="badge badge-p0">근태 P0-1~5</span>
+        <span class="badge badge-p0">급여 P0-1~4</span>
+        <span class="badge badge-p0">성과 P0-1~4</span>
+        <span class="badge badge-p0">HCM P0-1~4</span>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot" style="border-color:#fbbf24;background:#fbbf2422"></div>
+      <div class="tl-phase">Phase 2 — 4~6주</div>
+      <div class="tl-title">채용 ATS 고도화 + 복리후생 셀프서비스</div>
+      <div class="tl-desc">채용 요청(Requisition) 승인 워크플로우. 면접 일정 + 피드백 + 오퍼 관리. 지원자→직원 전환 자동화. 복리후생 Enrollment Event 플로우. ACR(연간 보상 검토) 워크플로우.</div>
+      <div class="tl-tags">
+        <span class="badge badge-p1">채용 P0-1~5</span>
+        <span class="badge badge-p1">복리후생 P0-1~4</span>
+        <span class="badge badge-p1">급여 P1-1~4</span>
+        <span class="badge badge-p1">성과 P1-1~5</span>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot" style="border-color:#60a5fa;background:#60a5fa22"></div>
+      <div class="tl-phase">Phase 3 — 4~6주</div>
+      <div class="tl-title">Analytics + 자동화 + 포트폴리오 완성</div>
+      <div class="tl-desc">People Analytics 고도화 (결근 패턴 / Pay Equity 분석). 복리후생 Life Event 트리거 + Passive Event 룰 엔진. 스킬/자격증 관리. 채용 Self-Scheduling. OT 사전승인 워크플로우.</div>
+      <div class="tl-tags">
+        <span class="badge badge-p2">근태 P1~P2</span>
+        <span class="badge badge-p2">채용 P1~P2</span>
+        <span class="badge badge-p2">복리후생 P1~P2</span>
+        <span class="badge badge-p2">HCM P1~P2</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- PRIORITY MATRIX -->
+<div id="matrix" class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#16a34a22;color:#4ade80">📊</div>
+    <div class="section-title">우선순위 매트릭스</div>
+  </div>
+  <div class="section-sub">임팩트 vs 구현 난이도 2×2 분류</div>
+
+  <div style="display:grid;grid-template-columns:80px 1fr 1fr;grid-template-rows:40px 1fr 1fr;gap:4px;margin-bottom:24px;max-width:800px">
+    <div></div>
+    <div class="mx-header">낮은 난이도</div>
+    <div class="mx-header">높은 난이도</div>
+    <div class="mx-axis">높은 임팩트</div>
+    <div class="card mx-q2" style="min-height:140px">
+      <div class="card-title" style="color:#a78bfa">Quick Wins</div>
+      <ul class="ul">
+        <li>Compa-Ratio 계산/표시</li>
+        <li>9박스 캘리브레이션 UI</li>
+        <li>역할별 근태 허브 분기</li>
+        <li>자동 출결 판정 (지각/결근)</li>
+        <li>is_shared 제어 UI</li>
+      </ul>
+    </div>
+    <div class="card mx-q1" style="min-height:140px">
+      <div class="card-title" style="color:#4ade80">Major Projects</div>
+      <ul class="ul">
+        <li>ACR 워크플로우 (매니저→HR)</li>
+        <li>채용 면접 일정 + 오퍼 관리</li>
+        <li>복리후생 Enrollment Event</li>
+        <li>인터랙티브 조직도 SVG</li>
+        <li>Work Schedule 배정 시스템</li>
+      </ul>
+    </div>
+    <div class="mx-axis">낮은 임팩트</div>
+    <div class="card mx-q3" style="min-height:100px">
+      <div class="card-title" style="color:#fbbf24">Fill-ins</div>
+      <ul class="ul">
+        <li>반차 오전/오후 구분</li>
+        <li>급여 이력 reason_code</li>
+        <li>복지포인트 자동 지급</li>
+      </ul>
+    </div>
+    <div class="card" style="min-height:100px;opacity:0.6">
+      <div class="card-title" style="color:#64748b">Deprioritize</div>
+      <ul class="ul">
+        <li>교대근무 스케줄러</li>
+        <li>역량 모델 전체 구현</li>
+        <li>시장 Pricing 외부 데이터</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ===== MODULE 1: ATTENDANCE ===== -->
+<div id="attendance" class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#38bdf822;color:#38bdf8">⏱️</div>
+    <div class="section-title acc-att">근태·스케줄 모듈</div>
+  </div>
+  <div class="section-sub">Work Schedule 배정 · 자동 출결 판정 · 팀 그리드 · 역할별 허브</div>
+
+  <div class="module-card">
+    <div class="module-header">
+      <div class="module-header-left">
+        <span class="module-tag bg-att acc-att">Attendance &amp; Scheduling</span>
+        <span class="module-title">현재 상태 vs 목표</span>
+      </div>
+    </div>
+    <div class="module-body">
+      <div class="grid-2">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase">현재 (As-Is)</div>
+          <ul class="ul">
+            <li>일 단위 체크인/아웃 + 수당 자동계산</li>
+            <li>13종 휴가 타입 + 다단계 승인</li>
+            <li>유연근무 시간×요일 그리드 UI</li>
+            <li>52시간 위반 감지 + 알림</li>
+            <li>4탭 통합 홈 (체크인/휴가/캘린더/승인)</li>
+          </ul>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:700;color:#38bdf8;margin-bottom:8px;text-transform:uppercase">목표 (To-Be)</div>
+          <ul class="ul">
+            <li>Work Schedule 정의 + 직원 배정 시스템</li>
+            <li>배정 스케줄 기준 자동 출결 판정 (지각/결근/조퇴)</li>
+            <li>팀원 × 날짜 2D 색상 그리드 (매니저 뷰)</li>
+            <li>역할별 허브 분기 (Employee/Manager/HR)</li>
+            <li>반차 오전/오후 구분 + 연차 이월 정책</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:16px">
+    <div class="wb">
+      <div class="wb-lbl">Workday 패턴 B</div>
+      <div class="wb-title">Static Work Schedule Calendar</div>
+      <div class="wb-desc">회사 차원 근무 스케줄 정의 → 직원 배정 → 체크인 부재 시 absent 자동 플래그. work_schedules 테이블 + user_schedule_assignments 테이블 + do_checkin() 에서 스케줄 대비 실적 비교.</div>
+    </div>
+    <div class="wb">
+      <div class="wb-lbl">Workday 패턴 A</div>
+      <div class="wb-title">역할별 Time Hub 분기</div>
+      <div class="wb-desc">같은 URL이지만 session role에 따라 렌더링 컨텍스트 완전히 분리. Employee: 내 스케줄 + 체크인. Manager: 팀 현황 그리드 + 승인. HR/Admin: 전사 준수율 + 위반 경보.</div>
+    </div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-header"><span class="module-tag bg-att acc-att">기능 목록</span><span class="module-title">P0~P2 전체 기능</span></div>
+    <div class="module-body" style="padding:0">
+      <table class="ftable">
+        <thead><tr><th>우선순위</th><th>기능명</th><th>설명</th><th>난이도</th><th>작업량</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">Work Schedule 정의·배정</td><td>스케줄 생성 (고정/유연/재량), 직원별/부서별 배정, 유효기간</td><td><span class="badge badge-m">M</span></td><td>1~2일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">자동 출결 판정</td><td>배정 스케줄 기준 present/late/early_leave/absent 자동 판정 + 알림</td><td><span class="badge badge-m">M</span></td><td>1~2일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">팀 출결 그리드 (매니저)</td><td>팀원×날짜 2D 색상 그리드. 출근/재택/휴가/지각/결근 색상 코드</td><td><span class="badge badge-m">M</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">역할별 허브 분기</td><td>attendance_home() 에 role별 렌더링 컨텍스트 분기</td><td><span class="badge badge-s">S</span></td><td>반나절</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">반차 오전/오후 구분</td><td>leave_requests.half_day_slot 컬럼 추가 (am/pm/null)</td><td><span class="badge badge-s">S</span></td><td>반나절</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">팀 휴가 겹침 시각화</td><td>매니저 승인 시 동일 기간 기승인 팀원 수 표시, 최소 출근 정책</td><td><span class="badge badge-m">M</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">스케줄 변경 3일 경고</td><td>flex_schedules 수정 시 3일 이내이면 경고 + 직원 알림</td><td><span class="badge badge-s">S</span></td><td>반나절</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">최소 11시간 휴식 감지</td><td>퇴근~다음날 출근 간격 11시간 미만이면 플래그</td><td><span class="badge badge-s">S</span></td><td>반나절</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">OT 사전/사후 승인</td><td>overtime_requests 테이블 + 매니저 승인 워크플로우</td><td><span class="badge badge-l">L</span></td><td>2~3일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">개인 월간 리포트 카드</td><td>총 근무시간 / OT / 야간 / 출근일수 + 전월 대비 증감</td><td><span class="badge badge-s">S</span></td><td>반나절</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">연차 이월 정책 (leave_balances)</td><td>carry_over_max 설정 + 연도 교체 시 이월 연산 로직</td><td><span class="badge badge-l">L</span></td><td>2~3일</td></tr>
+          <tr><td><span class="badge badge-p2">P2</span></td><td style="font-weight:600;color:#f8fafc">결근 패턴 감지</td><td>90일 내 무단결근 2회+ → HR 알림, analytics 탭 통합</td><td><span class="badge badge-m">M</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p2">P2</span></td><td style="font-weight:600;color:#f8fafc">OT 예산 관리</td><td>부서별 월간 OT 예산(시간) 설정 + 사용률 대시보드</td><td><span class="badge badge-m">M</span></td><td>1일</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-header"><span class="module-tag bg-att acc-att">DB 스키마</span><span class="module-title">신규 테이블 + 컬럼 추가</span></div>
+    <div class="module-body">
+      <div class="code"><span class="c">-- Work Schedule 정의</span>
+<span class="k">CREATE TABLE</span> work_schedules (
+    id <span class="k">INTEGER PRIMARY KEY AUTOINCREMENT</span>,
+    name <span class="k">TEXT NOT NULL</span>, schedule_type <span class="k">TEXT DEFAULT</span> <span class="s">'fixed'</span>,
+    mon_start <span class="k">TEXT</span>, mon_end <span class="k">TEXT</span>, tue_start <span class="k">TEXT</span>, tue_end <span class="k">TEXT</span>,
+    wed_start <span class="k">TEXT</span>, wed_end <span class="k">TEXT</span>, thu_start <span class="k">TEXT</span>, thu_end <span class="k">TEXT</span>,
+    fri_start <span class="k">TEXT</span>, fri_end <span class="k">TEXT</span>, total_weekly_min <span class="k">INTEGER</span>, is_default <span class="k">INTEGER DEFAULT</span> 0
+);
+<span class="c">-- 직원-스케줄 배정 이력</span>
+<span class="k">CREATE TABLE</span> user_schedule_assignments (
+    id <span class="k">INTEGER PRIMARY KEY AUTOINCREMENT</span>,
+    user_id <span class="k">INTEGER NOT NULL REFERENCES</span> users(id),
+    schedule_id <span class="k">INTEGER NOT NULL REFERENCES</span> work_schedules(id),
+    effective_from <span class="k">TEXT NOT NULL</span>, effective_to <span class="k">TEXT</span>
+);
+<span class="c">-- checkins 컬럼 추가</span>
+<span class="k">ALTER TABLE</span> checkins <span class="k">ADD COLUMN</span> attendance_status <span class="k">TEXT DEFAULT</span> <span class="s">'present'</span>;
+<span class="c">-- present/late/early_leave/absent/holiday/remote/on_leave</span>
+<span class="k">ALTER TABLE</span> checkins <span class="k">ADD COLUMN</span> schedule_id <span class="k">INTEGER REFERENCES</span> work_schedules(id);
+<span class="k">ALTER TABLE</span> checkins <span class="k">ADD COLUMN</span> rest_violation <span class="k">INTEGER DEFAULT</span> 0;
+<span class="c">-- leave_requests: 반차 오전/오후</span>
+<span class="k">ALTER TABLE</span> leave_requests <span class="k">ADD COLUMN</span> half_day_slot <span class="k">TEXT DEFAULT NULL</span>;
+<span class="c">-- 값: am / pm / NULL</span></div>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ===== MODULE 2: PAYROLL ===== -->
+<div id="payroll" class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#16a34a22;color:#4ade80">💰</div>
+    <div class="section-title acc-pay">보상·급여 모듈</div>
+  </div>
+  <div class="section-sub">Salary Band · Compa-Ratio · Merit Matrix · ACR 워크플로우</div>
+
+  <div class="module-card">
+    <div class="module-header">
+      <div class="module-header-left">
+        <span class="module-tag bg-pay acc-pay">Compensation &amp; Payroll</span>
+        <span class="module-title">핵심 Gap</span>
+      </div>
+    </div>
+    <div class="module-body">
+      <div class="grid-2">
+        <div class="wb" style="border-left-color:#f87171">
+          <div class="wb-lbl" style="color:#f87171">결정적으로 없는 것</div>
+          <div class="wb-title">Salary Band 부재</div>
+          <div class="wb-desc">salary_grades에 단일 annual_salary만 있고 min/midpoint/max 밴드가 없음. Compa-Ratio 계산 불가. 성과등급과 급여 인상이 연결되지 않음 (performance 모듈과 payroll 모듈이 단절).</div>
+        </div>
+        <div class="wb" style="border-left-color:#f87171">
+          <div class="wb-lbl" style="color:#f87171">결정적으로 없는 것</div>
+          <div class="wb-title">Merit Matrix + ACR 부재</div>
+          <div class="wb-desc">성과등급 × Compa-Ratio 구간 → 인상률 가이드라인 테이블 없음. Annual Compensation Review 프로세스 없음. 매니저가 팀원 인상안을 제안하고 HR이 승인하는 워크플로우 없음.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:16px">
+    <div class="wb">
+      <div class="wb-lbl">Workday 패턴 2</div>
+      <div class="wb-title">Compa-Ratio</div>
+      <div class="wb-desc">Compa-Ratio = 실제연봉 / Midpoint × 100. 80 미만: 하단(Under-paid 위험). 80~120: 정상. 120 초과: Red-circle. admin_payroll 화면에 직원별 Compa-Ratio 컬럼 + 색상 배지 추가.</div>
+    </div>
+    <div class="wb">
+      <div class="wb-lbl">Workday 패턴 4</div>
+      <div class="wb-title">ACR (Annual Compensation Review)</div>
+      <div class="wb-desc">HR이 ACR 주기 오픈 → 각 매니저가 팀원 인상안 입력 (Merit Matrix 가이드라인 표시) → HR 검토/승인 → salary_history 기록 + employee_salary 업데이트.</div>
+    </div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-header"><span class="module-tag bg-pay acc-pay">기능 목록</span></div>
+    <div class="module-body" style="padding:0">
+      <table class="ftable">
+        <thead><tr><th>우선순위</th><th>기능명</th><th>설명</th><th>난이도</th><th>작업량</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">Salary Band 도입</td><td>salary_grades에 min/mid/max 3컬럼 추가, salary_table 밴드 시각화</td><td><span class="badge badge-s">S</span></td><td>0.5일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">Compa-Ratio 계산/표시</td><td>calc_compa_ratio() 함수, admin_payroll 컬럼, employee_detail 게이지</td><td><span class="badge badge-s">S</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">Merit Matrix 설정</td><td>merit_matrix 테이블, Admin Settings 편집 UI, Bulk Raise 연동</td><td><span class="badge badge-m">M</span></td><td>1.5일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">성과-급여 연동</td><td>ACR 주기와 performance_cycle 연결, 매니저 화면에 성과등급 표시</td><td><span class="badge badge-s">S</span></td><td>0.5일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">ACR 워크플로우</td><td>compensation_review_cycles + compensation_reviews 테이블, 4개 화면</td><td><span class="badge badge-l">L</span></td><td>3일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">Pay Equity 분석</td><td>analytics에 보상 분석 탭, Compa-Ratio 분포 점 산포도, 이상치 목록</td><td><span class="badge badge-m">M</span></td><td>1.5일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">Total Compensation Statement</td><td>Base + 상여 + 복리후생 + 퇴직금 적립 연간 합산, 인쇄 가능</td><td><span class="badge badge-m">M</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">상여 체계 고도화</td><td>grade_bonus_config + 급여생성 시 성과등급 PI 자동 계산</td><td><span class="badge badge-m">M</span></td><td>1.5일</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-header"><span class="module-tag bg-pay acc-pay">DB 스키마</span></div>
+    <div class="module-body">
+      <div class="code"><span class="c">-- salary_grades: min/mid/max 밴드 추가</span>
+<span class="k">ALTER TABLE</span> salary_grades <span class="k">ADD COLUMN</span> min_salary <span class="k">INTEGER</span>;
+<span class="k">ALTER TABLE</span> salary_grades <span class="k">ADD COLUMN</span> mid_salary <span class="k">INTEGER</span>;
+<span class="k">ALTER TABLE</span> salary_grades <span class="k">ADD COLUMN</span> max_salary <span class="k">INTEGER</span>;
+<span class="c">-- 마이그레이션: mid=annual_salary, min=annual*0.8, max=annual*1.2</span>
+
+<span class="c">-- merit_matrix: 성과등급 x compa_band → 인상률%</span>
+<span class="k">CREATE TABLE</span> merit_matrix (
+    id <span class="k">INTEGER PRIMARY KEY AUTOINCREMENT</span>,
+    performance_grade <span class="k">TEXT NOT NULL</span>,  <span class="c">-- S/A/B/C/D</span>
+    compa_band <span class="k">TEXT NOT NULL</span>,          <span class="c">-- under/target/high (under&lt;80, target 80-110, high&gt;110)</span>
+    increase_pct <span class="k">REAL NOT NULL DEFAULT</span> 0,
+    <span class="k">UNIQUE</span>(performance_grade, compa_band)
+);
+
+<span class="c">-- ACR 주기 + 직원별 제안</span>
+<span class="k">CREATE TABLE</span> compensation_review_cycles (
+    id <span class="k">INTEGER PRIMARY KEY AUTOINCREMENT</span>,
+    name <span class="k">TEXT NOT NULL</span>, perf_cycle_id <span class="k">INTEGER</span>,
+    budget_pct <span class="k">REAL DEFAULT</span> 3.0, effective_date <span class="k">TEXT</span>,
+    status <span class="k">TEXT DEFAULT</span> <span class="s">'draft'</span>  <span class="c">-- draft/open/submitted/approved/closed</span>
+);
+<span class="k">CREATE TABLE</span> compensation_reviews (
+    id <span class="k">INTEGER PRIMARY KEY AUTOINCREMENT</span>,
+    cycle_id <span class="k">INTEGER NOT NULL</span>, user_id <span class="k">INTEGER NOT NULL</span>, reviewer_id <span class="k">INTEGER NOT NULL</span>,
+    current_base <span class="k">INTEGER</span>, current_compa_ratio <span class="k">REAL</span>, perf_grade <span class="k">TEXT</span>,
+    suggested_increase_pct <span class="k">REAL</span>, suggested_new_base <span class="k">INTEGER</span>,
+    hr_status <span class="k">TEXT DEFAULT</span> <span class="s">'pending'</span>,  <span class="c">-- pending/approved/adjusted/rejected</span>
+    hr_adjusted_pct <span class="k">REAL</span>, reviewed_by <span class="k">INTEGER</span>, reviewed_at <span class="k">TEXT</span>
+);</div>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ===== MODULE 3: PERFORMANCE ===== -->
+<div id="performance" class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#7c3aed22;color:#a78bfa">⭐</div>
+    <div class="section-title acc-per">성과관리 모듈</div>
+  </div>
+  <div class="section-sub">9박스 캘리브레이션 · Forced Distribution · Talent Card · 후계자 계획</div>
+
+  <div class="grid-2" style="margin-bottom:16px">
+    <div class="wb">
+      <div class="wb-lbl">Workday 패턴 1</div>
+      <div class="wb-title">9박스 캘리브레이션 매트릭스</div>
+      <div class="wb-desc">Y축=성과, X축=잠재력으로 3×3 격자 배치. HTML5 Drag and Drop API (외부 라이브러리 없음). drop 즉시 PATCH /performance/calibration/&lt;id&gt;/position 호출.</div>
+    </div>
+    <div class="wb">
+      <div class="wb-lbl">Workday 패턴 2</div>
+      <div class="wb-title">Forced Distribution + Talent Card</div>
+      <div class="wb-desc">등급별 배분 비율 가이드라인 (S5/A20/B50/C20/D5). 현재 배분 vs 목표 배분 실시간 바 차트. Talent Card: 성과/역량/포텐셜/후계자 포지션 통합 뷰.</div>
+    </div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-header"><span class="module-tag bg-per acc-per">기능 목록</span></div>
+    <div class="module-body" style="padding:0">
+      <table class="ftable">
+        <thead><tr><th>우선순위</th><th>기능명</th><th>설명</th><th>난이도</th><th>작업량</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">9박스 캘리브레이션 UI</td><td>3×3 그리드 드래그앤드롭, 직원 카드, 매니저/admin 권한 분리</td><td><span class="badge badge-m">M</span></td><td>2~3일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">Potential Score 입력</td><td>학습속도/리더십/복잡성 3가지 기준, 1~3 점수, potential_note</td><td><span class="badge badge-s">S</span></td><td>반나절</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">사이클별 등급 히스토리</td><td>calibration_results 집계 → employee_detail 연도별 타임라인</td><td><span class="badge badge-s">S</span></td><td>반나절</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">is_shared 제어 UI</td><td>토글 버튼 + 라우트. 공유 시 직원이 /performance에서 본인 등급 확인</td><td><span class="badge badge-s">S</span></td><td>반나절</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">Forced Distribution 패널</td><td>9박스 우측 패널에 현재/목표 등급 배분 바 차트</td><td><span class="badge badge-s">S</span></td><td>반나절</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">Talent Card 뷰</td><td>/performance/talent-card/&lt;id&gt;, 성과 히스토리 + 9박스 위치 + 스킬 + 후계자</td><td><span class="badge badge-m">M</span></td><td>1~2일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">목표 템플릿</td><td>goal_templates 테이블, 직군/전사 공통 템플릿, 목표 등록 시 가져오기</td><td><span class="badge badge-s">S</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">Succession Planning</td><td>succession_plans 테이블, 포지션별 후보 + Readiness, 매니저 등록</td><td><span class="badge badge-s">S</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">Merit 연동</td><td>캘리브레이션 확정 후 bulk-raise에서 등급별 인상률 자동 제안</td><td><span class="badge badge-s">S</span></td><td>반나절</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ===== MODULE 4: RECRUITING ===== -->
+<div id="recruiting" class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#ea580c22;color:#fb923c">🎯</div>
+    <div class="section-title acc-rec">채용 ATS 모듈</div>
+  </div>
+  <div class="section-sub">채용 요청 승인 · 면접 일정 · 오퍼 관리 · 지원자→직원 전환</div>
+
+  <div class="grid-2" style="margin-bottom:16px">
+    <div class="wb">
+      <div class="wb-lbl">Workday 패턴 A</div>
+      <div class="wb-title">Requisition 승인 워크플로우</div>
+      <div class="wb-desc">채용 요청서 기안 → 부서장 승인 → HR 최종승인 → 공고 게시. job_requisitions 테이블. 승인 완료 시 자동으로 job_postings 레코드 생성.</div>
+    </div>
+    <div class="wb">
+      <div class="wb-lbl">Workday 패턴 E</div>
+      <div class="wb-title">Offer Management</div>
+      <div class="wb-desc">오퍼는 합격 처리와 별개의 독립 오브젝트. 상태: draft→sent→accepted/negotiating/rejected/expired. 수락 시 /employees/new 데이터 프리필 연동.</div>
+    </div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-header"><span class="module-tag bg-rec acc-rec">기능 목록</span></div>
+    <div class="module-body" style="padding:0">
+      <table class="ftable">
+        <thead><tr><th>우선순위</th><th>기능명</th><th>설명</th><th>난이도</th><th>작업량</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">Requisition 승인 워크플로우</td><td>job_requisitions 테이블 + 3단계 승인 + 공고 자동 생성</td><td><span class="badge badge-m">M</span></td><td>2~3일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">면접 일정 + 인터뷰어 배정</td><td>interview_rounds + interviews + interview_feedback 3개 테이블</td><td><span class="badge badge-m">M</span></td><td>2~3일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">면접 피드백 통합 뷰</td><td>지원자 상세에 라운드별 인터뷰어 피드백 집계</td><td><span class="badge badge-s">S</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">오퍼 생성 및 관리</td><td>offers 테이블, 상태 추적, 인쇄용 오퍼 레터</td><td><span class="badge badge-m">M</span></td><td>2일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">지원자→직원 전환</td><td>오퍼 수락 시 /employees/new 프리필 + hired_employee_id 연결</td><td><span class="badge badge-s">S</span></td><td>0.5일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">스킬 매칭 스코어</td><td>공고 required_skills ∩ 지원자 skills / 요건 수 = 매칭점수 배지</td><td><span class="badge badge-s">S</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">Evergreen 상시채용</td><td>is_evergreen 컬럼 + parent_posting_id + 자식 공고 파생 버튼</td><td><span class="badge badge-s">S</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">채용 통계 대시보드</td><td>파이프라인 퍼널, Time-to-Fill, 소스별 합격률, 월별 목표 vs 실적</td><td><span class="badge badge-m">M</span></td><td>2일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">이메일 알림 템플릿</td><td>인터뷰 안내/합격/불합격 3종 템플릿, 발송 이력 기록</td><td><span class="badge badge-m">M</span></td><td>1.5일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">Self-Scheduling (토큰)</td><td>인터뷰어 가용 슬롯 등록 → 지원자 고유 링크 → 로그인 없이 예약</td><td><span class="badge badge-l">L</span></td><td>3~4일</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ===== MODULE 5: HCM ===== -->
+<div id="hcm" class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#db277722;color:#f472b6">🏗️</div>
+    <div class="section-title acc-hcm">인력·조직 관리 (HCM Core)</div>
+  </div>
+  <div class="section-sub">인터랙티브 조직도 · 셀프서비스 · 스킬 관리 · 헤드카운트 플래닝</div>
+
+  <div class="grid-2" style="margin-bottom:16px">
+    <div class="wb">
+      <div class="wb-lbl">Workday 패턴 1</div>
+      <div class="wb-title">인터랙티브 조직도 (SVG)</div>
+      <div class="wb-desc">현재 departments + manager_id 데이터는 충분히 갖춰져 있으나 시각화가 없음. SVG 기반 트리 렌더링 (Vanilla JS, 외부 라이브러리 없음). 노드 클릭 → 우측 슬라이드인 패널.</div>
+    </div>
+    <div class="wb">
+      <div class="wb-lbl">Workday 패턴 5</div>
+      <div class="wb-title">Compensation Band + Compa-Ratio</div>
+      <div class="wb-desc">salary_grades에 min/mid/max 3개 밴드. 급여 수정 모달에서 밴드 내 현재 위치 슬라이더 시각화. 밴드 초과 시 주황 경고, 미달 시 파란 안내.</div>
+    </div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-header"><span class="module-tag bg-hcm acc-hcm">기능 목록</span></div>
+    <div class="module-body" style="padding:0">
+      <table class="ftable">
+        <thead><tr><th>우선순위</th><th>기능명</th><th>설명</th><th>난이도</th><th>작업량</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">인터랙티브 조직도</td><td>SVG 재귀 트리, 노드 클릭 패널, 부서 접기/펼치기, /org-chart 라우트</td><td><span class="badge badge-l">L</span></td><td>2일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">직원 셀프서비스 편집</td><td>전화번호/주소/비상연락처 편집, 직급/부서/급여는 HR 전용</td><td><span class="badge badge-s">S</span></td><td>0.5일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">Compensation Band 시각화</td><td>급여 수정 모달에 Min─●─Max 바, Compa-Ratio 실시간 표시</td><td><span class="badge badge-s">S</span></td><td>0.5일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">Merit Matrix 관리 UI</td><td>5×3 인라인 편집 그리드, 시뮬레이션 버튼</td><td><span class="badge badge-m">M</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">9박스 캘리브레이션</td><td>potential_rating 컬럼 추가, 클릭으로 등급 + 포텐셜 입력</td><td><span class="badge badge-m">M</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">스킬 &amp; 자격증 관리</td><td>employee_skills + employee_certs 테이블, 만료 30일 전 알림</td><td><span class="badge badge-m">M</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">헤드카운트 플래닝</td><td>department_headcount 테이블, 조직도 노드에 현재/승인 인원 표시</td><td><span class="badge badge-m">M</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">Future-dated 인사발령</td><td>effective_date 미래 날짜 → pending_future, 앱 기동 시 자동 적용</td><td><span class="badge badge-m">M</span></td><td>1일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">직원 검색 고도화</td><td>직군/직급/고용형태/입사일/성과등급 다중 필터 + Excel 즉시 다운로드</td><td><span class="badge badge-s">S</span></td><td>0.5일</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ===== MODULE 6: BENEFITS ===== -->
+<div id="benefits" class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#05966922;color:#34d399">🎁</div>
+    <div class="section-title acc-ben">복리후생 모듈</div>
+  </div>
+  <div class="section-sub">직원 셀프서비스 · Enrollment Event · Life Event 트리거 · Passive Event 룰</div>
+
+  <div class="grid-2" style="margin-bottom:16px">
+    <div class="wb">
+      <div class="wb-lbl">Workday 패턴 A</div>
+      <div class="wb-title">Life Event 트리거</div>
+      <div class="wb-desc">입사/결혼/출산 등 생애사건 발생 시 benefit_enrollment_events 자동 생성 → 직원 인박스에 "X일 내 복리후생 선택" CTA 표시 → 기한 내 선택 없으면 기본값 자동 확정.</div>
+    </div>
+    <div class="wb">
+      <div class="wb-lbl">Workday 패턴 B</div>
+      <div class="wb-title">Election Status 4단계 이력</div>
+      <div class="wb-desc">모든 복리후생 선택에 Future/Current/Previous/Historical 상태 유지. benefit_elections 테이블. 급여 계산 시 해당 월의 Current 선택만 참조 → 소급 계산 가능.</div>
+    </div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-header"><span class="module-tag bg-ben acc-ben">기능 목록</span></div>
+    <div class="module-body" style="padding:0">
+      <table class="ftable">
+        <thead><tr><th>우선순위</th><th>기능명</th><th>설명</th><th>난이도</th><th>작업량</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">직원 셀프서비스 /me/benefits</td><td>현재 혜택 목록, 연간 한도 vs 사용액 프로그레스 바, 복지포인트 잔액</td><td><span class="badge badge-m">M</span></td><td>1.5일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">Enrollment Event 플로우</td><td>benefit_enrollment_events 테이블, 입사 시 자동 생성, 4단계 위자드 UI</td><td><span class="badge badge-l">L</span></td><td>2~3일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">Election Status 이력 테이블</td><td>benefit_elections 신규 테이블, 기존 overrides 데이터 마이그레이션</td><td><span class="badge badge-m">M</span></td><td>1.5일</td></tr>
+          <tr><td><span class="badge badge-p0">P0</span></td><td style="font-weight:600;color:#f8fafc">복지포인트 연간 자동 지급</td><td>welfare_point_grants 테이블, 연간 자동 입금 + 잔액 소멸 로직</td><td><span class="badge badge-s">S</span></td><td>0.5일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">Life Event 기록 + 트리거</td><td>직원 프로필 생애사건 탭, 기록 시 Enrollment Event 자동 생성</td><td><span class="badge badge-l">L</span></td><td>2~3일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">Benefit Group 계층</td><td>group_key/group_label 컬럼 추가, 관리자 UI 그룹별 아코디언 재구성</td><td><span class="badge badge-s">S</span></td><td>0.5일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">Passive Event 룰 엔진</td><td>eligibility_rule_json 컬럼, 근속/나이 조건 배치 평가 함수</td><td><span class="badge badge-l">L</span></td><td>1.5일</td></tr>
+          <tr><td><span class="badge badge-p1">P1</span></td><td style="font-weight:600;color:#f8fafc">전사 복리후생 분석 대시보드</td><td>항목별 월간 지출 스택바, 부서별 1인당 비용, Enrollment 미완료 목록</td><td><span class="badge badge-m">M</span></td><td>1.5일</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- DB SUMMARY -->
+<div id="db-summary" class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#16a34a22;color:#4ade80">🗄️</div>
+    <div class="section-title">DB 변경 요약</div>
+  </div>
+  <div class="section-sub">전체 모듈 DB 변경사항 한눈에 보기</div>
+
+  <div class="module-card">
+    <div class="module-body" style="padding:0">
+      <table class="ftable">
+        <thead><tr><th>모듈</th><th>신규 테이블</th><th>컬럼 추가</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="badge" style="background:#38bdf822;color:#38bdf8;border:1px solid #38bdf844">근태</span></td>
+            <td style="color:#f8fafc">work_schedules, user_schedule_assignments, overtime_requests, leave_balances, flex_schedule_changes</td>
+            <td>checkins +5컬럼, leave_requests +1, users +1, company_config +4</td>
+            <td>기본 스케줄 시드 자동 생성</td>
+          </tr>
+          <tr>
+            <td><span class="badge" style="background:#16a34a22;color:#4ade80;border:1px solid #16a34a44">급여</span></td>
+            <td style="color:#f8fafc">merit_matrix, compensation_review_cycles, compensation_reviews, grade_bonus_config</td>
+            <td>salary_grades +3컬럼, salary_history +2, bonus_payments +3</td>
+            <td>annual_salary → mid_salary 마이그레이션</td>
+          </tr>
+          <tr>
+            <td><span class="badge" style="background:#7c3aed22;color:#a78bfa;border:1px solid #7c3aed44">성과</span></td>
+            <td style="color:#f8fafc">goal_templates, succession_plans, calibration_sessions</td>
+            <td>calibration_results +4컬럼, performance_goals +2, users +1(skill_tags), company_config +2</td>
+            <td>is_shared UI 연동</td>
+          </tr>
+          <tr>
+            <td><span class="badge" style="background:#ea580c22;color:#fb923c;border:1px solid #ea580c44">채용</span></td>
+            <td style="color:#f8fafc">job_requisitions, interview_rounds, interviews, interview_feedback, interview_slots, offers, recruit_emails</td>
+            <td>job_postings +9컬럼, applicants +7컬럼</td>
+            <td>가장 많은 신규 테이블</td>
+          </tr>
+          <tr>
+            <td><span class="badge" style="background:#db277722;color:#f472b6;border:1px solid #db277744">HCM</span></td>
+            <td style="color:#f8fafc">employee_skills, employee_certs, department_headcount</td>
+            <td>salary_grades +3 (급여 공유), calibration_results +4, users +5, personnel_actions +2</td>
+            <td>급여 모듈과 스키마 공유</td>
+          </tr>
+          <tr>
+            <td><span class="badge" style="background:#05966922;color:#34d399;border:1px solid #05966944">복리후생</span></td>
+            <td style="color:#f8fafc">benefit_elections, benefit_enrollment_events, dependents, welfare_point_grants</td>
+            <td>benefit_configs +4컬럼, employee_benefit_overrides +3, benefit_claims +2</td>
+            <td>기존 overrides → elections 마이그레이션</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- EFFORT SUMMARY -->
+<div id="effort" class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#d9770622;color:#fbbf24">📈</div>
+    <div class="section-title">작업량 집계</div>
+  </div>
+  <div class="section-sub">모듈별 P0/P1 예상 작업일수</div>
+
+  <div class="grid-3">
+    <div class="stat" style="border-left:3px solid #38bdf8">
+      <div class="v" style="color:#38bdf8">8~12일</div>
+      <div class="l">근태·스케줄 P0+P1</div>
+    </div>
+    <div class="stat" style="border-left:3px solid #4ade80">
+      <div class="v" style="color:#4ade80">11일</div>
+      <div class="l">보상·급여 P0+P1</div>
+    </div>
+    <div class="stat" style="border-left:3px solid #a78bfa">
+      <div class="v" style="color:#a78bfa">7~8일</div>
+      <div class="l">성과관리 P0+P1</div>
+    </div>
+    <div class="stat" style="border-left:3px solid #fb923c">
+      <div class="v" style="color:#fb923c">14~16일</div>
+      <div class="l">채용 ATS P0+P1</div>
+    </div>
+    <div class="stat" style="border-left:3px solid #f472b6">
+      <div class="v" style="color:#f472b6">9일</div>
+      <div class="l">HCM Core P0+P1</div>
+    </div>
+    <div class="stat" style="border-left:3px solid #34d399">
+      <div class="v" style="color:#34d399">10~12일</div>
+      <div class="l">복리후생 P0+P1</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:8px">
+    <div class="card-title">전체 P0 완료 예상</div>
+    <div style="font-size:32px;font-weight:800;color:#a78bfa;margin-bottom:6px">약 4~6주</div>
+    <div style="font-size:13px;color:#64748b">1인 개발 기준. P1 포함 시 약 8~12주. 모듈 간 의존성에 따라 병렬 진행 가능한 항목 우선 처리 권장.</div>
+  </div>
+
+  <div class="card" style="margin-top:12px">
+    <div class="card-title">구현 권장 시작 순서 (의존성 기준)</div>
+    <div class="code" style="margin-bottom:0">
+<span class="c">1. salary_grades min/mid/max 마이그레이션 (Compa-Ratio 모든 모듈의 전제)</span>
+   ↓
+<span class="c">2. work_schedules + user_schedule_assignments (근태 자동판정의 전제)</span>
+   ↓
+<span class="c">3. calibration_results potential_score 컬럼 (9박스 UI의 전제)</span>
+   ↓
+<span class="c">4. benefit_elections 테이블 (enrollment 플로우의 전제)</span>
+   ↓
+<span class="c">5. job_requisitions 테이블 (채용 승인 플로우의 전제)</span>
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+</body>
+</html>

@@ -1,125 +1,280 @@
 {% extends 'base.html' %}
-{% block title %}Peer Assignments{% endblock %}
-{% block page_title %}Peer Review Assignments{% endblock %}
+{% block title %}다면평가 배정{% endblock %}
+{% block page_title %}성과{% endblock %}
+
+{% block extra_css %}
+<style>
+.dept-section { margin-bottom: 20px; }
+.dept-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; background: #f8fafc;
+  border-radius: 8px 8px 0 0; border: 1px solid var(--border);
+  border-bottom: none; cursor: pointer;
+  font-weight: 800; font-size: 13px;
+}
+.dept-header:hover { background: #f1f5f9; }
+.dept-body {
+  border: 1px solid var(--border); border-radius: 0 0 8px 8px;
+  overflow: hidden;
+}
+.emp-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-bottom: 1px solid #f8fafc;
+  transition: background .1s;
+}
+.emp-row:last-child { border-bottom: none; }
+.emp-row:hover { background: #f8fafc; }
+.emp-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+  color: #fff; font-size: 12px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.emp-name { font-weight: 700; font-size: 13px; flex: 1; }
+.emp-role-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 8px;
+  border-radius: 20px;
+}
+.reviewer-chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 2; }
+.reviewer-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600;
+  padding: 3px 10px; border-radius: 20px;
+  background: #eff6ff; color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+.reviewer-chip .rm-btn {
+  background: none; border: none; cursor: pointer;
+  color: #94a3b8; font-size: 10px; padding: 0; line-height: 1;
+}
+.reviewer-chip .rm-btn:hover { color: #dc2626; }
+.add-reviewer-btn {
+  font-size: 11px; font-weight: 700; padding: 3px 10px;
+  border-radius: 20px; border: 1.5px dashed #cbd5e1;
+  background: none; color: #94a3b8; cursor: pointer;
+  font-family: inherit; transition: all .15s;
+}
+.add-reviewer-btn:hover { border-color: #1e40af; color: #1e40af; background: #eff6ff; }
+
+/* 리뷰어 선택 드롭다운 */
+.reviewer-dropdown {
+  position: absolute; z-index: 100;
+  background: #fff; border: 1.5px solid #e2e8f0;
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  min-width: 220px; max-height: 280px; overflow-y: auto;
+  display: none;
+}
+.reviewer-dropdown.open { display: block; }
+.rd-search {
+  padding: 8px 12px; border-bottom: 1px solid #e2e8f0;
+  display: flex; align-items: center; gap: 8px;
+}
+.rd-search input {
+  border: none; outline: none; font-size: 12px; flex: 1;
+  font-family: inherit;
+}
+.rd-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px; cursor: pointer; font-size: 12px;
+  transition: background .1s;
+}
+.rd-item:hover { background: #f8fafc; }
+.rd-item.disabled { opacity: .4; pointer-events: none; }
+.rd-dept { font-size: 10px; color: #94a3b8; }
+</style>
+{% endblock %}
 
 {% block content %}
 
-<!-- Cycle selector -->
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:22px;">
-  <div style="display:flex; gap:8px; align-items:center;">
-    {% if cycles %}
-    <select class="input" style="width:220px;" onchange="location.href='?cycle='+this.value">
-      {% for c in cycles %}
-      <option value="{{ c.id }}" {% if selected_cycle and c.id == selected_cycle.id %}selected{% endif %}>
-        {{ c.name }} ({{ 'Active' if c.status == 'active' else 'Closed' }})
-      </option>
-      {% endfor %}
-    </select>
-    {% endif %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+  <div>
+    <div style="font-size:16px; font-weight:800;">다면평가 배정</div>
+    <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">피평가자를 기준으로 평가자를 선택하세요</div>
   </div>
+  {% if cycles %}
+  <select class="input" style="width:220px;" onchange="location.href='?cycle='+this.value">
+    {% for c in cycles %}
+    <option value="{{ c.id }}" {% if selected_cycle and c.id == selected_cycle.id %}selected{% endif %}>
+      {{ c.name }} ({{ '진행중' if c.status == 'active' else '종료' }})
+    </option>
+    {% endfor %}
+  </select>
+  {% endif %}
 </div>
 
 {% if error %}
-<div class="alert alert-error" style="margin-bottom:18px;">{{ error }}</div>
+<div style="background:#fef2f2; border:1px solid #fecaca; color:#991b1b; padding:12px 16px; border-radius:8px; margin-bottom:16px; font-weight:600;">
+  <i class="fas fa-exclamation-circle"></i> {{ error }}
+</div>
 {% endif %}
 
-{% if selected_cycle %}
-
-<!-- Add assignment form -->
-<div class="card" style="margin-bottom:22px;">
-  <div class="card-head"><span class="card-title">Add New Assignment</span></div>
-  <div class="card-body">
-    <form method="POST" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
-      <input type="hidden" name="action" value="add">
-      <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
-      <div class="field" style="margin:0; flex:1; min-width:160px;">
-        <label class="form-label">Reviewee (being reviewed)</label>
-        <select name="reviewee_id" class="input" style="margin-top:6px;" required>
-          <option value="">Select person</option>
-          {% for emp in employees %}
-          <option value="{{ emp.id }}">{{ emp.name }} ({{ emp.role }})</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="field" style="margin:0; flex:1; min-width:160px;">
-        <label class="form-label">Reviewer (writing the review)</label>
-        <select name="reviewer_id" class="input" style="margin-top:6px;" required>
-          <option value="">Select person</option>
-          {% for emp in employees %}
-          <option value="{{ emp.id }}">{{ emp.name }} ({{ emp.role }})</option>
-          {% endfor %}
-        </select>
-      </div>
-      <button type="submit" class="btn btn-primary" style="height:40px;">
-        <i class="fas fa-plus"></i> Add Assignment
-      </button>
-    </form>
-    <div style="margin-top:10px; font-size:12px; color:var(--tx-3);">
-      <i class="fas fa-info-circle"></i>
-      "Reviewee" = person being reviewed. "Reviewer" = person writing the review. Example: Lee (reviewee) ← Kim (reviewer)
-    </div>
-  </div>
-</div>
-
-<!-- Assignment list -->
-<div class="card">
-  <div class="card-head">
-    <span class="card-title">Assignment List</span>
-    <span class="badge badge-info">{{ assignments|length }} assignments</span>
-  </div>
-  <div class="card-body" style="padding:0;">
-    {% if assignments %}
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Reviewee</th>
-          <th>Reviewer</th>
-          <th>Added</th>
-          <th style="width:80px;"></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for a in assignments %}
-        <tr>
-          <td>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <div class="avatar-xs">{{ a.reviewee_name[0] }}</div>
-              <span style="font-weight:600;">{{ a.reviewee_name }}</span>
-            </div>
-          </td>
-          <td>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <div class="avatar-xs" style="background:#e0f2fe; color:#0369a1;">{{ a.reviewer_name[0] }}</div>
-              <span>{{ a.reviewer_name }}</span>
-            </div>
-          </td>
-          <td style="font-size:13px; color:var(--tx-3);">{{ a.created_at[:10] }}</td>
-          <td>
-            <form method="POST" onsubmit="return confirm('Delete this assignment?');">
-              <input type="hidden" name="action" value="delete">
-              <input type="hidden" name="assign_id" value="{{ a.id }}">
-              <button type="submit" class="btn btn-ghost btn-sm" style="color:#dc2626;">
-                <i class="fas fa-trash"></i>
-              </button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div style="text-align:center; padding:48px; color:var(--tx-3);">
-      <i class="fas fa-users-slash" style="font-size:32px; color:var(--border); margin-bottom:10px; display:block;"></i>
-      No assignments yet.<br>Use the form above to add assignments.
-    </div>
-    {% endif %}
-  </div>
+{% if not selected_cycle %}
+<div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:16px 20px; color:#92400e; font-weight:600;">
+  <i class="fas fa-exclamation-triangle"></i> 평가 주기를 선택해주세요.
 </div>
 
 {% else %}
-<div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:var(--r); padding:16px 20px; color:var(--orange); font-weight:600;">
-  <i class="fas fa-exclamation-triangle"></i> Please select a review cycle first.
+
+<!-- 배정 현황 요약 -->
+<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px;">
+  <div class="card" style="margin:0; text-align:center;">
+    <div class="card-body" style="padding:14px;">
+      <div style="font-size:22px; font-weight:900; color:var(--primary);">{{ employees|length }}</div>
+      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">전체 직원</div>
+    </div>
+  </div>
+  <div class="card" style="margin:0; text-align:center;">
+    <div class="card-body" style="padding:14px;">
+      <div style="font-size:22px; font-weight:900; color:#16a34a;">{{ assignments|map(attribute='reviewee_id')|unique|list|length }}</div>
+      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">배정된 피평가자</div>
+    </div>
+  </div>
+  <div class="card" style="margin:0; text-align:center;">
+    <div class="card-body" style="padding:14px;">
+      <div style="font-size:22px; font-weight:900; color:#d97706;">{{ assignments|length }}</div>
+      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">총 배정 건수</div>
+    </div>
+  </div>
+</div>
+
+<!-- 조직도 기반 배정 UI -->
+{% set ns = namespace(current_dept='') %}
+{% for dept in departments %}
+{% set dept_emps = employees|selectattr('dept_name', 'equalto', dept.name)|list %}
+{% if dept_emps %}
+<div class="dept-section">
+  <div class="dept-header" onclick="toggleDept('dept-{{ dept.id }}')">
+    <i class="fas fa-building" style="color:#94a3b8; font-size:12px;"></i>
+    {{ dept.name }}
+    <span style="font-size:12px; font-weight:400; color:var(--tx-3);">{{ dept_emps|length }}명</span>
+    <i class="fas fa-chevron-down" style="margin-left:auto; font-size:11px; color:#94a3b8;" id="arrow-dept-{{ dept.id }}"></i>
+  </div>
+  <div class="dept-body" id="dept-{{ dept.id }}">
+    {% for emp in dept_emps %}
+    {% set emp_reviewers = assignments|selectattr('reviewee_id', 'equalto', emp.id)|list %}
+    <div class="emp-row">
+      <div class="emp-avatar">{{ emp.name[0] }}</div>
+      <div class="emp-name">
+        {{ emp.name }}
+        <div style="font-size:11px; color:var(--tx-3); font-weight:400;">{{ emp.role }}</div>
+      </div>
+
+      <!-- 현재 배정된 평가자들 -->
+      <div class="reviewer-chips" id="chips-{{ emp.id }}">
+        {% for a in emp_reviewers %}
+        <span class="reviewer-chip">
+          {{ a.reviewer_name }}
+          <form method="POST" style="display:inline;" onsubmit="return true;">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="assign_id" value="{{ a.id }}">
+            <button type="submit" class="rm-btn" title="배정 삭제">✕</button>
+          </form>
+        </span>
+        {% endfor %}
+
+        <!-- 평가자 추가 버튼 -->
+        <div style="position:relative; display:inline-block;">
+          <button class="add-reviewer-btn"
+                  onclick="toggleDropdown({{ emp.id }}, this)"
+                  type="button">
+            + 평가자 추가
+          </button>
+          <div class="reviewer-dropdown" id="dd-{{ emp.id }}">
+            <div class="rd-search">
+              <i class="fas fa-search" style="color:#94a3b8; font-size:11px;"></i>
+              <input type="text" placeholder="이름 검색..."
+                     oninput="filterDropdown({{ emp.id }}, this.value)">
+            </div>
+            {% for rv in employees %}
+            {% if rv.id != emp.id %}
+            {% set already = emp_reviewers|selectattr('reviewer_id', 'equalto', rv.id)|list|length > 0 %}
+            <div class="rd-item {{ 'disabled' if already else '' }}"
+                 id="dd-{{ emp.id }}-{{ rv.id }}"
+                 data-name="{{ rv.name }}"
+                 onclick="addAssignment({{ selected_cycle.id }}, {{ emp.id }}, {{ rv.id }})">
+              <div>
+                <div style="font-weight:600;">{{ rv.name }}
+                  {% if already %}<span style="font-size:10px; color:#94a3b8;">배정됨</span>{% endif %}
+                </div>
+                <div class="rd-dept">{{ rv.dept_name or '' }}</div>
+              </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
 </div>
 {% endif %}
+{% endfor %}
 
+<!-- hidden form for add -->
+<form method="POST" id="addForm" style="display:none;">
+  <input type="hidden" name="action" value="add">
+  <input type="hidden" name="cycle_id" id="f_cycle_id">
+  <input type="hidden" name="reviewee_id" id="f_reviewee_id">
+  <input type="hidden" name="reviewer_id" id="f_reviewer_id">
+</form>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleDept(id) {
+  var body  = document.getElementById(id);
+  var arrow = document.getElementById('arrow-' + id);
+  if (body.style.display === 'none') {
+    body.style.display = '';
+    arrow.style.transform = '';
+  } else {
+    body.style.display = 'none';
+    arrow.style.transform = 'rotate(-90deg)';
+  }
+}
+
+var openDd = null;
+function toggleDropdown(empId, btn) {
+  var dd = document.getElementById('dd-' + empId);
+  if (openDd && openDd !== dd) {
+    openDd.classList.remove('open');
+  }
+  dd.classList.toggle('open');
+  openDd = dd.classList.contains('open') ? dd : null;
+
+  // 버튼 근처에 위치
+  if (dd.classList.contains('open')) {
+    var rect = btn.getBoundingClientRect();
+    dd.style.top = (btn.offsetHeight + 4) + 'px';
+  }
+}
+
+document.addEventListener('click', function(e) {
+  if (openDd && !e.target.closest('.reviewer-dropdown') && !e.target.closest('.add-reviewer-btn')) {
+    openDd.classList.remove('open');
+    openDd = null;
+  }
+});
+
+function filterDropdown(empId, query) {
+  var dd = document.getElementById('dd-' + empId);
+  var items = dd.querySelectorAll('.rd-item');
+  var q = query.toLowerCase();
+  items.forEach(function(item) {
+    var name = item.dataset.name || '';
+    item.style.display = name.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function addAssignment(cycleId, revieweeId, reviewerId) {
+  document.getElementById('f_cycle_id').value    = cycleId;
+  document.getElementById('f_reviewee_id').value = revieweeId;
+  document.getElementById('f_reviewer_id').value = reviewerId;
+  document.getElementById('addForm').submit();
+}
+</script>
 {% endblock %}

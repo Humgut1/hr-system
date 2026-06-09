@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>캘리브레이션 현황 분석 + 구현 계획</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, 'Segoe UI', 'Noto Sans KR', sans-serif; background: #f1f5f9; color: #1e293b; font-size: 14px; }
+.page { max-width: 1100px; margin: 0 auto; padding: 32px 20px 80px; }
+h1 { font-size: 24px; font-weight: 900; margin-bottom: 6px; }
+.subtitle { font-size: 14px; color: #64748b; margin-bottom: 36px; }
+
+.tabs { display: flex; gap: 4px; border-bottom: 2px solid #e2e8f0; margin-bottom: 28px; position: sticky; top: 0; background: #f1f5f9; z-index: 10; padding-top: 12px; }
+.tab-btn { padding: 10px 18px; border: none; background: none; font-size: 13px; font-weight: 700; color: #94a3b8; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; font-family: inherit; transition: all .15s; }
+.tab-btn:hover { color: #1e293b; }
+.tab-btn.active { color: #1e40af; border-bottom-color: #1e40af; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.card { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; margin-bottom: 16px; overflow: hidden; }
+.card-head { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+.card-title { font-weight: 800; font-size: 15px; }
+.card-body { padding: 20px; }
+
+.section-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: #94a3b8; margin: 20px 0 12px; display: flex; align-items: center; gap: 8px; }
+.section-label::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+.section-label:first-child { margin-top: 0; }
+
+.feat-table { width: 100%; border-collapse: collapse; }
+.feat-table th { background: #f8fafc; padding: 10px 14px; font-size: 12px; font-weight: 800; text-align: left; border-bottom: 1px solid #e2e8f0; }
+.feat-table td { padding: 10px 14px; font-size: 12px; border-bottom: 1px solid #f8fafc; vertical-align: top; line-height: 1.6; }
+.feat-table tr:hover td { background: #fafafa; }
+
+.tag { display: inline-flex; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+.ok   { background: #dcfce7; color: #166534; }
+.warn { background: #fef3c7; color: #92400e; }
+.miss { background: #fee2e2; color: #991b1b; }
+.imp  { background: #eff6ff; color: #1e40af; }
+.new  { background: #ede9fe; color: #6d28d9; }
+
+/* 등급 칩 */
+.grade { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; font-size: 16px; font-weight: 900; }
+.g-s { background: #dcfce7; color: #166534; }
+.g-a { background: #dbeafe; color: #1e40af; }
+.g-b { background: #f0fdf4; color: #15803d; }
+.g-c { background: #fef3c7; color: #92400e; }
+.g-d { background: #fee2e2; color: #dc2626; }
+
+/* 캘리브레이션 목업 */
+.cal-table { width: 100%; border-collapse: collapse; }
+.cal-table th { background: #1e293b; color: #fff; padding: 10px 14px; font-size: 12px; font-weight: 700; text-align: left; }
+.cal-table td { padding: 10px 14px; font-size: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.cal-table tr:hover td { background: #f8fafc; }
+
+.score-bar { height: 6px; background: #e2e8f0; border-radius: 99px; overflow: hidden; width: 60px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+.score-fill { height: 100%; border-radius: 99px; }
+
+/* 분포 차트 */
+.dist-chart { display: flex; align-items: flex-end; gap: 8px; height: 120px; padding: 0 8px; }
+.dist-bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.dist-bar-fill { width: 100%; border-radius: 4px 4px 0 0; min-height: 4px; transition: height .3s; }
+.dist-label { font-size: 11px; font-weight: 700; }
+.dist-pct { font-size: 10px; color: #64748b; }
+
+/* 나인박스 그리드 */
+.ninebox { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 4px; width: 360px; height: 280px; }
+.nb-cell { border-radius: 6px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; position: relative; cursor: pointer; transition: opacity .15s; }
+.nb-cell:hover { opacity: .85; }
+.nb-title { font-size: 10px; font-weight: 800; }
+.nb-count { font-size: 18px; font-weight: 900; }
+.nb-chips { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.nb-chip { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 10px; background: rgba(255,255,255,.5); }
+
+/* 플로우 */
+.flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; margin-bottom: 16px; }
+.flow-step { flex: 1; min-width: 110px; }
+.fsi { border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 12px; margin: 0 3px; height: 100%; }
+.fsi.blue   { border-color: #bfdbfe; background: #eff6ff; }
+.fsi.green  { border-color: #bbf7d0; background: #f0fdf4; }
+.fsi.purple { border-color: #ddd6fe; background: #f5f3ff; }
+.fsi.orange { border-color: #fed7aa; background: #fff7ed; }
+.fs-num   { font-size: 10px; font-weight: 800; color: #94a3b8; margin-bottom: 5px; }
+.fs-title { font-size: 12px; font-weight: 800; margin-bottom: 3px; }
+.fs-desc  { font-size: 11px; color: #64748b; line-height: 1.5; }
+.flow-arr { display: flex; align-items: center; color: #94a3b8; font-size: 20px; align-self: center; }
+
+/* 비교표 */
+.cmp-table { width: 100%; border-collapse: collapse; }
+.cmp-table th { background: #1e3a8a; color: #fff; padding: 11px 14px; font-size: 12px; font-weight: 700; text-align: left; }
+.cmp-table th:first-child { background: #1e293b; }
+.cmp-table td { padding: 10px 14px; font-size: 12px; border-bottom: 1px solid #f1f5f9; }
+.cmp-table tr:nth-child(even) td { background: #f8fafc; }
+.cy { color: #166534; font-weight: 700; }
+.cn { color: #dc2626; }
+.cp { color: #92400e; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>⚖️ 캘리브레이션 현황 분석 + 구현 계획</h1>
+<p class="subtitle">TalentCore v0.46 기준 · Lattice / Confirm / Workday / 레몬베이스 참고</p>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="show('research', this)">① 리서치</button>
+  <button class="tab-btn" onclick="show('current', this)">② 현재 상태</button>
+  <button class="tab-btn" onclick="show('mockup', this)">③ 구현 목업</button>
+  <button class="tab-btn" onclick="show('plan', this)">④ 구현 계획</button>
+</div>
+
+
+<!-- ══ TAB 1: 리서치 ══ -->
+<div id="tab-research" class="tab-content active">
+
+  <div class="card">
+    <div class="card-head"><span class="card-title">📚 캘리브레이션이란?</span></div>
+    <div class="card-body">
+      <div style="font-size:13px; line-height:1.9; color:#475569; background:#f8fafc; padding:16px; border-radius:10px; margin-bottom:16px;">
+        캘리브레이션(Calibration)은 <strong>각 매니저/부서에서 올라온 개인 평가 점수를 전사 기준으로 조정하는 과정</strong>입니다.<br>
+        A 팀 매니저는 80%를 "우수"로 주고, B 팀 매니저는 20%만 "우수"로 주면 — 같은 성과라도 어느 팀에 있느냐에 따라 등급이 달라지는 불공정이 생깁니다.<br>
+        캘리브레이션은 이 편차를 잡아주는 <strong>공정성 조율 세션</strong>입니다.
+      </div>
+
+      <div class="section-label">2026년 글로벌 트렌드</div>
+      <table class="feat-table">
+        <thead><tr><th>트렌드</th><th>내용</th><th>이유</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>강제 분포 폐지</strong></td>
+            <td>S 10% / A 20% 식 쿼터제 → 지양</td>
+            <td>매니저 간 경쟁 유발, 실제 성과 왜곡</td>
+          </tr>
+          <tr>
+            <td><strong>데이터 기반 세션</strong></td>
+            <td>목표 달성률 + 360도 피드백 + 재직기간 동시 표시</td>
+            <td>직관이 아닌 근거로 등급 결정</td>
+          </tr>
+          <tr>
+            <td><strong>분포 이상 자동 감지</strong></td>
+            <td>특정 부서 등급이 전사 평균과 크게 다르면 경고</td>
+            <td>편향·후광효과 사전 차단</td>
+          </tr>
+          <tr>
+            <td><strong>편향 모니터링</strong></td>
+            <td>성별·연차·부서별 등급 분포 분석</td>
+            <td>특정 그룹 차별 방지</td>
+          </tr>
+          <tr>
+            <td><strong>HR 확정 워크플로우</strong></td>
+            <td>매니저 → HR 검토 → 최종 확정 단계 분리</td>
+            <td>책임 소재 명확화</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="section-label">타 시스템 캘리브레이션 방식</div>
+      <div style="overflow-x:auto;">
+        <table class="cmp-table">
+          <thead>
+            <tr>
+              <th>기능</th>
+              <th>TalentCore (현재)</th>
+              <th>Lattice</th>
+              <th>Confirm</th>
+              <th>Workday</th>
+              <th>레몬베이스</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>점수 자동 집계</strong></td><td class="cp">△ 코드만</td><td class="cy">✓</td><td class="cy">✓</td><td class="cy">✓</td><td class="cy">✓</td></tr>
+            <tr><td><strong>등급 자동 산출</strong></td><td class="cp">△ 코드만</td><td class="cy">✓</td><td class="cy">✓</td><td class="cy">✓</td><td class="cy">✓</td></tr>
+            <tr><td><strong>등급 수동 조정</strong></td><td class="cn">✗</td><td class="cy">✓</td><td class="cy">✓</td><td class="cy">✓</td><td class="cy">✓</td></tr>
+            <tr><td><strong>전사 분포 차트</strong></td><td class="cn">✗</td><td class="cy">✓</td><td class="cy">✓</td><td class="cy">✓</td><td class="cp">△</td></tr>
+            <tr><td><strong>부서별 분포 비교</strong></td><td class="cn">✗</td><td class="cy">✓</td><td class="cy">✓</td><td class="cy">✓</td><td class="cn">✗</td></tr>
+            <tr><td><strong>9-Box 그리드</strong></td><td class="cn">✗</td><td class="cy">✓</td><td class="cy">✓</td><td class="cy">✓</td><td class="cn">✗</td></tr>
+            <tr><td><strong>HR 확정 워크플로우</strong></td><td class="cn">✗</td><td class="cp">△</td><td class="cy">✓</td><td class="cy">✓</td><td class="cy">✓</td></tr>
+            <tr><td><strong>직원에게 결과 공개</strong></td><td class="cn">✗</td><td class="cy">✓</td><td class="cy">✓</td><td class="cy">✓</td><td class="cy">✓</td></tr>
+            <tr><td><strong>편향 분석</strong></td><td class="cn">✗</td><td class="cp">△</td><td class="cy">✓</td><td class="cy">✓</td><td class="cn">✗</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:8px; font-size:11px; color:#64748b;">✓ 완전구현 · △ 부분 · ✗ 미구현</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><span class="card-title">🇰🇷 한국 스타트업 실무 현황</span></div>
+    <div class="card-body">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div style="padding:14px; background:#f0fdf4; border-radius:10px; border:1px solid #bbf7d0;">
+          <div style="font-weight:800; color:#166534; margin-bottom:10px;">실제로 많이 하는 방식</div>
+          <div style="font-size:12px; color:#475569; line-height:1.9;">
+            · 매니저가 각자 평가 → HR이 엑셀로 모아서 분포 확인<br>
+            · HR이 이상 부서 매니저와 1:1 면담으로 조율<br>
+            · 임원 리뷰 → 최종 확정<br>
+            · <strong>200인 스타트업은 대부분 엑셀 + 구글시트로 진행</strong>
+          </div>
+        </div>
+        <div style="padding:14px; background:#fff7ed; border-radius:10px; border:1px solid #fed7aa;">
+          <div style="font-weight:800; color:#92400e; margin-bottom:10px;">주요 고충</div>
+          <div style="font-size:12px; color:#475569; line-height:1.9;">
+            · 매니저마다 기준 달라서 형평성 문제<br>
+            · 전사 분포 보려면 수작업으로 집계<br>
+            · 조정 이력·근거 기록 안 남음<br>
+            · 직원에게 결과 어떻게 전달할지 막막
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:12px; padding:12px 16px; background:#eff6ff; border-radius:10px; border:1px solid #bfdbfe; font-size:13px; line-height:1.8;">
+        <strong style="color:#1e40af;">💡 TalentCore가 해결해야 할 것</strong><br>
+        엑셀로 하던 캘리브레이션을 시스템 안으로 — 점수 자동 집계, 분포 시각화, 등급 수동 조정 + 이력 기록, 직원에게 공개
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ TAB 2: 현재 상태 ══ -->
+<div id="tab-current" class="tab-content">
+  <div class="card">
+    <div class="card-head"><span class="card-title">🔍 현재 TalentCore 캘리브레이션 상태</span></div>
+    <div class="card-body">
+
+      <div style="padding:16px; background:#fff1f2; border-radius:10px; border:1.5px solid #fecdd3; margin-bottom:20px;">
+        <div style="font-weight:800; color:#991b1b; margin-bottom:8px;">❌ 현재 상태: 페이지 없음</div>
+        <div style="font-size:13px; color:#475569; line-height:1.8;">
+          · <code>generate_calibration_summary()</code> 함수는 존재 (규칙 기반 텍스트 생성)<br>
+          · <code>calibration_results</code> 테이블 존재 (final_grade, note, decided_by)<br>
+          · 하지만 <strong>캘리브레이션 실행 페이지(/performance/calibration)가 없음</strong><br>
+          · 성과 페이지의 "캘리브레이션 시작" 버튼이 peer_assignments로 잘못 연결됨<br>
+          · 직원이 본인 결과를 볼 방법 없음
+        </div>
+      </div>
+
+      <div class="section-label">현재 DB 테이블 — calibration_results</div>
+      <div style="background:#1e293b; border-radius:10px; padding:16px; font-family:monospace; font-size:12px; color:#e2e8f0; line-height:1.8; margin-bottom:16px;">
+        <span style="color:#7dd3fc;">calibration_results</span><br>
+        &nbsp;&nbsp;<span style="color:#86efac;">id, cycle_id, user_id</span><br>
+        &nbsp;&nbsp;<span style="color:#86efac;">final_grade</span> TEXT  <span style="color:#64748b;">-- S/A/B/C/D</span><br>
+        &nbsp;&nbsp;<span style="color:#86efac;">note</span> TEXT          <span style="color:#64748b;">-- HR 메모</span><br>
+        &nbsp;&nbsp;<span style="color:#86efac;">decided_by</span> INTEGER  <span style="color:#64748b;">-- 확정한 Admin user_id</span><br>
+        &nbsp;&nbsp;<span style="color:#86efac;">decided_at</span> DATETIME<br>
+        <br>
+        <span style="color:#fca5a5;">❌ 없는 컬럼:</span> self_avg, peer_avg, mgr_avg, summary_text, is_shared
+      </div>
+
+      <div style="padding:12px 16px; background:#fef3c7; border-radius:10px; border:1px solid #fde68a; font-size:13px;">
+        <strong style="color:#92400e;">⚠️ 직원 성과 페이지의 "평가 결과" 탭</strong>이 calibration_results를 조회하는데,<br>
+        self_avg·peer_avg·mgr_avg·summary_text 컬럼이 없어서 <strong>결과가 아무것도 안 나올 수 있습니다.</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ TAB 3: 목업 ══ -->
+<div id="tab-mockup" class="tab-content">
+
+  <div class="card">
+    <div class="card-head"><span class="card-title">🎨 캘리브레이션 페이지 목업</span></div>
+    <div class="card-body">
+
+      <div class="section-label">전체 분포 요약 (상단)</div>
+      <div style="display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
+        <!-- 등급 분포 차트 -->
+        <div style="background:#f8fafc; border-radius:10px; padding:16px; flex:1; min-width:200px;">
+          <div style="font-size:12px; font-weight:800; margin-bottom:12px;">전사 등급 분포</div>
+          <div class="dist-chart">
+            <div class="dist-bar">
+              <div class="dist-bar-fill" style="height:20px; background:#dcfce7;"></div>
+              <div class="dist-label" style="color:#166534;">S</div>
+              <div class="dist-pct">8%</div>
+            </div>
+            <div class="dist-bar">
+              <div class="dist-bar-fill" style="height:60px; background:#dbeafe;"></div>
+              <div class="dist-label" style="color:#1e40af;">A</div>
+              <div class="dist-pct">27%</div>
+            </div>
+            <div class="dist-bar">
+              <div class="dist-bar-fill" style="height:80px; background:#bbf7d0;"></div>
+              <div class="dist-label" style="color:#15803d;">B</div>
+              <div class="dist-pct">42%</div>
+            </div>
+            <div class="dist-bar">
+              <div class="dist-bar-fill" style="height:35px; background:#fde68a;"></div>
+              <div class="dist-label" style="color:#92400e;">C</div>
+              <div class="dist-pct">18%</div>
+            </div>
+            <div class="dist-bar">
+              <div class="dist-bar-fill" style="height:10px; background:#fecaca;"></div>
+              <div class="dist-label" style="color:#dc2626;">D</div>
+              <div class="dist-pct">5%</div>
+            </div>
+          </div>
+        </div>
+        <!-- 요약 수치 -->
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start;">
+          <div style="background:#fff; border-radius:10px; border:1px solid #e2e8f0; padding:14px; text-align:center; min-width:80px;">
+            <div style="font-size:22px; font-weight:900; color:#1e40af;">87</div>
+            <div style="font-size:11px; color:#64748b;">평가 완료</div>
+          </div>
+          <div style="background:#fff; border-radius:10px; border:1px solid #e2e8f0; padding:14px; text-align:center; min-width:80px;">
+            <div style="font-size:22px; font-weight:900; color:#d97706;">13</div>
+            <div style="font-size:11px; color:#64748b;">미완료</div>
+          </div>
+          <div style="background:#fff; border-radius:10px; border:1px solid #e2e8f0; padding:14px; text-align:center; min-width:80px;">
+            <div style="font-size:22px; font-weight:900; color:#16a34a;">72</div>
+            <div style="font-size:11px; color:#64748b;">등급 확정</div>
+          </div>
+          <div style="background:#fff; border-radius:10px; border:1px solid #e2e8f0; padding:14px; text-align:center; min-width:80px;">
+            <div style="font-size:22px; font-weight:900; color:#7c3aed;">3.6</div>
+            <div style="font-size:11px; color:#64748b;">전사 평균</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label">직원별 캘리브레이션 테이블</div>
+      <table class="cal-table" style="margin-bottom:16px;">
+        <thead>
+          <tr>
+            <th>직원</th><th>부서</th>
+            <th>자기평가</th><th>동료평가</th><th>매니저평가</th>
+            <th>AI 산출 등급</th><th>확정 등급</th><th>액션</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#1e3a8a,#3b82f6);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;">김</div>
+                <div><div style="font-weight:700; font-size:13px;">김민준</div></div>
+              </div>
+            </td>
+            <td style="color:#64748b;">개발팀</td>
+            <td>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <div class="score-bar"><div class="score-fill" style="width:80%; background:#1e40af;"></div></div>
+                <span style="font-weight:700;">4.0</span>
+              </div>
+            </td>
+            <td>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <div class="score-bar"><div class="score-fill" style="width:70%; background:#0891b2;"></div></div>
+                <span style="font-weight:700;">3.5</span>
+              </div>
+            </td>
+            <td>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <div class="score-bar"><div class="score-fill" style="width:76%; background:#059669;"></div></div>
+                <span style="font-weight:700;">3.8</span>
+              </div>
+            </td>
+            <td><span class="grade g-a">A</span></td>
+            <td>
+              <select style="border:1px solid #e2e8f0; border-radius:6px; padding:4px 8px; font-size:12px; font-weight:700;">
+                <option>A</option><option>S</option><option selected>A</option><option>B</option><option>C</option><option>D</option>
+              </select>
+            </td>
+            <td><button style="font-size:11px;padding:4px 12px;background:#1e40af;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;">확정</button></td>
+          </tr>
+          <tr style="background:#fffbeb;">
+            <td>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#7c2d12,#ea580c);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;">이</div>
+                <div>
+                  <div style="font-weight:700; font-size:13px;">이서연</div>
+                  <div style="font-size:10px; color:#d97706; font-weight:700;">⚠ 자기평가-매니저평가 1.5점 차이</div>
+                </div>
+              </div>
+            </td>
+            <td style="color:#64748b;">마케팅</td>
+            <td>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <div class="score-bar"><div class="score-fill" style="width:100%; background:#dc2626;"></div></div>
+                <span style="font-weight:700; color:#dc2626;">5.0</span>
+              </div>
+            </td>
+            <td>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <div class="score-bar"><div class="score-fill" style="width:60%; background:#0891b2;"></div></div>
+                <span style="font-weight:700;">3.0</span>
+              </div>
+            </td>
+            <td>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <div class="score-bar"><div class="score-fill" style="width:56%; background:#059669;"></div></div>
+                <span style="font-weight:700;">2.8</span>
+              </div>
+            </td>
+            <td><span class="grade g-b">B</span> <span style="font-size:10px;color:#d97706;">이상</span></td>
+            <td>
+              <select style="border:1px solid #fde68a; border-radius:6px; padding:4px 8px; font-size:12px; font-weight:700; background:#fffbeb;">
+                <option>B</option>
+              </select>
+            </td>
+            <td><button style="font-size:11px;padding:4px 12px;background:#1e40af;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;">확정</button></td>
+          </tr>
+          <tr>
+            <td>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#166534,#22c55e);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;">박</div>
+                <div><div style="font-weight:700; font-size:13px;">박준혁</div></div>
+              </div>
+            </td>
+            <td style="color:#64748b;">개발팀</td>
+            <td><div style="display:flex; align-items:center; gap:4px;"><div class="score-bar"><div class="score-fill" style="width:90%; background:#1e40af;"></div></div><span style="font-weight:700;">4.5</span></div></td>
+            <td><div style="display:flex; align-items:center; gap:4px;"><div class="score-bar"><div class="score-fill" style="width:88%; background:#0891b2;"></div></div><span style="font-weight:700;">4.4</span></div></td>
+            <td><div style="display:flex; align-items:center; gap:4px;"><div class="score-bar"><div class="score-fill" style="width:92%; background:#059669;"></div></div><span style="font-weight:700;">4.6</span></div></td>
+            <td><span class="grade g-s">S</span></td>
+            <td>
+              <select style="border:1px solid #e2e8f0; border-radius:6px; padding:4px 8px; font-size:12px; font-weight:700;">
+                <option selected>S</option>
+              </select>
+            </td>
+            <td>
+              <span style="font-size:11px; font-weight:700; color:#16a34a; background:#f0fdf4; padding:4px 10px; border-radius:6px;">✓ 확정됨</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="display:flex; gap:10px; margin-bottom:20px;">
+        <button style="padding:10px 20px; background:#1e40af; color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
+          ✓ 전체 일괄 확정
+        </button>
+        <button style="padding:10px 20px; background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
+          📤 직원에게 공개
+        </button>
+      </div>
+
+      <div style="padding:12px 16px; background:#eff6ff; border-radius:10px; border:1px solid #bfdbfe; font-size:12px; line-height:1.8; color:#1e40af;">
+        <strong>⚠ 이상 감지 배지</strong> — 자기평가와 매니저평가 차이가 1.5점 이상이면 노란 배경으로 주의 표시<br>
+        <strong>📤 직원에게 공개</strong> — 클릭 시 해당 주기의 모든 확정 등급이 직원 성과 페이지 "평가 결과" 탭에 노출
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ TAB 4: 구현 계획 ══ -->
+<div id="tab-plan" class="tab-content">
+
+  <div class="card">
+    <div class="card-head"><span class="card-title">🗺 구현 계획 — v0.47.0</span></div>
+    <div class="card-body">
+
+      <div class="section-label">프로세스 흐름</div>
+      <div class="flow" style="margin-bottom:20px;">
+        <div class="flow-step"><div class="fsi blue">
+          <div class="fs-num">1</div>
+          <div class="fs-title">점수 자동 집계</div>
+          <div class="fs-desc">자기평가·동료평가·매니저평가 평균 자동 계산</div>
+        </div></div>
+        <div class="flow-arr">›</div>
+        <div class="flow-step"><div class="fsi purple">
+          <div class="fs-num">2</div>
+          <div class="fs-title">등급 자동 산출</div>
+          <div class="fs-desc">가중 평균 → S/A/B/C/D 자동 제안 + 이상 감지</div>
+        </div></div>
+        <div class="flow-arr">›</div>
+        <div class="flow-step"><div class="fsi orange">
+          <div class="fs-num">3</div>
+          <div class="fs-title">HR 등급 조정</div>
+          <div class="fs-desc">AI 제안 등급을 HR이 드롭다운으로 수동 조정 가능</div>
+        </div></div>
+        <div class="flow-arr">›</div>
+        <div class="flow-step"><div class="fsi green">
+          <div class="fs-num">4</div>
+          <div class="fs-title">확정 + 공개</div>
+          <div class="fs-desc">"확정" → DB 저장 → "직원에게 공개" → 결과 탭에 표시</div>
+        </div></div>
+      </div>
+
+      <div class="section-label">변경 파일 목록</div>
+      <table class="feat-table">
+        <thead><tr><th>파일</th><th>변경 내용</th><th>유형</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>database.py</strong></td>
+            <td>calibration_results에 self_avg, peer_avg, mgr_avg, summary_text, is_shared 컬럼 추가</td>
+            <td><span class="tag warn">수정</span></td>
+          </tr>
+          <tr>
+            <td><strong>app.py</strong></td>
+            <td>GET /performance/calibration — 전 직원 점수 집계 + 이상 감지 / POST — 등급 확정 저장 / POST /performance/calibration/publish — 전체 공개</td>
+            <td><span class="tag warn">수정</span></td>
+          </tr>
+          <tr>
+            <td><strong>templates/performance/calibration.html</strong></td>
+            <td>분포 차트 + 직원별 테이블 + 드롭다운 + 확정 버튼 + 공개 버튼</td>
+            <td><span class="tag new">신규</span></td>
+          </tr>
+          <tr>
+            <td><strong>templates/performance/index.html</strong></td>
+            <td>캘리브레이션 탭 링크 → 실제 /performance/calibration 으로 수정</td>
+            <td><span class="tag warn">수정</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top:16px; padding:14px 18px; background:#f0fdf4; border-radius:10px; border:1px solid #bbf7d0; font-size:13px; line-height:1.9;">
+        <strong style="color:#166534;">✅ 승인하시면 바로 작업 시작합니다</strong><br>
+        버튼 2개 (확정 / 직원에게 공개), 이상 감지 배지, 분포 차트 포함
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+function show(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>

@@ -1,15 +1,186 @@
 {% extends 'base.html' %}
-{% block title %}Add Goal{% endblock %}
-{% block page_title %}Performance{% endblock %}
+{% block title %}목표 등록{% endblock %}
+{% block page_title %}성과{% endblock %}
+
+{% block extra_css %}
+<style>
+.goal-layout {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 20px;
+  align-items: start;
+  max-width: 1000px;
+}
+@media (max-width: 768px) {
+  .goal-layout { grid-template-columns: 1fr; }
+}
+
+/* AI 패널 */
+.ai-panel {
+  border-radius: 14px;
+  border: 1.5px solid #ddd6fe;
+  background: #f5f3ff;
+  overflow: hidden;
+  position: sticky;
+  top: 80px;
+}
+.ai-panel-head {
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ai-panel-title { font-size: 14px; font-weight: 800; }
+.ai-panel-sub   { font-size: 11px; opacity: .8; margin-top: 1px; }
+.ai-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.2);
+}
+.ai-body { padding: 16px; }
+
+/* SMART 체크 */
+.smart-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.smart-item {
+  text-align: center;
+  border-radius: 8px;
+  padding: 8px 4px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  transition: all .2s;
+}
+.smart-item.pass { border-color: #bbf7d0; background: #f0fdf4; }
+.smart-item.fail { border-color: #fecdd3; background: #fff1f2; }
+.smart-letter { font-size: 16px; font-weight: 900; }
+.smart-item.pass .smart-letter { color: #16a34a; }
+.smart-item.fail .smart-letter { color: #dc2626; }
+.smart-word { font-size: 9px; color: #94a3b8; margin-top: 2px; }
+
+/* 개선 제안 박스 */
+.ai-suggest {
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.ai-suggest-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #7c3aed;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ai-suggest-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.5;
+}
+.ai-apply-btn {
+  font-size: 11px;
+  color: #7c3aed;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-family: inherit;
+}
+.ai-apply-btn:hover { text-decoration: underline; }
+
+/* 팁 리스트 */
+.ai-tips { list-style: none; padding: 0; }
+.ai-tips li {
+  font-size: 12px;
+  color: #475569;
+  padding: 5px 0 5px 16px;
+  position: relative;
+  border-bottom: 1px solid #f1f5f9;
+  line-height: 1.5;
+}
+.ai-tips li:last-child { border: none; }
+.ai-tips li::before { content: '💡'; position: absolute; left: 0; font-size: 10px; top: 6px; }
+
+/* 로딩 */
+.ai-loading {
+  display: none;
+  text-align: center;
+  padding: 24px;
+  color: #7c3aed;
+}
+.ai-loading .spin { animation: spin .8s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 초기 안내 */
+.ai-intro {
+  text-align: center;
+  padding: 24px 16px;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.ai-intro .icon { font-size: 28px; margin-bottom: 8px; display: block; }
+
+/* 버튼 */
+.ai-check-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  transition: opacity .15s;
+}
+.ai-check-btn:hover { opacity: .88; }
+.ai-check-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.source-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 700;
+}
+.src-grok { background: #ede9fe; color: #6d28d9; }
+.src-rule  { background: #f1f5f9; color: #64748b; }
+</style>
+{% endblock %}
 
 {% block content %}
-<div style="max-width:600px;">
-  <a href="{{ url_for('performance') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
-    <i class="fas fa-arrow-left"></i> Back to Performance
-  </a>
 
+<a href="{{ url_for('performance') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
+  <i class="fas fa-arrow-left"></i> 성과 목록으로
+</a>
+
+<div class="goal-layout">
+
+  <!-- ── 목표 등록 폼 ── -->
   <div class="card">
-    <div class="card-head"><span class="card-title">Add Performance Goal</span></div>
+    <div class="card-head"><span class="card-title">📋 목표 등록</span></div>
     <div class="card-body">
       {% if error %}
       <div class="login-error" style="margin-bottom:18px;">
@@ -19,13 +190,13 @@
 
       {% if not cycles %}
       <div style="text-align:center; color:var(--tx-3); padding:32px;">
-        No active review cycle. Please contact your HR admin.
+        진행 중인 평가 주기가 없습니다. HR Admin에 문의하세요.
       </div>
       {% else %}
-      <form method="POST" action="{{ url_for('performance_goal_new') }}">
+      <form method="POST" action="{{ url_for('performance_goal_new') }}" id="goalForm">
 
         <div class="field">
-          <label class="form-label">Review Cycle <span style="color:var(--red);">*</span></label>
+          <label class="form-label">평가 주기 <span style="color:var(--red);">*</span></label>
           <select name="cycle_id" class="input" required>
             {% for c in cycles %}
             <option value="{{ c.id }}">{{ c.name }}</option>
@@ -35,57 +206,203 @@
 
         <div class="grid-2" style="gap:14px;">
           <div class="field">
-            <label class="form-label">Goal Type <span style="color:var(--red);">*</span></label>
-            <select name="category" class="input">
-              <option value="KPI">KPI — Key Performance Indicator</option>
-              <option value="OKR">OKR — Objectives & Key Results</option>
+            <label class="form-label">목표 유형 <span style="color:var(--red);">*</span></label>
+            <select name="category" class="input" id="categorySelect" onchange="onFormChange()">
+              <option value="KPI">KPI — 핵심성과지표</option>
+              <option value="OKR">OKR — 목표·핵심결과</option>
             </select>
           </div>
           <div class="field">
             <label class="form-label">
-              Weight (%) <span style="color:var(--red);">*</span>
-              <span style="font-weight:400; color:var(--tx-3);">Total 100% recommended</span>
+              가중치 (%) <span style="color:var(--red);">*</span>
+              <span style="font-weight:400; color:var(--tx-3);">합계 100% 권장</span>
             </label>
-            <input type="number" name="weight" class="input"
-                   min="1" max="100" value="100" required>
+            <input type="number" name="weight" class="input" min="1" max="100" value="100" required>
           </div>
         </div>
 
         <div class="field">
-          <label class="form-label">Goal Title <span style="color:var(--red);">*</span></label>
-          <input type="text" name="title" class="input"
-                 placeholder="e.g. Achieve NPS score of 30 or above" required>
+          <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+            목표 제목 <span style="color:var(--red);">*</span>
+            <span style="font-size:11px; font-weight:400; color:var(--tx-3);">오른쪽 AI 도우미에서 SMART 검사 가능</span>
+          </label>
+          <input type="text" name="title" id="titleInput" class="input"
+                 placeholder="예: Q2 말까지 NPS 점수 30점 이상 달성"
+                 oninput="onFormChange()" required>
         </div>
 
         <div class="field">
-          <label class="form-label">Description</label>
-          <textarea name="description" class="input" rows="4"
-                    placeholder="Describe how this goal will be measured, the criteria, and your plan to achieve it."></textarea>
-        </div>
-
-        <div style="background:#f8fafc; border-radius:var(--r-sm); padding:14px 16px;
-                    border:1px solid var(--border); margin-bottom:16px; font-size:13px; color:var(--tx-2);">
-          <div style="font-weight:700; margin-bottom:6px;">
-            <i class="fas fa-lightbulb" style="color:var(--orange);"></i> SMART Goal Guide
-          </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 16px;">
-            <div>S — Specific</div>
-            <div>M — Measurable</div>
-            <div>A — Achievable</div>
-            <div>R — Relevant</div>
-            <div>T — Time-bound</div>
-          </div>
+          <label class="form-label">설명 (측정 기준, 달성 방법)</label>
+          <textarea name="description" id="descInput" class="input" rows="4"
+                    placeholder="어떻게 측정할지, 어떤 방법으로 달성할지 구체적으로 작성하세요."></textarea>
         </div>
 
         <div style="display:flex; gap:10px;">
           <button type="submit" class="btn btn-primary">
-            <i class="fas fa-check"></i> Add Goal
+            <i class="fas fa-check"></i> 목표 등록
           </button>
-          <a href="{{ url_for('performance') }}" class="btn btn-ghost">Cancel</a>
+          <a href="{{ url_for('performance') }}" class="btn btn-ghost">취소</a>
         </div>
       </form>
       {% endif %}
     </div>
   </div>
+
+  <!-- ── AI 어시스턴트 패널 ── -->
+  <div class="ai-panel">
+    <div class="ai-panel-head">
+      <div>
+        <div class="ai-panel-title">✨ OKR/KPI 작성 도우미</div>
+        <div class="ai-panel-sub">SMART 기준으로 목표를 더 명확하게</div>
+      </div>
+      <span class="ai-badge" id="aiBadge">AI</span>
+    </div>
+    <div class="ai-body">
+
+      <!-- 초기 안내 -->
+      <div class="ai-intro" id="aiIntro">
+        <span class="icon">🎯</span>
+        목표 제목을 입력하면<br>
+        SMART 기준으로 분석해드립니다.
+        <br><br>
+        <div style="font-size:11px; color:#c4b5fd; line-height:1.6;">
+          S — Specific (구체적)<br>
+          M — Measurable (측정 가능)<br>
+          A — Achievable (달성 가능)<br>
+          R — Relevant (관련성)<br>
+          T — Time-bound (기한 있음)
+        </div>
+      </div>
+
+      <!-- 로딩 -->
+      <div class="ai-loading" id="aiLoading">
+        <span class="spin">⟳</span>
+        <div style="margin-top:8px; font-size:13px;">분석 중...</div>
+      </div>
+
+      <!-- 결과 -->
+      <div id="aiResult" style="display:none;">
+
+        <!-- SMART 체크 -->
+        <div class="smart-grid" id="smartGrid"></div>
+
+        <!-- 개선 제안 -->
+        <div class="ai-suggest" id="aiSuggest" style="display:none;">
+          <div class="ai-suggest-label">
+            <i class="fas fa-magic"></i> 개선된 목표
+            <span class="source-badge src-grok" id="srcBadge">Grok AI</span>
+          </div>
+          <div class="ai-suggest-text" id="aiImproved"></div>
+          <button class="ai-apply-btn" onclick="applyImproved()">
+            <i class="fas fa-arrow-left"></i> 이 목표 적용하기
+          </button>
+        </div>
+
+        <!-- 이유 -->
+        <div style="font-size:12px; color:#6d28d9; margin-bottom:10px; padding:8px 12px; background:#fff; border-radius:8px; border:1px solid #ddd6fe;" id="aiReason"></div>
+
+        <!-- 팁 -->
+        <ul class="ai-tips" id="aiTips"></ul>
+      </div>
+
+      <!-- 버튼 -->
+      <button class="ai-check-btn" id="aiBtn" onclick="runAI()" disabled>
+        <i class="fas fa-magic"></i> SMART 분석 실행
+      </button>
+
+    </div>
+  </div>
+
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var debounceTimer;
+var lastImproved = '';
+
+function onFormChange() {
+  var title = document.getElementById('titleInput').value.trim();
+  document.getElementById('aiBtn').disabled = title.length < 3;
+}
+
+function runAI() {
+  var title    = document.getElementById('titleInput').value.trim();
+  var category = document.getElementById('categorySelect').value;
+  if (!title) return;
+
+  document.getElementById('aiIntro').style.display  = 'none';
+  document.getElementById('aiResult').style.display = 'none';
+  document.getElementById('aiLoading').style.display = 'block';
+  document.getElementById('aiBtn').disabled = true;
+
+  fetch('{{ url_for("performance_goal_ai_assist") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: title, category: category, job: '' })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    document.getElementById('aiLoading').style.display = 'none';
+    document.getElementById('aiResult').style.display  = 'block';
+    document.getElementById('aiBtn').disabled = false;
+
+    // 소스 배지
+    var badge = document.getElementById('srcBadge');
+    if (data.source === 'grok') {
+      badge.textContent = 'Grok AI';
+      badge.className = 'source-badge src-grok';
+      document.getElementById('aiBadge').textContent = 'Grok AI';
+    } else {
+      badge.textContent = '규칙 기반';
+      badge.className = 'source-badge src-rule';
+      document.getElementById('aiBadge').textContent = 'SMART 분석';
+    }
+
+    // SMART 체크
+    var smart = data.smart_check || {};
+    var labels = { S:'Specific', M:'Measurable', A:'Achievable', R:'Relevant', T:'Time-bound' };
+    var grid = document.getElementById('smartGrid');
+    grid.innerHTML = '';
+    ['S','M','A','R','T'].forEach(function(k) {
+      var pass = smart[k];
+      var div  = document.createElement('div');
+      div.className = 'smart-item ' + (pass ? 'pass' : 'fail');
+      div.innerHTML = '<div class="smart-letter">' + k + '</div>'
+                    + '<div class="smart-word">' + (pass ? '✓' : '✗') + '</div>';
+      div.title = labels[k] + ': ' + (pass ? '충족' : '부족');
+      grid.appendChild(div);
+    });
+
+    // 개선 제안
+    if (data.improved_title && data.improved_title !== title) {
+      lastImproved = data.improved_title;
+      document.getElementById('aiImproved').textContent = data.improved_title;
+      document.getElementById('aiSuggest').style.display = 'block';
+    } else {
+      document.getElementById('aiSuggest').style.display = 'none';
+    }
+
+    // 이유
+    document.getElementById('aiReason').textContent = data.reason || '';
+
+    // 팁
+    var tips = data.tips || [];
+    var ul = document.getElementById('aiTips');
+    ul.innerHTML = tips.map(function(t) { return '<li>' + t + '</li>'; }).join('');
+  })
+  .catch(function() {
+    document.getElementById('aiLoading').style.display = 'none';
+    document.getElementById('aiBtn').disabled = false;
+    alert('분석 중 오류가 발생했습니다. 다시 시도해주세요.');
+  });
+}
+
+function applyImproved() {
+  if (!lastImproved) return;
+  document.getElementById('titleInput').value = lastImproved;
+  document.getElementById('aiSuggest').style.display = 'none';
+  document.getElementById('aiReason').textContent = '✓ 개선된 목표가 적용되었습니다.';
+}
+</script>
 {% endblock %}

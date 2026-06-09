@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TalentCore — 성과관리 모듈 개편 계획</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+a{color:inherit;text-decoration:none}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#1e293b}::-webkit-scrollbar-thumb{background:#475569;border-radius:3px}
+.layout{display:flex;min-height:100vh}
+.sidebar{width:260px;background:#1e293b;padding:24px 0;position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:100;border-right:1px solid #334155}
+.sidebar-logo{padding:0 20px 20px;border-bottom:1px solid #334155;margin-bottom:16px}
+.sidebar-logo .brand{font-size:18px;font-weight:700;color:#f8fafc}
+.sidebar-logo .sub{font-size:11px;color:#64748b;margin-top:2px}
+.sidebar-section{padding:0 12px;margin-bottom:8px}
+.sidebar-section-title{font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:1px;padding:8px 8px 4px}
+.sidebar-link{display:block;padding:7px 8px;border-radius:6px;font-size:13px;color:#94a3b8;transition:all 0.15s}
+.sidebar-link:hover{background:#7c3aed22;color:#a78bfa}
+.sidebar-link .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:8px;vertical-align:middle}
+.main{margin-left:260px;padding:40px;max-width:1100px}
+.page-header{margin-bottom:40px}
+.page-header .badge{display:inline-block;background:#7c3aed22;color:#a78bfa;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid #7c3aed44;margin-bottom:12px}
+.page-header h1{font-size:32px;font-weight:800;color:#f8fafc;margin-bottom:8px}
+.page-header p{color:#94a3b8;font-size:15px;line-height:1.6}
+.section{margin-bottom:56px}
+.section-title{font-size:22px;font-weight:700;color:#f8fafc;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+.section-subtitle{color:#64748b;font-size:14px;margin-bottom:24px}
+.divider{border:none;border-top:1px solid #1e293b;margin:40px 0}
+.card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:24px;margin-bottom:16px}
+.card-title{font-size:14px;font-weight:600;color:#f8fafc;margin-bottom:12px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px}
+.workday-box{background:#0f172a;border:1px solid #7c3aed44;border-left:3px solid #7c3aed;border-radius:8px;padding:20px;margin-bottom:16px}
+.workday-box .wb-label{font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.workday-box .wb-title{font-size:15px;font-weight:600;color:#f8fafc;margin-bottom:8px}
+.workday-box .wb-desc{font-size:13px;color:#94a3b8;line-height:1.7}
+.feature-table{width:100%;border-collapse:collapse}
+.feature-table th{background:#0f172a;padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #334155}
+.feature-table td{padding:12px 14px;border-bottom:1px solid #1e293b;font-size:13px;color:#cbd5e1;vertical-align:top}
+.feature-table tr:last-child td{border-bottom:none}
+.priority-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700}
+.p0{background:#dc262622;color:#f87171;border:1px solid #dc262644}
+.p1{background:#d9770622;color:#fbbf24;border:1px solid #d9770644}
+.p2{background:#1d4ed822;color:#60a5fa;border:1px solid #1d4ed844}
+.diff-s{background:#16a34a22;color:#4ade80;border:1px solid #16a34a44;display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.diff-m{background:#d9770622;color:#fbbf24;border:1px solid #d9770644;display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.diff-l{background:#dc262622;color:#f87171;border:1px solid #dc262644;display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.diff-xl{background:#7c3aed22;color:#a78bfa;border:1px solid #7c3aed44;display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.code-block{background:#0a0f1a;border:1px solid #1e3a5f;border-radius:8px;padding:20px;font-size:12px;color:#7dd3fc;overflow-x:auto;line-height:1.7;margin-bottom:16px;font-family:'Cascadia Code','Fira Code',monospace}
+.code-block .comment{color:#475569}
+.code-block .keyword{color:#c084fc}
+.code-block .string{color:#86efac}
+.ui-mockup{background:#0a0f1a;border:1px solid #334155;border-radius:8px;padding:20px;font-family:'Cascadia Code','Fira Code',monospace;font-size:12px;color:#94a3b8;line-height:1.8;margin-bottom:16px;white-space:pre;overflow-x:auto}
+.gap-table{width:100%;border-collapse:collapse}
+.gap-table th{background:#0f172a;padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:600;border-bottom:1px solid #334155}
+.gap-table td{padding:10px 12px;border-bottom:1px solid #1e293b;font-size:13px;color:#94a3b8}
+.stat-card{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:16px;text-align:center}
+.stat-card .stat-val{font-size:28px;font-weight:800;margin-bottom:4px}
+.stat-card .stat-label{font-size:12px;color:#64748b}
+.info-list{list-style:none;padding:0}
+.info-list li{padding:7px 0;border-bottom:1px solid #1e293b;font-size:13px;color:#94a3b8;display:flex;align-items:flex-start;gap:8px;line-height:1.6}
+.info-list li:last-child{border-bottom:none}
+.info-list li::before{content:"•";color:#7c3aed;flex-shrink:0;margin-top:1px}
+.flow-box{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:16px 20px;margin-bottom:8px;display:flex;align-items:flex-start;gap:12px;font-size:13px}
+.flow-num{width:28px;height:28px;background:#7c3aed;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:1px}
+.flow-arrow{text-align:center;color:#475569;font-size:18px;margin:2px 0 2px 34px}
+.dep-box{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:16px;margin-bottom:12px}
+.dep-title{font-size:13px;font-weight:600;color:#f8fafc;margin-bottom:8px}
+.dep-desc{font-size:12px;color:#94a3b8;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand">TalentCore</div>
+    <div class="sub">성과관리 모듈 개편 계획</div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-title">개요</div>
+    <a class="sidebar-link" href="#overview"><span class="dot" style="background:#a78bfa"></span>현재 상태 분석</a>
+    <a class="sidebar-link" href="#workday"><span class="dot" style="background:#a78bfa"></span>Workday 차용 패턴</a>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-title">기능 계획</div>
+    <a class="sidebar-link" href="#p0"><span class="dot" style="background:#f87171"></span>P0 필수 기능</a>
+    <a class="sidebar-link" href="#p1"><span class="dot" style="background:#fbbf24"></span>P1 중요 기능</a>
+    <a class="sidebar-link" href="#p2"><span class="dot" style="background:#60a5fa"></span>P2 선택 기능</a>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-title">상세 설계</div>
+    <a class="sidebar-link" href="#db"><span class="dot" style="background:#34d399"></span>DB 스키마</a>
+    <a class="sidebar-link" href="#ui"><span class="dot" style="background:#f472b6"></span>UI/UX 설계</a>
+    <a class="sidebar-link" href="#order"><span class="dot" style="background:#fb923c"></span>구현 순서</a>
+    <a class="sidebar-link" href="#deps"><span class="dot" style="background:#38bdf8"></span>의존성</a>
+  </div>
+</nav>
+<main class="main">
+  <div class="page-header">
+    <div class="badge">Performance &amp; Talent Management</div>
+    <h1>성과관리 모듈 전면 개편</h1>
+    <p>9박스 캘리브레이션 · Forced Distribution · Talent Card · 후계자 계획 · 목표 템플릿</p>
+  </div>
+
+  <div class="three-col">
+    <div class="stat-card"><div class="stat-val" style="color:#f87171">4개</div><div class="stat-label">P0 필수 기능</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:#fbbf24">5개</div><div class="stat-label">P1 중요 기능</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:#60a5fa">4개</div><div class="stat-label">P2 선택 기능</div></div>
+  </div>
+
+  <div id="overview" class="section">
+    <div class="section-title">현재 상태 분석</div>
+    <div class="section-subtitle">현재 구현된 기능과 핵심 Gap을 분석합니다</div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title">현재 구현된 기능 (As-Is)</div>
+        <ul class="info-list">
+          <li>사이클별 목표 등록 (카테고리, 가중치, 설명)</li>
+          <li>진행률 업데이트 (progress %)</li>
+          <li>자기평가 (1~5점 + 코멘트)</li>
+          <li>매니저 평가 (score + comment)</li>
+          <li>가중 평균 자동 계산 → 등급 표시 (S/A/B/C/D)</li>
+          <li>peer_assignments: 리뷰어 배정 (admin)</li>
+          <li>peer_review_write: 5개 문항 + 강점/개선점</li>
+          <li>calibration_results 테이블 존재</li>
+          <li>AI 텍스트 요약 (규칙 기반)</li>
+          <li>단순 리스트 뷰 + 등급 입력 폼</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">핵심 Gap Analysis</div>
+        <table class="gap-table">
+          <thead><tr><th>영역</th><th>문제</th><th>임팩트</th></tr></thead>
+          <tbody>
+            <tr><td>캘리브레이션</td><td>9박스 매트릭스 없음</td><td style="color:#f87171">High</td></tr>
+            <tr><td>포텐셜 측정</td><td>potential 데이터 자체 없음</td><td style="color:#f87171">High</td></tr>
+            <tr><td>Talent Card</td><td>직원별 종합 카드 없음</td><td style="color:#f87171">High</td></tr>
+            <tr><td>후계자 계획</td><td>succession_plans 테이블 없음</td><td style="color:#fbbf24">Med</td></tr>
+            <tr><td>등급 정규화</td><td>강제 배분 비율 기능 없음</td><td style="color:#fbbf24">Med</td></tr>
+            <tr><td>성과-보상 연동</td><td>merit increase % 자동 추천 없음</td><td style="color:#f87171">High</td></tr>
+            <tr><td>히스토리</td><td>사이클별 등급 추이 뷰 없음</td><td style="color:#fbbf24">Med</td></tr>
+            <tr><td>목표 템플릿</td><td>부서/직군별 표준 목표 없음</td><td style="color:#fbbf24">Med</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div id="workday" class="section">
+    <div class="section-title">Workday에서 차용할 핵심 패턴</div>
+    <div class="section-subtitle">Workday의 성과관리 철학을 한국 스타트업 맥락에 맞게 적용합니다</div>
+
+    <div class="workday-box">
+      <div class="wb-label">패턴 1 — Workday Talent Review</div>
+      <div class="wb-title">9박스 캘리브레이션 매트릭스</div>
+      <div class="wb-desc">Y축=성과(Performance), X축=잠재력(Potential)으로 직원을 3×3 격자에 배치. <strong>적용:</strong> calibration_results에 potential_score(1~3) 컬럼 추가. 매니저가 드래그로 위치 조정 → PATCH /performance/calibration/&lt;id&gt;/position. 각 박스별 직원 카드 렌더링.</div>
+    </div>
+
+    <div class="workday-box">
+      <div class="wb-label">패턴 2 — Forced Distribution</div>
+      <div class="wb-title">등급별 강제 배분 비율</div>
+      <div class="wb-desc">등급별 배분 비율 가이드라인 설정 (예: S 5% / A 20% / B 50% / C 20% / D 5%). <strong>적용:</strong> company_config에 grade_distribution_json 컬럼. 캘리브레이션 화면 우측에 현재 배분 vs 목표 배분 바 차트. 비율 초과 시 경고 배지 (soft constraint, 강제 차단 아님).</div>
+    </div>
+
+    <div class="workday-box">
+      <div class="wb-label">패턴 3 — Workday Talent Card</div>
+      <div class="wb-title">직원 종합 Talent Card</div>
+      <div class="wb-desc">성과/역량/포텐셜/경력 포부/후계자 포지션을 한 화면에 집약. <strong>적용:</strong> employee_detail.html의 성과 탭을 Talent Card 형식으로 재편. 사이클별 등급 히스토리 타임라인, 현재 9박스 위치 미니 표시, 스킬 태그.</div>
+    </div>
+
+    <div class="workday-box">
+      <div class="wb-label">패턴 4 — Workday Succession</div>
+      <div class="wb-title">후계자 계획 (Succession Planning)</div>
+      <div class="wb-desc">포지션에 대해 Succession Depth(후보 인원수) 정의, Readiness(즉시/1년 내/2년 내) 분류. <strong>적용:</strong> succession_plans 테이블 신규 생성. 매니저가 팀원을 특정 포지션 후계자로 등록 가능.</div>
+    </div>
+
+    <div class="workday-box">
+      <div class="wb-label">패턴 5 — Merit Matrix</div>
+      <div class="wb-title">성과-보상 연동</div>
+      <div class="wb-desc">(성과등급 × compa-ratio 구간) → 인상 % 가이드라인 결정. <strong>적용:</strong> merit_matrix 테이블 (grade, compa_band, suggested_pct). 캘리브레이션 최종 확정 후 bulk-raise 화면에서 등급별 인상률 자동 제안.</div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div id="p0" class="section">
+    <div class="section-title">P0 — 필수 기능</div>
+    <div class="section-subtitle">없으면 실무 사용 불가 수준의 핵심 기능</div>
+    <div class="card" style="padding:0">
+      <table class="feature-table">
+        <thead>
+          <tr><th style="width:60px">우선순위</th><th>기능</th><th>설명</th><th>난이도</th><th>작업량</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="priority-badge p0">P0</span></td>
+            <td style="font-weight:600;color:#f8fafc">9박스 캘리브레이션 UI</td>
+            <td>3×3 그리드, 드래그앤드롭으로 직원 카드 이동. 각 셀에 직원 수 표시, 카드에 이름/부서/등급 배지. 매니저는 자기 팀원만, admin은 전체 수정 가능.</td>
+            <td><span class="diff-m">M</span></td>
+            <td><span class="diff-l">L (2~3일)</span></td>
+          </tr>
+          <tr>
+            <td><span class="priority-badge p0">P0</span></td>
+            <td style="font-weight:600;color:#f8fafc">Potential Score 입력</td>
+            <td>퍼포먼스(자동계산)와 별개로 포텐셜(1~3, Low/Mid/High) 매니저 직접 입력. 기준: 학습 속도, 리더십, 복잡성 처리 능력 3가지 문항.</td>
+            <td><span class="diff-s">S</span></td>
+            <td><span class="diff-s">S (반나절)</span></td>
+          </tr>
+          <tr>
+            <td><span class="priority-badge p0">P0</span></td>
+            <td style="font-weight:600;color:#f8fafc">사이클별 등급 히스토리</td>
+            <td>calibration_results를 사이클별로 집계해 직원별 등급 추이 표시. employee_detail 성과 탭에 연도별 등급 타임라인.</td>
+            <td><span class="diff-s">S</span></td>
+            <td><span class="diff-s">S (반나절)</span></td>
+          </tr>
+          <tr>
+            <td><span class="priority-badge p0">P0</span></td>
+            <td style="font-weight:600;color:#f8fafc">캘리브레이션 결과 공유 플래그</td>
+            <td>is_shared 토글 UI 구현 (현재 DB에만 있고 UI 없음). 공유 확정 시 해당 직원이 /performance에서 본인 등급 확인 가능.</td>
+            <td><span class="diff-s">S</span></td>
+            <td><span class="diff-s">S (반나절)</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="p1" class="section">
+    <div class="section-title">P1 — 중요 기능</div>
+    <div class="section-subtitle">있으면 크게 차별화되는 기능</div>
+    <div class="card" style="padding:0">
+      <table class="feature-table">
+        <thead>
+          <tr><th style="width:60px">우선순위</th><th>기능</th><th>설명</th><th>난이도</th><th>작업량</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="priority-badge p1">P1</span></td>
+            <td style="font-weight:600;color:#f8fafc">Forced Distribution 비율 표시</td>
+            <td>캘리브레이션 우측 패널: 현재 등급 분포 vs 목표 분포. company_config에 목표 비율 설정 추가.</td>
+            <td><span class="diff-s">S</span></td>
+            <td><span class="diff-s">S (반나절)</span></td>
+          </tr>
+          <tr>
+            <td><span class="priority-badge p1">P1</span></td>
+            <td style="font-weight:600;color:#f8fafc">Talent Card 뷰</td>
+            <td>/performance/talent-card/&lt;user_id&gt; 라우트. 기본정보, 현재 사이클 목표달성률, 전체 사이클 등급 추이, 9박스 위치, 후계자 포지션 통합.</td>
+            <td><span class="diff-m">M</span></td>
+            <td><span class="diff-m">M (1~2일)</span></td>
+          </tr>
+          <tr>
+            <td><span class="priority-badge p1">P1</span></td>
+            <td style="font-weight:600;color:#f8fafc">목표 템플릿 (Goal Templates)</td>
+            <td>goal_templates 테이블. /performance/goal-templates admin 관리 화면. 목표 등록 시 템플릿에서 가져오기 버튼.</td>
+            <td><span class="diff-s">S</span></td>
+            <td><span class="diff-m">M (1일)</span></td>
+          </tr>
+          <tr>
+            <td><span class="priority-badge p1">P1</span></td>
+            <td style="font-weight:600;color:#f8fafc">Succession Planning 기본</td>
+            <td>succession_plans 테이블. /performance/succession 화면: 포지션별 후보 리스트. 후계자 등록/삭제 (매니저 이상).</td>
+            <td><span class="diff-s">S</span></td>
+            <td><span class="diff-m">M (1일)</span></td>
+          </tr>
+          <tr>
+            <td><span class="priority-badge p1">P1</span></td>
+            <td style="font-weight:600;color:#f8fafc">성과등급 기반 Merit 추천</td>
+            <td>캘리브레이션 확정 사이클에 한해 bulk-raise에서 등급별 인상률 자동 채우기. 단순 룩업 테이블 방식 (merit_matrix_config JSON in company_config).</td>
+            <td><span class="diff-s">S</span></td>
+            <td><span class="diff-s">S (반나절)</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="p2" class="section">
+    <div class="section-title">P2 — 선택 기능</div>
+    <div class="section-subtitle">포트폴리오 차별화용, 즉시 필요하지 않은 기능</div>
+    <div class="card" style="padding:0">
+      <table class="feature-table">
+        <thead>
+          <tr><th style="width:60px">우선순위</th><th>기능</th><th>설명</th><th>난이도</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="priority-badge p2">P2</span></td>
+            <td style="font-weight:600;color:#f8fafc">OKR 스타일 목표 정렬</td>
+            <td>performance_goals에 parent_goal_id 컬럼 추가. 상위 팀 목표 → 하위 개인 목표 계층 표시.</td>
+            <td><span class="diff-m">M</span></td>
+          </tr>
+          <tr>
+            <td><span class="priority-badge p2">P2</span></td>
+            <td style="font-weight:600;color:#f8fafc">역량 모델 (Competency Framework)</td>
+            <td>competencies 테이블, employee_competency_scores 테이블. 캘리브레이션 화면에서 역량 점수 입력.</td>
+            <td><span class="diff-xl">XL</span></td>
+          </tr>
+          <tr>
+            <td><span class="priority-badge p2">P2</span></td>
+            <td style="font-weight:600;color:#f8fafc">캘리브레이션 세션 잠금</td>
+            <td>calibration_sessions 테이블 (cycle_id, locked_by, locked_at). admin이 세션 잠금 → 더이상 등급 변경 불가.</td>
+            <td><span class="diff-s">S</span></td>
+          </tr>
+          <tr>
+            <td><span class="priority-badge p2">P2</span></td>
+            <td style="font-weight:600;color:#f8fafc">평가 알림 자동화</td>
+            <td>사이클 종료 N일 전 미완료 자기평가 직원에게 알림 발송. 기존 notifications 테이블 활용.</td>
+            <td><span class="diff-s">S</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div id="db" class="section">
+    <div class="section-title">DB 스키마 변경사항</div>
+    <div class="section-subtitle">신규 테이블 생성 및 기존 테이블 컬럼 추가</div>
+
+    <div class="card">
+      <div class="card-title">calibration_results 컬럼 추가</div>
+      <div class="code-block"><span class="comment">-- 9박스 포지셔닝을 위한 potential + perf_band 컬럼</span>
+<span class="keyword">ALTER TABLE</span> calibration_results <span class="keyword">ADD COLUMN</span> potential_score <span class="keyword">INTEGER DEFAULT</span> 2;
+<span class="comment">-- 1=Low, 2=Mid, 3=High</span>
+<span class="keyword">ALTER TABLE</span> calibration_results <span class="keyword">ADD COLUMN</span> perf_band <span class="keyword">INTEGER DEFAULT</span> 2;
+<span class="comment">-- 1=Low(D/C), 2=Mid(B), 3=High(A/S) — final_grade에서 자동 계산</span>
+<span class="keyword">ALTER TABLE</span> calibration_results <span class="keyword">ADD COLUMN</span> box_position <span class="keyword">TEXT</span>;
+<span class="comment">-- 예: "3-1" = perf_band 3, potential_band 1 (High Performer, Low Potential)</span>
+<span class="keyword">ALTER TABLE</span> calibration_results <span class="keyword">ADD COLUMN</span> potential_note <span class="keyword">TEXT</span>;
+<span class="comment">-- 포텐셜 평가 근거 메모</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">goal_templates 테이블 (신규)</div>
+      <div class="code-block"><span class="keyword">CREATE TABLE</span> goal_templates (
+    id          <span class="keyword">INTEGER PRIMARY KEY AUTOINCREMENT</span>,
+    title       <span class="keyword">TEXT NOT NULL</span>,
+    category    <span class="keyword">TEXT NOT NULL</span>,          <span class="comment">-- OKR/KPI/COMPETENCY</span>
+    description <span class="keyword">TEXT</span>,
+    weight      <span class="keyword">INTEGER DEFAULT</span> 20,
+    job_family_id <span class="keyword">INTEGER REFERENCES</span> job_families(id),  <span class="comment">-- NULL이면 전사 공통</span>
+    position_level <span class="keyword">TEXT</span>,               <span class="comment">-- CL1~CL9 또는 NULL</span>
+    created_by  <span class="keyword">INTEGER REFERENCES</span> users(id),
+    created_at  <span class="keyword">TEXT DEFAULT</span> (datetime(<span class="string">'now'</span>))
+);</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">succession_plans 테이블 (신규)</div>
+      <div class="code-block"><span class="keyword">CREATE TABLE</span> succession_plans (
+    id              <span class="keyword">INTEGER PRIMARY KEY AUTOINCREMENT</span>,
+    target_position_id <span class="keyword">INTEGER REFERENCES</span> positions(id) <span class="keyword">NOT NULL</span>,
+    candidate_user_id  <span class="keyword">INTEGER REFERENCES</span> users(id) <span class="keyword">NOT NULL</span>,
+    readiness       <span class="keyword">TEXT NOT NULL CHECK</span>(readiness <span class="keyword">IN</span>
+        (<span class="string">'immediate'</span>,<span class="string">'one_year'</span>,<span class="string">'two_years'</span>)),
+    nominated_by    <span class="keyword">INTEGER REFERENCES</span> users(id),
+    note            <span class="keyword">TEXT</span>,
+    created_at      <span class="keyword">TEXT DEFAULT</span> (datetime(<span class="string">'now'</span>)),
+    updated_at      <span class="keyword">TEXT DEFAULT</span> (datetime(<span class="string">'now'</span>)),
+    <span class="keyword">UNIQUE</span>(target_position_id, candidate_user_id)
+);</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">company_config 컬럼 추가</div>
+      <div class="code-block"><span class="keyword">ALTER TABLE</span> company_config <span class="keyword">ADD COLUMN</span> grade_distribution_json <span class="keyword">TEXT DEFAULT</span>
+    <span class="string">'{"S":5,"A":20,"B":50,"C":20,"D":5}'</span>;
+
+<span class="keyword">ALTER TABLE</span> company_config <span class="keyword">ADD COLUMN</span> merit_matrix_json <span class="keyword">TEXT DEFAULT</span>
+    <span class="string">'{"S":{"low":8,"mid":5,"high":3},"A":{"low":6,"mid":4,"high":2},"B":{"low":3,"mid":2,"high":1},"C":{"low":0,"mid":0,"high":0},"D":{"low":0,"mid":0,"high":0}}'</span>;
+<span class="comment">-- merit_matrix: 등급 x compa_band(low&lt;0.9 / mid 0.9~1.1 / high&gt;1.1) → 인상률%</span></div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div id="ui" class="section">
+    <div class="section-title">UI/UX 개선 방향</div>
+    <div class="section-subtitle">각 화면의 상세 설계 및 레이아웃</div>
+
+    <div class="card">
+      <div class="card-title">성과 메인 페이지 (/performance) — 3컬럼 레이아웃 재편</div>
+      <div class="ui-mockup">┌──────────────┬─────────────────────────┬──────────────┐
+│ 사이드패널    │ 중앙 — 목표 카드 리스트  │ 오른쪽 패널  │
+│              │                         │              │
+│ 현재 사이클   │ ┌───────────────────┐   │ 피어리뷰 N건 │
+│ 2026 상반기  │ │ 매출 목표 달성     │   │ 대기 중      │
+│              │ │ KPI · 가중치 30%  │   │              │
+│ [종합점수]    │ │ ████████░░ 78%   │   │ 받은 피어리뷰 │
+│  88%        │ │ 자기: ★★★★☆    │   │ 강점 키워드  │
+│              │ │ 매니저: ★★★★★  │   │              │
+│ [9박스 미니]  │ └───────────────────┘   │ 마감일       │
+│ ┌─┬─┬─┐    │ ┌───────────────────┐   │ D-12         │
+│ │ │ │●│    │ │ 팀 협업 개선      │   │              │
+│ ├─┼─┼─┤    │ │ OKR · 가중치 20%  │   │              │
+│ │ │ │ │    │ │ ██████░░░░ 55%   │   │              │
+│ └─┴─┴─┘    │ └───────────────────┘   │              │
+│              │                         │              │
+│ 등급 추이     │ [가중치 도넛 차트]       │              │
+│ B → A → S   │                         │              │
+└──────────────┴─────────────────────────┴──────────────┘</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">9박스 캘리브레이션 화면 (/performance/calibration) — HTML5 Drag &amp; Drop</div>
+      <div class="ui-mockup">사이클: [2026 상반기 ▼]  상태: 진행중  [저장] [잠금 (admin only)]
+─────────────────────────────────────────────────────────
+잠재력↑  │  Emerger        │  High Impact      │  Star
+(High)   │                 │  [이철수]         │  [박민준]
+         │                 │  마케팅·CL5  ●A   │  엔지니어·CL6  ●S
+─────────────────────────────────────────────────────────
+잠재력↔  │  Needs Work     │  Core Player      │  High Performer
+(Mid)    │                 │  [김영희]         │
+         │                 │  HR·CL4  ●B       │
+─────────────────────────────────────────────────────────
+잠재력↓  │  Risk           │  Steady           │  Solid
+(Low)    │                 │                   │
+         │  낮음(성과)      │  보통(성과)        │  높음(성과)
+─────────────────────────────────────────────────────────
+
+[오른쪽 패널]
+등급 분포:  S ██░░░ 3명  A █████ 12명  B ████████ 20명  C ██ 5명
+목표 분포:  S  5%        A  20%         B  50%           C  20%
+
+직원 카드 (드래그 가능):
+┌──────────────┐
+│  김○○       │
+│  마케팅 · CL4 │
+│  ●A   83%   │
+└──────────────┘</div>
+      <ul class="info-list" style="margin-top:16px">
+        <li>HTML5 Drag and Drop API 사용 (외부 라이브러리 없음)</li>
+        <li>dragstart: 카드에 user_id 저장 → dragover/drop: 셀 좌표 계산 → perf_band + potential_band 추출</li>
+        <li>drop 즉시 PATCH /performance/calibration/&lt;id&gt;/position 호출 (JSON body: {perf_band, potential_band})</li>
+        <li>서버 응답 후 카드 DOM 이동 확정</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Talent Card (/performance/talent-card/&lt;user_id&gt;)</div>
+      <div class="ui-mockup">김철수  |  CL6 시니어 엔지니어  |  엔지니어링팀  |  근속 3년 2개월
+─────────────────────────────────────────────────────────
+왼쪽 컬럼:                    오른쪽 컬럼:
+[현재 사이클 성과 요약]        [강점 키워드 (피어리뷰 기반)]
+  목표 5개  달성률 88%          🏷 리더십  🏷 커뮤니케이션
+  종합등급  A (우수)            🏷 문제해결  🏷 기술역량
+
+[사이클별 등급 타임라인]       [개선 키워드]
+  2024H1: B                   🏷 일정관리  🏷 문서화
+  2024H2: A  ──────────→
+  2025H1: A                   [스킬 태그]
+  2025H2: S                   Python · SQL · AWS · 팀 리더십
+
+[9박스 미니 뷰]               [후계자 포지션]
+  ┌─┬─┬─┐                    Tech Lead (2년 내 가능)
+  │ │ │★│
+  ├─┼─┼─┤
+  │ │ │ │
+  └─┴─┴─┘
+─────────────────────────────────────────────────────────
+[전체 목표 이력 — 아코디언]
+  ▶ 2026 상반기 (목표 5개, 달성률 88%, 등급 A)
+  ▶ 2025 하반기 (목표 4개, 달성률 91%, 등급 S)</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">후계자 계획 (/performance/succession)</div>
+      <div class="ui-mockup">CTO
+├── 즉시 가능:  김○○ (CL7, 엔지니어링)  [프로필 보기]
+├── 1년 내:     이○○ (CL6, 엔지니어링)  [프로필 보기]
+└── 2년 내:     박○○ (CL5, 엔지니어링)  [프로필 보기]
+
+Head of Marketing
+├── 즉시 가능:  (후보 없음)
+├── 1년 내:     최○○ (CL6, 마케팅)      [프로필 보기]
+└── 2년 내:     정○○ (CL5, 마케팅)      [프로필 보기]
+
+[+ 후계자 추가] → 모달 (포지션 선택, 직원 검색, Readiness 선택)</div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div id="order" class="section">
+    <div class="section-title">구현 권장 순서</div>
+    <div class="section-subtitle">의존성을 고려한 단계별 구현 순서</div>
+
+    <div class="flow-box"><div class="flow-num">1</div><div><strong style="color:#f8fafc">데이터 기반 작업 (0.5일)</strong><br><span style="color:#94a3b8">calibration_results 컬럼 추가 · goal_templates 테이블 생성 · succession_plans 테이블 생성 · company_config 컬럼 추가</span></div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box"><div class="flow-num">2</div><div><strong style="color:#f8fafc">핵심 기능 구현 (1일)</strong><br><span style="color:#94a3b8">P0-2 Potential Score 입력 폼 · P0-3 등급 히스토리 쿼리 + employee_detail 탭 업데이트 · P0-4 is_shared 토글 API + UI</span></div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box"><div class="flow-num">3</div><div><strong style="color:#f8fafc">9박스 UI (2~3일)</strong><br><span style="color:#94a3b8">P0-1 9박스 캘리브레이션 드래그앤드롭 · P1-1 Forced Distribution 패널 (9박스 화면 오른쪽 통합)</span></div></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box"><div class="flow-num">4</div><div><strong style="color:#f8fafc">부가 기능 (2~3일)</strong><br><span style="color:#94a3b8">P1-2 Talent Card · P1-3 목표 템플릿 · P1-4 Succession Planning · P1-5 Merit 연동 (bulk-raise 화면 수정)</span></div></div>
+  </div>
+
+  <hr class="divider">
+
+  <div id="deps" class="section">
+    <div class="section-title">의존성 분석</div>
+    <div class="section-subtitle">모듈 내부 및 외부 의존성</div>
+    <div class="two-col">
+      <div>
+        <div class="dep-box">
+          <div class="dep-title">필수 선행 — Payroll 모듈</div>
+          <div class="dep-desc">Merit 연동(P1-5)은 bulk-raise 라우트 수정 필요. salary_grades에 mid_salary가 정상 입력되어 있어야 Compa-Ratio 계산 가능.</div>
+        </div>
+        <div class="dep-box">
+          <div class="dep-title">필수 선행 — 직원 모듈</div>
+          <div class="dep-desc">Talent Card, Succession Planning은 employee_detail과 데이터 공유. manager_id, position_id, job_family_id 모두 필요.</div>
+        </div>
+        <div class="dep-box">
+          <div class="dep-title">독립 가능 — 알림 시스템</div>
+          <div class="dep-desc">P2-4 평가 알림 자동화는 기존 add_notification() 함수 재사용으로 독립적으로 구현 가능.</div>
+        </div>
+      </div>
+      <div>
+        <div class="dep-box">
+          <div class="dep-title">한국 스타트업 맥락 주의사항</div>
+          <div class="dep-desc" style="line-height:1.8">
+            <strong style="color:#fbbf24">캘리브레이션 참여자 제한:</strong> HR + 팀장급만 참여. manager 역할은 자기 팀원 카드만 보이도록 권한 분리 필수.<br><br>
+            <strong style="color:#fbbf24">등급 공개 시점 제어:</strong> 전사 캘리브레이션 완료 전까지 개인 등급 비공개. is_shared + calibration_sessions.status='closed' 두 조건 모두 충족 시에만 직원 조회 가능.<br><br>
+            <strong style="color:#fbbf24">포텐셜 평가 기준 명시:</strong> 학습 민첩성, 리더십 잠재력, 복잡성 처리 각 1~3점 입력 → 평균으로 potential_score 자동 계산. 임의적 판단 방지.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+</div>
+</body>
+</html>

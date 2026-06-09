@@ -313,13 +313,20 @@ def init_db(db_path: str = None):
             );
 
             CREATE TABLE IF NOT EXISTS calibration_results (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                cycle_id    INTEGER NOT NULL REFERENCES performance_cycles(id),
-                user_id     INTEGER NOT NULL REFERENCES users(id),
-                final_grade TEXT NOT NULL CHECK(final_grade IN ('S','A','B','C','D')),
-                note        TEXT,
-                decided_by  INTEGER NOT NULL REFERENCES users(id),
-                decided_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                cycle_id     INTEGER NOT NULL REFERENCES performance_cycles(id),
+                user_id      INTEGER NOT NULL REFERENCES users(id),
+                self_avg     REAL,
+                peer_avg     REAL,
+                mgr_avg      REAL,
+                upward_avg   REAL,
+                suggested_grade TEXT CHECK(suggested_grade IN ('S','A','B','C','D')),
+                final_grade  TEXT NOT NULL CHECK(final_grade IN ('S','A','B','C','D')),
+                summary_text TEXT,
+                note         TEXT,
+                is_shared    INTEGER NOT NULL DEFAULT 0,
+                decided_by   INTEGER NOT NULL REFERENCES users(id),
+                decided_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(cycle_id, user_id)
             );
 

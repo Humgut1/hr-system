@@ -1,0 +1,343 @@
+{% extends 'base.html' %}
+{% block title %}캘리브레이션{% endblock %}
+{% block page_title %}성과{% endblock %}
+
+{% block extra_css %}
+<style>
+.grade-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 50%;
+  font-size: 14px; font-weight: 900; flex-shrink: 0;
+}
+.g-s { background:#dcfce7; color:#166534; }
+.g-a { background:#dbeafe; color:#1e40af; }
+.g-b { background:#f0fdf4; color:#15803d; }
+.g-c { background:#fef3c7; color:#92400e; }
+.g-d { background:#fee2e2; color:#dc2626; }
+.g-none { background:#f1f5f9; color:#94a3b8; font-size:11px; }
+
+.score-bar-bg { height:5px; background:#e2e8f0; border-radius:99px; width:50px; display:inline-block; vertical-align:middle; }
+.score-bar-fill { height:100%; border-radius:99px; }
+
+.anomaly-row { background:#fffbeb !important; }
+.anomaly-badge {
+  font-size:10px; font-weight:700; padding:2px 7px;
+  border-radius:20px; background:#fef3c7; color:#92400e;
+  display:inline-flex; align-items:center; gap:3px;
+}
+
+.cal-table { width:100%; border-collapse:collapse; }
+.cal-table th {
+  background:#1e293b; color:#fff; padding:10px 12px;
+  font-size:11px; font-weight:700; text-align:left; white-space:nowrap;
+}
+.cal-table td { padding:10px 12px; font-size:12px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.cal-table tr:hover td { background:#f8fafc; }
+.cal-table .anomaly-row td { background:#fffbeb; }
+.cal-table .anomaly-row:hover td { background:#fef9c3; }
+
+.dist-bar-wrap { display:flex; align-items:flex-end; gap:6px; height:80px; }
+.dist-col { display:flex; flex-direction:column; align-items:center; gap:3px; flex:1; }
+.dist-fill { width:100%; border-radius:4px 4px 0 0; min-height:3px; }
+.dist-lbl { font-size:11px; font-weight:800; }
+.dist-cnt { font-size:10px; color:#64748b; }
+
+.grade-select {
+  border:1px solid #e2e8f0; border-radius:6px; padding:4px 8px;
+  font-size:12px; font-weight:700; font-family:inherit; cursor:pointer;
+  background:#fff; width:60px;
+}
+.grade-select:focus { outline:none; border-color:#1e40af; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div style="background:{% if cat=='error' %}#fef2f2{% else %}#f0fdf4{% endif %};
+              border:1px solid {% if cat=='error' %}#fecaca{% else %}#bbf7d0{% endif %};
+              color:{% if cat=='error' %}#991b1b{% else %}#166534{% endif %};
+              padding:12px 16px; border-radius:8px; margin-bottom:16px; font-weight:600; display:flex; align-items:center; gap:8px;">
+    <i class="fas fa-{% if cat=='error' %}exclamation-circle{% else %}check-circle{% endif %}"></i> {{ msg }}
+  </div>
+  {% endfor %}
+{% endwith %}
+
+<!-- 헤더 -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+  <div>
+    <div style="font-size:16px; font-weight:800;">⚖️ 캘리브레이션</div>
+    <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">평가 점수를 집계하고 최종 등급을 확정합니다</div>
+  </div>
+  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    {% if cycles %}
+    <select class="input" style="width:200px; font-size:13px;"
+            onchange="location.href='?cycle='+this.value">
+      {% for c in cycles %}
+      <option value="{{ c.id }}" {% if selected_cycle and c.id == selected_cycle.id %}selected{% endif %}>
+        {{ c.name }} ({{ '진행중' if c.status == 'active' else '종료' }})
+      </option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    {% if selected_cycle and confirmed_count > 0 %}
+    <form method="POST">
+      <input type="hidden" name="action" value="publish">
+      <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
+      <button type="submit" class="btn btn-primary"
+              onclick="return confirm('확정된 {{ confirmed_count }}명의 등급을 직원에게 공개합니다.\n직원 성과 페이지에서 결과를 볼 수 있게 됩니다.')">
+        <i class="fas fa-share-square"></i> 직원에게 공개 ({{ confirmed_count }}명)
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if not selected_cycle %}
+<div class="card">
+  <div class="card-body" style="text-align:center; padding:60px; color:var(--tx-3);">
+    <i class="fas fa-balance-scale" style="font-size:32px; opacity:.3; display:block; margin-bottom:12px;"></i>
+    평가 주기를 선택하세요.
+  </div>
+</div>
+
+{% else %}
+
+<!-- 요약 카드 -->
+<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px,1fr)); gap:10px; margin-bottom:20px;">
+  <div class="card" style="margin:0; text-align:center;">
+    <div class="card-body" style="padding:14px;">
+      <div style="font-size:22px; font-weight:900; color:var(--primary);">{{ rows|length }}</div>
+      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">전체 직원</div>
+    </div>
+  </div>
+  <div class="card" style="margin:0; text-align:center;">
+    <div class="card-body" style="padding:14px;">
+      <div style="font-size:22px; font-weight:900; color:#16a34a;">{{ confirmed_count }}</div>
+      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">등급 확정</div>
+    </div>
+  </div>
+  <div class="card" style="margin:0; text-align:center;">
+    <div class="card-body" style="padding:14px;">
+      <div style="font-size:22px; font-weight:900; color:#d97706;">{{ rows|length - confirmed_count }}</div>
+      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">미확정</div>
+    </div>
+  </div>
+  {% set anomaly_count = rows|selectattr('anomaly')|list|length %}
+  <div class="card" style="margin:0; text-align:center;">
+    <div class="card-body" style="padding:14px;">
+      <div style="font-size:22px; font-weight:900; color:{% if anomaly_count > 0 %}#d97706{% else %}#16a34a{% endif %};">{{ anomaly_count }}</div>
+      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">이상 감지</div>
+    </div>
+  </div>
+
+  <!-- 등급별 분포 -->
+  {% for g, color in [('S','#166534'),('A','#1e40af'),('B','#15803d'),('C','#92400e'),('D','#dc2626')] %}
+  <div class="card" style="margin:0; text-align:center;">
+    <div class="card-body" style="padding:14px;">
+      <div style="font-size:22px; font-weight:900; color:{{ color }};">{{ grade_dist.get(g, 0) }}</div>
+      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">{{ g }}등급</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 분포 바 차트 -->
+{% if confirmed_count > 0 %}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body" style="padding:16px 20px;">
+    <div style="font-size:12px; font-weight:800; margin-bottom:12px;">등급 분포</div>
+    <div class="dist-bar-wrap">
+      {% set max_cnt = [grade_dist.get('S',0), grade_dist.get('A',0), grade_dist.get('B',0), grade_dist.get('C',0), grade_dist.get('D',0)]|max %}
+      {% for g, color, bg in [('S','#166534','#dcfce7'),('A','#1e40af','#dbeafe'),('B','#15803d','#f0fdf4'),('C','#92400e','#fef3c7'),('D','#dc2626','#fee2e2')] %}
+      {% set cnt = grade_dist.get(g, 0) %}
+      <div class="dist-col">
+        <div class="dist-fill" style="height:{{ (cnt / max_cnt * 60)|int if max_cnt > 0 else 3 }}px; background:{{ bg }}; border:1px solid {{ color }}33;"></div>
+        <div class="dist-lbl" style="color:{{ color }};">{{ g }}</div>
+        <div class="dist-cnt">{{ cnt }}명 ({{ ((cnt / confirmed_count * 100)|round(0)|int) if confirmed_count > 0 else 0 }}%)</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- 캘리브레이션 테이블 -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">직원별 평가 현황</span>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <span style="font-size:12px; color:var(--tx-3);">
+        <span style="display:inline-block; width:10px; height:10px; background:#fef3c7; border:1px solid #fde68a; border-radius:2px; margin-right:4px;"></span>이상 감지
+      </span>
+      <input type="text" class="input" style="width:160px; font-size:12px; padding:6px 10px;"
+             placeholder="이름 검색..." oninput="filterTable(this.value)">
+    </div>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="cal-table" id="calTable">
+      <thead>
+        <tr>
+          <th>직원</th>
+          <th>부서</th>
+          <th>자기평가</th>
+          <th>동료평가</th>
+          <th>매니저평가</th>
+          <th>종합</th>
+          <th>AI 제안</th>
+          <th>확정 등급</th>
+          <th>메모</th>
+          <th>액션</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class="{% if r.anomaly %}anomaly-row{% endif %}" data-name="{{ r.name }}">
+          <td>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#1e3a8a,#3b82f6);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ r.name[0] }}</div>
+              <div>
+                <div style="font-weight:700;">{{ r.name }}</div>
+                {% if r.anomaly %}
+                <div class="anomaly-badge"><i class="fas fa-exclamation-triangle"></i> {{ r.anomaly }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td style="color:var(--tx-3); font-size:11px;">{{ r.dept_name }}</td>
+
+          <!-- 자기평가 -->
+          <td>
+            {% if r.self_avg %}
+            <div style="display:flex; align-items:center; gap:5px;">
+              <div class="score-bar-bg"><div class="score-bar-fill" style="width:{{ (r.self_avg/5*100)|int }}%; background:#7c3aed;"></div></div>
+              <span style="font-weight:700;">{{ '%.1f'|format(r.self_avg) }}</span>
+            </div>
+            {% else %}<span style="color:#e2e8f0; font-size:11px;">—</span>{% endif %}
+          </td>
+
+          <!-- 동료평가 -->
+          <td>
+            {% if r.peer_avg %}
+            <div style="display:flex; align-items:center; gap:5px;">
+              <div class="score-bar-bg"><div class="score-bar-fill" style="width:{{ (r.peer_avg/5*100)|int }}%; background:#0891b2;"></div></div>
+              <span style="font-weight:700;">{{ '%.1f'|format(r.peer_avg) }}</span>
+            </div>
+            {% else %}<span style="color:#e2e8f0; font-size:11px;">—</span>{% endif %}
+          </td>
+
+          <!-- 매니저평가 -->
+          <td>
+            {% if r.mgr_avg %}
+            <div style="display:flex; align-items:center; gap:5px;">
+              <div class="score-bar-bg"><div class="score-bar-fill" style="width:{{ (r.mgr_avg/5*100)|int }}%; background:#059669;"></div></div>
+              <span style="font-weight:700;">{{ '%.1f'|format(r.mgr_avg) }}</span>
+            </div>
+            {% else %}<span style="color:#e2e8f0; font-size:11px;">—</span>{% endif %}
+          </td>
+
+          <!-- 종합 -->
+          <td>
+            {% if r.overall %}
+            <span style="font-size:14px; font-weight:900; color:var(--primary);">{{ '%.2f'|format(r.overall) }}</span>
+            {% else %}<span style="color:#e2e8f0; font-size:11px;">—</span>{% endif %}
+          </td>
+
+          <!-- AI 제안 등급 -->
+          <td>
+            {% if r.suggested_grade %}
+            <span class="grade-chip g-{{ r.suggested_grade|lower }}">{{ r.suggested_grade }}</span>
+            {% else %}<span style="color:#e2e8f0; font-size:11px;">—</span>{% endif %}
+          </td>
+
+          <!-- 확정 등급 선택 -->
+          <td>
+            {% if r.confirmed %}
+            <span class="grade-chip g-{{ r.final_grade|lower }}">{{ r.final_grade }}</span>
+            {% if r.is_shared %}
+            <span style="font-size:10px; color:#16a34a; font-weight:700; margin-left:4px;">공개됨</span>
+            {% endif %}
+            {% else %}
+            <form method="POST" id="form-{{ r.user_id }}" style="display:inline;">
+              <input type="hidden" name="action" value="confirm">
+              <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
+              <input type="hidden" name="user_id" value="{{ r.user_id }}">
+              <input type="hidden" name="note" id="note-{{ r.user_id }}" value="">
+              <select class="grade-select" name="final_grade" id="grade-{{ r.user_id }}"
+                      onchange="syncGrade({{ r.user_id }})">
+                <option value="">—</option>
+                {% for g in ['S','A','B','C','D'] %}
+                <option value="{{ g }}" {% if r.suggested_grade == g %}selected{% endif %}>{{ g }}</option>
+                {% endfor %}
+              </select>
+            </form>
+            {% endif %}
+          </td>
+
+          <!-- 메모 -->
+          <td>
+            {% if r.confirmed %}
+            <span style="font-size:11px; color:var(--tx-3);">{{ r.note or '—' }}</span>
+            {% else %}
+            <input type="text" id="memo-{{ r.user_id }}" class="input"
+                   style="width:120px; font-size:11px; padding:5px 8px;"
+                   placeholder="조정 사유..."
+                   oninput="document.getElementById('note-{{ r.user_id }}').value=this.value">
+            {% endif %}
+          </td>
+
+          <!-- 확정 버튼 -->
+          <td>
+            {% if r.confirmed %}
+            <form method="POST" style="display:inline;">
+              <input type="hidden" name="action" value="confirm">
+              <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
+              <input type="hidden" name="user_id" value="{{ r.user_id }}">
+              <input type="hidden" name="final_grade" value="{{ r.final_grade }}">
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:#16a34a;">
+                <i class="fas fa-check-circle"></i> 재확정
+              </button>
+            </form>
+            {% else %}
+            <button type="button" class="btn btn-primary btn-sm"
+                    onclick="submitConfirm({{ r.user_id }})"
+                    {% if not r.suggested_grade %}disabled{% endif %}>
+              확정
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function syncGrade(uid) {
+  // grade-select의 값을 form hidden에 동기화 (이미 name=final_grade로 됨)
+}
+
+function submitConfirm(uid) {
+  var grade = document.getElementById('grade-' + uid).value;
+  if (!grade) { alert('등급을 선택하세요.'); return; }
+  document.getElementById('note-' + uid).value =
+    document.getElementById('memo-' + uid) ? document.getElementById('memo-' + uid).value : '';
+  document.getElementById('form-' + uid).submit();
+}
+
+function filterTable(q) {
+  var rows = document.querySelectorAll('#calTable tbody tr');
+  q = q.toLowerCase();
+  rows.forEach(function(tr) {
+    var name = (tr.dataset.name || '').toLowerCase();
+    tr.style.display = name.includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

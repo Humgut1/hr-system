@@ -3633,11 +3633,160 @@ def performance():
             (uid, cycle_id)
         ).fetchall()
 
+    # ── 직원 전용 추가 데이터 ─────────────────────────────
+    peer_assignments_mine = []   # 내가 써야 할 피어리뷰
+    calibration_result    = None # 내 캘리브레이션 결과
+    todo_items            = []   # 지금 해야 할 일
+
+    if role == 'employee' and cycle_id:
+        # 피어리뷰 배정 + 완료 여부
+        peer_assignments_mine = db.execute(
+            'SELECT pa.reviewee_id, pa.cycle_id, u.name AS reviewee_name, '
+            '       pr.id AS done_id '
+            'FROM peer_assignments pa '
+            'JOIN users u ON pa.reviewee_id = u.id '
+            'LEFT JOIN peer_reviews pr '
+            '  ON pr.cycle_id=pa.cycle_id AND pr.reviewee_id=pa.reviewee_id '
+            '  AND pr.reviewer_id=pa.reviewer_id AND pr.review_type=\'peer\' '
+            'WHERE pa.cycle_id=? AND pa.reviewer_id=?',
+            (cycle_id, uid)
+        ).fetchall()
+
+        # 캘리브레이션 결과 (is_shared 컬럼 없으면 항상 표시)
+        calibration_result = db.execute(
+            'SELECT * FROM calibration_results WHERE cycle_id=? AND user_id=?',
+            (cycle_id, uid)
+        ).fetchone()
+
+        # To-Do 계산
+        goals_no_self = [g for g in goals if not g['self_score']]
+        if goals_no_self:
+            todo_items.append({
+                'icon': 'fa-pen',
+                'color': '#dc2626',
+                'text': f'자기평가 미완료 목표 {len(goals_no_self)}개',
+                'url': url_for('performance_self_review', goal_id=goals_no_self[0]['id'])
+            })
+        peer_undone = [p for p in peer_assignments_mine if not p['done_id']]
+        if peer_undone:
+            todo_items.append({
+                'icon': 'fa-star',
+                'color': '#d97706',
+                'text': f'작성 대기 중인 동료 평가 {len(peer_undone)}명',
+                'url': url_for('peer_reviews_page')
+            })
+        if not goals:
+            todo_items.append({
+                'icon': 'fa-plus',
+                'color': '#1d4ed8',
+                'text': '이번 주기 목표를 등록하세요',
+                'url': url_for('performance_goal_new')
+            })
+
     return render_template('performance/index.html',
                            cycles=cycles, active_cycle=active_cycle,
                            selected_cycle=selected_cycle,
                            goals=goals, score_labels=SCORE_LABELS,
+                           peer_assignments_mine=peer_assignments_mine,
+                           calibration_result=calibration_result,
+                           todo_items=todo_items,
                            active_page='performance')
+
+@app.route('/performance/goals/ai-assist', methods=['POST'])
+@login_required
+def performance_goal_ai_assist():
+    """Grok AI로 OKR/KPI 작성 도움 — 키 없으면 rule-based fallback"""
+    import urllib.request, urllib.error, json as _json
+
+    title    = request.json.get('title', '').strip()
+    category = request.json.get('category', 'KPI')
+    job      = request.json.get('job', '')
+
+    if not title:
+        return {'error': '목표 제목을 먼저 입력해주세요.'}, 400
+
+    grok_key = os.environ.get('GROK_API_KEY', '')
+
+    # ── Grok API 호출 ─────────────────────────────────────
+    if grok_key:
+        system_prompt = (
+            "당신은 HR 성과관리 전문가입니다. "
+            "직원이 작성한 목표를 SMART 기준(Specific·Measurable·Achievable·Relevant·Time-bound)에 맞게 "
+            "개선하고, 측정 기준과 목표치가 명확하도록 도와주세요. "
+            "한국어로 답변하고, JSON 형식으로 반환하세요."
+        )
+        user_prompt = (
+            f"직원 직무: {job or '미입력'}\n"
+            f"목표 유형: {category}\n"
+            f"현재 작성한 목표: {title}\n\n"
+            "다음 JSON 형식으로 개선안을 제시해주세요:\n"
+            '{"improved_title": "개선된 목표 제목", '
+            '"reason": "개선 이유 (1~2문장)", '
+            '"smart_check": {"S": true/false, "M": true/false, "A": true/false, "R": true/false, "T": true/false}, '
+            '"tips": ["팁1", "팁2", "팁3"]}'
+        )
+        try:
+            payload = _json.dumps({
+                "model": "grok-2-latest",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": user_prompt}
+                ],
+                "temperature": 0.7,
+                "max_tokens": 600,
+                "response_format": {"type": "json_object"}
+            }).encode()
+            req = urllib.request.Request(
+                'https://api.x.ai/v1/chat/completions',
+                data=payload,
+                headers={
+                    'Authorization': f'Bearer {grok_key}',
+                    'Content-Type': 'application/json'
+                }
+            )
+            with urllib.request.urlopen(req, timeout=15) as r:
+                resp    = _json.loads(r.read())
+                content = resp['choices'][0]['message']['content']
+                result  = _json.loads(content)
+                result['source'] = 'grok'
+                return result
+        except Exception as e:
+            # API 실패 시 rule-based로 fallback
+            pass
+
+    # ── Rule-based fallback (키 없거나 API 실패 시) ────────
+    smart = {
+        'S': any(w in title for w in ['달성','개선','완료','구축','구현','감소','증가','확보','작성','수립']),
+        'M': any(c.isdigit() for c in title) or any(w in title for w in ['%','건','명','개','회','점','배','원']),
+        'A': len(title) > 5,
+        'R': True,
+        'T': any(w in title for w in ['분기','반기','월','주','연간','Q1','Q2','Q3','Q4','상반기','하반기','까지','이내']),
+    }
+    missing = [k for k, v in smart.items() if not v]
+    tips = []
+    if not smart['M']:
+        tips.append('측정 가능한 수치를 추가하세요. 예: "20% 향상", "3건 완료", "90점 이상"')
+    if not smart['T']:
+        tips.append('기간을 명시하세요. 예: "Q2 말까지", "6월 30일까지", "상반기 내"')
+    if not smart['S']:
+        tips.append('구체적인 행동 동사를 사용하세요. 예: "달성", "구축", "개선", "완료"')
+    if not tips:
+        tips.append('목표가 비교적 잘 작성되었습니다. 측정 기준을 설명란에 구체적으로 적어보세요.')
+
+    improved = title
+    if not smart['M']:
+        improved += ' (수치 목표 추가 필요)'
+    if not smart['T']:
+        improved += ' — Q2 말까지' if category == 'KPI' else ' — 상반기 내'
+
+    return {
+        'improved_title': improved,
+        'reason': f"{'·'.join(missing) + ' 기준이 부족합니다.' if missing else 'SMART 기준을 대체로 충족합니다.'}",
+        'smart_check': smart,
+        'tips': tips,
+        'source': 'rule'
+    }
+
 
 @app.route('/performance/goals/new', methods=['GET', 'POST'])
 @login_required
@@ -4645,6 +4794,197 @@ def generate_calibration_summary(name, self_avg, peer_avg, mgr_avg, upward_avg):
     return ' '.join(parts)
 
 
+@app.route('/performance/calibration', methods=['GET', 'POST'])
+@admin_required
+def calibration():
+    db   = get_db()
+    cycles = db.execute("SELECT * FROM performance_cycles ORDER BY start_date DESC").fetchall()
+    active_cycle = next((c for c in cycles if c['status'] == 'active'), None)
+    try:
+        selected_cycle_id = int(request.args.get('cycle', 0))
+    except (ValueError, TypeError):
+        selected_cycle_id = 0
+    selected_cycle = next((c for c in cycles if c['id'] == selected_cycle_id), active_cycle)
+    cycle_id = selected_cycle['id'] if selected_cycle else 0
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        # 개별 등급 확정
+        if action == 'confirm':
+            uid         = int(request.form.get('user_id'))
+            final_grade = request.form.get('final_grade')
+            note        = request.form.get('note', '').strip() or None
+            cid         = int(request.form.get('cycle_id'))
+            if final_grade not in ('S','A','B','C','D'):
+                flash('올바른 등급을 선택하세요.', 'error')
+            else:
+                # 집계값 다시 계산
+                row = _calc_calibration_row(db, uid, cid)
+                summary = generate_calibration_summary(
+                    row['name'], row['self_avg'], row['peer_avg'],
+                    row['mgr_avg'], row['upward_avg']
+                )
+                db.execute('''
+                    INSERT INTO calibration_results
+                      (cycle_id, user_id, self_avg, peer_avg, mgr_avg, upward_avg,
+                       suggested_grade, final_grade, summary_text, note,
+                       is_shared, decided_by)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,0,?)
+                    ON CONFLICT(cycle_id, user_id) DO UPDATE SET
+                      self_avg=excluded.self_avg, peer_avg=excluded.peer_avg,
+                      mgr_avg=excluded.mgr_avg, upward_avg=excluded.upward_avg,
+                      suggested_grade=excluded.suggested_grade,
+                      final_grade=excluded.final_grade,
+                      summary_text=excluded.summary_text,
+                      note=excluded.note,
+                      decided_by=excluded.decided_by,
+                      decided_at=CURRENT_TIMESTAMP
+                ''', (cid, uid,
+                      row['self_avg'], row['peer_avg'], row['mgr_avg'], row['upward_avg'],
+                      row['suggested_grade'], final_grade, summary, note,
+                      session['user_id']))
+                db.commit()
+                flash(f'등급이 확정되었습니다.', 'success')
+
+        # 직원에게 공개
+        elif action == 'publish':
+            cid = int(request.form.get('cycle_id'))
+            db.execute('UPDATE calibration_results SET is_shared=1 WHERE cycle_id=?', (cid,))
+            count = db.execute(
+                'SELECT COUNT(*) FROM calibration_results WHERE cycle_id=? AND is_shared=1', (cid,)
+            ).fetchone()[0]
+            db.commit()
+            # 인앱 알림 발송
+            shared_rows = db.execute(
+                'SELECT user_id, final_grade FROM calibration_results WHERE cycle_id=? AND is_shared=1', (cid,)
+            ).fetchall()
+            for r in shared_rows:
+                add_notification(
+                    r['user_id'], 'info', 'performance',
+                    '성과 평가 결과가 공개되었습니다',
+                    f'이번 주기 최종 등급: {r["final_grade"]}등급 · 성과 페이지에서 확인하세요.',
+                    link='/performance'
+                )
+            flash(f'{count}명의 평가 결과가 직원에게 공개되었습니다.', 'success')
+
+        return redirect(url_for('calibration', cycle=cycle_id))
+
+    # GET — 전 직원 집계
+    rows = []
+    if cycle_id:
+        emps = db.execute(
+            "SELECT u.id, u.name, d.name dept_name FROM users u "
+            "LEFT JOIN departments d ON u.department_id=d.id "
+            "WHERE u.status='active' AND u.role NOT IN ('admin','guest') "
+            "ORDER BY d.name, u.name"
+        ).fetchall()
+
+        for emp in emps:
+            row = _calc_calibration_row(db, emp['id'], cycle_id)
+            # 기존 확정 결과
+            saved = db.execute(
+                'SELECT * FROM calibration_results WHERE cycle_id=? AND user_id=?',
+                (cycle_id, emp['id'])
+            ).fetchone()
+            row['confirmed']   = saved is not None
+            row['final_grade'] = saved['final_grade'] if saved else row['suggested_grade']
+            row['is_shared']   = saved['is_shared'] if saved else 0
+            row['note']        = saved['note'] if saved else ''
+            rows.append(row)
+
+    # 분포 집계
+    grade_dist = {'S':0,'A':0,'B':0,'C':0,'D':0}
+    confirmed_count = 0
+    for r in rows:
+        if r['confirmed']:
+            confirmed_count += 1
+            grade_dist[r['final_grade']] = grade_dist.get(r['final_grade'], 0) + 1
+
+    return render_template('performance/calibration.html',
+                           cycles=cycles, selected_cycle=selected_cycle,
+                           cycle_id=cycle_id, rows=rows,
+                           grade_dist=grade_dist, confirmed_count=confirmed_count,
+                           active_page='performance')
+
+
+def _calc_calibration_row(db, user_id, cycle_id):
+    """직원 한 명의 캘리브레이션 집계값 계산"""
+    user = db.execute(
+        'SELECT u.id, u.name, d.name dept_name FROM users u '
+        'LEFT JOIN departments d ON u.department_id=d.id WHERE u.id=?', (user_id,)
+    ).fetchone()
+
+    # 자기평가 평균 (목표별 self_score 가중 평균)
+    self_rows = db.execute(
+        'SELECT self_score, weight FROM performance_goals '
+        'WHERE user_id=? AND cycle_id=? AND self_score IS NOT NULL',
+        (user_id, cycle_id)
+    ).fetchall()
+    if self_rows:
+        total_w = sum(r['weight'] for r in self_rows)
+        self_avg = round(sum(r['self_score'] * r['weight'] for r in self_rows) / total_w, 2) if total_w else None
+    else:
+        self_avg = None
+
+    # 매니저 평가 평균 (performance_reviews)
+    mgr_rows = db.execute(
+        'SELECT pr.score FROM performance_reviews pr '
+        'JOIN performance_goals g ON pr.goal_id=g.id '
+        'WHERE g.user_id=? AND g.cycle_id=?',
+        (user_id, cycle_id)
+    ).fetchall()
+    mgr_avg = round(sum(r['score'] for r in mgr_rows) / len(mgr_rows), 2) if mgr_rows else None
+
+    # 동료 평가 평균 (peer_reviews type=peer)
+    peer_rows = db.execute(
+        'SELECT score FROM peer_reviews WHERE cycle_id=? AND reviewee_id=? AND review_type=\'peer\'',
+        (cycle_id, user_id)
+    ).fetchall()
+    peer_avg = round(sum(r['score'] for r in peer_rows) / len(peer_rows), 2) if peer_rows else None
+
+    # 상향 평가 평균
+    upward_rows = db.execute(
+        'SELECT score FROM peer_reviews WHERE cycle_id=? AND reviewee_id=? AND review_type=\'upward\'',
+        (cycle_id, user_id)
+    ).fetchall()
+    upward_avg = round(sum(r['score'] for r in upward_rows) / len(upward_rows), 2) if upward_rows else None
+
+    # 종합 점수 (있는 것만 평균)
+    scores = [s for s in [self_avg, peer_avg, mgr_avg] if s is not None]
+    overall = round(sum(scores) / len(scores), 2) if scores else None
+
+    # 등급 산출
+    if overall is None:
+        suggested = None
+    elif overall >= 4.5: suggested = 'S'
+    elif overall >= 3.5: suggested = 'A'
+    elif overall >= 2.5: suggested = 'B'
+    elif overall >= 1.5: suggested = 'C'
+    else:                suggested = 'D'
+
+    # 이상 감지 (자기평가 vs 매니저평가 차이 1.5 이상)
+    anomaly = None
+    if self_avg and mgr_avg and abs(self_avg - mgr_avg) >= 1.5:
+        if self_avg > mgr_avg:
+            anomaly = '자기평가가 매니저평가보다 현저히 높음'
+        else:
+            anomaly = '매니저평가가 자기평가보다 현저히 높음'
+
+    return {
+        'user_id': user_id,
+        'name': user['name'],
+        'dept_name': user['dept_name'] or '—',
+        'self_avg': self_avg,
+        'peer_avg': peer_avg,
+        'mgr_avg': mgr_avg,
+        'upward_avg': upward_avg,
+        'overall': overall,
+        'suggested_grade': suggested,
+        'anomaly': anomaly,
+    }
+
+
 @app.route('/performance/peer')
 @login_required
 def peer_reviews_page():
@@ -4922,21 +5262,33 @@ def peer_assignments():
             (cycle_id,)
         ).fetchall()
 
-    # 직원 목록 (배정 선택용)
+    # 직원 목록 — 부서별 그룹으로 제공
     mgr_dept = int(session.get('dept_id') or 0)
     if role == 'manager' and mgr_dept:
         employees = db.execute(
-            "SELECT id, name, role FROM users WHERE department_id=? AND status='active' ORDER BY name",
+            "SELECT u.id, u.name, u.role, d.name dept_name "
+            "FROM users u LEFT JOIN departments d ON u.department_id=d.id "
+            "WHERE u.department_id=? AND u.status='active' ORDER BY u.name",
             (mgr_dept,)
         ).fetchall()
     else:
         employees = db.execute(
-            "SELECT id, name, role FROM users WHERE status='active' ORDER BY name"
+            "SELECT u.id, u.name, u.role, d.name dept_name "
+            "FROM users u LEFT JOIN departments d ON u.department_id=d.id "
+            "WHERE u.status='active' ORDER BY d.name, u.name"
         ).fetchall()
+
+    # 부서 목록 (조직도 기반 선택용)
+    departments = db.execute(
+        "SELECT DISTINCT d.id, d.name "
+        "FROM departments d JOIN users u ON u.department_id=d.id "
+        "WHERE u.status='active' ORDER BY d.name"
+    ).fetchall()
 
     return render_template('performance/peer_assignments.html',
                            cycles=cycles, selected_cycle=selected_cycle,
                            assignments=assignments, employees=employees,
+                           departments=departments,
                            cycle_id=cycle_id, error=error,
                            active_page='peer_assignments')
 
