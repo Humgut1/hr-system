@@ -4812,15 +4812,37 @@ def calibration():
 
         # 개별 등급 확정
         if action == 'confirm':
-            uid         = int(request.form.get('user_id'))
-            final_grade = request.form.get('final_grade')
-            note        = request.form.get('note', '').strip() or None
-            cid         = int(request.form.get('cycle_id'))
-            if final_grade not in ('S','A','B','C','D'):
+            GRADE_NUM = {'S': 5, 'A': 4, 'B': 3, 'C': 2, 'D': 1}
+            uid              = int(request.form.get('user_id'))
+            final_grade      = request.form.get('final_grade')
+            note             = request.form.get('note', '').strip() or None
+            downgrade_reason = request.form.get('downgrade_reason', '').strip() or None
+            cid              = int(request.form.get('cycle_id'))
+            try:
+                potential_score = int(request.form.get('potential_score', 0)) or None
+            except (ValueError, TypeError):
+                potential_score = None
+            if final_grade not in ('S', 'A', 'B', 'C', 'D'):
                 flash('올바른 등급을 선택하세요.', 'error')
             else:
                 # 집계값 다시 계산
                 row = _calc_calibration_row(db, uid, cid)
+                suggested = row['suggested_grade']
+
+                # 다운그레이드 검사 (최대 1단계, 사유 필수)
+                if GRADE_NUM.get(final_grade, 3) < GRADE_NUM.get(suggested, 3):
+                    gap = GRADE_NUM[suggested] - GRADE_NUM[final_grade]
+                    if gap > 1:
+                        flash(
+                            f'등급을 {gap}단계 낮출 수 없습니다. '
+                            f'권고 등급({suggested})에서 최대 1단계까지만 조정 가능합니다.',
+                            'error'
+                        )
+                        return redirect(url_for('calibration', cycle=cycle_id))
+                    if not downgrade_reason:
+                        flash('등급을 낮출 경우 반드시 조정 사유를 입력해야 합니다.', 'error')
+                        return redirect(url_for('calibration', cycle=cycle_id))
+
                 summary = generate_calibration_summary(
                     row['name'], row['self_avg'], row['peer_avg'],
                     row['mgr_avg'], row['upward_avg']
@@ -4829,8 +4851,8 @@ def calibration():
                     INSERT INTO calibration_results
                       (cycle_id, user_id, self_avg, peer_avg, mgr_avg, upward_avg,
                        suggested_grade, final_grade, summary_text, note,
-                       is_shared, decided_by)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,0,?)
+                       downgrade_reason, potential_score, is_shared, decided_by)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,?)
                     ON CONFLICT(cycle_id, user_id) DO UPDATE SET
                       self_avg=excluded.self_avg, peer_avg=excluded.peer_avg,
                       mgr_avg=excluded.mgr_avg, upward_avg=excluded.upward_avg,
@@ -4838,14 +4860,16 @@ def calibration():
                       final_grade=excluded.final_grade,
                       summary_text=excluded.summary_text,
                       note=excluded.note,
+                      downgrade_reason=excluded.downgrade_reason,
+                      potential_score=excluded.potential_score,
                       decided_by=excluded.decided_by,
                       decided_at=CURRENT_TIMESTAMP
                 ''', (cid, uid,
                       row['self_avg'], row['peer_avg'], row['mgr_avg'], row['upward_avg'],
-                      row['suggested_grade'], final_grade, summary, note,
-                      session['user_id']))
+                      suggested, final_grade, summary, note, downgrade_reason,
+                      potential_score, session['user_id']))
                 db.commit()
-                flash(f'등급이 확정되었습니다.', 'success')
+                flash('등급이 확정되었습니다.', 'success')
 
         # 직원에게 공개
         elif action == 'publish':
@@ -5040,8 +5064,10 @@ def peer_reviews_page():
                 ).fetchone()
                 upward_targets.append({'id': mgr['id'], 'name': mgr['name'], 'done': done is not None})
 
-    # 내가 받은 다면평가 결과
+    # 내가 받은 다면평가 결과 (익명성: 3명 이상일 때만 공개)
     received_peer = []
+    peer_count = 0
+    peer_threshold_met = False
     if cycle_id:
         rows = db.execute(
             "SELECT pr.*, u.name AS reviewer_name "
@@ -5050,7 +5076,10 @@ def peer_reviews_page():
             "ORDER BY pr.created_at DESC",
             (cycle_id, uid)
         ).fetchall()
-        received_peer = rows
+        peer_count = len(rows)
+        if peer_count >= 3:
+            received_peer = rows
+            peer_threshold_met = True
 
     # 내가 받은 매니저 평가 결과 (매니저인 경우, 익명 — 3명 이상일 때만)
     received_upward = None
@@ -5075,6 +5104,8 @@ def peer_reviews_page():
                            my_assignments=my_assignments,
                            upward_targets=upward_targets,
                            received_peer=received_peer,
+                           peer_count=peer_count,
+                           peer_threshold_met=peer_threshold_met,
                            received_upward=received_upward,
                            upward_count=upward_count,
                            upward_questions=UPWARD_QUESTIONS,
@@ -5146,6 +5177,12 @@ def peer_review_write(reviewee_id):
             comment     = request.form.get('comment', '').strip() or None
             if not (1 <= score <= 5):
                 error = '점수를 선택해주세요.'
+            elif not strength:
+                error = 'Continue 항목을 입력해주세요.'
+            elif not comment:
+                error = 'Stop 항목을 입력해주세요.'
+            elif not improvement:
+                error = 'Start 항목을 입력해주세요.'
             else:
                 db.execute(
                     'INSERT INTO peer_reviews '

@@ -694,6 +694,15 @@ def init_db(db_path: str = None):
         if 'created_at' not in bp_cols:
             c.execute('ALTER TABLE bonus_payments ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
 
+        # calibration_results 컬럼 마이그레이션 (v0.48)
+        cal_cols = {r[1] for r in c.execute('PRAGMA table_info(calibration_results)').fetchall()}
+        if 'potential_score' not in cal_cols:
+            c.execute('ALTER TABLE calibration_results ADD COLUMN potential_score INTEGER DEFAULT NULL')
+        if 'box_position' not in cal_cols:
+            c.execute('ALTER TABLE calibration_results ADD COLUMN box_position INTEGER DEFAULT NULL')
+        if 'downgrade_reason' not in cal_cols:
+            c.execute('ALTER TABLE calibration_results ADD COLUMN downgrade_reason TEXT DEFAULT NULL')
+
         # checkins 컬럼 마이그레이션
         checkin_cols = {r[1] for r in c.execute('PRAGMA table_info(checkins)').fetchall()}
         if 'regular_min' not in checkin_cols:
