@@ -3098,14 +3098,38 @@ def payroll_preview():
 def payroll_bulk_raise():
     db = get_db()
     departments = db.execute('SELECT id, name FROM departments ORDER BY name').fetchall()
+    cfg = get_company_config()
+
+    # 가장 최근 확정된 캘리브레이션 등급 (직원별)
+    latest_grades = {}
+    rows = db.execute(
+        '''SELECT cr.user_id, cr.final_grade
+           FROM calibration_results cr
+           JOIN performance_cycles pc ON cr.cycle_id = pc.id
+           WHERE cr.final_grade IS NOT NULL
+           ORDER BY pc.start_date DESC'''
+    ).fetchall()
+    for r in rows:
+        if r['user_id'] not in latest_grades:
+            latest_grades[r['user_id']] = r['final_grade']
+
+    # Merit 기본 인상률 매핑 (company_config 기반)
+    MERIT_PCT = {
+        'S': float(cfg.get('merit_s', 0.08)) * 100,
+        'A': float(cfg.get('merit_a', 0.05)) * 100,
+        'B': float(cfg.get('merit_b', 0.03)) * 100,
+        'C': float(cfg.get('merit_c', 0.00)) * 100,
+        'D': float(cfg.get('merit_d', -0.01)) * 100,
+    }
 
     if request.method == 'POST':
-        pct       = float(request.form.get('pct', 0))
-        dept_id   = request.form.get('dept_id') or None
-        reason    = request.form.get('reason', '').strip() or f'{pct}% 일괄 인상'
-        changer   = session['user_id']
+        mode    = request.form.get('mode', 'flat')   # flat | merit
+        pct     = float(request.form.get('pct', 0))
+        dept_id = request.form.get('dept_id') or None
+        reason  = request.form.get('reason', '').strip()
+        changer = session['user_id']
 
-        if pct <= 0 or pct > 100:
+        if mode == 'flat' and (pct <= 0 or pct > 100):
             flash('인상률은 0~100% 사이로 입력해주세요.', 'error')
             return redirect(url_for('payroll_bulk_raise'))
 
@@ -3116,13 +3140,24 @@ def payroll_bulk_raise():
         )
         params = []
         if dept_id:
-            query  += " AND u.department_id=?"
+            query += " AND u.department_id=?"
             params.append(int(dept_id))
-
         emps = db.execute(query, params).fetchall()
+
         count = 0
         for e in emps:
-            new_base = int(e['base_salary'] * (1 + pct / 100))
+            if mode == 'merit':
+                grade    = latest_grades.get(e['id'])
+                emp_pct  = MERIT_PCT.get(grade, 0) if grade else 0
+                r_reason = reason or f'Merit 인상 ({grade or "미평가"} → {emp_pct:+.1f}%)'
+            else:
+                emp_pct  = pct
+                r_reason = reason or f'{pct}% 일괄 인상'
+
+            if emp_pct == 0:
+                continue
+
+            new_base = int(e['base_salary'] * (1 + emp_pct / 100))
             db.execute(
                 'INSERT INTO salary_history '
                 '(user_id, changed_by, old_base_salary, new_base_salary, '
@@ -3132,7 +3167,7 @@ def payroll_bulk_raise():
                  e['base_salary'], new_base,
                  e['meal_allowance'], e['meal_allowance'],
                  e['transport_allowance'], e['transport_allowance'],
-                 reason)
+                 r_reason)
             )
             db.execute(
                 'UPDATE employee_salary SET base_salary=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?',
@@ -3140,10 +3175,11 @@ def payroll_bulk_raise():
             )
             count += 1
         db.commit()
-        flash(f'{count}명 기본급을 {pct}% 인상했습니다. ({reason})', 'success')
+        label = 'Merit 등급별 인상' if mode == 'merit' else f'{pct}% 일괄 인상'
+        flash(f'{count}명 기본급 {label} 완료했습니다.', 'success')
         return redirect(url_for('payroll_bulk_raise'))
 
-    # GET — 현재 직원 급여 목록
+    # GET — 현재 직원 급여 목록 + 최근 성과 등급
     dept_id = request.args.get('dept_id') or None
     query = (
         "SELECT u.id, u.name, d.name dept_name, s.base_salary "
@@ -3159,9 +3195,28 @@ def payroll_bulk_raise():
     query += " ORDER BY d.name, u.name"
     emps = db.execute(query, params).fetchall()
 
+    # 직원별 등급 + Merit 제안 병합
+    emp_rows = []
+    for e in emps:
+        grade       = latest_grades.get(e['id'])
+        merit_pct   = MERIT_PCT.get(grade, 0) if grade else None
+        new_base    = int(e['base_salary'] * (1 + merit_pct / 100)) if merit_pct else None
+        emp_rows.append({
+            'id':         e['id'],
+            'name':       e['name'],
+            'dept_name':  e['dept_name'],
+            'base_salary': e['base_salary'],
+            'grade':      grade,
+            'merit_pct':  merit_pct,
+            'new_base':   new_base,
+        })
+
     return render_template('payroll/bulk_raise.html',
-                           emps=emps, departments=departments,
+                           emps=emp_rows,
+                           departments=departments,
                            selected_dept=dept_id,
+                           merit_pct=MERIT_PCT,
+                           cfg=cfg,
                            active_page='admin_payroll')
 
 
@@ -3818,8 +3873,12 @@ def performance_goal_new():
             db.commit()
             return redirect(url_for('performance'))
 
+    goal_templates_list = db.execute(
+        "SELECT id, title, description, category, weight FROM goal_templates WHERE is_active=1 ORDER BY category, title"
+    ).fetchall()
     return render_template('performance/goal_form.html',
                            cycles=cycles, error=error,
+                           goal_templates=goal_templates_list,
                            active_page='performance')
 
 @app.route('/performance/goals/<int:goal_id>/review', methods=['GET', 'POST'])
@@ -5092,6 +5151,81 @@ def talent_card(user_id):
         succession_as_candidate=succession_as_candidate,
         active_page='performance',
     )
+
+
+# ──────────────────────────────────────────────
+# v0.50 — 목표 템플릿
+# ──────────────────────────────────────────────
+@app.route('/performance/goal-templates', methods=['GET', 'POST'])
+@login_required
+def goal_templates():
+    db   = get_db()
+    role = session['user_role']
+
+    if request.method == 'POST':
+        if role not in ('admin', 'manager'):
+            abort(403)
+        action = request.form.get('action')
+
+        if action == 'add':
+            title    = request.form.get('title', '').strip()
+            desc     = request.form.get('description', '').strip() or None
+            category = request.form.get('category', '개인')
+            weight   = int(request.form.get('weight', 20))
+            if not title:
+                flash('목표명은 필수입니다.', 'error')
+            else:
+                db.execute(
+                    'INSERT INTO goal_templates (title, description, category, weight, created_by) VALUES (?,?,?,?,?)',
+                    (title, desc, category, weight, session['user_id'])
+                )
+                db.commit()
+                flash('템플릿이 추가되었습니다.', 'success')
+
+        elif action == 'toggle':
+            tid = int(request.form.get('template_id'))
+            db.execute(
+                'UPDATE goal_templates SET is_active = 1 - is_active WHERE id=?', (tid,)
+            )
+            db.commit()
+
+        elif action == 'delete':
+            if role != 'admin':
+                abort(403)
+            tid = int(request.form.get('template_id'))
+            db.execute('DELETE FROM goal_templates WHERE id=?', (tid,))
+            db.commit()
+            flash('삭제되었습니다.', 'success')
+
+        return redirect(url_for('goal_templates'))
+
+    templates = db.execute(
+        '''SELECT gt.*, u.name creator_name
+           FROM goal_templates gt
+           LEFT JOIN users u ON gt.created_by = u.id
+           ORDER BY gt.is_active DESC, gt.category, gt.title'''
+    ).fetchall()
+
+    return render_template('performance/goal_templates.html',
+                           templates=templates,
+                           active_page='performance')
+
+
+@app.route('/performance/goal-templates/<int:tid>/json')
+@login_required
+def goal_template_json(tid):
+    """goal_form에서 AJAX로 템플릿 내용 불러오기"""
+    db  = get_db()
+    row = db.execute(
+        'SELECT * FROM goal_templates WHERE id=? AND is_active=1', (tid,)
+    ).fetchone()
+    if not row:
+        return {'error': 'not found'}, 404
+    return {
+        'title':       row['title'],
+        'description': row['description'] or '',
+        'weight':      row['weight'],
+    }
 
 
 # ──────────────────────────────────────────────

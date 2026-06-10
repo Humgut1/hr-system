@@ -596,6 +596,18 @@ def init_db(db_path: str = None):
                 created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            -- v0.50: 목표 템플릿
+            CREATE TABLE IF NOT EXISTS goal_templates (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                title       TEXT NOT NULL,
+                description TEXT,
+                category    TEXT,           -- 개인/팀/조직
+                weight      INTEGER DEFAULT 20,
+                created_by  INTEGER REFERENCES users(id),
+                is_active   INTEGER NOT NULL DEFAULT 1,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         ''')
 
         # 컬럼 마이그레이션: 기존 DB에 없을 수 있는 컬럼 추가
@@ -716,6 +728,24 @@ def init_db(db_path: str = None):
             c.execute('ALTER TABLE calibration_results ADD COLUMN box_position INTEGER DEFAULT NULL')
         if 'downgrade_reason' not in cal_cols:
             c.execute('ALTER TABLE calibration_results ADD COLUMN downgrade_reason TEXT DEFAULT NULL')
+
+        # company_config 컬럼 마이그레이션 (v0.50 — 등급별 보상 배수)
+        cc_cols = {r[1] for r in c.execute('PRAGMA table_info(company_config)').fetchall()}
+        for col, default in [
+            ('merit_s',  '0.08'),   # S등급 기본 인상률 8%
+            ('merit_a',  '0.05'),   # A등급 5%
+            ('merit_b',  '0.03'),   # B등급 3%
+            ('merit_c',  '0.00'),   # C등급 0%
+            ('merit_d', '-0.01'),   # D등급 -1% (동결/하향)
+            ('bonus_s',  '2.0'),    # S등급 상여 배수 2배
+            ('bonus_a',  '1.5'),
+            ('bonus_b',  '1.0'),
+            ('bonus_c',  '0.5'),
+            ('bonus_d',  '0.0'),
+            ('show_merit_to_employee', '1'),  # 직원에게 사전 공개 여부
+        ]:
+            if col not in cc_cols:
+                c.execute(f'ALTER TABLE company_config ADD COLUMN {col} REAL DEFAULT {default}')
 
         # checkins 컬럼 마이그레이션
         checkin_cols = {r[1] for r in c.execute('PRAGMA table_info(checkins)').fetchall()}

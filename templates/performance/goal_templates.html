@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+{% block title %}목표 템플릿{% endblock %}
+{% block page_title %}성과{% endblock %}
+
+{% block content %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div style="background:{% if cat=='error' %}#fef2f2{% else %}#f0fdf4{% endif %};
+              border:1px solid {% if cat=='error' %}#fecaca{% else %}#bbf7d0{% endif %};
+              color:{% if cat=='error' %}#991b1b{% else %}#166534{% endif %};
+              padding:12px 16px; border-radius:8px; margin-bottom:16px;
+              font-weight:600; display:flex; align-items:center; gap:8px;">
+    <i class="fas fa-{% if cat=='error' %}exclamation-circle{% else %}check-circle{% endif %}"></i> {{ msg }}
+  </div>
+  {% endfor %}
+{% endwith %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+  <div>
+    <div style="font-size:16px; font-weight:800;">📋 목표 템플릿 관리</div>
+    <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">
+      자주 쓰는 목표를 템플릿으로 저장해 목표 등록 시 빠르게 적용합니다.
+    </div>
+  </div>
+  {% if session.user_role in ('admin', 'manager') %}
+  <button class="btn btn-primary" onclick="document.getElementById('add-modal').style.display='flex'">
+    <i class="fas fa-plus"></i> 템플릿 추가
+  </button>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr style="background:#1e293b; color:#fff;">
+          <th style="padding:10px 14px; font-size:11px; font-weight:700; text-align:left;">목표명</th>
+          <th style="padding:10px 14px; font-size:11px; font-weight:700; text-align:left;">설명</th>
+          <th style="padding:10px 14px; font-size:11px; font-weight:700;">카테고리</th>
+          <th style="padding:10px 14px; font-size:11px; font-weight:700;">가중치</th>
+          <th style="padding:10px 14px; font-size:11px; font-weight:700;">작성자</th>
+          <th style="padding:10px 14px; font-size:11px; font-weight:700;">상태</th>
+          {% if session.user_role in ('admin','manager') %}
+          <th style="padding:10px 14px; font-size:11px; font-weight:700;">관리</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in templates %}
+        <tr style="border-bottom:1px solid #f1f5f9; {% if not t.is_active %}opacity:.5;{% endif %}">
+          <td style="padding:10px 14px; font-size:13px; font-weight:700;">{{ t.title }}</td>
+          <td style="padding:10px 14px; font-size:12px; color:var(--tx-3); max-width:260px;">
+            {{ t.description or '—' }}
+          </td>
+          <td style="padding:10px 14px; text-align:center;">
+            <span style="font-size:11px; font-weight:700; padding:2px 9px; border-radius:20px;
+                         background:#ede9fe; color:#6d28d9;">{{ t.category or '개인' }}</span>
+          </td>
+          <td style="padding:10px 14px; text-align:center; font-size:13px; font-weight:700;">
+            {{ t.weight }}%
+          </td>
+          <td style="padding:10px 14px; font-size:12px; color:var(--tx-3);">
+            {{ t.creator_name or '—' }}
+          </td>
+          <td style="padding:10px 14px; text-align:center;">
+            {% if t.is_active %}
+            <span style="font-size:11px; font-weight:700; padding:2px 9px; border-radius:20px;
+                         background:#dcfce7; color:#166534;">활성</span>
+            {% else %}
+            <span style="font-size:11px; font-weight:700; padding:2px 9px; border-radius:20px;
+                         background:#f1f5f9; color:#94a3b8;">비활성</span>
+            {% endif %}
+          </td>
+          {% if session.user_role in ('admin','manager') %}
+          <td style="padding:10px 14px;">
+            <div style="display:flex; gap:6px;">
+              <form method="POST" style="display:inline;">
+                <input type="hidden" name="action" value="toggle">
+                <input type="hidden" name="template_id" value="{{ t.id }}">
+                <button type="submit" class="btn btn-ghost btn-sm" title="활성/비활성 토글">
+                  <i class="fas fa-{% if t.is_active %}pause{% else %}play{% endif %}"></i>
+                </button>
+              </form>
+              {% if session.user_role == 'admin' %}
+              <form method="POST" style="display:inline;"
+                    onsubmit="return confirm('삭제합니까?')">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="template_id" value="{{ t.id }}">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:#ef4444;">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" style="padding:48px; text-align:center; color:var(--tx-3);">
+            <i class="fas fa-clipboard-list" style="font-size:28px; opacity:.3; display:block; margin-bottom:10px;"></i>
+            등록된 템플릿이 없습니다.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 추가 모달 -->
+<div id="add-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.4);
+     z-index:1000; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:#fff; border-radius:12px; width:100%; max-width:460px;
+              padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.2);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <div style="font-size:16px; font-weight:800;">목표 템플릿 추가</div>
+      <button onclick="document.getElementById('add-modal').style.display='none'"
+              style="background:none; border:none; font-size:18px; cursor:pointer; color:var(--tx-3);">✕</button>
+    </div>
+    <form method="POST">
+      <input type="hidden" name="action" value="add">
+      <div class="field" style="margin-bottom:14px;">
+        <label class="form-label">목표명 <span style="color:#ef4444;">*</span></label>
+        <input type="text" name="title" class="input" style="margin-top:6px;"
+               placeholder="예) Q2 고객만족도 90점 이상 달성" required>
+      </div>
+      <div class="field" style="margin-bottom:14px;">
+        <label class="form-label">설명</label>
+        <textarea name="description" class="input" rows="2" style="margin-top:6px; resize:vertical;"
+                  placeholder="측정 기준, 달성 방법 등..."></textarea>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+        <div class="field">
+          <label class="form-label">카테고리</label>
+          <select name="category" class="input" style="margin-top:6px;">
+            <option value="개인">개인</option>
+            <option value="팀">팀</option>
+            <option value="조직">조직</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="form-label">기본 가중치 (%)</label>
+          <input type="number" name="weight" class="input" style="margin-top:6px;"
+                 min="1" max="100" value="20">
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:20px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;">추가</button>
+        <button type="button" class="btn btn-ghost" style="flex:1;"
+                onclick="document.getElementById('add-modal').style.display='none'">취소</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('add-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.style.display = 'none';
+});
+</script>
+{% endblock %}
