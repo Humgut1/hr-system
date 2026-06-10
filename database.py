@@ -854,6 +854,59 @@ def init_db(db_path: str = None):
         if 'is_remote' not in checkin_cols:
             c.execute('ALTER TABLE checkins ADD COLUMN is_remote    INTEGER DEFAULT 0')
 
+        # ── v0.55.1 부서 분류체계 ──────────────────────────────────────
+        dept_cols = {r[1] for r in c.execute('PRAGMA table_info(departments)').fetchall()}
+        if 'dept_type' not in dept_cols:
+            c.execute("ALTER TABLE departments ADD COLUMN dept_type TEXT NOT NULL DEFAULT 'team'")
+            # 기존 데이터: parent_id 깊이 기준으로 자동 분류
+            # depth 0 → division(부문), 1 → hq(본부), 2 → dept(실), 3+ → team(팀)
+            all_depts = {r[0]: r[1] for r in c.execute('SELECT id, parent_id FROM departments').fetchall()}
+            def get_depth(did, memo={}):
+                if did in memo: return memo[did]
+                pid = all_depts.get(did)
+                depth = 0 if pid is None else 1 + get_depth(pid, memo)
+                memo[did] = depth
+                return depth
+            depth_to_type = {0: 'division', 1: 'hq', 2: 'dept', 3: 'team'}
+            for did in all_depts:
+                d = get_depth(did)
+                dtype = depth_to_type.get(d, 'team')
+                c.execute('UPDATE departments SET dept_type=? WHERE id=?', (dtype, did))
+
+        # ── v0.55.0 신규 테이블 ──────────────────────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS employee_skills (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL REFERENCES users(id),
+            skill_name TEXT NOT NULL,
+            level      TEXT NOT NULL DEFAULT 'intermediate',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        c.execute('''CREATE TABLE IF NOT EXISTS employee_certs (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL REFERENCES users(id),
+            cert_name   TEXT NOT NULL,
+            issued_by   TEXT,
+            issued_date DATE,
+            expiry_date DATE,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        c.execute('''CREATE TABLE IF NOT EXISTS department_headcount (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            department_id INTEGER NOT NULL REFERENCES departments(id),
+            target_count  INTEGER NOT NULL DEFAULT 0,
+            fiscal_year   INTEGER NOT NULL DEFAULT 2026,
+            UNIQUE(department_id, fiscal_year)
+        )''')
+
+        # personnel_actions: 미래발령 적용 추적
+        pa_cols2 = {r[1] for r in c.execute('PRAGMA table_info(personnel_actions)').fetchall()}
+        if 'applied_at' not in pa_cols2:
+            c.execute('ALTER TABLE personnel_actions ADD COLUMN applied_at TIMESTAMP')
+            # 기존 approved 레코드는 이미 적용 완료
+            c.execute("UPDATE personnel_actions SET applied_at=CURRENT_TIMESTAMP WHERE status='approved'")
+
         # company_config 기본 row (없으면 삽입 — setup_completed=0 유지해서 위자드 표시)
         if c.execute('SELECT COUNT(*) FROM company_config').fetchone()[0] == 0:
             c.execute('INSERT INTO company_config (id) VALUES (1)')

@@ -155,6 +155,66 @@ def close_connection(exception):
         db.close()
 
 
+# ── 미래발령 자동 적용 (서버 기동 후 첫 요청 시 1회 실행) ──────────
+_scheduled_check_done = False
+
+@app.before_request
+def apply_scheduled_once():
+    global _scheduled_check_done
+    if _scheduled_check_done:
+        return
+    _scheduled_check_done = True
+    try:
+        today = date.today().isoformat()
+        db = get_db()
+        pending = db.execute(
+            "SELECT * FROM personnel_actions WHERE status='approved' AND applied_at IS NULL AND effective_date <= ?",
+            (today,)
+        ).fetchall()
+        for pa in pending:
+            _do_apply_action(db, pa)
+            db.execute(
+                "UPDATE personnel_actions SET applied_at=CURRENT_TIMESTAMP WHERE id=?",
+                (pa['id'],)
+            )
+            add_notification(
+                pa['user_id'], 'info', 'action',
+                '인사발령 자동 반영',
+                f'발령일({pa["effective_date"]})이 도래하여 인사발령이 자동 반영되었습니다.',
+                url_for('employee_detail', emp_id=pa['user_id'])
+            )
+        if pending:
+            db.commit()
+    except Exception:
+        pass
+
+
+def _do_apply_action(db, pa):
+    """personnel_action 행을 실제 users/salary 테이블에 반영."""
+    emp_id = pa['user_id']
+    a_type = pa['action_type']
+    to_val = pa['to_value']
+    if a_type == 'dept_change':
+        db.execute('UPDATE users SET department_id=? WHERE id=?', (to_val.split('|')[-1], emp_id))
+    elif a_type == 'position_change':
+        db.execute('UPDATE users SET position_id=? WHERE id=?', (to_val.split('|')[-1], emp_id))
+    elif a_type == 'role_change':
+        db.execute('UPDATE users SET role=? WHERE id=?', (to_val, emp_id))
+    elif a_type == 'employment_type_change':
+        db.execute('UPDATE users SET employment_type=? WHERE id=?', (to_val, emp_id))
+    elif a_type == 'manager_change':
+        new_id = to_val.split('|')[-1] or None
+        db.execute('UPDATE users SET manager_id=? WHERE id=?', (new_id, emp_id))
+    elif a_type == 'salary_change':
+        new_sal = int(to_val)
+        old = db.execute('SELECT 1 FROM employee_salary WHERE user_id=?', (emp_id,)).fetchone()
+        if old:
+            db.execute('UPDATE employee_salary SET base_salary=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?', (new_sal, emp_id))
+        else:
+            db.execute('INSERT INTO employee_salary (user_id, base_salary) VALUES (?,?)', (emp_id, new_sal))
+
+
+
 def add_notification(user_id, n_type, category, title, content, link=None):
     db = get_db()
     db.execute(
@@ -942,27 +1002,50 @@ def org_person(uid):
 @manager_or_admin
 def employees():
     db      = get_db()
-    q       = request.args.get('q', '').strip()
-    dept_id = request.args.get('dept', '')
-    depts   = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    q            = request.args.get('q', '').strip()
+    dept_id      = request.args.get('dept', '')
+    jf_id        = request.args.get('jf', '')
+    pos_id       = request.args.get('pos', '')
+    emp_type     = request.args.get('emp_type', '')
+    perf_grade   = request.args.get('grade', '')
 
-    sql    = ('SELECT u.*, d.name AS dept_name, p.name AS pos_name '
-              'FROM users u '
-              'LEFT JOIN departments d ON u.department_id = d.id '
-              'LEFT JOIN positions   p ON u.position_id   = p.id '
-              "WHERE u.status = 'active'")
+    depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    jfs   = db.execute('SELECT * FROM job_families ORDER BY name').fetchall()
+    poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+
+    sql = (
+        'SELECT u.*, d.name AS dept_name, p.name AS pos_name, jf.name AS jf_name, '
+        '       cr.final_grade AS perf_grade '
+        'FROM users u '
+        'LEFT JOIN departments d ON u.department_id = d.id '
+        'LEFT JOIN positions   p ON u.position_id   = p.id '
+        'LEFT JOIN job_families jf ON u.job_family_id = jf.id '
+        'LEFT JOIN (SELECT user_id, final_grade FROM calibration_results '
+        '           WHERE id IN (SELECT MAX(id) FROM calibration_results GROUP BY user_id)) cr '
+        '           ON u.id = cr.user_id '
+        "WHERE u.status = 'active'"
+    )
     params = []
     if q:
-        sql   += ' AND (u.name LIKE ? OR u.email LIKE ?)'
-        params += [f'%{q}%', f'%{q}%']
+        sql    += ' AND (u.name LIKE ? OR u.email LIKE ? OR u.emp_no LIKE ?)'
+        params += [f'%{q}%', f'%{q}%', f'%{q}%']
     if dept_id:
-        sql   += ' AND u.department_id = ?'
-        params.append(dept_id)
-    sql += ' ORDER BY u.created_at DESC'
+        sql += ' AND u.department_id = ?'; params.append(dept_id)
+    if jf_id:
+        sql += ' AND u.job_family_id = ?'; params.append(jf_id)
+    if pos_id:
+        sql += ' AND u.position_id = ?'; params.append(pos_id)
+    if emp_type:
+        sql += ' AND u.employment_type = ?'; params.append(emp_type)
+    if perf_grade:
+        sql += ' AND cr.final_grade = ?'; params.append(perf_grade)
+    sql += ' ORDER BY u.name'
 
     emp_list = db.execute(sql, params).fetchall()
     return render_template('employees/list.html',
-                           employees=emp_list, depts=depts, q=q, dept_id=dept_id,
+                           employees=emp_list, depts=depts, jfs=jfs, poses=poses,
+                           q=q, dept_id=dept_id, jf_id=jf_id, pos_id=pos_id,
+                           emp_type=emp_type, perf_grade=perf_grade,
                            active_page='employees')
 
 @app.route('/employees/<int:emp_id>')
@@ -1154,6 +1237,9 @@ def employee_detail(emp_id):
                            action_managers=action_managers,
                            benefit_rows=benefit_rows,
                            salary_history=salary_history,
+                           skills=db.execute('SELECT * FROM employee_skills WHERE user_id=? ORDER BY level DESC, skill_name', (emp_id,)).fetchall(),
+                           certs=db.execute('SELECT * FROM employee_certs WHERE user_id=? ORDER BY expiry_date ASC', (emp_id,)).fetchall(),
+                           skill_levels=SKILL_LEVELS,
                            today=date.today().isoformat(),
                            leave_labels=LEAVE_LABELS,
                            can_see_sensitive=can_see_sensitive,
@@ -1196,6 +1282,93 @@ def employee_benefits_save(emp_id):
     db.commit()
     flash('복리후생 오버라이드가 저장되었습니다.', 'success')
     return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-benefits')
+
+
+# ── 스킬 & 자격증 CRUD ───────────────────────────────────────────────
+
+SKILL_LEVELS = {'beginner':'초급', 'intermediate':'중급', 'advanced':'고급', 'expert':'전문가'}
+
+DEPT_TYPES = [
+    ('division', '부문',  '#6366f1', '사업부·부문 단위'),
+    ('hq',       '본부',  '#0891b2', '본부·사업본부 단위'),
+    ('dept',     '실/처', '#059669', '실·처·센터 단위'),
+    ('team',     '팀',    '#d97706', '팀·그룹 단위'),
+]
+DEPT_TYPE_LABEL = {k: v for k, v, *_ in DEPT_TYPES}
+DEPT_TYPE_COLOR = {k: c for k, _, c, *_ in DEPT_TYPES}
+# 상위 타입 규칙: division > hq > dept > team
+DEPT_TYPE_PARENT_ALLOWED = {
+    'division': [],                          # 최상위, 부모 없음
+    'hq':       ['division'],
+    'dept':     ['division', 'hq'],
+    'team':     ['division', 'hq', 'dept'],
+}
+
+@app.route('/employees/<int:emp_id>/skills/add', methods=['POST'])
+@login_required
+def skill_add(emp_id):
+    if session['user_role'] not in ('admin', 'manager') and session['user_id'] != emp_id:
+        abort(403)
+    skill_name = request.form.get('skill_name', '').strip()
+    level      = request.form.get('level', 'intermediate')
+    if skill_name and level in SKILL_LEVELS:
+        db = get_db()
+        db.execute('INSERT INTO employee_skills (user_id, skill_name, level) VALUES (?,?,?)',
+                   (emp_id, skill_name, level))
+        db.commit()
+    return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-skills')
+
+
+@app.route('/employees/<int:emp_id>/skills/<int:skill_id>/delete', methods=['POST'])
+@login_required
+def skill_delete(emp_id, skill_id):
+    if session['user_role'] not in ('admin', 'manager') and session['user_id'] != emp_id:
+        abort(403)
+    db = get_db()
+    db.execute('DELETE FROM employee_skills WHERE id=? AND user_id=?', (skill_id, emp_id))
+    db.commit()
+    return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-skills')
+
+
+@app.route('/employees/<int:emp_id>/certs/add', methods=['POST'])
+@login_required
+def cert_add(emp_id):
+    if session['user_role'] not in ('admin', 'manager') and session['user_id'] != emp_id:
+        abort(403)
+    cert_name   = request.form.get('cert_name', '').strip()
+    issued_by   = request.form.get('issued_by', '').strip() or None
+    issued_date = request.form.get('issued_date', '').strip() or None
+    expiry_date = request.form.get('expiry_date', '').strip() or None
+    if cert_name:
+        db = get_db()
+        db.execute(
+            'INSERT INTO employee_certs (user_id, cert_name, issued_by, issued_date, expiry_date) VALUES (?,?,?,?,?)',
+            (emp_id, cert_name, issued_by, issued_date, expiry_date)
+        )
+        db.commit()
+        # 만료 30일 이내면 즉시 알림
+        if expiry_date:
+            from datetime import timedelta
+            days_left = (date.fromisoformat(expiry_date) - date.today()).days
+            if 0 <= days_left <= 30:
+                add_notification(
+                    emp_id, 'warning', 'cert',
+                    '자격증 만료 임박',
+                    f'"{cert_name}" 자격증이 {days_left}일 후 만료됩니다.',
+                    url_for('employee_detail', emp_id=emp_id) + '#tab-skills'
+                )
+    return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-skills')
+
+
+@app.route('/employees/<int:emp_id>/certs/<int:cert_id>/delete', methods=['POST'])
+@login_required
+def cert_delete(emp_id, cert_id):
+    if session['user_role'] not in ('admin', 'manager') and session['user_id'] != emp_id:
+        abort(403)
+    db = get_db()
+    db.execute('DELETE FROM employee_certs WHERE id=? AND user_id=?', (cert_id, emp_id))
+    db.commit()
+    return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-skills')
 
 
 @app.route('/employees/new', methods=['GET', 'POST'])
@@ -1452,30 +1625,31 @@ def personnel_action_approve(action_id):
 
     emp_id = pa['user_id']
     a_type = pa['action_type']
-    to_val = pa['to_value']
+    today  = date.today().isoformat()
+    is_future = pa['effective_date'] > today
 
-    if a_type == 'dept_change':
-        new_id = to_val.split('|')[-1]
-        db.execute('UPDATE users SET department_id=? WHERE id=?', (new_id, emp_id))
-    elif a_type == 'position_change':
-        new_id = to_val.split('|')[-1]
-        db.execute('UPDATE users SET position_id=? WHERE id=?', (new_id, emp_id))
-    elif a_type == 'role_change':
-        db.execute('UPDATE users SET role=? WHERE id=?', (to_val, emp_id))
-    elif a_type == 'employment_type_change':
-        db.execute('UPDATE users SET employment_type=? WHERE id=?', (to_val, emp_id))
-    elif a_type == 'manager_change':
-        new_id = to_val.split('|')[-1] or None
-        db.execute('UPDATE users SET manager_id=? WHERE id=?', (new_id, emp_id))
-    elif a_type == 'salary_change':
-        new_salary = int(to_val)
-        old_row = db.execute('SELECT 1 FROM employee_salary WHERE user_id=?', (emp_id,)).fetchone()
-        if old_row:
-            db.execute('UPDATE employee_salary SET base_salary=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?', (new_salary, emp_id))
-        else:
-            db.execute('INSERT INTO employee_salary (user_id, base_salary) VALUES (?,?)', (emp_id, new_salary))
+    if is_future:
+        # 미래발령: 승인만 하고 실제 반영은 발령일에 자동 처리
+        db.execute(
+            "UPDATE personnel_actions SET status='approved', processed_by=?, applied_at=NULL WHERE id=?",
+            (session['user_id'], action_id)
+        )
+        db.commit()
+        add_notification(
+            emp_id, 'info', 'action',
+            '인사발령 승인 완료 (미래발령)',
+            f'{pa["effective_date"]}에 발령이 자동 반영될 예정입니다.',
+            url_for('employee_detail', emp_id=emp_id)
+        )
+        flash(f'인사발령이 승인되었습니다. 발령일({pa["effective_date"]})에 자동 반영됩니다.', 'success')
+        return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
 
-    db.execute("UPDATE personnel_actions SET status='approved', processed_by=? WHERE id=?", (session['user_id'], action_id))
+    # 즉시발령: 바로 반영
+    _do_apply_action(db, pa)
+    db.execute(
+        "UPDATE personnel_actions SET status='approved', processed_by=?, applied_at=CURRENT_TIMESTAMP WHERE id=?",
+        (session['user_id'], action_id)
+    )
     db.commit()
 
     # 알림 발송: 본인에게 발령 완료 알림
@@ -2132,8 +2306,12 @@ def departments():
         if action == 'add_dept':
             name      = request.form.get('name', '').strip()
             parent_id = request.form.get('parent_id') or None
+            dept_type = request.form.get('dept_type', 'team')
+            if dept_type not in DEPT_TYPE_LABEL:
+                dept_type = 'team'
             if name:
-                db.execute('INSERT INTO departments (name, parent_id) VALUES (?, ?)', (name, parent_id))
+                db.execute('INSERT INTO departments (name, parent_id, dept_type) VALUES (?,?,?)',
+                           (name, parent_id, dept_type))
                 db.commit()
         elif action == 'delete_dept':
             db.execute('DELETE FROM departments WHERE id=?', (request.form.get('dept_id'),))
@@ -2150,16 +2328,22 @@ def departments():
         return redirect(url_for('departments'))
 
     depts = db.execute(
-        'SELECT d.*, p.name AS parent_name, COUNT(u.id) AS member_count '
+        'SELECT d.*, p.name AS parent_name, p.dept_type AS parent_type, COUNT(u.id) AS member_count '
         'FROM departments d '
         'LEFT JOIN departments p ON d.parent_id = p.id '
         'LEFT JOIN users u ON u.department_id = d.id AND u.status="active" '
-        'GROUP BY d.id ORDER BY d.name'
+        'GROUP BY d.id ORDER BY d.dept_type, d.parent_id NULLS FIRST, d.name'
     ).fetchall()
-    all_depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
-    poses     = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+    all_depts = db.execute(
+        'SELECT * FROM departments ORDER BY dept_type, parent_id NULLS FIRST, name'
+    ).fetchall()
+    poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
     return render_template('admin/departments.html',
                            depts=depts, all_depts=all_depts, poses=poses,
+                           dept_types=DEPT_TYPES,
+                           dept_type_label=DEPT_TYPE_LABEL,
+                           dept_type_color=DEPT_TYPE_COLOR,
+                           dept_type_parent=DEPT_TYPE_PARENT_ALLOWED,
                            active_page='departments')
 
 

@@ -253,6 +253,7 @@
 <div class="tab-nav">
   <button class="tab-btn active" data-tab="basic">기본정보</button>
   <button class="tab-btn" data-tab="hr">인사정보</button>
+  <button class="tab-btn" data-tab="skills">스킬 & 자격증</button>
   {% if can_see_sensitive %}
   <button class="tab-btn" data-tab="pay">급여</button>
   <button class="tab-btn" data-tab="leave">근태/휴가</button>
@@ -429,7 +430,135 @@
   </div>
 </div>
 
+<div class="tab-panel" id="tab-skills">
+{% set can_edit_skills = (session.user_role in ('admin','manager') or session.user_id == emp.id) %}
+
+<!-- 스킬 -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-head">
+    <span class="card-title">스킬</span>
+    <span style="font-size:12px; color:var(--tx-3);">{{ skills|length }}개</span>
+  </div>
+  <div class="card-body">
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:{% if can_edit_skills %}16px{% else %}0{% endif %};">
+      {% for s in skills %}
+      {% set lc = {'beginner':'#64748b','intermediate':'#2563eb','advanced':'#7c3aed','expert':'#b45309'} %}
+      <span style="display:inline-flex; align-items:center; gap:6px;
+                   background:{{ lc.get(s.level,'#64748b') }}15;
+                   color:{{ lc.get(s.level,'#64748b') }};
+                   border:1px solid {{ lc.get(s.level,'#64748b') }}30;
+                   border-radius:20px; padding:4px 12px; font-size:13px; font-weight:600;">
+        {{ s.skill_name }}
+        <span style="font-size:10px; opacity:.7;">{{ skill_levels.get(s.level, s.level) }}</span>
+        {% if can_edit_skills %}
+        <form method="POST" action="{{ url_for('skill_delete', emp_id=emp.id, skill_id=s.id) }}" style="margin:0;">
+          <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;line-height:1;
+                                       color:{{ lc.get(s.level,'#64748b') }}; opacity:.6;" title="삭제">×</button>
+        </form>
+        {% endif %}
+      </span>
+      {% else %}
+      <span style="color:var(--tx-3); font-size:13px;">등록된 스킬이 없습니다.</span>
+      {% endfor %}
+    </div>
+    {% if can_edit_skills %}
+    <form method="POST" action="{{ url_for('skill_add', emp_id=emp.id) }}"
+          style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <input type="text" name="skill_name" class="input" placeholder="스킬명 (예: Python, Figma, SQL)" style="flex:1; min-width:160px;">
+      <select name="level" class="input" style="width:100px;">
+        {% for k, v in skill_levels.items() %}
+        <option value="{{ k }}">{{ v }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> 추가</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 자격증 -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">자격증 & 수료</span>
+    <span style="font-size:12px; color:var(--tx-3);">{{ certs|length }}개</span>
+  </div>
+  <div class="card-body">
+    {% if certs %}
+    <div class="tbl-wrap" style="margin-bottom:{% if can_edit_skills %}16px{% else %}0{% endif %};">
+      <table>
+        <thead>
+          <tr>
+            <th>자격증명</th><th>발급기관</th><th>취득일</th><th>만료일</th>
+            {% if can_edit_skills %}<th></th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in certs %}
+          {% set is_expiring = c.expiry_date and (c.expiry_date <= today) %}
+          {% set days_left = none %}
+          <tr {% if is_expiring %}style="background:#fef2f2;"{% endif %}>
+            <td style="font-weight:600;">
+              {{ c.cert_name }}
+              {% if c.expiry_date and c.expiry_date <= today %}
+              <span class="badge" style="background:#fee2e2;color:#b91c1c;margin-left:4px;">만료</span>
+              {% elif c.expiry_date and c.expiry_date <= (today[:7] ~ '-' ~ (today[8:10]|int + 30)|string).lstrip() %}
+              <span class="badge badge-pending" style="margin-left:4px;">만료임박</span>
+              {% endif %}
+            </td>
+            <td style="color:var(--tx-3);">{{ c.issued_by or '—' }}</td>
+            <td style="color:var(--tx-3);">{{ c.issued_date or '—' }}</td>
+            <td style="color:{% if is_expiring %}#b91c1c{% else %}var(--tx-3){% endif %};">
+              {{ c.expiry_date or '—' }}
+            </td>
+            {% if can_edit_skills %}
+            <td>
+              <form method="POST" action="{{ url_for('cert_delete', emp_id=emp.id, cert_id=c.id) }}">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:#b91c1c;">
+                  <i class="fas fa-trash-alt"></i>
+                </button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:var(--tx-3); font-size:13px; margin-bottom:{% if can_edit_skills %}16px{% else %}0{% endif %};">
+      등록된 자격증이 없습니다.
+    </p>
+    {% endif %}
+    {% if can_edit_skills %}
+    <form method="POST" action="{{ url_for('cert_add', emp_id=emp.id) }}"
+          style="display:grid; grid-template-columns:2fr 1fr 1fr 1fr auto; gap:8px; align-items:end;">
+      <div>
+        <label class="form-label">자격증명 *</label>
+        <input type="text" name="cert_name" class="input" placeholder="정보처리기사, AWS SAA …" required>
+      </div>
+      <div>
+        <label class="form-label">발급기관</label>
+        <input type="text" name="issued_by" class="input" placeholder="한국산업인력공단">
+      </div>
+      <div>
+        <label class="form-label">취득일</label>
+        <input type="date" name="issued_date" class="input">
+      </div>
+      <div>
+        <label class="form-label">만료일</label>
+        <input type="date" name="expiry_date" class="input">
+      </div>
+      <button type="submit" class="btn btn-primary" style="white-space:nowrap;">
+        <i class="fas fa-plus"></i> 추가
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+</div>
+
 <div class="tab-panel" id="tab-pay">
+{% if not can_see_sensitive %}<div style="padding:60px;text-align:center;color:var(--tx-3);">접근 권한이 없습니다.</div>{% else %}
 
   <!-- ── 밴드 포지션 슬라이더 ── -->
   {% if emp.get('mid_salary') %}
@@ -590,9 +719,11 @@
     </div>
     {% endif %}
   </div>
+{% endif %}{# can_see_sensitive #}
 </div>
 
 <div class="tab-panel" id="tab-leave">
+{% if not can_see_sensitive %}<div style="padding:60px;text-align:center;color:var(--tx-3);">접근 권한이 없습니다.</div>{% else %}
   <div class="card" style="margin-bottom:16px;">
     <div class="section-head">연차 현황</div>
     <div style="padding:16px 18px;">
@@ -636,9 +767,11 @@
     </div>
     {% endif %}
   </div>
+{% endif %}{# can_see_sensitive #}
 </div>
 
 <div class="tab-panel" id="tab-perf">
+{% if not can_see_sensitive %}<div style="padding:60px;text-align:center;color:var(--tx-3);">접근 권한이 없습니다.</div>{% else %}
   <div class="card">
     {% if cycle %}
     <div class="section-head">{{ cycle.name }} · 현재 목표</div>
@@ -669,10 +802,11 @@
     </div>
     {% endif %}
   </div>
+{% endif %}{# can_see_sensitive #}
 </div>
 
-{% if session.user_role == 'admin' %}
 <div class="tab-panel" id="tab-benefits">
+{% if not can_see_sensitive %}<div style="padding:60px;text-align:center;color:var(--tx-3);">접근 권한이 없습니다.</div>{% else %}
   {% if benefit_rows %}
   <form method="POST" action="{{ url_for('employee_benefits_save', emp_id=emp.id) }}">
 
@@ -794,8 +928,8 @@
     <a href="{{ url_for('admin_benefits') }}" class="btn btn-primary" style="margin-top:12px;">복리후생 설정하러 가기</a>
   </div>
   {% endif %}
+{% endif %}{# can_see_sensitive #}
 </div>
-{% endif %}
 
 {% if session.user_role == 'admin' and emp.status == 'active' %}
 <div class="overlay" id="actionModal" style="display:none;" onclick="if(event.target===this)closeActionModal()">

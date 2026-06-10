@@ -1,36 +1,88 @@
 {% extends 'base.html' %}
-{% block title %}Dept & Grade{% endblock %}
-{% block page_title %}Dept & Grade{% endblock %}
+{% block title %}부서·직급 관리{% endblock %}
+{% block page_title %}부서·직급 관리{% endblock %}
+
+{% block head %}
+<style>
+.type-badge {
+  display: inline-block;
+  padding: 2px 8px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.dept-row td:first-child { padding-left: 0; }
+.dept-indent { display: inline-block; }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="grid-2" style="align-items:start;">
+<div class="grid-2" style="align-items:start; gap:20px;">
 
-  <!-- Department management -->
+  <!-- 왼쪽: 부서 트리 + 추가 -->
   <div>
     <div class="card" style="margin-bottom:16px;">
       <div class="card-head">
-        <span class="card-title">Departments</span>
-        <span style="font-size:13px; color:var(--tx-3);">{{ depts|length }}</span>
+        <span class="card-title">조직 구조</span>
+        <span style="font-size:13px; color:var(--tx-3);">{{ depts|length }}개</span>
       </div>
-      <div class="tbl-wrap">
+
+      <!-- 범례 -->
+      <div style="padding:10px 18px 0; display:flex; gap:8px; flex-wrap:wrap;">
+        {% for key, label, color, desc in dept_types %}
+        <span class="type-badge" style="background:{{ color }}18; color:{{ color }}; border:1px solid {{ color }}30;">
+          {{ label }}
+        </span>
+        <span style="font-size:11px; color:var(--tx-3); margin-right:6px;">{{ desc }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="tbl-wrap" style="margin-top:8px;">
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Parent</th>
-              <th>Members</th>
-              <th>Actions</th>
+              <th>조직명</th>
+              <th>구분</th>
+              <th>상위 조직</th>
+              <th>인원</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            {% for d in depts %}
+            {% set type_order = ['division','hq','dept','team'] %}
+            {% for tkey in type_order %}
+            {% set group = depts | selectattr('dept_type','equalto',tkey) | list %}
+            {% if group %}
             <tr>
-              <td style="font-weight:600;">{{ d.name }}</td>
-              <td style="color:var(--tx-3);">{{ d.parent_name or '—' }}</td>
-              <td><span class="badge badge-info">{{ d.member_count }}</span></td>
+              <td colspan="5" style="background:var(--bg); padding:6px 16px;
+                                      font-size:11px; font-weight:700; color:var(--tx-3);
+                                      text-transform:uppercase; letter-spacing:.05em;">
+                {% set tc = dept_type_color[tkey] %}
+                <span style="color:{{ tc }};">●</span>
+                {{ {'division':'부문','hq':'본부','dept':'실/처','team':'팀'}[tkey] }}
+                <span style="font-weight:400; margin-left:4px;">{{ group|length }}개</span>
+              </td>
+            </tr>
+            {% for d in group %}
+            <tr class="dept-row">
+              <td>
+                {% if d.parent_id %}
+                <span class="dept-indent" style="margin-left:{% if tkey=='hq' %}12{% elif tkey=='dept' %}24{% else %}36{% endif %}px;
+                                                  color:var(--border); margin-right:4px;">└</span>
+                {% endif %}
+                <span style="font-weight:600;">{{ d.name }}</span>
+              </td>
+              <td>
+                {% set tc = dept_type_color.get(d.dept_type, '#888') %}
+                <span class="type-badge" style="background:{{ tc }}18; color:{{ tc }}; border:1px solid {{ tc }}30;">
+                  {{ dept_type_label.get(d.dept_type, d.dept_type) }}
+                </span>
+              </td>
+              <td style="color:var(--tx-3); font-size:13px;">{{ d.parent_name or '—' }}</td>
+              <td>
+                <span class="badge badge-info">{{ d.member_count }}명</span>
+              </td>
               <td>
                 <form method="POST" action="{{ url_for('departments') }}"
-                      onsubmit="return confirm('Delete this department? Members will be unassigned.')">
+                      onsubmit="return confirm('삭제하면 소속 직원의 부서 배정이 해제됩니다. 계속하시겠습니까?')">
                   <input type="hidden" name="action" value="delete_dept">
                   <input type="hidden" name="dept_id" value="{{ d.id }}">
                   <button type="submit" class="btn btn-sm"
@@ -41,62 +93,93 @@
               </td>
             </tr>
             {% endfor %}
+            {% endif %}
+            {% endfor %}
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Add department -->
+    <!-- 조직 추가 -->
     <div class="card">
-      <div class="card-head"><span class="card-title">Add Department</span></div>
+      <div class="card-head"><span class="card-title">조직 추가</span></div>
       <div class="card-body">
-        <form method="POST" action="{{ url_for('departments') }}" style="display:flex; flex-direction:column; gap:12px;">
+        <form method="POST" action="{{ url_for('departments') }}"
+              style="display:flex; flex-direction:column; gap:14px;"
+              id="addDeptForm">
           <input type="hidden" name="action" value="add_dept">
+
           <div class="field" style="margin:0;">
-            <label class="form-label">Department Name</label>
-            <input type="text" name="name" class="input" placeholder="e.g. Data Analytics" required>
+            <label class="form-label">조직 구분 <span style="color:var(--red);">*</span></label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;" id="typeButtons">
+              {% for key, label, color, desc in dept_types %}
+              <label style="cursor:pointer;">
+                <input type="radio" name="dept_type" value="{{ key }}"
+                       {% if key == 'team' %}checked{% endif %}
+                       style="display:none;" class="type-radio">
+                <span class="type-badge type-opt" data-key="{{ key }}" data-color="{{ color }}"
+                      style="padding:6px 14px; font-size:12px; cursor:pointer;
+                             background:{{ color }}18; color:{{ color }}; border:1px solid {{ color }}40;">
+                  {{ label }}<br>
+                  <span style="font-size:10px; font-weight:400; opacity:.8;">{{ desc }}</span>
+                </span>
+              </label>
+              {% endfor %}
+            </div>
           </div>
+
           <div class="field" style="margin:0;">
-            <label class="form-label">Parent Department (optional)</label>
-            <select name="parent_id" class="input">
-              <option value="">None (top-level)</option>
+            <label class="form-label">조직명 <span style="color:var(--red);">*</span></label>
+            <input type="text" name="name" class="input" placeholder="예: 글로벌사업팀" required>
+          </div>
+
+          <div class="field" style="margin:0;" id="parentField">
+            <label class="form-label">상위 조직</label>
+            <select name="parent_id" class="input" id="parentSelect">
+              <option value="">없음 (최상위)</option>
               {% for d in all_depts %}
-              <option value="{{ d.id }}">{{ d.name }}</option>
+              <option value="{{ d.id }}" data-type="{{ d.dept_type }}">{{ d.name }}
+                ({{ {'division':'부문','hq':'본부','dept':'실/처','team':'팀'}.get(d.dept_type,'') }})</option>
               {% endfor %}
             </select>
           </div>
+
           <button type="submit" class="btn btn-primary" style="align-self:flex-start;">
-            <i class="fas fa-plus"></i> Add
+            <i class="fas fa-plus"></i> 추가
           </button>
         </form>
       </div>
     </div>
   </div>
 
-  <!-- Position management -->
+  <!-- 오른쪽: 직급 관리 -->
   <div>
     <div class="card" style="margin-bottom:16px;">
       <div class="card-head">
-        <span class="card-title">Positions</span>
-        <span style="font-size:13px; color:var(--tx-3);">{{ poses|length }}</span>
+        <span class="card-title">직급 체계</span>
+        <span style="font-size:13px; color:var(--tx-3);">{{ poses|length }}개</span>
       </div>
       <div class="tbl-wrap">
         <table>
           <thead>
             <tr>
-              <th>Title</th>
-              <th>Level</th>
-              <th>Actions</th>
+              <th>직급명</th>
+              <th>레벨</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {% for p in poses %}
             <tr>
               <td style="font-weight:600;">{{ p.name }}</td>
-              <td><span class="badge badge-inactive">Lv.{{ p.level }}</span></td>
+              <td>
+                <span class="badge badge-inactive" style="font-variant-numeric:tabular-nums;">
+                  Lv.{{ p.level }}
+                </span>
+              </td>
               <td>
                 <form method="POST" action="{{ url_for('departments') }}"
-                      onsubmit="return confirm('Delete this position?')">
+                      onsubmit="return confirm('직급을 삭제하시겠습니까?')">
                   <input type="hidden" name="action" value="delete_pos">
                   <input type="hidden" name="pos_id" value="{{ p.id }}">
                   <button type="submit" class="btn btn-sm"
@@ -112,22 +195,23 @@
       </div>
     </div>
 
-    <!-- Add position -->
+    <!-- 직급 추가 -->
     <div class="card">
-      <div class="card-head"><span class="card-title">Add Position</span></div>
+      <div class="card-head"><span class="card-title">직급 추가</span></div>
       <div class="card-body">
-        <form method="POST" action="{{ url_for('departments') }}" style="display:flex; flex-direction:column; gap:12px;">
+        <form method="POST" action="{{ url_for('departments') }}"
+              style="display:flex; flex-direction:column; gap:12px;">
           <input type="hidden" name="action" value="add_pos">
           <div class="field" style="margin:0;">
-            <label class="form-label">Position Title</label>
-            <input type="text" name="name" class="input" placeholder="e.g. Principal" required>
+            <label class="form-label">직급명 <span style="color:var(--red);">*</span></label>
+            <input type="text" name="name" class="input" placeholder="예: CL5" required>
           </div>
           <div class="field" style="margin:0;">
-            <label class="form-label">Level (higher = more senior)</label>
+            <label class="form-label">레벨 <span style="color:var(--tx-3); font-weight:400;">(숫자 높을수록 상위)</span></label>
             <input type="number" name="level" class="input" min="1" max="20" value="5">
           </div>
           <button type="submit" class="btn btn-primary" style="align-self:flex-start;">
-            <i class="fas fa-plus"></i> Add
+            <i class="fas fa-plus"></i> 추가
           </button>
         </form>
       </div>
@@ -135,4 +219,43 @@
   </div>
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  // 타입 선택 시 선택된 스타일 강조
+  var radios = document.querySelectorAll('.type-radio');
+  var opts   = document.querySelectorAll('.type-opt');
+
+  function updateStyle() {
+    var sel = document.querySelector('.type-radio:checked');
+    opts.forEach(function(o) {
+      var isSelected = sel && o.dataset.key === sel.value;
+      o.style.outline     = isSelected ? '2px solid ' + o.dataset.color : 'none';
+      o.style.outlineOffset = isSelected ? '1px' : '0';
+    });
+
+    // 상위 조직 드롭다운 필터링
+    var parentRules = {{ dept_type_parent | tojson }};
+    var allowed = sel ? (parentRules[sel.value] || []) : [];
+    var parentSel = document.getElementById('parentSelect');
+    Array.from(parentSel.options).forEach(function(opt) {
+      if (opt.value === '') return;
+      var dtype = opt.dataset.type;
+      opt.hidden = allowed.indexOf(dtype) === -1;
+    });
+    // 상위 조직이 의미없는 최상위 타입이면 필드 숨김
+    document.getElementById('parentField').style.display =
+      allowed.length === 0 ? 'none' : '';
+    // 선택된 값이 숨겨졌으면 초기화
+    if (parentSel.selectedIndex > 0 && parentSel.options[parentSel.selectedIndex].hidden) {
+      parentSel.value = '';
+    }
+  }
+
+  radios.forEach(function(r) { r.addEventListener('change', updateStyle); });
+  updateStyle();
+}());
+</script>
 {% endblock %}

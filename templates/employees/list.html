@@ -1,57 +1,96 @@
 {% extends 'base.html' %}
-{% block title %}Employees{% endblock %}
-{% block page_title %}Employees{% endblock %}
+{% block title %}직원 목록{% endblock %}
+{% block page_title %}직원 목록{% endblock %}
 
 {% block content %}
 
-<!-- Search & filter -->
 <div class="card" style="margin-bottom:16px;">
   <div style="padding:14px 18px;">
-    <form method="GET" action="{{ url_for('employees') }}"
-          style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-      <div style="position:relative; flex:1; min-width:200px;">
-        <i class="fas fa-search" style="position:absolute; left:11px; top:50%;
-           transform:translateY(-50%); color:var(--tx-3); font-size:13px;"></i>
-        <input type="text" name="q" value="{{ q }}" class="input"
-               style="padding-left:34px;" placeholder="Search by name or email">
+    <form method="GET" action="{{ url_for('employees') }}">
+      <!-- 첫 줄: 검색 + 버튼 -->
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+        <div style="position:relative; flex:1; min-width:200px;">
+          <i class="fas fa-search" style="position:absolute; left:11px; top:50%;
+             transform:translateY(-50%); color:var(--tx-3); font-size:13px;"></i>
+          <input type="text" name="q" value="{{ q }}" class="input"
+                 style="padding-left:34px;" placeholder="이름 / 이메일 / 사번 검색">
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> 검색</button>
+        {% if q or dept_id or jf_id or pos_id or emp_type or perf_grade %}
+        <a href="{{ url_for('employees') }}" class="btn btn-ghost">초기화</a>
+        {% endif %}
+        {% if session.user_role == 'admin' %}
+        <a href="{{ url_for('employee_new') }}" class="btn btn-primary" style="margin-left:auto;">
+          <i class="fas fa-plus"></i> 직원 추가
+        </a>
+        <a href="{{ url_for('export_employees') }}" class="btn btn-ghost" style="color:var(--tx-2);">
+          <i class="fas fa-file-excel" style="color:#217346;"></i> Excel
+        </a>
+        {% endif %}
       </div>
-      <select name="dept" class="input" style="width:160px;">
-        <option value="">All Departments</option>
-        {% for d in depts %}
-        <option value="{{ d.id }}" {% if dept_id == d.id|string %}selected{% endif %}>{{ d.name }}</option>
-        {% endfor %}
-      </select>
-      <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Search</button>
-      {% if q or dept_id %}
-      <a href="{{ url_for('employees') }}" class="btn btn-ghost">Clear</a>
-      {% endif %}
-      {% if session.user_role == 'admin' %}
-      <a href="{{ url_for('employee_new') }}" class="btn btn-primary" style="margin-left:auto;">
-        <i class="fas fa-plus"></i> Add Employee
-      </a>
-      {% endif %}
+      <!-- 둘째 줄: 상세 필터 -->
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <select name="dept" class="input" style="width:160px; font-size:12px;">
+          <option value="">전체 부서</option>
+          {% set type_labels = {'division':'부문','hq':'본부','dept':'실/처','team':'팀'} %}
+          {% for tkey in ['division','hq','dept','team'] %}
+          {% set group = depts | selectattr('dept_type','equalto',tkey) | list %}
+          {% if group %}
+          <optgroup label="── {{ type_labels[tkey] }}">
+            {% for d in group %}
+            <option value="{{ d.id }}" {% if dept_id == d.id|string %}selected{% endif %}>{{ d.name }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
+          {% endfor %}
+        </select>
+        <select name="jf" class="input" style="width:130px; font-size:12px;">
+          <option value="">전체 직군</option>
+          {% for j in jfs %}
+          <option value="{{ j.id }}" {% if jf_id == j.id|string %}selected{% endif %}>{{ j.name }}</option>
+          {% endfor %}
+        </select>
+        <select name="pos" class="input" style="width:120px; font-size:12px;">
+          <option value="">전체 직급</option>
+          {% for p in poses %}
+          <option value="{{ p.id }}" {% if pos_id == p.id|string %}selected{% endif %}>{{ p.name }}</option>
+          {% endfor %}
+        </select>
+        <select name="emp_type" class="input" style="width:120px; font-size:12px;">
+          <option value="">고용형태 전체</option>
+          <option value="full_time"  {% if emp_type == 'full_time'  %}selected{% endif %}>정규직</option>
+          <option value="part_time"  {% if emp_type == 'part_time'  %}selected{% endif %}>파트타임</option>
+          <option value="contract"   {% if emp_type == 'contract'   %}selected{% endif %}>계약직</option>
+          <option value="intern"     {% if emp_type == 'intern'     %}selected{% endif %}>인턴</option>
+        </select>
+        <select name="grade" class="input" style="width:110px; font-size:12px;">
+          <option value="">성과등급 전체</option>
+          {% for g in ['S','A','B','C','D'] %}
+          <option value="{{ g }}" {% if perf_grade == g %}selected{% endif %}>{{ g }} 등급</option>
+          {% endfor %}
+        </select>
+      </div>
     </form>
   </div>
 </div>
 
-<!-- Employee table -->
 <div class="card">
   <div class="card-head">
-    <span class="card-title">Active Employees</span>
-    <span style="font-size:13px; color:var(--tx-3);">{{ employees|length }} total</span>
+    <span class="card-title">재직 직원</span>
+    <span style="font-size:13px; color:var(--tx-3);">{{ employees|length }}명</span>
   </div>
   <div class="tbl-wrap">
     <table>
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Email</th>
-          <th>Department</th>
-          <th>Position</th>
-          <th>Role</th>
-          <th>Hired</th>
-          <th>Status</th>
-          {% if session.user_role == 'admin' %}<th>Actions</th>{% endif %}
+          <th>이름</th>
+          <th>이메일</th>
+          <th>부서</th>
+          <th>직급</th>
+          <th>고용형태</th>
+          <th>성과등급</th>
+          <th>입사일</th>
+          {% if session.user_role == 'admin' %}<th>액션</th>{% endif %}
         </tr>
       </thead>
       <tbody>
@@ -67,20 +106,30 @@
           </td>
           <td style="color:var(--tx-3);">{{ emp.email }}</td>
           <td>{{ emp.dept_name or '—' }}</td>
-          <td>{{ emp.pos_name  or '—' }}</td>
+          <td>{{ emp.pos_name or '—' }}</td>
           <td>
-            {% if emp.role == 'admin' %}<span class="badge badge-info">Admin</span>
-            {% elif emp.role == 'manager' %}<span class="badge badge-active">Manager</span>
-            {% elif emp.role == 'recruiter' %}<span class="badge badge-pending">Recruiter</span>
-            {% else %}<span class="badge badge-inactive">Employee</span>{% endif %}
+            {% set et = emp.employment_type %}
+            {% if et == 'full_time' %}<span class="badge badge-active">정규직</span>
+            {% elif et == 'part_time' %}<span class="badge badge-inactive">파트타임</span>
+            {% elif et == 'contract' %}<span class="badge badge-pending">계약직</span>
+            {% elif et == 'intern' %}<span class="badge badge-info">인턴</span>
+            {% else %}<span class="badge badge-inactive">—</span>{% endif %}
+          </td>
+          <td>
+            {% if emp.perf_grade %}
+              {% set gc = {'S':'#7c3aed','A':'#1d4ed8','B':'#047857','C':'#b45309','D':'#dc2626'} %}
+              <span class="badge" style="background:{{ gc.get(emp.perf_grade,'#6b7280') }}20;
+                                         color:{{ gc.get(emp.perf_grade,'#6b7280') }};
+                                         border:1px solid {{ gc.get(emp.perf_grade,'#6b7280') }}40;">
+                {{ emp.perf_grade }}
+              </span>
+            {% else %}—{% endif %}
           </td>
           <td style="color:var(--tx-3);">{{ emp.hire_date or '—' }}</td>
-          <td><span class="badge badge-active">Active</span></td>
           {% if session.user_role == 'admin' %}
           <td onclick="event.stopPropagation();">
             <div style="display:flex; gap:6px;">
-              <a href="{{ url_for('employee_edit', emp_id=emp.id) }}" class="btn btn-ghost btn-sm"
-                 title="정보 수정">
+              <a href="{{ url_for('employee_edit', emp_id=emp.id) }}" class="btn btn-ghost btn-sm" title="정보 수정">
                 <i class="fas fa-pencil-alt"></i>
               </a>
               <a href="{{ url_for('termination_request_new', emp_id=emp.id) }}" class="btn btn-sm"
@@ -95,7 +144,7 @@
         {% else %}
         <tr>
           <td colspan="8" style="text-align:center; color:var(--tx-3); padding:48px;">
-            No employees found.
+            조건에 맞는 직원이 없습니다.
           </td>
         </tr>
         {% endfor %}
@@ -112,10 +161,7 @@ document.querySelectorAll('.emp-row').forEach(function(row) {
   row.addEventListener('click', function(e) {
     if (e.target.closest('a, button')) return;
     var href = row.dataset.href;
-    // 반드시 내부 상대경로만 허용
-    if (href && href.startsWith('/')) {
-      location.href = href;
-    }
+    if (href && href.startsWith('/')) location.href = href;
   });
 });
 </script>
