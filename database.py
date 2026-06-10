@@ -679,6 +679,14 @@ def init_db(db_path: str = None):
             c.execute('ALTER TABLE users ADD COLUMN termination_reason TEXT')
         if 'work_type' not in existing:
             c.execute('ALTER TABLE users ADD COLUMN work_type TEXT NOT NULL DEFAULT "standard"')
+        if 'address' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN address TEXT')
+        if 'emergency_name' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN emergency_name TEXT')
+        if 'emergency_phone' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN emergency_phone TEXT')
+        if 'emergency_relation' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN emergency_relation TEXT')
 
         # benefit_configs 컬럼 마이그레이션
         bc_cols = {r[1] for r in c.execute('PRAGMA table_info(benefit_configs)').fetchall()}
@@ -746,6 +754,90 @@ def init_db(db_path: str = None):
         ]:
             if col not in cc_cols:
                 c.execute(f'ALTER TABLE company_config ADD COLUMN {col} REAL DEFAULT {default}')
+
+        # salary_grades 컬럼 마이그레이션 (v0.51 — Salary Band)
+        sg_cols = {r[1] for r in c.execute('PRAGMA table_info(salary_grades)').fetchall()}
+        for col, default in [
+            ('min_salary', '0'),
+            ('mid_salary', '0'),
+            ('max_salary', '0'),
+        ]:
+            if col not in sg_cols:
+                c.execute(f'ALTER TABLE salary_grades ADD COLUMN {col} INTEGER DEFAULT {default}')
+
+        # grade_bonus_config 테이블 (v0.53) — 성과등급별 상여 배수
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS grade_bonus_config (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                grade        TEXT NOT NULL UNIQUE CHECK(grade IN ('S','A','B','C','D')),
+                bonus_months REAL NOT NULL DEFAULT 0,
+                updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        if not c.execute('SELECT 1 FROM grade_bonus_config LIMIT 1').fetchone():
+            c.executemany(
+                'INSERT OR IGNORE INTO grade_bonus_config (grade, bonus_months) VALUES (?,?)',
+                [('S', 3.0), ('A', 2.0), ('B', 1.0), ('C', 0.5), ('D', 0.0)]
+            )
+
+        # merit_matrix 테이블 (v0.51) — 성과등급 × Compa 구간 → 인상률
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS merit_matrix (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                performance_grade TEXT NOT NULL CHECK(performance_grade IN ('S','A','B','C','D')),
+                compa_band      TEXT NOT NULL CHECK(compa_band IN ('below','at','above')),
+                increase_pct    REAL NOT NULL DEFAULT 0,
+                UNIQUE(performance_grade, compa_band)
+            )
+        ''')
+        # 기본값 시드 (비어있을 때만)
+        if not c.execute('SELECT 1 FROM merit_matrix LIMIT 1').fetchone():
+            defaults = [
+                ('S','below',10.0), ('S','at',8.0),  ('S','above',5.0),
+                ('A','below',7.0),  ('A','at',5.0),  ('A','above',3.0),
+                ('B','below',4.0),  ('B','at',3.0),  ('B','above',1.5),
+                ('C','below',1.0),  ('C','at',0.0),  ('C','above',0.0),
+                ('D','below',0.0),  ('D','at',-1.0), ('D','above',-1.0),
+            ]
+            c.executemany(
+                'INSERT OR IGNORE INTO merit_matrix (performance_grade, compa_band, increase_pct) VALUES (?,?,?)',
+                defaults
+            )
+
+        # ── ACR 테이블 (v0.52) ──────────────────────────────────────────────────
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS compensation_review_cycles (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT NOT NULL,
+                review_year INTEGER NOT NULL,
+                status      TEXT NOT NULL DEFAULT 'draft'
+                            CHECK(status IN ('draft','open','closed')),
+                effective_date TEXT,
+                created_by  INTEGER REFERENCES users(id),
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS compensation_reviews (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                cycle_id        INTEGER NOT NULL REFERENCES compensation_review_cycles(id),
+                employee_id     INTEGER NOT NULL REFERENCES users(id),
+                manager_id      INTEGER REFERENCES users(id),
+                current_salary  INTEGER DEFAULT 0,
+                proposed_increase_pct  REAL DEFAULT 0,
+                proposed_salary INTEGER DEFAULT 0,
+                manager_note    TEXT,
+                hr_override_pct REAL,
+                hr_override_salary INTEGER,
+                hr_note         TEXT,
+                status          TEXT NOT NULL DEFAULT 'pending'
+                                CHECK(status IN ('pending','submitted','approved','rejected')),
+                approved_by     INTEGER REFERENCES users(id),
+                approved_at     TIMESTAMP,
+                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(cycle_id, employee_id)
+            )
+        ''')
 
         # checkins 컬럼 마이그레이션
         checkin_cols = {r[1] for r in c.execute('PRAGMA table_info(checkins)').fetchall()}

@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+{% block title %}급여 밴드 & Merit Matrix{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>💰 급여 밴드 & Merit Matrix</h1>
+  <p class="page-subtitle">직급×직군별 급여 범위 · Min(하한) / Mid(기준점) / Max(상한) · <strong>밴드값은 연봉 기준 (원)</strong> · Compa-Ratio = 월급×12 ÷ Mid</p>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+    <div class="alert alert-{{ cat }}">{{ msg }}</div>
+  {% endfor %}
+{% endwith %}
+
+<!-- 탭 -->
+<div style="display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:24px;">
+  <button class="tab-nav-btn active" onclick="switchTab('bands', this)">📊 급여 밴드</button>
+  <button class="tab-nav-btn" onclick="switchTab('matrix', this)">🏆 Merit Matrix</button>
+  <button class="tab-nav-btn" onclick="switchTab('compa', this)">📈 Compa-Ratio 현황</button>
+</div>
+<style>
+.tab-nav-btn {
+  padding:9px 18px; font-size:13px; font-weight:700;
+  color:var(--tx-3); cursor:pointer; border:none; background:none;
+  border-bottom:3px solid transparent; margin-bottom:-2px;
+  transition:color .15s, border-color .15s;
+}
+.tab-nav-btn:hover { color:var(--primary); }
+.tab-nav-btn.active { color:var(--primary); border-bottom-color:var(--primary); }
+</style>
+
+<!-- ① 급여 밴드 매트릭스 탭 -->
+<div id="tab-bands" class="tab-pane">
+  <div class="card">
+    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <h3 style="margin:0;">직급 × 직군 급여 밴드</h3>
+        <p style="margin:4px 0 0; font-size:12px; color:var(--text-muted);">셀 클릭 → Min / Mid / Max 편집. Mid = Compa-Ratio 기준점.</p>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center; font-size:12px;">
+        <span style="display:flex; align-items:center; gap:4px;"><span style="width:12px;height:12px;background:#dbeafe;display:inline-block;border-radius:2px;"></span> Min</span>
+        <span style="display:flex; align-items:center; gap:4px;"><span style="width:12px;height:12px;background:#dcfce7;display:inline-block;border-radius:2px;"></span> Mid</span>
+        <span style="display:flex; align-items:center; gap:4px;"><span style="width:12px;height:12px;background:#fef9c3;display:inline-block;border-radius:2px;"></span> Max</span>
+      </div>
+    </div>
+    <div class="card-body" style="padding:0; overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:12px; min-width:900px;">
+        <thead>
+          <tr style="background:var(--bg-2);">
+            <th style="padding:10px 12px; text-align:left; border:1px solid var(--border); white-space:nowrap; min-width:90px;">직급</th>
+            {% for jf in job_families %}
+            <th style="padding:8px 6px; text-align:center; border:1px solid var(--border); white-space:nowrap; font-size:11px;">{{ jf.name }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for pos in positions %}
+          <tr>
+            <td style="padding:8px 12px; border:1px solid var(--border); font-weight:700; background:var(--bg-2); white-space:nowrap;">
+              {{ pos.name }}
+            </td>
+            {% for jf in job_families %}
+            {% set sg = band_matrix.get((pos.id, jf.id)) %}
+            <td style="border:1px solid var(--border); padding:0; cursor:pointer;"
+                onclick="openBandModal({{ sg.id if sg else 0 }}, '{{ pos.name }}', '{{ jf.name }}',
+                  {{ sg.min_salary if sg else 0 }}, {{ sg.mid_salary if sg else 0 }}, {{ sg.max_salary if sg else 0 }})"
+                title="{{ pos.name }} × {{ jf.name }} 편집">
+              {% if sg and sg.mid_salary %}
+              <div style="padding:4px 6px;">
+                <div style="background:#dbeafe; padding:1px 4px; border-radius:2px; text-align:right; font-size:11px; color:#1e40af;">{{ '{:,.0f}'.format(sg.min_salary / 10000) }}만</div>
+                <div style="background:#dcfce7; padding:1px 4px; border-radius:2px; text-align:right; font-size:11px; color:#166534; font-weight:700;">{{ '{:,.0f}'.format(sg.mid_salary / 10000) }}만</div>
+                <div style="background:#fef9c3; padding:1px 4px; border-radius:2px; text-align:right; font-size:11px; color:#854d0e;">{{ '{:,.0f}'.format(sg.max_salary / 10000) }}만</div>
+              </div>
+              {% else %}
+              <div style="padding:10px; text-align:center; color:#d1d5db; font-size:10px;">-</div>
+              {% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ② Merit Matrix 탭 -->
+<div id="tab-matrix" class="tab-pane" style="display:none">
+  <div class="card">
+    <div class="card-header"><h3>Merit Matrix — 인상률 (%)</h3></div>
+    <div class="card-body">
+      <p class="text-muted" style="margin-bottom:1rem">
+        성과 등급 × Compa-Ratio 구간별 권고 인상률입니다.<br>
+        <strong>Below</strong> (Compa &lt; 0.9) &nbsp;|&nbsp; <strong>At</strong> (0.9–1.1) &nbsp;|&nbsp; <strong>Above</strong> (&gt; 1.1)
+      </p>
+      <form method="post">
+        <input type="hidden" name="action" value="update_matrix">
+        <table class="data-table" style="max-width:480px;">
+          <thead>
+            <tr>
+              <th>등급</th>
+              <th>Below Band<br><small style="font-weight:400">Compa &lt; 0.9</small></th>
+              <th>At Band<br><small style="font-weight:400">0.9 – 1.1</small></th>
+              <th>Above Band<br><small style="font-weight:400">Compa &gt; 1.1</small></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for grade, label in [('S','S 탁월'),('A','A 우수'),('B','B 보통'),('C','C 미흡'),('D','D 부진')] %}
+            <tr>
+              <td>
+                <span class="badge" style="background:{% if grade in ['S','A'] %}#dcfce7;color:#166534{% elif grade=='B' %}#fef3c7;color:#92400e{% else %}#fee2e2;color:#991b1b{% endif %};">
+                  {{ label }}
+                </span>
+              </td>
+              {% for band in ['below','at','above'] %}
+              <td>
+                <input type="number" step="0.1" name="pct_{{ grade }}_{{ band }}"
+                       class="form-control" style="width:75px; text-align:right;"
+                       value="{{ matrix.get((grade, band), 0) }}">
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div style="margin-top:1rem">
+          <button type="submit" class="btn btn-primary">💾 Matrix 저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ③ Compa-Ratio 현황 탭 -->
+<div id="tab-compa" class="tab-pane" style="display:none">
+  <div class="card">
+    <div class="card-header">
+      <h3>직원별 Compa-Ratio 현황</h3>
+      <small class="text-muted">Compa-Ratio = 월급×12(연봉) ÷ Mid(연봉). 1.0 = 밴드 정중앙</small>
+    </div>
+    <div class="card-body" style="padding:0;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>이름</th><th>부서</th><th>직급</th><th>직군</th>
+            <th>기본급</th><th>밴드 Min</th><th>Mid</th><th>Max</th>
+            <th>Compa-Ratio</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in emps %}
+          <tr>
+            <td><a href="{{ url_for('employee_detail', emp_id=e.id) }}">{{ e.name }}</a></td>
+            <td>{{ e.dept_name or '-' }}</td>
+            <td>{{ e.pos_name or '-' }}</td>
+            <td>{{ e.jf_name or '-' }}</td>
+            <td>{{ '{:,}'.format(e.base_salary) }}원</td>
+            <td style="color:#1e40af;">{{ '{:,}'.format(e.min_salary) if e.min_salary else '-' }}</td>
+            <td style="color:#166534; font-weight:700;">{{ '{:,}'.format(e.mid_salary) if e.mid_salary else '-' }}</td>
+            <td style="color:#854d0e;">{{ '{:,}'.format(e.max_salary) if e.max_salary else '-' }}</td>
+            <td>
+              {% if e.compa_ratio is not none %}
+                {% set r = e.compa_ratio %}
+                {% if r < 0.9 %}
+                  <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:700;">{{ r }} ↓ 하단</span>
+                {% elif r > 1.1 %}
+                  <span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:700;">{{ r }} ↑ 상단</span>
+                {% else %}
+                  <span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:700;">{{ r }} ✓</span>
+                {% endif %}
+              {% else %}
+                <span style="color:#9ca3af;font-size:12px;">밴드 미설정</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" style="text-align:center;padding:40px;color:#9ca3af;">데이터가 없습니다.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 밴드 편집 모달 -->
+<div id="bandModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:12px; padding:28px; width:380px; box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <h3 id="modalTitle" style="margin:0 0 20px; font-size:16px;"></h3>
+    <form id="bandForm" method="post">
+      <input type="hidden" name="action" value="update_band">
+      <input type="hidden" name="sg_id" id="modalSgId">
+      <div style="display:grid; gap:12px;">
+        <div>
+          <label style="font-size:12px; color:#6b7280; font-weight:600;">MIN (하한)</label>
+          <input type="number" name="min_salary" id="modalMin" class="form-control"
+                 placeholder="예) 34000000" step="1000000">
+        </div>
+        <div>
+          <label style="font-size:12px; color:#166534; font-weight:600;">MID (기준점 · Compa-Ratio 분모)</label>
+          <input type="number" name="mid_salary" id="modalMid" class="form-control"
+                 placeholder="예) 40000000" step="1000000">
+        </div>
+        <div>
+          <label style="font-size:12px; color:#92400e; font-weight:600;">MAX (상한)</label>
+          <input type="number" name="max_salary" id="modalMax" class="form-control"
+                 placeholder="예) 46000000" step="1000000">
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:20px; justify-content:flex-end;">
+        <button type="button" onclick="closeBandModal()" class="btn btn-ghost">취소</button>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.tab-nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).style.display = '';
+  btn.classList.add('active');
+}
+
+function openBandModal(sgId, posName, jfName, min, mid, max) {
+  document.getElementById('modalTitle').textContent = posName + ' × ' + jfName;
+  document.getElementById('modalSgId').value = sgId;
+  document.getElementById('modalMin').value = min || '';
+  document.getElementById('modalMid').value = mid || '';
+  document.getElementById('modalMax').value = max || '';
+  const m = document.getElementById('bandModal');
+  m.style.display = 'flex';
+}
+
+function closeBandModal() {
+  document.getElementById('bandModal').style.display = 'none';
+}
+
+document.getElementById('bandModal').addEventListener('click', function(e) {
+  if (e.target === this) closeBandModal();
+});
+</script>
+{% endblock %}

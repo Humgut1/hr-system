@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+{% block title %}Total Compensation — {{ emp.name }}{% endblock %}
+{% block content %}
+<div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+  <div>
+    <h1>💼 Total Compensation Statement</h1>
+    <p class="page-subtitle">{{ emp.name }} · {{ emp.dept_name or '-' }} · {{ emp.pos_name or '-' }} · {{ year }}년도</p>
+  </div>
+  <div style="display:flex; gap:8px;">
+    <a href="{{ url_for('employee_detail', emp_id=emp.id) }}" class="btn btn-ghost btn-sm">← 프로필</a>
+    <button onclick="window.print()" class="btn btn-primary btn-sm">🖨️ 인쇄</button>
+  </div>
+</div>
+
+<!-- 인쇄 스타일 -->
+<style>
+@media print {
+  .sidebar, .header, .page-header .btn, nav { display: none !important; }
+  .main-content { margin: 0 !important; padding: 0 !important; }
+  body { background: white !important; }
+  .no-print { display: none !important; }
+}
+</style>
+
+<!-- 문서 본문 -->
+<div id="total-comp-paper" style="background:white; max-width:800px; margin:0 auto;
+     border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,.08);">
+
+  <!-- 헤더 -->
+  <div style="background:linear-gradient(135deg,#1e3a8a,#3b82f6); color:white; padding:32px 40px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <div>
+        <div style="font-size:11px; letter-spacing:2px; opacity:.8; margin-bottom:6px;">TOTAL COMPENSATION STATEMENT</div>
+        <h2 style="margin:0; font-size:24px;">{{ emp.name }}</h2>
+        <div style="margin-top:8px; font-size:14px; opacity:.85;">
+          {{ emp.dept_name or '-' }} &nbsp;|&nbsp; {{ emp.pos_name or '-' }}
+          {% if emp.jf_name %} &nbsp;|&nbsp; {{ emp.jf_name }}{% endif %}
+        </div>
+      </div>
+      <div style="text-align:right; font-size:13px; opacity:.85;">
+        <div>{{ year }}년도 보상 내역</div>
+        {% if emp.hire_date %}<div style="margin-top:4px;">입사일: {{ emp.hire_date }}</div>{% endif %}
+        {% if perf_grade %}
+        <div style="margin-top:8px; font-size:20px; font-weight:800;">
+          성과등급 {{ perf_grade }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 총 보상 합계 강조 -->
+    <div style="margin-top:24px; background:rgba(255,255,255,.15); border-radius:8px; padding:16px 20px;
+                display:flex; align-items:center; justify-content:space-between;">
+      <div style="font-size:13px; opacity:.9;">{{ year }}년 총 보상 패키지 추정액</div>
+      <div style="font-size:28px; font-weight:800;">{{ '{:,}'.format(total_comp) }}원</div>
+    </div>
+  </div>
+
+  <!-- 본문 -->
+  <div style="padding:32px 40px;">
+
+    <!-- ① 기본 급여 -->
+    <div style="margin-bottom:28px;">
+      <h3 style="font-size:14px; color:#6b7280; letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">① 기본 급여</h3>
+      <div style="background:#f9fafb; border-radius:8px; overflow:hidden;">
+        {% set rows = [
+          ('현재 연봉 (기본급)', base_salary, ''),
+          ('실지급 총액 (세전)', total_gross, months_paid ~ '개월 합산'),
+          ('실수령액 (세후)', total_net, '4대보험·소득세 공제 후'),
+          ('상여금 지급액', total_bonus, year ~ '년 실지급'),
+        ] %}
+        {% for label, amount, note in rows %}
+        <div style="display:flex; justify-content:space-between; align-items:center;
+                    padding:12px 16px; border-bottom:1px solid #f3f4f6;">
+          <div>
+            <span style="font-size:14px;">{{ label }}</span>
+            {% if note %}<span style="font-size:11px; color:#9ca3af; margin-left:8px;">{{ note }}</span>{% endif %}
+          </div>
+          <strong style="font-size:15px;">{{ '{:,}'.format(amount) }}원</strong>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- ② 복리후생 -->
+    {% if benefit_items %}
+    <div style="margin-bottom:28px;">
+      <h3 style="font-size:14px; color:#6b7280; letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">② 복리후생 (연간 추정)</h3>
+      <div style="background:#f9fafb; border-radius:8px; overflow:hidden;">
+        {% for item in benefit_items %}
+        <div style="display:flex; justify-content:space-between; align-items:center;
+                    padding:10px 16px; border-bottom:1px solid #f3f4f6;">
+          <div style="font-size:14px;">
+            {{ item.name }}
+            {% if item.tax_exempt %}
+            <span style="font-size:10px; background:#dcfce7; color:#166534; padding:1px 6px; border-radius:4px; margin-left:6px;">비과세</span>
+            {% endif %}
+          </div>
+          <span style="font-size:14px;">{{ '{:,}'.format(item.annual) }}원</span>
+        </div>
+        {% endfor %}
+        <div style="display:flex; justify-content:space-between; padding:12px 16px;
+                    background:#f0fdf4; font-weight:700;">
+          <span>복리후생 소계</span>
+          <span style="color:#166534;">{{ '{:,}'.format(benefit_total) }}원</span>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ③ 퇴직금 적립 -->
+    <div style="margin-bottom:28px;">
+      <h3 style="font-size:14px; color:#6b7280; letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">③ 퇴직금 적립 (연간)</h3>
+      <div style="background:#f9fafb; border-radius:8px; padding:14px 16px;
+                  display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <span style="font-size:14px;">퇴직금 적립 추정액</span>
+          <span style="font-size:11px; color:#9ca3af; margin-left:8px;">연간 기본급 기준 (근로기준법 §34)</span>
+        </div>
+        <strong style="font-size:15px;">{{ '{:,}'.format(severance_accrual) }}원</strong>
+      </div>
+    </div>
+
+    <!-- ④ 성과 상여 예상 -->
+    {% if perf_grade %}
+    <div style="margin-bottom:28px;">
+      <h3 style="font-size:14px; color:#6b7280; letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">④ 성과 상여 예상 (PI)</h3>
+      <div style="background:#fefce8; border:1px solid #fde047; border-radius:8px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <div>
+            <span style="font-size:14px;">성과등급 {{ perf_grade }} 기준</span>
+            <span style="font-size:12px; color:#92400e; margin-left:8px;">월 기본급 × {{ bonus_months }}배</span>
+          </div>
+          <strong style="font-size:16px; color:#92400e;">~ {{ '{:,}'.format(estimated_bonus) }}원</strong>
+        </div>
+        <p style="font-size:11px; color:#a16207; margin:0;">
+          * 예상 금액이며 실제 지급액은 회사 정책에 따라 변동될 수 있습니다.
+        </p>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ⑤ 급여 밴드 포지션 -->
+    {% if band and band.mid_salary %}
+    <div style="margin-bottom:28px;">
+      <h3 style="font-size:14px; color:#6b7280; letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">⑤ 급여 밴드 포지션</h3>
+      <div style="background:#f9fafb; border-radius:8px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; font-size:12px; color:#6b7280; margin-bottom:8px;">
+          <span>Min {{ '{:,}'.format(band.min_salary) }}원</span>
+          <span>Mid {{ '{:,}'.format(band.mid_salary) }}원</span>
+          <span>Max {{ '{:,}'.format(band.max_salary) }}원</span>
+        </div>
+        {% if band.max_salary > band.min_salary %}
+        {% set pct = [([(base_salary - band.min_salary) / (band.max_salary - band.min_salary) * 100, 0]|max), 100]|min %}
+        {% set mid_pct = (band.mid_salary - band.min_salary) / (band.max_salary - band.min_salary) * 100 %}
+        <div style="position:relative; height:10px; background:#e5e7eb; border-radius:5px;">
+          <div style="position:absolute; left:{{ mid_pct }}%; top:-3px; bottom:-3px; width:2px; background:#9ca3af;"></div>
+          <div style="position:absolute; left:0; width:{{ pct }}%; height:100%; background:#3b82f6; border-radius:5px;"></div>
+          <div style="position:absolute; left:{{ pct }}%; top:50%; transform:translate(-50%,-50%);
+                      width:14px; height:14px; background:white; border:3px solid #1e3a8a; border-radius:50%;"></div>
+        </div>
+        {% endif %}
+        {% if compa_ratio %}
+        <div style="text-align:center; margin-top:10px; font-size:13px;">
+          Compa-Ratio
+          <strong style="color:{% if compa_ratio < 0.9 %}#b45309{% elif compa_ratio > 1.1 %}#1d4ed8{% else %}#15803d{% endif %};">
+            {{ compa_ratio }}
+          </strong>
+          <span style="color:#9ca3af; font-size:11px; margin-left:4px;">
+            ({% if compa_ratio < 0.9 %}밴드 하단{% elif compa_ratio > 1.1 %}밴드 상단{% else %}밴드 정상{% endif %})
+          </span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 합계 -->
+    <div style="background:#1e3a8a; color:white; border-radius:10px; padding:20px 24px;
+                display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div style="font-size:12px; opacity:.8; margin-bottom:4px;">{{ year }}년 Total Compensation</div>
+        <div style="font-size:11px; opacity:.6;">실지급 총액 + 복리후생 + 퇴직금 적립 합산</div>
+      </div>
+      <div style="font-size:28px; font-weight:800;">{{ '{:,}'.format(total_comp) }}원</div>
+    </div>
+
+    <p style="font-size:11px; color:#9ca3af; margin-top:16px; text-align:center;">
+      본 문서는 {{ year }}년도 보상 패키지 안내용이며, 법적 효력을 가지지 않습니다. · 발행일: {{ now[:10] if now else '2026-06-10' }}
+    </p>
+  </div>
+</div>
+{% endblock %}

@@ -921,3 +921,39 @@ def calc_weekly_hours(db, user_id: int, date_str: str) -> dict:
         'over_h':        round(over_min / 60, 1),
         'days_worked':   len(rows),
     }
+
+
+# ── v0.51: Compa-Ratio ──────────────────────────────────────────────────────
+
+def calc_compa_ratio(base_salary: int, mid_salary: int) -> float | None:
+    """
+    Compa-Ratio = 현재 기본급 / 밴드 중간값
+    - 1.0 = 밴드 정중앙
+    - <1.0 = 밴드 하단 (Red-circle 위험)
+    - >1.0 = 밴드 상단 (Over-market)
+    """
+    if not mid_salary or mid_salary <= 0:
+        return None
+    # base_salary는 월급, mid_salary는 연봉 기준 → 월급 × 12로 연봉 환산 후 비교
+    return round((base_salary * 12) / mid_salary, 3)
+
+
+def compa_band(ratio: float | None) -> str:
+    """Compa-Ratio → merit_matrix compa_band 키 변환"""
+    if ratio is None:
+        return 'at'
+    if ratio < 0.9:
+        return 'below'
+    if ratio > 1.1:
+        return 'above'
+    return 'at'
+
+
+def merit_from_matrix(db, grade: str, ratio: float | None) -> float:
+    """merit_matrix 테이블에서 성과등급 × compa_band → 인상률(%) 조회"""
+    band = compa_band(ratio)
+    row  = db.execute(
+        'SELECT increase_pct FROM merit_matrix WHERE performance_grade=? AND compa_band=?',
+        (grade, band)
+    ).fetchone()
+    return row['increase_pct'] if row else 0.0

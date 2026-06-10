@@ -851,29 +851,65 @@ def announcement_edit(post_id):
 @app.route('/org')
 @login_required
 def org_chart():
-    db    = get_db()
-    depts = db.execute(
-        'SELECT d.*, COUNT(u.id) AS member_count '
-        'FROM departments d '
-        'LEFT JOIN users u ON u.department_id = d.id AND u.status = "active" '
-        'GROUP BY d.id'
+    import json as _json
+    db = get_db()
+    rows = db.execute(
+        '''SELECT u.id, u.name, u.email, u.phone, u.hire_date, u.manager_id,
+                  u.employment_type,
+                  d.name dept_name, p.name pos_name, jf.name jf_name,
+                  SUBSTR(p.name, 1, 3) cl_label
+           FROM users u
+           LEFT JOIN departments d  ON u.department_id = d.id
+           LEFT JOIN positions   p  ON u.position_id   = p.id
+           LEFT JOIN job_families jf ON u.job_family_id = jf.id
+           WHERE u.status="active"
+           ORDER BY u.name'''
     ).fetchall()
-    tree = build_dept_tree([dict(d) for d in depts])
-    people = [dict(r) for r in db.execute(
-        'SELECT u.id, u.name, u.manager_id, d.name AS dept_name, p.name AS pos_name '
-        'FROM users u '
-        'LEFT JOIN departments d ON u.department_id = d.id '
-        'LEFT JOIN positions p ON u.position_id = p.id '
-        "WHERE u.status='active' ORDER BY u.name"
-    ).fetchall()]
-    active_ids = {u['id'] for u in people}
-    for user in people:
-        if user['manager_id'] not in active_ids:
-            user['manager_id'] = None
-    reporting_tree = build_reporting_tree(people, None)
-    total = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
-    return render_template('org/index.html', tree=tree, reporting_tree=reporting_tree, total=total,
+
+    active_ids = {r['id'] for r in rows}
+    people_map = {}
+    for r in rows:
+        mid = r['manager_id'] if r['manager_id'] in active_ids else None
+        people_map[r['id']] = {
+            'id': r['id'], 'name': r['name'], 'email': r['email'] or '',
+            'phone': r['phone'] or '', 'hire': r['hire_date'] or '',
+            'dept': r['dept_name'] or '', 'title': r['pos_name'] or '',
+            'jf': r['jf_name'] or '', 'employment_type': r['employment_type'] or '',
+            'mid': mid, 'reps': []
+        }
+
+    for pid, p in people_map.items():
+        if p['mid'] and p['mid'] in people_map:
+            people_map[p['mid']]['reps'].append(pid)
+
+    total = len(people_map)
+    employees_json = _json.dumps(people_map)
+    return render_template('org/index.html',
+                           employees_json=employees_json,
+                           me=session['user_id'],
+                           total=total,
                            active_page='org')
+
+
+@app.route('/org/person/<int:uid>')
+@login_required
+def org_person(uid):
+    from flask import jsonify
+    db  = get_db()
+    row = db.execute(
+        '''SELECT u.id, u.name, u.email, u.phone, u.hire_date, u.employment_type,
+                  d.name dept_name, p.name pos_name, jf.name jf_name,
+                  m.name manager_name
+           FROM users u
+           LEFT JOIN departments d  ON u.department_id = d.id
+           LEFT JOIN positions   p  ON u.position_id   = p.id
+           LEFT JOIN job_families jf ON u.job_family_id = jf.id
+           LEFT JOIN users        m  ON u.manager_id    = m.id
+           WHERE u.id=? AND u.status="active"''', (uid,)
+    ).fetchone()
+    if not row:
+        return jsonify({}), 404
+    return jsonify(dict(row))
 
 
 # ── Employees ────────────────────────────────────────────────
@@ -1008,6 +1044,29 @@ def employee_detail(emp_id):
         "SELECT id, name FROM users WHERE role IN ('admin','manager') AND status='active' AND id!=? ORDER BY name",
         (emp_id,)
     ).fetchall()
+
+    # 급여 밴드 + Compa-Ratio
+    from payroll_utils import calc_compa_ratio, compa_band as _compa_band
+    emp_salary = db.execute(
+        'SELECT base_salary FROM employee_salary WHERE user_id=?', (emp_id,)
+    ).fetchone()
+    band_data = db.execute(
+        'SELECT min_salary, mid_salary, max_salary FROM salary_grades '
+        'WHERE position_id=? AND job_family_id=?',
+        (emp['position_id'], emp['job_family_id'])
+    ).fetchone() if emp['position_id'] and emp['job_family_id'] else None
+    base_salary  = emp_salary['base_salary'] if emp_salary else 0
+    mid_salary   = band_data['mid_salary']   if band_data else None
+    compa_ratio  = calc_compa_ratio(base_salary, mid_salary) if band_data else None
+    # emp를 dict로 변환하고 밴드 데이터 추가
+    emp = dict(emp)
+    emp['base_salary']  = base_salary
+    emp['compa_ratio']  = compa_ratio
+    emp['compa_band']   = _compa_band(compa_ratio)
+    if band_data:
+        emp['min_salary'] = band_data['min_salary']
+        emp['mid_salary'] = band_data['mid_salary']
+        emp['max_salary'] = band_data['max_salary']
 
     # 복리후생 탭 데이터
     company_benefit_cfgs = {
@@ -3220,6 +3279,92 @@ def payroll_bulk_raise():
                            active_page='admin_payroll')
 
 
+# ── v0.51: Salary Band 관리 ──────────────────────────────────────────────────
+@app.route('/admin/salary-bands', methods=['GET', 'POST'])
+@admin_required
+def salary_bands():
+    from payroll_utils import calc_compa_ratio
+    db = get_db()
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'update_band':
+            sg_id      = int(request.form.get('sg_id', 0))
+            min_salary = int(request.form.get('min_salary') or 0)
+            mid_salary = int(request.form.get('mid_salary') or 0)
+            max_salary = int(request.form.get('max_salary') or 0)
+            if sg_id:
+                db.execute(
+                    'UPDATE salary_grades SET min_salary=?, mid_salary=?, max_salary=? WHERE id=?',
+                    (min_salary, mid_salary, max_salary, sg_id)
+                )
+                db.commit()
+                flash('밴드가 저장되었습니다.', 'success')
+        elif action == 'update_matrix':
+            for grade in ['S','A','B','C','D']:
+                for band in ['below','at','above']:
+                    key = f'pct_{grade}_{band}'
+                    val = float(request.form.get(key, 0))
+                    db.execute(
+                        '''INSERT INTO merit_matrix (performance_grade, compa_band, increase_pct)
+                           VALUES (?,?,?)
+                           ON CONFLICT(performance_grade, compa_band)
+                           DO UPDATE SET increase_pct=excluded.increase_pct''',
+                        (grade, band, val)
+                    )
+            db.commit()
+            flash('Merit Matrix가 저장되었습니다.', 'success')
+        return redirect(url_for('salary_bands'))
+
+    # 직급·직군 목록
+    positions   = db.execute('SELECT id, name, level FROM positions ORDER BY level').fetchall()
+    job_families = db.execute('SELECT id, name FROM job_families ORDER BY id').fetchall()
+
+    # band_matrix: {(position_id, job_family_id): row}
+    band_rows = db.execute(
+        'SELECT sg.*, p.name pos_name, jf.name jf_name '
+        'FROM salary_grades sg '
+        'JOIN positions    p  ON sg.position_id   = p.id '
+        'JOIN job_families jf ON sg.job_family_id = jf.id'
+    ).fetchall()
+    band_matrix = {(r['position_id'], r['job_family_id']): r for r in band_rows}
+
+    # merit_matrix 15칸
+    matrix_rows = db.execute(
+        'SELECT * FROM merit_matrix ORDER BY performance_grade, compa_band'
+    ).fetchall()
+    matrix = {(r['performance_grade'], r['compa_band']): r['increase_pct'] for r in matrix_rows}
+
+    # 직원별 Compa-Ratio 집계
+    raw_emps = db.execute(
+        '''SELECT u.id, u.name, d.name dept_name,
+                  p.name pos_name, jf.name jf_name,
+                  COALESCE(s.base_salary, 0) base_salary,
+                  sg.min_salary, sg.mid_salary, sg.max_salary
+           FROM users u
+           LEFT JOIN employee_salary s  ON u.id = s.user_id
+           LEFT JOIN departments     d  ON u.department_id  = d.id
+           LEFT JOIN positions       p  ON u.position_id    = p.id
+           LEFT JOIN job_families    jf ON u.job_family_id  = jf.id
+           LEFT JOIN salary_grades   sg ON sg.position_id   = u.position_id
+                                       AND sg.job_family_id = u.job_family_id
+           WHERE u.status = \'active\' AND u.role NOT IN (\'admin\',\'guest\')
+           ORDER BY d.name, u.name'''
+    ).fetchall()
+    emp_rows = []
+    for e in raw_emps:
+        ratio = calc_compa_ratio(e['base_salary'], e['mid_salary'])
+        emp_rows.append({**dict(e), 'compa_ratio': ratio})
+
+    return render_template('payroll/salary_bands.html',
+                           positions=positions,
+                           job_families=job_families,
+                           band_matrix=band_matrix,
+                           matrix=matrix,
+                           emps=emp_rows,
+                           active_page='salary_bands')
+
+
 @app.route('/admin/payroll', methods=['GET', 'POST'])
 @admin_required
 def admin_payroll():
@@ -3385,20 +3530,414 @@ def admin_payroll():
                 db.commit()
                 msg = f'{year}년 {month}월 급여명세서 {count}건이 생성되었습니다. (근태 수당·복리후생 자동 포함)'
 
-    emps = db.execute(
+    from payroll_utils import calc_compa_ratio, compa_band as _compa_band
+    raw_emps = db.execute(
         'SELECT u.id, u.name, d.name AS dept_name, p.name AS pos_name, '
         'COALESCE(s.base_salary, 0) AS base_salary, '
         'COALESCE(s.meal_allowance, 0) AS meal_allowance, '
-        'COALESCE(s.transport_allowance, 0) AS transport_allowance '
+        'COALESCE(s.transport_allowance, 0) AS transport_allowance, '
+        'sg.mid_salary '
         'FROM users u '
-        'LEFT JOIN departments d ON u.department_id = d.id '
-        'LEFT JOIN positions   p ON u.position_id   = p.id '
+        'LEFT JOIN departments  d  ON u.department_id  = d.id '
+        'LEFT JOIN positions    p  ON u.position_id    = p.id '
         'LEFT JOIN employee_salary s ON u.id = s.user_id '
+        'LEFT JOIN salary_grades sg ON sg.position_id  = u.position_id '
+        '                          AND sg.job_family_id = u.job_family_id '
         "WHERE u.status='active' ORDER BY d.name, u.name"
     ).fetchall()
+    emps = []
+    for e in raw_emps:
+        ratio = calc_compa_ratio(e['base_salary'], e['mid_salary'])
+        emps.append({**dict(e), 'compa_ratio': ratio,
+                     'compa_band': _compa_band(ratio)})
     return render_template('payroll/admin.html', emps=emps,
                            error=error, msg=msg, fmt_krw=fmt_krw,
                            active_page='admin_payroll')
+
+
+# ── v0.52: ACR 워크플로우 ────────────────────────────────────────────────────
+@app.route('/payroll/acr')
+@admin_required
+def acr_list():
+    """ACR 주기 목록 + 생성"""
+    db = get_db()
+    cycles = db.execute(
+        'SELECT c.*, u.name creator_name FROM compensation_review_cycles c '
+        'LEFT JOIN users u ON c.created_by = u.id '
+        'ORDER BY c.id DESC'
+    ).fetchall()
+    return render_template('payroll/acr_list.html', cycles=cycles,
+                           active_page='acr')
+
+
+@app.route('/payroll/acr/new', methods=['POST'])
+@admin_required
+def acr_new():
+    db = get_db()
+    name   = request.form.get('name', '').strip()
+    year   = int(request.form.get('review_year', 2026))
+    eff    = request.form.get('effective_date', '').strip() or None
+    if not name:
+        flash('주기 이름을 입력해주세요.', 'danger')
+        return redirect(url_for('acr_list'))
+    db.execute(
+        'INSERT INTO compensation_review_cycles (name, review_year, effective_date, created_by) '
+        'VALUES (?,?,?,?)',
+        (name, year, eff, session['user_id'])
+    )
+    db.commit()
+    flash(f'"{name}" ACR 주기가 생성되었습니다.', 'success')
+    return redirect(url_for('acr_list'))
+
+
+@app.route('/payroll/acr/<int:cycle_id>/open', methods=['POST'])
+@admin_required
+def acr_open(cycle_id):
+    db = get_db()
+    db.execute("UPDATE compensation_review_cycles SET status='open' WHERE id=?", (cycle_id,))
+    # 활성 직원 전원 draft 레코드 생성
+    emps = db.execute(
+        "SELECT u.id, COALESCE(s.base_salary,0) base_salary "
+        "FROM users u LEFT JOIN employee_salary s ON u.id=s.user_id "
+        "WHERE u.status='active' AND u.role NOT IN ('admin','guest')"
+    ).fetchall()
+    for e in emps:
+        mgr = db.execute('SELECT manager_id FROM users WHERE id=?', (e['id'],)).fetchone()
+        db.execute(
+            'INSERT OR IGNORE INTO compensation_reviews '
+            '(cycle_id, employee_id, manager_id, current_salary) VALUES (?,?,?,?)',
+            (cycle_id, e['id'], mgr['manager_id'] if mgr else None, e['base_salary'])
+        )
+    db.commit()
+    flash('ACR이 오픈되었습니다. 매니저가 인상안을 입력할 수 있습니다.', 'success')
+    return redirect(url_for('acr_list'))
+
+
+@app.route('/payroll/acr/<int:cycle_id>/close', methods=['POST'])
+@admin_required
+def acr_close(cycle_id):
+    db = get_db()
+    db.execute("UPDATE compensation_review_cycles SET status='closed' WHERE id=?", (cycle_id,))
+    db.commit()
+    flash('ACR 주기가 마감되었습니다.', 'success')
+    return redirect(url_for('acr_list'))
+
+
+@app.route('/payroll/acr/<int:cycle_id>')
+@login_required
+def acr_detail(cycle_id):
+    """매니저: 내 팀 인상안 입력 / HR Admin: 전체 검토"""
+    from payroll_utils import calc_compa_ratio, compa_band, merit_from_matrix
+    db     = get_db()
+    cycle  = db.execute('SELECT * FROM compensation_review_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cycle:
+        abort(404)
+
+    role = session['user_role']
+
+    if role == 'admin':
+        # HR: 전체 조회
+        reviews = db.execute(
+            '''SELECT cr.*, u.name emp_name, d.name dept_name, p.name pos_name,
+                      m.name mgr_name,
+                      sg.mid_salary,
+                      (SELECT cr2.final_grade FROM calibration_results cr2
+                       WHERE cr2.user_id = cr.employee_id
+                       ORDER BY cr2.id DESC LIMIT 1) perf_grade
+               FROM compensation_reviews cr
+               JOIN users u ON cr.employee_id = u.id
+               LEFT JOIN departments d ON u.department_id = d.id
+               LEFT JOIN positions   p ON u.position_id   = p.id
+               LEFT JOIN users       m ON cr.manager_id   = m.id
+               LEFT JOIN salary_grades sg ON sg.position_id   = u.position_id
+                                         AND sg.job_family_id = u.job_family_id
+               WHERE cr.cycle_id = ?
+               ORDER BY d.name, u.name''',
+            (cycle_id,)
+        ).fetchall()
+    else:
+        # 매니저: 자기 팀만
+        reviews = db.execute(
+            '''SELECT cr.*, u.name emp_name, d.name dept_name, p.name pos_name,
+                      sg.mid_salary,
+                      (SELECT cr2.final_grade FROM calibration_results cr2
+                       WHERE cr2.user_id = cr.employee_id
+                       ORDER BY cr2.id DESC LIMIT 1) perf_grade
+               FROM compensation_reviews cr
+               JOIN users u ON cr.employee_id = u.id
+               LEFT JOIN departments d ON u.department_id = d.id
+               LEFT JOIN positions   p ON u.position_id   = p.id
+               LEFT JOIN salary_grades sg ON sg.position_id   = u.position_id
+                                         AND sg.job_family_id = u.job_family_id
+               WHERE cr.cycle_id = ? AND cr.manager_id = ?
+               ORDER BY u.name''',
+            (cycle_id, session['user_id'])
+        ).fetchall()
+
+    # Merit Matrix 가이드 + Compa-Ratio 계산
+    review_rows = []
+    for r in reviews:
+        ratio     = calc_compa_ratio(r['current_salary'], r['mid_salary'])
+        band      = compa_band(ratio)
+        suggested = merit_from_matrix(db, r['perf_grade'] or 'B', ratio)
+        review_rows.append({**dict(r), 'compa_ratio': ratio,
+                             'compa_band': band, 'suggested_pct': suggested})
+
+    matrix_rows = db.execute('SELECT * FROM merit_matrix').fetchall()
+    matrix = {(m['performance_grade'], m['compa_band']): m['increase_pct'] for m in matrix_rows}
+
+    return render_template('payroll/acr.html',
+                           cycle=cycle, reviews=review_rows,
+                           matrix=matrix, role=role,
+                           active_page='acr')
+
+
+@app.route('/payroll/acr/<int:cycle_id>/submit', methods=['POST'])
+@login_required
+def acr_submit(cycle_id):
+    """매니저: 인상안 저장 + 제출"""
+    db    = get_db()
+    cycle = db.execute('SELECT * FROM compensation_review_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cycle or cycle['status'] != 'open':
+        flash('열린 ACR 주기가 아닙니다.', 'danger')
+        return redirect(url_for('acr_list'))
+
+    action = request.form.get('action', 'save')   # save | submit
+    emp_ids = request.form.getlist('emp_id')
+
+    for eid in emp_ids:
+        eid  = int(eid)
+        pct  = float(request.form.get(f'pct_{eid}', 0) or 0)
+        note = request.form.get(f'note_{eid}', '').strip()
+        cur  = db.execute(
+            'SELECT current_salary FROM compensation_reviews WHERE cycle_id=? AND employee_id=?',
+            (cycle_id, eid)
+        ).fetchone()
+        if not cur:
+            continue
+        proposed = int(cur['current_salary'] * (1 + pct / 100))
+        new_status = 'submitted' if action == 'submit' else 'pending'
+        db.execute(
+            '''UPDATE compensation_reviews
+               SET proposed_increase_pct=?, proposed_salary=?,
+                   manager_note=?, status=?
+               WHERE cycle_id=? AND employee_id=?''',
+            (pct, proposed, note, new_status, cycle_id, eid)
+        )
+    db.commit()
+    if action == 'submit':
+        flash('인상안이 HR에 제출되었습니다.', 'success')
+    else:
+        flash('임시저장 완료.', 'success')
+    return redirect(url_for('acr_detail', cycle_id=cycle_id))
+
+
+@app.route('/payroll/acr/<int:cycle_id>/approve', methods=['POST'])
+@admin_required
+def acr_approve(cycle_id):
+    """HR: 개별 또는 일괄 승인 + 급여 반영"""
+    db     = get_db()
+    cycle  = db.execute('SELECT * FROM compensation_review_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cycle:
+        abort(404)
+
+    action  = request.form.get('action', 'approve_all')
+    emp_ids = request.form.getlist('emp_id')
+    if action == 'approve_all':
+        # 제출된 것 전부
+        rows = db.execute(
+            "SELECT * FROM compensation_reviews WHERE cycle_id=? AND status='submitted'",
+            (cycle_id,)
+        ).fetchall()
+        emp_ids = [str(r['employee_id']) for r in rows]
+
+    approved = 0
+    for eid in emp_ids:
+        eid  = int(eid)
+        rev  = db.execute(
+            'SELECT * FROM compensation_reviews WHERE cycle_id=? AND employee_id=?',
+            (cycle_id, eid)
+        ).fetchone()
+        if not rev:
+            continue
+
+        # HR 오버라이드 있으면 적용
+        override_pct = request.form.get(f'hr_pct_{eid}')
+        hr_note      = request.form.get(f'hr_note_{eid}', '').strip()
+        if override_pct:
+            override_pct   = float(override_pct)
+            override_salary = int(rev['current_salary'] * (1 + override_pct / 100))
+            db.execute(
+                'UPDATE compensation_reviews SET hr_override_pct=?, hr_override_salary=?, hr_note=? '
+                'WHERE cycle_id=? AND employee_id=?',
+                (override_pct, override_salary, hr_note, cycle_id, eid)
+            )
+            final_salary = override_salary
+            final_pct    = override_pct
+        else:
+            final_salary = rev['proposed_salary'] or rev['current_salary']
+            final_pct    = rev['proposed_increase_pct'] or 0
+
+        # salary_history 기록
+        old = db.execute('SELECT * FROM employee_salary WHERE user_id=?', (eid,)).fetchone()
+        if old:
+            db.execute(
+                'INSERT INTO salary_history '
+                '(user_id, changed_by, old_base_salary, new_base_salary, '
+                'old_meal, new_meal, old_transport, new_transport, reason) '
+                'VALUES (?,?,?,?,?,?,?,?,?)',
+                (eid, session['user_id'],
+                 old['base_salary'], final_salary,
+                 old['meal_allowance'], old['meal_allowance'],
+                 old['transport_allowance'], old['transport_allowance'],
+                 f'ACR {cycle["name"]} 승인 (인상률 {final_pct:.1f}%)')
+            )
+        # 급여 업데이트
+        db.execute(
+            'INSERT INTO employee_salary (user_id, base_salary, meal_allowance, transport_allowance) '
+            'VALUES (?,?,COALESCE((SELECT meal_allowance FROM employee_salary WHERE user_id=?),0),'
+            'COALESCE((SELECT transport_allowance FROM employee_salary WHERE user_id=?),0)) '
+            'ON CONFLICT(user_id) DO UPDATE SET base_salary=excluded.base_salary, '
+            'updated_at=CURRENT_TIMESTAMP',
+            (eid, final_salary, eid, eid)
+        )
+        # review 상태 업데이트
+        db.execute(
+            "UPDATE compensation_reviews SET status='approved', approved_by=?, approved_at=CURRENT_TIMESTAMP "
+            'WHERE cycle_id=? AND employee_id=?',
+            (session['user_id'], cycle_id, eid)
+        )
+        # 인앱 알림
+        add_notification(eid, 'info', 'payroll',
+                         'ACR 급여 인상 확정',
+                         f'급여 인상이 확정되었습니다. ({final_pct:+.1f}% → {final_salary:,}원)',
+                         link=f'/payroll/{cycle["review_year"]}/1')
+        approved += 1
+
+    db.commit()
+    flash(f'{approved}명 급여 인상이 승인되고 반영되었습니다.', 'success')
+    return redirect(url_for('acr_detail', cycle_id=cycle_id))
+
+
+# ── v0.53: Total Compensation Statement ─────────────────────────────────────
+@app.route('/payroll/total-compensation/<int:uid>')
+@login_required
+def total_compensation(uid):
+    from payroll_utils import calc_compa_ratio, calc_severance, BENEFIT_CATALOG
+    role = session['user_role']
+    if role not in ('admin',) and session['user_id'] != uid:
+        abort(403)
+    db  = get_db()
+    emp = db.execute(
+        'SELECT u.*, d.name dept_name, p.name pos_name, jf.name jf_name '
+        'FROM users u '
+        'LEFT JOIN departments d  ON u.department_id = d.id '
+        'LEFT JOIN positions   p  ON u.position_id   = p.id '
+        'LEFT JOIN job_families jf ON u.job_family_id = jf.id '
+        'WHERE u.id=?', (uid,)
+    ).fetchone()
+    if not emp:
+        abort(404)
+
+    year = int(request.args.get('year', 2026))
+
+    # 연간 급여 합계
+    payslips = db.execute(
+        'SELECT * FROM payslips WHERE user_id=? AND year=? ORDER BY month',
+        (uid, year)
+    ).fetchall()
+    total_gross   = sum(p['gross_pay']  for p in payslips)
+    total_net     = sum(p['net_pay']    for p in payslips)
+    total_base    = sum(p['base_salary'] for p in payslips)
+    total_bonus   = sum((p['bonus_pay'] if p['bonus_pay'] else 0) for p in payslips)
+    months_paid   = len(payslips)
+
+    # 현재 기본급
+    salary_row = db.execute('SELECT base_salary FROM employee_salary WHERE user_id=?', (uid,)).fetchone()
+    base_salary = salary_row['base_salary'] if salary_row else 0
+
+    # 복리후생 연간 추정액
+    benefit_cfgs = db.execute("SELECT * FROM benefit_configs WHERE enabled=1").fetchall()
+    benefit_total = 0
+    benefit_items = []
+    for cfg in benefit_cfgs:
+        key  = cfg['key']
+        meta = BENEFIT_CATALOG.get(key, {})
+        monthly = cfg['amount'] or 0
+        annual  = monthly * 12
+        if annual > 0:
+            benefit_items.append({'name': meta.get('name', key), 'annual': annual,
+                                   'tax_exempt': meta.get('tax_exempt', False)})
+            benefit_total += annual
+
+    # 퇴직금 적립 추정 (연간 기본급 / 12)
+    severance_accrual = base_salary  # 1년치 기본급 = 퇴직금 적립액
+
+    # 성과등급 + 상여 배수
+    cal = db.execute(
+        'SELECT final_grade FROM calibration_results WHERE user_id=? ORDER BY id DESC LIMIT 1',
+        (uid,)
+    ).fetchone()
+    perf_grade = cal['final_grade'] if cal else None
+    bonus_cfg = db.execute(
+        'SELECT bonus_months FROM grade_bonus_config WHERE grade=?',
+        (perf_grade or 'B',)
+    ).fetchone()
+    bonus_months = bonus_cfg['bonus_months'] if bonus_cfg else 0
+    estimated_bonus = int(base_salary / 12 * bonus_months)
+
+    # Compa-Ratio
+    band = db.execute(
+        'SELECT min_salary, mid_salary, max_salary FROM salary_grades '
+        'WHERE position_id=? AND job_family_id=?',
+        (emp['position_id'], emp['job_family_id'])
+    ).fetchone() if emp['position_id'] and emp['job_family_id'] else None
+    compa = calc_compa_ratio(base_salary, band['mid_salary'] if band else None)
+
+    total_comp = total_gross + benefit_total + severance_accrual
+
+    return render_template('payroll/total_comp.html',
+                           emp=emp, year=year,
+                           payslips=payslips, months_paid=months_paid,
+                           total_gross=total_gross, total_net=total_net,
+                           total_base=total_base, total_bonus=total_bonus,
+                           base_salary=base_salary,
+                           benefit_items=benefit_items, benefit_total=benefit_total,
+                           severance_accrual=severance_accrual,
+                           perf_grade=perf_grade, bonus_months=bonus_months,
+                           estimated_bonus=estimated_bonus,
+                           band=band, compa_ratio=compa,
+                           total_comp=total_comp,
+                           fmt_krw=fmt_krw,
+                           active_page='payroll')
+
+
+# ── v0.53: Pay Equity — admin/analytics에서 호출 ──────────────────────────────
+def get_pay_equity_data(db):
+    from payroll_utils import calc_compa_ratio, compa_band
+    rows = db.execute(
+        '''SELECT u.id, u.name,
+                  d.name dept_name, p.name pos_name, jf.name jf_name,
+                  COALESCE(s.base_salary,0) base_salary,
+                  sg.min_salary, sg.mid_salary, sg.max_salary,
+                  (SELECT cr.final_grade FROM calibration_results cr
+                   WHERE cr.user_id=u.id ORDER BY cr.id DESC LIMIT 1) perf_grade
+           FROM users u
+           LEFT JOIN departments   d  ON u.department_id  = d.id
+           LEFT JOIN positions     p  ON u.position_id    = p.id
+           LEFT JOIN job_families  jf ON u.job_family_id  = jf.id
+           LEFT JOIN employee_salary s ON u.id = s.user_id
+           LEFT JOIN salary_grades sg  ON sg.position_id  = u.position_id
+                                      AND sg.job_family_id = u.job_family_id
+           WHERE u.status=\'active\' AND u.role NOT IN (\'admin\',\'guest\')
+           ORDER BY d.name, u.name'''
+    ).fetchall()
+    result = []
+    for r in rows:
+        ratio = calc_compa_ratio(r['base_salary'], r['mid_salary'])
+        band  = compa_band(ratio)
+        result.append({**dict(r), 'compa_ratio': ratio, 'compa_band': band})
+    return result
 
 
 @app.route('/payroll/salary-table')
@@ -4008,8 +4547,15 @@ def profile():
         action = request.form.get('action')
 
         if action == 'update_info':
-            phone = request.form.get('phone', '').strip() or None
-            db.execute('UPDATE users SET phone=? WHERE id=?', (phone, uid))
+            phone              = request.form.get('phone', '').strip() or None
+            address            = request.form.get('address', '').strip() or None
+            emergency_name     = request.form.get('emergency_name', '').strip() or None
+            emergency_phone    = request.form.get('emergency_phone', '').strip() or None
+            emergency_relation = request.form.get('emergency_relation', '').strip() or None
+            db.execute(
+                'UPDATE users SET phone=?, address=?, emergency_name=?, emergency_phone=?, emergency_relation=? WHERE id=?',
+                (phone, address, emergency_name, emergency_phone, emergency_relation, uid)
+            )
             db.commit()
             msg = '정보가 저장되었습니다.'
             user = db.execute(
@@ -5774,6 +6320,23 @@ def people_analytics():
     today_year  = today.year
     today_month = today.month
 
+    # ── v0.53 Pay Equity 데이터 ──────────────────────
+    pay_equity = get_pay_equity_data(db)
+    # 이상치: compa_ratio < 0.85 or > 1.15
+    outliers = [e for e in pay_equity if e['compa_ratio'] and
+                (e['compa_ratio'] < 0.85 or e['compa_ratio'] > 1.15)]
+
+    # 부서별 평균 Compa-Ratio
+    dept_compa = {}
+    for e in pay_equity:
+        if e['compa_ratio']:
+            dept_compa.setdefault(e['dept_name'] or '미지정', []).append(e['compa_ratio'])
+    dept_compa_avg = {d: round(sum(v)/len(v), 3) for d, v in dept_compa.items()}
+
+    # 상여 배수 설정
+    bonus_configs = {r['grade']: r['bonus_months']
+                     for r in db.execute('SELECT grade, bonus_months FROM grade_bonus_config').fetchall()}
+
     return render_template('analytics/index.html',
         active_page='analytics',
         total_active=total_active, turnover_rate=turnover_rate,
@@ -5781,7 +6344,9 @@ def people_analytics():
         dept_headcount=dept_headcount, grade_headcount=grade_headcount,
         monthly_turnover=monthly_turnover, leave_util=leave_util,
         compa_rows=compa_rows, risk_employees=risk_employees,
-        cycles=cycles, today_year=today_year, today_month=today_month
+        cycles=cycles, today_year=today_year, today_month=today_month,
+        pay_equity=pay_equity, outliers=outliers, dept_compa_avg=dept_compa_avg,
+        bonus_configs=bonus_configs
     )
 
 

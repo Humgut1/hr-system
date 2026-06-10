@@ -55,4 +55,5 @@ if __name__ == '__main__':
     kill_port(5000)
 
     print("[run.py] Flask 앱 기동 중...\n")
-    os.execv(sys.executable, [sys.executable, 'app.py'])
+    proc = subprocess.Popen([sys.executable, 'app.py'])
+    proc.wait()

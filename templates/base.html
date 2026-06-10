@@ -102,6 +102,12 @@
         <a href="{{ url_for('admin_payroll') }}" class="nav-item{% if active_page in ('admin_payroll','bulk_raise','bonus_pay','benefit_claims') %} active{% endif %}" title="급여 관리">
           <i class="fas fa-coins"></i><span>급여 관리</span>
         </a>
+        <a href="{{ url_for('salary_bands') }}" class="nav-item{% if active_page == 'salary_bands' %} active{% endif %}" title="급여 밴드">
+          <i class="fas fa-sliders-h"></i><span>급여 밴드</span>
+        </a>
+        <a href="{{ url_for('acr_list') }}" class="nav-item{% if active_page == 'acr' %} active{% endif %}" title="ACR">
+          <i class="fas fa-file-invoice-dollar"></i><span>보상 검토 (ACR)</span>
+        </a>
         {% endif %}
         <a href="{{ url_for('recruit_postings') }}" class="nav-item{% if active_page in ('recruit','recruit_pipeline','recruiter') %} active{% endif %}" title="채용 관리">
           <i class="fas fa-user-tie"></i><span>채용 관리</span>

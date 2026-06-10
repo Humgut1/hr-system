@@ -9,6 +9,9 @@
   <button class="ana-tab-btn active" onclick="switchAnaTab('analytics', this)">
     <i class="fas fa-chart-pie"></i> 인력 분석
   </button>
+  <button class="ana-tab-btn" onclick="switchAnaTab('payequity', this)">
+    <i class="fas fa-balance-scale"></i> Pay Equity
+  </button>
   <button class="ana-tab-btn" onclick="switchAnaTab('reports', this)">
     <i class="fas fa-file-excel"></i> 데이터 내보내기
   </button>
@@ -271,6 +274,144 @@
 </div>
 
 </div>{# /ana-panel-analytics #}
+
+<!-- Pay Equity 탭 -->
+<div id="ana-panel-payequity" class="ana-panel">
+
+  <!-- 요약 카드 -->
+  <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:24px;">
+    <div class="card" style="padding:20px; text-align:center;">
+      <div style="font-size:28px; font-weight:800; color:#1e3a8a;">{{ pay_equity|length }}</div>
+      <div style="font-size:13px; color:#6b7280; margin-top:4px;">분석 대상 직원</div>
+    </div>
+    <div class="card" style="padding:20px; text-align:center;">
+      <div style="font-size:28px; font-weight:800; color:{% if outliers|length > 10 %}#dc2626{% else %}#d97706{% endif %};">
+        {{ outliers|length }}
+      </div>
+      <div style="font-size:13px; color:#6b7280; margin-top:4px;">이상치 (밴드 ±15% 초과)</div>
+    </div>
+    <div class="card" style="padding:20px; text-align:center;">
+      {% set has_ratio = pay_equity|selectattr('compa_ratio')|list %}
+      {% if has_ratio %}
+        {% set avg_ratio = (has_ratio|map(attribute='compa_ratio')|list|sum) / has_ratio|length %}
+        <div style="font-size:28px; font-weight:800; color:#166534;">{{ '%.3f'|format(avg_ratio) }}</div>
+      {% else %}
+        <div style="font-size:28px; font-weight:800; color:#9ca3af;">-</div>
+      {% endif %}
+      <div style="font-size:13px; color:#6b7280; margin-top:4px;">전사 평균 Compa-Ratio</div>
+    </div>
+  </div>
+
+  <!-- 부서별 평균 Compa-Ratio -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-header"><h3>부서별 평균 Compa-Ratio</h3></div>
+    <div style="padding:16px 20px; display:flex; flex-wrap:wrap; gap:12px;">
+      {% for dept, avg in dept_compa_avg.items()|sort(attribute='1') %}
+      <div style="background:#f9fafb; border-radius:8px; padding:10px 16px; min-width:140px;">
+        <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">{{ dept }}</div>
+        <div style="font-size:18px; font-weight:700;
+             color:{% if avg < 0.9 %}#b45309{% elif avg > 1.1 %}#1d4ed8{% else %}#15803d{% endif %};">
+          {{ avg }}
+        </div>
+        <div style="font-size:10px; color:#9ca3af; margin-top:2px;">
+          {% if avg < 0.9 %}밴드 하단{% elif avg > 1.1 %}밴드 상단{% else %}정상{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 이상치 목록 -->
+  {% if outliers %}
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-header">
+      <h3>⚠️ Pay Equity 이상치 목록</h3>
+      <small style="color:#6b7280;">Compa-Ratio &lt; 0.85 또는 &gt; 1.15인 직원</small>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" style="font-size:13px;">
+        <thead>
+          <tr>
+            <th>이름</th><th>부서</th><th>직급</th><th>직군</th>
+            <th>기본급</th><th>밴드 Mid</th><th>Compa-Ratio</th><th>성과등급</th><th>조치</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in outliers|sort(attribute='compa_ratio') %}
+          <tr>
+            <td><a href="{{ url_for('employee_detail', emp_id=e.id) }}">{{ e.name }}</a></td>
+            <td>{{ e.dept_name or '-' }}</td>
+            <td>{{ e.pos_name or '-' }}</td>
+            <td>{{ e.jf_name or '-' }}</td>
+            <td>{{ '{:,}'.format(e.base_salary) }}원</td>
+            <td>{{ '{:,}'.format(e.mid_salary) if e.mid_salary else '-' }}원</td>
+            <td>
+              {% set r = e.compa_ratio %}
+              {% if r < 0.85 %}
+                <span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:10px;font-weight:700;">{{ r }} ↓↓ 크게 하단</span>
+              {% else %}
+                <span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:10px;font-weight:700;">{{ r }} ↑↑ 크게 상단</span>
+              {% endif %}
+            </td>
+            <td>
+              <span style="font-weight:700; color:{% if e.perf_grade in ['S','A'] %}#16a34a{% elif e.perf_grade == 'B' %}#d97706{% else %}#dc2626{% endif %};">
+                {{ e.perf_grade or '-' }}
+              </span>
+            </td>
+            <td>
+              <a href="{{ url_for('total_compensation', uid=e.id) }}" class="btn btn-ghost btn-sm" style="font-size:11px;">
+                Total Comp
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 전체 직원 Compa-Ratio 테이블 -->
+  <div class="card">
+    <div class="card-header"><h3>전체 직원 Compa-Ratio</h3></div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" style="font-size:12px;">
+        <thead>
+          <tr>
+            <th>이름</th><th>부서</th><th>직급</th><th>기본급</th>
+            <th>밴드 Min</th><th>Mid</th><th>Max</th><th>Compa-Ratio</th><th>성과등급</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in pay_equity %}
+          <tr>
+            <td><a href="{{ url_for('employee_detail', emp_id=e.id) }}">{{ e.name }}</a></td>
+            <td>{{ e.dept_name or '-' }}</td>
+            <td>{{ e.pos_name or '-' }}</td>
+            <td>{{ '{:,}'.format(e.base_salary) }}</td>
+            <td style="color:#1e40af;">{{ '{:,}'.format(e.min_salary) if e.min_salary else '-' }}</td>
+            <td style="color:#166534; font-weight:600;">{{ '{:,}'.format(e.mid_salary) if e.mid_salary else '-' }}</td>
+            <td style="color:#92400e;">{{ '{:,}'.format(e.max_salary) if e.max_salary else '-' }}</td>
+            <td>
+              {% if e.compa_ratio %}
+                {% set r = e.compa_ratio %}
+                <span style="padding:2px 8px; border-radius:8px; font-size:11px; font-weight:700;
+                  background:{% if r < 0.9 %}#fef3c7{% elif r > 1.1 %}#dbeafe{% else %}#dcfce7{% endif %};
+                  color:{% if r < 0.9 %}#92400e{% elif r > 1.1 %}#1e40af{% else %}#166534{% endif %};">
+                  {{ r }}
+                </span>
+              {% else %}<span style="color:#9ca3af;">-</span>{% endif %}
+            </td>
+            <td style="font-weight:700; color:{% if e.perf_grade in ['S','A'] %}#16a34a{% elif e.perf_grade=='B' %}#d97706{% else %}#dc2626{% endif %};">
+              {{ e.perf_grade or '-' }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
 <!-- 데이터 내보내기 탭 -->
 <div id="ana-panel-reports" class="ana-panel">

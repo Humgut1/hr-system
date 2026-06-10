@@ -430,8 +430,61 @@
 </div>
 
 <div class="tab-panel" id="tab-pay">
+
+  <!-- ── 밴드 포지션 슬라이더 ── -->
+  {% if emp.get('mid_salary') %}
+  {% set base = emp.get('base_salary', 0) %}
+  {% set bmin = emp.get('min_salary', 0) %}
+  {% set bmid = emp.get('mid_salary', 0) %}
+  {% set bmax = emp.get('max_salary', 0) %}
+  {% set ratio = emp.get('compa_ratio') %}
   <div class="card" style="margin-bottom:16px;">
-    <div class="section-head">최근 급여명세서 (최대 6개월)</div>
+    <div class="section-head">급여 밴드 포지션 (Compa-Ratio)</div>
+    <div style="padding:16px 20px;">
+      <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); margin-bottom:4px;">
+        <span>Min<br><strong>{{ "{:,}".format(bmin) }}원</strong></span>
+        <span style="text-align:center;">Mid<br><strong>{{ "{:,}".format(bmid) }}원</strong></span>
+        <span style="text-align:right;">Max<br><strong>{{ "{:,}".format(bmax) }}원</strong></span>
+      </div>
+      {% if bmax > bmin %}
+      {% set pct = [([(base - bmin) / (bmax - bmin) * 100, 0]|max), 100]|min %}
+      {% set mid_pct = (bmid - bmin) / (bmax - bmin) * 100 %}
+      <div style="position:relative; height:12px; background:#e5e7eb; border-radius:6px; margin:8px 0;">
+        <!-- Mid 마커 -->
+        <div style="position:absolute; left:{{ mid_pct }}%; top:-4px; bottom:-4px; width:2px; background:#6b7280;"></div>
+        <!-- 현재 위치 -->
+        <div style="position:absolute; left:0; width:{{ pct }}%; height:100%; border-radius:6px;
+                    background:{% if ratio and ratio < 0.9 %}#f59e0b{% elif ratio and ratio > 1.1 %}#3b82f6{% else %}#22c55e{% endif %};"></div>
+        <div style="position:absolute; left:{{ pct }}%; top:50%; transform:translate(-50%,-50%);
+                    width:16px; height:16px; background:white; border:3px solid #1e3a8a;
+                    border-radius:50%; box-shadow:0 1px 3px rgba(0,0,0,.3);"></div>
+      </div>
+      {% endif %}
+      <div style="text-align:center; margin-top:8px; font-size:13px;">
+        현재 기본급 <strong>{{ "{:,}원".format(base) }}</strong> &nbsp;|&nbsp;
+        Compa-Ratio
+        {% if ratio %}
+          <strong style="color:{% if ratio < 0.9 %}#b45309{% elif ratio > 1.1 %}#1d4ed8{% else %}#15803d{% endif %};">
+            {{ ratio }}
+          </strong>
+          <span style="font-size:11px; color:var(--text-muted);">
+            ({% if ratio < 0.9 %}밴드 하단{% elif ratio > 1.1 %}밴드 상단{% else %}밴드 내{% endif %})
+          </span>
+        {% else %}
+          <span style="color:var(--text-muted);">-</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="section-head" style="display:flex; justify-content:space-between; align-items:center;">
+      <span>최근 급여명세서 (최대 6개월)</span>
+      <a href="{{ url_for('total_compensation', uid=emp.id) }}" class="btn btn-ghost btn-sm" style="font-size:12px;">
+        💼 Total Comp Statement
+      </a>
+    </div>
     {% if payslips %}
     {% for p in payslips %}
     <div class="pay-row">

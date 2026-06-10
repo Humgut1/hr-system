@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}My Profile{% endblock %}
-{% block page_title %}Profile Settings{% endblock %}
+{% block title %}내 프로필{% endblock %}
+{% block page_title %}내 프로필{% endblock %}
 
 {% block content %}
-<div style="max-width:560px;">
+<div style="max-width:600px;">
 
   {% if msg %}
   <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:var(--r);
@@ -18,14 +18,15 @@
   </div>
   {% endif %}
 
-  <!-- Basic info -->
+  <!-- 프로필 카드 -->
   <div class="card" style="margin-bottom:16px;">
-    <div class="card-head"><span class="card-title">Basic Info</span></div>
+    <div class="card-head"><span class="card-title">기본 정보</span></div>
     <div class="card-body">
+      <!-- 아바타 + 이름 -->
       <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px;">
-        <div style="width:60px; height:60px; border-radius:50%; background:var(--primary);
+        <div style="width:64px; height:64px; border-radius:50%; background:var(--primary);
                     display:flex; align-items:center; justify-content:center;
-                    font-size:26px; font-weight:900; color:#fff; flex-shrink:0;">
+                    font-size:28px; font-weight:900; color:#fff; flex-shrink:0;">
           {{ session.user_name[0] if session.user_name else 'U' }}
         </div>
         <div>
@@ -34,74 +35,111 @@
           <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">
             {{ user.dept_name or '—' }} · {{ user.pos_name or '—' }}
             {% if session.user_role == 'admin' %} · HR Admin
-            {% elif session.user_role == 'manager' %} · Manager
-            {% elif session.user_role == 'recruiter' %} · Recruiter
+            {% elif session.user_role == 'manager' %} · 매니저
+            {% elif session.user_role == 'recruiter' %} · 리크루터
             {% endif %}
           </div>
         </div>
       </div>
 
+      <!-- 고정 인사정보 -->
       <div style="background:#f8fafc; border-radius:var(--r-sm); padding:14px 16px;
-                  border:1px solid var(--border); margin-bottom:18px;">
+                  border:1px solid var(--border); margin-bottom:20px;">
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:13.5px;">
           <div>
-            <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">Hire Date</div>
+            <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">입사일</div>
             <div style="font-weight:600;">{{ user.hire_date or '—' }}</div>
           </div>
           <div>
-            <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">Department</div>
+            <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">부서</div>
             <div style="font-weight:600;">{{ user.dept_name or '—' }}</div>
           </div>
           <div>
-            <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">Position</div>
+            <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">직급</div>
             <div style="font-weight:600;">{{ user.pos_name or '—' }}</div>
           </div>
           <div>
-            <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">Email</div>
-            <div style="font-weight:600;">{{ user.email }}</div>
+            <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">사번</div>
+            <div style="font-weight:600;">{{ user.emp_no or '—' }}</div>
           </div>
         </div>
       </div>
 
+      <!-- 편집 폼 -->
       <form method="POST">
         <input type="hidden" name="action" value="update_info">
+
         <div class="field">
-          <label class="form-label">Phone</label>
-          <input type="text" name="phone" class="input"
+          <label class="form-label">휴대폰 번호</label>
+          <input type="text" name="phone" class="form-control"
                  value="{{ user.phone or '' }}"
-                 placeholder="+82 10-0000-0000">
+                 placeholder="010-0000-0000">
         </div>
-        <button type="submit" class="btn btn-primary btn-sm">
-          <i class="fas fa-save"></i> Save
+
+        <div class="field">
+          <label class="form-label">주소</label>
+          <input type="text" name="address" class="form-control"
+                 value="{{ user.address or '' }}"
+                 placeholder="예) 서울시 강남구 테헤란로 123">
+        </div>
+
+        <div style="border-top:1px solid var(--border); margin:20px 0 16px; padding-top:16px;">
+          <div style="font-size:13px; font-weight:700; color:var(--tx-2); margin-bottom:12px;">
+            🚨 비상연락처
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="field" style="margin:0;">
+              <label class="form-label">이름</label>
+              <input type="text" name="emergency_name" class="form-control"
+                     value="{{ user.emergency_name or '' }}"
+                     placeholder="홍길동">
+            </div>
+            <div class="field" style="margin:0;">
+              <label class="form-label">관계</label>
+              <input type="text" name="emergency_relation" class="form-control"
+                     value="{{ user.emergency_relation or '' }}"
+                     placeholder="배우자 / 부모님 등">
+            </div>
+          </div>
+          <div class="field" style="margin-top:12px;">
+            <label class="form-label">연락처</label>
+            <input type="text" name="emergency_phone" class="form-control"
+                   value="{{ user.emergency_phone or '' }}"
+                   placeholder="010-0000-0000">
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-save"></i> 저장
         </button>
       </form>
     </div>
   </div>
 
-  <!-- Change password -->
+  <!-- 비밀번호 변경 -->
   <div class="card">
-    <div class="card-head"><span class="card-title">Change Password</span></div>
+    <div class="card-head"><span class="card-title">비밀번호 변경</span></div>
     <div class="card-body">
       <form method="POST">
         <input type="hidden" name="action" value="change_password">
         <div class="field">
-          <label class="form-label">Current Password <span style="color:var(--red);">*</span></label>
-          <input type="password" name="current_password" class="input"
+          <label class="form-label">현재 비밀번호 <span style="color:var(--red);">*</span></label>
+          <input type="password" name="current_password" class="form-control"
                  autocomplete="current-password" required>
         </div>
         <div class="field">
-          <label class="form-label">New Password <span style="color:var(--red);">*</span></label>
-          <input type="password" name="new_password" class="input"
+          <label class="form-label">새 비밀번호 <span style="color:var(--red);">*</span></label>
+          <input type="password" name="new_password" class="form-control"
                  autocomplete="new-password" minlength="8"
-                 placeholder="8 characters minimum" required>
+                 placeholder="8자 이상" required>
         </div>
         <div class="field">
-          <label class="form-label">Confirm New Password <span style="color:var(--red);">*</span></label>
-          <input type="password" name="confirm_password" class="input"
+          <label class="form-label">새 비밀번호 확인 <span style="color:var(--red);">*</span></label>
+          <input type="password" name="confirm_password" class="form-control"
                  autocomplete="new-password" required>
         </div>
-        <button type="submit" class="btn btn-primary btn-sm">
-          <i class="fas fa-lock"></i> Change Password
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-lock"></i> 비밀번호 변경
         </button>
       </form>
     </div>

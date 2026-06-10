@@ -176,7 +176,9 @@
       <thead>
         <tr>
           <th>Name</th><th>Dept</th><th>Position</th>
-          <th>Base Salary</th><th>Meal</th><th>Transport</th><th>Est. Gross</th><th>Edit</th>
+          <th>Base Salary</th><th>Meal</th><th>Transport</th><th>Est. Gross</th>
+          <th title="기본급 ÷ 밴드 Mid">Compa-Ratio</th>
+          <th>Edit</th>
         </tr>
       </thead>
       <tbody>
@@ -199,6 +201,20 @@
           <td>{{ fmt_krw(e.transport_allowance) }}₩</td>
           <td style="font-weight:700; color:var(--primary);">
             {{ fmt_krw(e.base_salary + e.meal_allowance + e.transport_allowance) }}₩
+          </td>
+          <td>
+            {% set ratio = e.get('compa_ratio') if e is mapping else e['compa_ratio'] if 'compa_ratio' in e.keys() else none %}
+            {% if e['compa_ratio'] is not none %}
+              {% if e['compa_band'] == 'below' %}
+                <span class="badge" style="background:#fef3c7;color:#92400e;" title="밴드 하단 (< 0.9)">{{ e['compa_ratio'] }} ↓</span>
+              {% elif e['compa_band'] == 'above' %}
+                <span class="badge" style="background:#dbeafe;color:#1e40af;" title="밴드 상단 (> 1.1)">{{ e['compa_ratio'] }} ↑</span>
+              {% else %}
+                <span class="badge" style="background:#dcfce7;color:#166534;" title="밴드 내 (0.9–1.1)">{{ e['compa_ratio'] }}</span>
+              {% endif %}
+            {% else %}
+              <span style="color:var(--tx-3);font-size:12px;">-</span>
+            {% endif %}
           </td>
           <td>
             <button type="button" class="btn btn-ghost btn-sm edit-btn">

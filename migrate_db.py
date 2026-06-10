@@ -606,6 +606,88 @@ def _seed_transactional(c, all_uids: list, admin_id: int):
     print(f"   지원자: {total_applicants}명")
 
 
+def _seed_manager_ids():
+    """각 부서에서 CL 레벨 기준으로 manager_id 자동 배정."""
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+
+    # 이미 배정된 경우 스킵
+    already = c.execute("SELECT COUNT(*) FROM users WHERE manager_id IS NOT NULL AND status='active'").fetchone()[0]
+    if already > 0:
+        conn.close()
+        return
+
+    # 부서 계층
+    depts = {r['id']: dict(r) for r in c.execute('SELECT id, parent_id FROM departments').fetchall()}
+
+    # 활성 직원 + CL 레벨 파싱
+    users = []
+    for r in c.execute('''SELECT u.id, u.department_id, p.name pos_name
+                          FROM users u LEFT JOIN positions p ON u.position_id=p.id
+                          WHERE u.status="active"''').fetchall():
+        pn = r['pos_name'] or ''
+        try:
+            cl = int(pn.split()[0][2:]) if pn.startswith('CL') else 0
+        except Exception:
+            cl = 0
+        users.append({'id': r['id'], 'dept_id': r['department_id'], 'cl': cl})
+
+    # 부서별 그룹 (CL 내림차순)
+    from collections import defaultdict
+    by_dept = defaultdict(list)
+    for u in users:
+        by_dept[u['dept_id']].append(u)
+    for lst in by_dept.values():
+        lst.sort(key=lambda x: x['cl'], reverse=True)
+
+    # 부서 내 최고 CL → 부서장
+    dept_head = {did: members[0]['id'] for did, members in by_dept.items() if members}
+
+    # 부서장의 상위 매니저: 부모 부서의 최고 CL 직원 (재귀 탐색)
+    def area_head(dept_id, exclude_id):
+        d = depts.get(dept_id)
+        if not d or not d['parent_id']:
+            return None
+        pid = d['parent_id']
+        # 부모 부서에 직접 배정된 사람
+        if pid in dept_head and dept_head[pid] != exclude_id:
+            return dept_head[pid]
+        # 부모 부서의 모든 하위 부서에서 가장 높은 CL 찾기
+        candidates = []
+        for did2, members in by_dept.items():
+            # did2가 pid 하위인지 확인
+            cur = depts.get(did2)
+            while cur:
+                if cur['parent_id'] == pid or cur['id'] == pid:
+                    candidates.extend(members)
+                    break
+                cur = depts.get(cur['parent_id']) if cur['parent_id'] else None
+        candidates = [u for u in candidates if u['id'] != exclude_id and u['dept_id'] != dept_id]
+        if candidates:
+            candidates.sort(key=lambda x: x['cl'], reverse=True)
+            return candidates[0]['id']
+        return area_head(pid, exclude_id)
+
+    assignments = {}
+    for did, members in by_dept.items():
+        head_id = members[0]['id']
+        # 부서원들은 부서장에게 보고
+        for m in members[1:]:
+            assignments[m['id']] = head_id
+        # 부서장은 상위 매니저에게 보고
+        parent_mgr = area_head(did, head_id)
+        if parent_mgr:
+            assignments[head_id] = parent_mgr
+
+    for uid, mid in assignments.items():
+        c.execute('UPDATE users SET manager_id=? WHERE id=?', (mid, uid))
+
+    conn.commit()
+    conn.close()
+    print(f'[seed] manager_id 배정 완료: {len(assignments)}명')
+
+
 def _seed_master_db(c_all_users=None):
     """
     master.db에 데모 테넌트(id=1) 등록.
@@ -967,6 +1049,9 @@ def run():
 
     # ── master.db: 데모 테넌트(1) 등록 ───────────────────────
     _seed_master_db(c_all_users=inserted_ids)
+
+    # ── manager_id 배정 ──────────────────────────────────────
+    _seed_manager_ids()
 
     print("Migration complete!")
     print(f"   직원: {len(inserted_ids)}명")
