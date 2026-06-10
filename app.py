@@ -847,6 +847,31 @@ def announcement_edit(post_id):
                            active_page='announcements')
 
 
+# ── Global Search ────────────────────────────────────────────
+@app.route('/search')
+@login_required
+def global_search():
+    from flask import jsonify
+    q = request.args.get('q', '').strip()
+    if not q or len(q) < 1:
+        return jsonify([])
+    like = f'%{q}%'
+    db = get_db()
+    rows = db.execute(
+        '''SELECT u.id, u.name, u.emp_no, u.email,
+                  d.name dept_name, p.name pos_name
+             FROM users u
+             LEFT JOIN departments d ON u.department_id = d.id
+             LEFT JOIN positions p ON u.position_id = p.id
+            WHERE u.status = 'active'
+              AND (u.name LIKE ? OR u.email LIKE ? OR u.emp_no LIKE ?
+                   OR d.name LIKE ? OR p.name LIKE ?)
+            ORDER BY u.name LIMIT 8''',
+        (like, like, like, like, like)
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
 # ── Org Chart ────────────────────────────────────────────────
 @app.route('/org')
 @login_required
@@ -943,9 +968,16 @@ def employees():
 @app.route('/employees/<int:emp_id>')
 @login_required
 def employee_detail(emp_id):
-    # 관리자/매니저는 전체 조회 가능, 직원은 본인만
-    if session['user_role'] not in ('admin', 'manager') and session['user_id'] != emp_id:
-        abort(403)
+    # 모든 로그인 사용자 프로필 조회 가능
+    # 민감 탭(급여/근태/성과/복리후생) 권한: admin=전체, manager=직속팀원+본인, 그 외=본인만
+    role = session['user_role']
+    uid  = session['user_id']
+    if role == 'admin':
+        can_see_sensitive = True
+    elif role == 'manager':
+        can_see_sensitive = (emp_id == uid)  # 직속팀원 여부는 emp 조회 후 판단
+    else:
+        can_see_sensitive = (emp_id == uid)
     db  = get_db()
     emp = db.execute(
         'SELECT u.*, d.name dept_name, p.name pos_name, '
@@ -959,6 +991,10 @@ def employee_detail(emp_id):
     ).fetchone()
     if not emp:
         abort(404)
+
+    # 매니저: 직속 팀원(manager_id == 본인)이면 민감 정보 허용
+    if role == 'manager' and emp['manager_id'] == uid:
+        can_see_sensitive = True
 
     payslips = db.execute(
         'SELECT year, month, gross_pay, net_pay, base_salary '
@@ -1120,6 +1156,7 @@ def employee_detail(emp_id):
                            salary_history=salary_history,
                            today=date.today().isoformat(),
                            leave_labels=LEAVE_LABELS,
+                           can_see_sensitive=can_see_sensitive,
                            active_page='employees')
 
 

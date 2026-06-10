@@ -253,10 +253,10 @@
 <div class="tab-nav">
   <button class="tab-btn active" data-tab="basic">기본정보</button>
   <button class="tab-btn" data-tab="hr">인사정보</button>
+  {% if can_see_sensitive %}
   <button class="tab-btn" data-tab="pay">급여</button>
   <button class="tab-btn" data-tab="leave">근태/휴가</button>
   <button class="tab-btn" data-tab="perf">성과</button>
-  {% if session.user_role == 'admin' %}
   <button class="tab-btn" data-tab="benefits">복리후생</button>
   {% endif %}
 </div>

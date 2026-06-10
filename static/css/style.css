@@ -663,6 +663,7 @@ tbody tr:hover { background: #fafbfd; }
 .search-result-item:hover, .search-result-item:focus { background: #f1f5fb; }
 .search-result-icon { width: 14px; color: var(--tx-3); font-size: 13px; flex-shrink: 0; }
 .search-empty { padding: 14px; text-align: center; color: var(--tx-3); font-size: 13px; }
+.search-section-label { padding: 6px 14px 3px; font-size: 10px; font-weight: 700; color: var(--tx-3); text-transform: uppercase; letter-spacing: .06em; }
 
 /* ── Inbox Widget ─────────────────────────────── */
 .inbox-widget { }

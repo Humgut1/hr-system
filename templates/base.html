@@ -362,20 +362,46 @@ document.addEventListener('click', function(e) {
   function doSearch(q) {
     if (!q) { results.style.display = 'none'; return; }
     var ql = q.toLowerCase();
-    var matched = NAV_ITEMS.filter(function(item) {
-      return item.label.toLowerCase().includes(ql);
-    }).slice(0, 8);
 
-    if (matched.length === 0) {
-      results.innerHTML = '<div class="search-empty">결과 없음</div>';
-    } else {
-      results.innerHTML = matched.map(function(item) {
-        return '<a href="' + item.url + '" class="search-result-item">' +
-               '<i class="fas ' + item.icon + ' search-result-icon"></i>' +
-               '<span>' + item.label + '</span></a>';
-      }).join('');
-    }
-    results.style.display = 'block';
+    // 메뉴 항목 매칭
+    var navMatched = NAV_ITEMS.filter(function(item) {
+      return item.label.toLowerCase().includes(ql);
+    }).slice(0, 3);
+
+    // 직원 검색 (서버)
+    fetch('/search?q=' + encodeURIComponent(q))
+      .then(function(r) { return r.json(); })
+      .then(function(employees) {
+        var html = '';
+
+        if (navMatched.length) {
+          html += '<div class="search-section-label">페이지</div>';
+          html += navMatched.map(function(item) {
+            return '<a href="' + item.url + '" class="search-result-item">' +
+                   '<i class="fas ' + item.icon + ' search-result-icon"></i>' +
+                   '<span>' + item.label + '</span></a>';
+          }).join('');
+        }
+
+        if (employees.length) {
+          html += '<div class="search-section-label">직원</div>';
+          html += employees.map(function(e) {
+            return '<a href="/employees/' + e.id + '" class="search-result-item">' +
+                   '<i class="fas fa-user search-result-icon"></i>' +
+                   '<span>' + e.name +
+                   '<small style="color:var(--tx-3);margin-left:6px;">' +
+                   (e.dept_name || '') + ' · ' + (e.pos_name || '') +
+                   '</small></span></a>';
+          }).join('');
+        }
+
+        if (!navMatched.length && !employees.length) {
+          html = '<div class="search-empty">결과 없음</div>';
+        }
+
+        results.innerHTML = html;
+        results.style.display = 'block';
+      });
   }
 
   // 키보드 네비게이션
