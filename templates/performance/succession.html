@@ -1,0 +1,215 @@
+{% extends 'base.html' %}
+{% block title %}후계자 계획{% endblock %}
+{% block page_title %}성과{% endblock %}
+
+{% block extra_css %}
+<style>
+.readiness-now  { background:#dcfce7; color:#166534; }
+.readiness-1y   { background:#dbeafe; color:#1e40af; }
+.readiness-2y   { background:#fef3c7; color:#92400e; }
+.readiness-long { background:#f1f5f9; color:#64748b; }
+.badge-sm {
+  font-size:11px; font-weight:700;
+  padding:2px 10px; border-radius:20px;
+  display:inline-block;
+}
+.pos-card {
+  border:1px solid var(--border);
+  border-radius:var(--r-sm);
+  margin-bottom:12px;
+  overflow:hidden;
+}
+.pos-header {
+  background:#1e293b; color:#fff;
+  padding:10px 16px;
+  display:flex; align-items:center; gap:10px;
+}
+.candidate-row {
+  display:flex; align-items:center; gap:12px;
+  padding:10px 16px;
+  border-bottom:1px solid #f1f5f9;
+}
+.candidate-row:last-child { border-bottom:none; }
+.candidate-row:hover { background:#f8fafc; }
+.avatar-sm {
+  width:32px; height:32px; border-radius:50%;
+  background:linear-gradient(135deg,#1e3a8a,#3b82f6);
+  color:#fff; font-size:12px; font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div style="background:{% if cat=='error' %}#fef2f2{% else %}#f0fdf4{% endif %};
+              border:1px solid {% if cat=='error' %}#fecaca{% else %}#bbf7d0{% endif %};
+              color:{% if cat=='error' %}#991b1b{% else %}#166534{% endif %};
+              padding:12px 16px; border-radius:8px; margin-bottom:16px;
+              font-weight:600; display:flex; align-items:center; gap:8px;">
+    <i class="fas fa-{% if cat=='error' %}exclamation-circle{% else %}check-circle{% endif %}"></i> {{ msg }}
+  </div>
+  {% endfor %}
+{% endwith %}
+
+<!-- 헤더 -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+  <div>
+    <div style="font-size:16px; font-weight:800;">🏆 후계자 계획 (Succession Planning)</div>
+    <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">
+      핵심 포지션별 후보자와 준비도를 관리합니다
+    </div>
+  </div>
+  <button class="btn btn-primary" onclick="document.getElementById('add-modal').style.display='flex'">
+    <i class="fas fa-plus"></i> 후계자 추가
+  </button>
+</div>
+
+<!-- 포지션별 후계자 목록 -->
+{% if grouped %}
+  {% for position, candidates in grouped.items() %}
+  <div class="pos-card">
+    <div class="pos-header">
+      <i class="fas fa-briefcase"></i>
+      <span style="font-size:14px; font-weight:800;">{{ position }}</span>
+      <span style="font-size:11px; opacity:.7; margin-left:auto;">후보 {{ candidates|length }}명</span>
+    </div>
+    {% for c in candidates %}
+    <div class="candidate-row">
+      <div class="avatar-sm">{{ c.candidate_name[0] }}</div>
+      <div style="flex:1;">
+        <div style="font-size:13px; font-weight:700;">
+          <a href="{{ url_for('talent_card', user_id=c.candidate_id) }}"
+             style="color:var(--tx-1); text-decoration:none;">
+            {{ c.candidate_name }}
+          </a>
+        </div>
+        {% if c.incumbent_name %}
+        <div style="font-size:11px; color:var(--tx-3); margin-top:1px;">
+          현직: {{ c.incumbent_name }}
+        </div>
+        {% endif %}
+        {% if c.note %}
+        <div style="font-size:11px; color:var(--tx-3); margin-top:2px; font-style:italic;">
+          {{ c.note }}
+        </div>
+        {% endif %}
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        {% if c.readiness == 'ready_now' %}
+          <span class="badge-sm readiness-now">즉시 가능</span>
+        {% elif c.readiness == 'ready_1y' %}
+          <span class="badge-sm readiness-1y">1년 내</span>
+        {% elif c.readiness == 'ready_2y' %}
+          <span class="badge-sm readiness-2y">2년 내</span>
+        {% else %}
+          <span class="badge-sm readiness-long">장기 육성</span>
+        {% endif %}
+        <!-- Talent Card 링크 -->
+        <a href="{{ url_for('talent_card', user_id=c.candidate_id) }}"
+           class="btn btn-ghost btn-sm" title="Talent Card 보기">
+          <i class="fas fa-id-card"></i>
+        </a>
+        <!-- 삭제 -->
+        <form method="POST" style="display:inline;"
+              onsubmit="return confirm('이 후계자 계획을 삭제합니까?')">
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="sp_id" value="{{ c.id }}">
+          <button type="submit" class="btn btn-ghost btn-sm" style="color:#ef4444;" title="삭제">
+            <i class="fas fa-trash"></i>
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+{% else %}
+<div class="card">
+  <div class="card-body" style="text-align:center; padding:60px; color:var(--tx-3);">
+    <i class="fas fa-sitemap" style="font-size:32px; opacity:.3; display:block; margin-bottom:12px;"></i>
+    아직 등록된 후계자 계획이 없습니다.<br>
+    <span style="font-size:12px; margin-top:6px; display:block;">
+      핵심 포지션에 후보자를 추가해 인재 파이프라인을 구축하세요.
+    </span>
+  </div>
+</div>
+{% endif %}
+
+<!-- 추가 모달 -->
+<div id="add-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.4);
+     z-index:1000; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:#fff; border-radius:12px; width:100%; max-width:480px;
+              padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.2);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <div style="font-size:16px; font-weight:800;">후계자 계획 추가</div>
+      <button onclick="document.getElementById('add-modal').style.display='none'"
+              style="background:none; border:none; font-size:18px; cursor:pointer; color:var(--tx-3);">✕</button>
+    </div>
+    <form method="POST">
+      <input type="hidden" name="action" value="add">
+
+      <div class="field" style="margin-bottom:14px;">
+        <label class="form-label">포지션명 <span style="color:#ef4444;">*</span></label>
+        <input type="text" name="position_title" class="input" style="margin-top:6px;"
+               placeholder="예) CTO, 영업본부장, 인사팀장 ..." required>
+      </div>
+
+      <div class="field" style="margin-bottom:14px;">
+        <label class="form-label">현직자 (선택)</label>
+        <select name="incumbent_id" class="input" style="margin-top:6px;">
+          <option value="">— 없음 (신규 포지션) —</option>
+          {% for e in employees %}
+          <option value="{{ e.id }}">{{ e.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field" style="margin-bottom:14px;">
+        <label class="form-label">후보자 <span style="color:#ef4444;">*</span></label>
+        <select name="candidate_id" class="input" style="margin-top:6px;" required>
+          <option value="">— 선택 —</option>
+          {% for e in employees %}
+          <option value="{{ e.id }}">{{ e.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field" style="margin-bottom:14px;">
+        <label class="form-label">준비도</label>
+        <select name="readiness" class="input" style="margin-top:6px;">
+          {% for val, lbl in readiness_labels.items() %}
+          <option value="{{ val }}">{{ lbl }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field" style="margin-bottom:20px;">
+        <label class="form-label">메모 (선택)</label>
+        <textarea name="note" class="input" rows="2" style="margin-top:6px; resize:vertical;"
+                  placeholder="후보자에 대한 간략한 평가 또는 육성 계획..."></textarea>
+      </div>
+
+      <div style="display:flex; gap:10px;">
+        <button type="submit" class="btn btn-primary" style="flex:1;">추가</button>
+        <button type="button" class="btn btn-ghost" style="flex:1;"
+                onclick="document.getElementById('add-modal').style.display='none'">취소</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 모달 외부 클릭 시 닫기
+document.getElementById('add-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.style.display = 'none';
+});
+</script>
+{% endblock %}

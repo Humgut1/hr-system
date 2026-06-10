@@ -5009,6 +5009,175 @@ def _calc_calibration_row(db, user_id, cycle_id):
     }
 
 
+# ──────────────────────────────────────────────
+# v0.49 — Talent Card
+# ──────────────────────────────────────────────
+@app.route('/performance/talent-card/<int:user_id>')
+@login_required
+def talent_card(user_id):
+    db   = get_db()
+    role = session['user_role']
+    uid  = session['user_id']
+
+    # 본인이거나 매니저/어드민만 접근
+    if uid != user_id and role not in ('manager', 'admin'):
+        abort(403)
+
+    emp = db.execute(
+        '''SELECT u.*, d.name dept_name, p.name position_name, jf.name job_family_name
+           FROM users u
+           LEFT JOIN departments d  ON u.department_id = d.id
+           LEFT JOIN positions   p  ON u.position_id   = p.id
+           LEFT JOIN job_families jf ON u.job_family_id = jf.id
+           WHERE u.id = ?''', (user_id,)
+    ).fetchone()
+    if not emp:
+        abort(404)
+
+    # 사이클별 성과 등급 히스토리
+    grade_history = db.execute(
+        '''SELECT pc.name cycle_name, pc.start_date, cr.final_grade,
+                  cr.suggested_grade, cr.potential_score,
+                  cr.self_avg, cr.peer_avg, cr.mgr_avg, cr.is_shared
+           FROM calibration_results cr
+           JOIN performance_cycles  pc ON cr.cycle_id = pc.id
+           WHERE cr.user_id = ?
+           ORDER BY pc.start_date DESC''', (user_id,)
+    ).fetchall()
+
+    # 가장 최근 캘리브레이션 결과
+    latest = grade_history[0] if grade_history else None
+
+    # 9박스 위치 계산
+    # X축: potential_score (1=Low, 2=Mid, 3=High)
+    # Y축: final_grade 숫자 → S=3, A=2, B=1 (상위 3단계), C/D=0 영역
+    GRADE_TO_Y = {'S': 3, 'A': 2, 'B': 1, 'C': 0, 'D': 0}
+    box_pos = None
+    if latest and latest['final_grade'] and latest['potential_score']:
+        y = GRADE_TO_Y.get(latest['final_grade'], 1)
+        x = latest['potential_score']  # 1~3
+        box_pos = (y, x)  # (row 1~3, col 1~3)
+
+    # 현재 목표 진행률
+    active_cycle = db.execute(
+        "SELECT * FROM performance_cycles WHERE status='active' ORDER BY start_date DESC LIMIT 1"
+    ).fetchone()
+    goals = []
+    if active_cycle:
+        goals = db.execute(
+            '''SELECT title, progress, weight, self_score
+               FROM performance_goals
+               WHERE user_id=? AND cycle_id=?
+               ORDER BY weight DESC''',
+            (user_id, active_cycle['id'])
+        ).fetchall()
+
+    # 후계자 계획 — 이 직원이 후보로 올라간 포지션
+    succession_as_candidate = db.execute(
+        '''SELECT sp.*, u.name incumbent_name
+           FROM succession_plans sp
+           LEFT JOIN users u ON sp.incumbent_id = u.id
+           WHERE sp.candidate_id = ?
+           ORDER BY sp.created_at DESC''', (user_id,)
+    ).fetchall()
+
+    return render_template(
+        'performance/talent_card.html',
+        emp=emp,
+        grade_history=grade_history,
+        latest=latest,
+        box_pos=box_pos,
+        goals=goals,
+        active_cycle=active_cycle,
+        succession_as_candidate=succession_as_candidate,
+        active_page='performance',
+    )
+
+
+# ──────────────────────────────────────────────
+# v0.49 — 후계자 계획
+# ──────────────────────────────────────────────
+@app.route('/performance/succession', methods=['GET', 'POST'])
+@login_required
+def succession():
+    db   = get_db()
+    role = session['user_role']
+    if role not in ('manager', 'admin'):
+        abort(403)
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        if action == 'add':
+            pos_title    = request.form.get('position_title', '').strip()
+            incumbent_id = request.form.get('incumbent_id') or None
+            candidate_id = request.form.get('candidate_id')
+            readiness    = request.form.get('readiness', 'ready_1y')
+            note         = request.form.get('note', '').strip() or None
+
+            if not pos_title or not candidate_id:
+                flash('포지션명과 후보자는 필수입니다.', 'error')
+            else:
+                db.execute(
+                    '''INSERT INTO succession_plans
+                       (position_title, incumbent_id, candidate_id, readiness, note, created_by)
+                       VALUES (?,?,?,?,?,?)''',
+                    (pos_title, incumbent_id, candidate_id, readiness, note, session['user_id'])
+                )
+                db.commit()
+                flash('후계자 계획이 추가되었습니다.', 'success')
+
+        elif action == 'delete':
+            sp_id = int(request.form.get('sp_id'))
+            db.execute('DELETE FROM succession_plans WHERE id=?', (sp_id,))
+            db.commit()
+            flash('삭제되었습니다.', 'success')
+
+        return redirect(url_for('succession'))
+
+    # 포지션별 그룹핑
+    plans = db.execute(
+        '''SELECT sp.*,
+                  uc.name candidate_name, uc.role candidate_role,
+                  ui.name incumbent_name,
+                  d.name  dept_name
+           FROM succession_plans sp
+           JOIN users uc ON sp.candidate_id = uc.id
+           LEFT JOIN users ui ON sp.incumbent_id = ui.id
+           LEFT JOIN departments d ON uc.department_id = d.id
+           ORDER BY sp.position_title, sp.readiness''',
+    ).fetchall()
+
+    # 포지션별 그룹화
+    from collections import OrderedDict
+    grouped = OrderedDict()
+    for p in plans:
+        key = p['position_title']
+        if key not in grouped:
+            grouped[key] = []
+        grouped[key].append(p)
+
+    # 후보 선택용 직원 목록
+    employees = db.execute(
+        "SELECT id, name, role FROM users WHERE status='active' AND role NOT IN ('guest') ORDER BY name"
+    ).fetchall()
+
+    READINESS_LABELS = {
+        'ready_now': '즉시 가능',
+        'ready_1y':  '1년 내',
+        'ready_2y':  '2년 내',
+        'long_term': '장기 육성',
+    }
+
+    return render_template(
+        'performance/succession.html',
+        grouped=grouped,
+        employees=employees,
+        readiness_labels=READINESS_LABELS,
+        active_page='succession',
+    )
+
+
 @app.route('/performance/peer')
 @login_required
 def peer_reviews_page():

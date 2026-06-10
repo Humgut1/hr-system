@@ -1,0 +1,340 @@
+{% extends 'base.html' %}
+{% block title %}Talent Card — {{ emp.name }}{% endblock %}
+{% block page_title %}성과{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── 9박스 그리드 ── */
+.nbox-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 3px;
+  width: 180px;
+  height: 180px;
+}
+.nbox-cell {
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: #f1f5f9;
+  transition: all .2s;
+  text-align: center;
+  padding: 4px;
+  line-height: 1.2;
+}
+.nbox-cell.active {
+  background: #1e3a8a;
+  color: #fff;
+  box-shadow: 0 0 0 2px #3b82f6;
+  font-size: 18px;
+}
+/* Y축 라벨 */
+.nbox-wrap { display: flex; align-items: center; gap: 8px; }
+.nbox-ylabel {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 10px; font-weight: 700; color: var(--tx-3);
+  letter-spacing: 1px;
+}
+.nbox-xlabel {
+  font-size: 10px; font-weight: 700; color: var(--tx-3);
+  text-align: center; margin-top: 4px; letter-spacing: 1px;
+}
+
+/* ── 등급 히스토리 타임라인 ── */
+.timeline { display: flex; flex-direction: column; gap: 0; }
+.timeline-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 0; position: relative;
+}
+.timeline-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 14px; top: 36px;
+  width: 2px; height: calc(100% - 8px);
+  background: #e2e8f0;
+}
+.timeline-dot {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 900; flex-shrink: 0; z-index: 1;
+}
+.g-s { background:#dcfce7; color:#166534; }
+.g-a { background:#dbeafe; color:#1e40af; }
+.g-b { background:#f0fdf4; color:#15803d; }
+.g-c { background:#fef3c7; color:#92400e; }
+.g-d { background:#fee2e2; color:#dc2626; }
+.g-none { background:#f1f5f9; color:#94a3b8; font-size:10px; }
+
+/* ── Readiness 배지 ── */
+.readiness-now  { background:#dcfce7; color:#166534; }
+.readiness-1y   { background:#dbeafe; color:#1e40af; }
+.readiness-2y   { background:#fef3c7; color:#92400e; }
+.readiness-long { background:#f1f5f9; color:#64748b; }
+
+.badge-sm {
+  font-size: 11px; font-weight: 700;
+  padding: 2px 9px; border-radius: 20px;
+  display: inline-block;
+}
+
+/* ── 목표 진행바 ── */
+.goal-bar-bg  { height:6px; background:#e2e8f0; border-radius:99px; flex:1; }
+.goal-bar-fill{ height:100%; border-radius:99px; background: linear-gradient(90deg,#3b82f6,#1d4ed8); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- 상단 프로필 헤더 -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body" style="padding:24px; display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+    <!-- 아바타 -->
+    <div style="width:64px; height:64px; border-radius:50%;
+                background:linear-gradient(135deg,#1e3a8a,#3b82f6);
+                color:#fff; font-size:24px; font-weight:900;
+                display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+      {{ emp.name[0] }}
+    </div>
+
+    <!-- 기본 정보 -->
+    <div style="flex:1; min-width:180px;">
+      <div style="font-size:20px; font-weight:900; color:var(--tx-1);">{{ emp.name }}</div>
+      <div style="font-size:13px; color:var(--tx-3); margin-top:4px;">
+        {{ emp.dept_name or '—' }} &nbsp;·&nbsp; {{ emp.position_name or '—' }}
+        {% if emp.job_family_name %}&nbsp;·&nbsp; {{ emp.job_family_name }}{% endif %}
+      </div>
+      <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">
+        {{ emp.email }}
+        {% if emp.emp_no %}&nbsp;·&nbsp; {{ emp.emp_no }}{% endif %}
+      </div>
+    </div>
+
+    <!-- 최근 등급 뱃지 -->
+    {% if latest and latest.is_shared %}
+    <div style="text-align:center;">
+      <div style="font-size:11px; color:var(--tx-3); margin-bottom:6px; font-weight:700;">최근 등급</div>
+      <div class="timeline-dot g-{{ latest.final_grade|lower }}"
+           style="width:52px; height:52px; font-size:22px; border-radius:50%;">
+        {{ latest.final_grade }}
+      </div>
+      <div style="font-size:10px; color:var(--tx-3); margin-top:4px;">{{ latest.cycle_name }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Potential 뱃지 -->
+    {% if latest and latest.potential_score %}
+    <div style="text-align:center;">
+      <div style="font-size:11px; color:var(--tx-3); margin-bottom:6px; font-weight:700;">잠재력</div>
+      {% if latest.potential_score == 3 %}
+        <span class="badge-sm" style="background:#dcfce7; color:#166534; font-size:14px; padding:6px 14px;">🔥 High</span>
+      {% elif latest.potential_score == 2 %}
+        <span class="badge-sm" style="background:#ede9fe; color:#6d28d9; font-size:14px; padding:6px 14px;">⭐ Mid</span>
+      {% else %}
+        <span class="badge-sm" style="background:#f1f5f9; color:#475569; font-size:14px; padding:6px 14px;">— Low</span>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- 프로필 상세 링크 -->
+    <a href="{{ url_for('employee_detail', emp_id=emp.id) }}" class="btn btn-ghost btn-sm">
+      <i class="fas fa-user"></i> 프로필 상세
+    </a>
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start;">
+
+  <!-- 좌측: 9박스 + 등급 히스토리 -->
+  <div style="display:flex; flex-direction:column; gap:16px;">
+
+    <!-- 9박스 위치 -->
+    <div class="card" style="margin:0;">
+      <div class="card-head">
+        <span class="card-title">9박스 위치</span>
+        <span style="font-size:11px; color:var(--tx-3);">성과(Y) × 잠재력(X)</span>
+      </div>
+      <div class="card-body" style="padding:20px; display:flex; flex-direction:column; align-items:center;">
+        {% if box_pos %}
+        {% set BOX_LABELS = [
+          ['Stars (High/High)', 'Growth Stars', 'Potential Stars'],
+          ['Key Players',        'Core Players',  'Emerging Players'],
+          ['Inconsistent',       'Effective Core','Future Stars'],
+        ] %}
+        <div class="nbox-wrap">
+          <div class="nbox-ylabel">← 성과 낮음 &nbsp;&nbsp; 성과 높음 →</div>
+          <div>
+            <div class="nbox-grid">
+              {# row 1=High성과, row 3=Low성과 / col 1=Low잠재력, col 3=High잠재력 #}
+              {% for row in range(3, 0, -1) %}
+                {% for col in range(1, 4) %}
+                  {% set is_active = (box_pos[0] == row and box_pos[1] == col) %}
+                  <div class="nbox-cell {% if is_active %}active{% endif %}">
+                    {% if is_active %}⭐{% else %}{{ BOX_LABELS[3-row][col-1] }}{% endif %}
+                  </div>
+                {% endfor %}
+              {% endfor %}
+            </div>
+            <div class="nbox-xlabel">Low &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 잠재력 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; High</div>
+          </div>
+        </div>
+        {% if box_pos %}
+        <div style="margin-top:14px; font-size:12px; color:var(--tx-3); text-align:center;">
+          {% set row = box_pos[0] %}{% set col = box_pos[1] %}
+          {% set label = [
+            ['Stars (High/High)', 'Growth Stars', 'Potential Stars'],
+            ['Key Players',        'Core Players',  'Emerging Players'],
+            ['Inconsistent',       'Effective Core','Future Stars'],
+          ][3-row][col-1] %}
+          현재 포지션: <strong style="color:var(--primary);">{{ label }}</strong>
+        </div>
+        {% endif %}
+        {% else %}
+        <div style="color:var(--tx-3); font-size:13px; padding:30px; text-align:center;">
+          <i class="fas fa-lock" style="font-size:24px; opacity:.3; display:block; margin-bottom:8px;"></i>
+          캘리브레이션 완료 후 표시됩니다
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 등급 히스토리 타임라인 -->
+    <div class="card" style="margin:0;">
+      <div class="card-head">
+        <span class="card-title">성과 등급 히스토리</span>
+      </div>
+      <div class="card-body" style="padding:16px 20px;">
+        {% if grade_history %}
+        <div class="timeline">
+          {% for h in grade_history %}
+          <div class="timeline-item">
+            <div class="timeline-dot g-{{ h.final_grade|lower if h.final_grade else 'none' }}">
+              {{ h.final_grade or '?' }}
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:13px; font-weight:700; color:var(--tx-1);">{{ h.cycle_name }}</div>
+              <div style="font-size:11px; color:var(--tx-3); margin-top:2px;">
+                {{ h.start_date[:7] if h.start_date else '' }}
+                {% if h.self_avg %}&nbsp;·&nbsp; 자기평가 {{ '%.1f'|format(h.self_avg) }}{% endif %}
+                {% if h.peer_avg %}&nbsp;·&nbsp; 동료 {{ '%.1f'|format(h.peer_avg) }}{% endif %}
+                {% if h.mgr_avg %}&nbsp;·&nbsp; 매니저 {{ '%.1f'|format(h.mgr_avg) }}{% endif %}
+              </div>
+              {% if not h.is_shared %}
+              <div style="font-size:10px; color:#f59e0b; margin-top:2px;">
+                <i class="fas fa-lock"></i> 비공개
+              </div>
+              {% endif %}
+            </div>
+            {% if h.potential_score %}
+            <div>
+              {% if h.potential_score == 3 %}<span class="badge-sm readiness-now">High</span>
+              {% elif h.potential_score == 2 %}<span class="badge-sm readiness-1y">Mid</span>
+              {% else %}<span class="badge-sm readiness-long">Low</span>{% endif %}
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="color:var(--tx-3); font-size:13px; text-align:center; padding:20px;">
+          평가 이력이 없습니다.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 우측: 현재 목표 + 후계자 정보 -->
+  <div style="display:flex; flex-direction:column; gap:16px;">
+
+    <!-- 현재 목표 진행률 -->
+    <div class="card" style="margin:0;">
+      <div class="card-head">
+        <span class="card-title">현재 목표
+          {% if active_cycle %}<span style="font-size:11px; color:var(--tx-3); font-weight:400;">{{ active_cycle.name }}</span>{% endif %}
+        </span>
+      </div>
+      <div class="card-body" style="padding:16px 20px;">
+        {% if goals %}
+          {% for g in goals %}
+          <div style="margin-bottom:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+              <span style="font-size:13px; font-weight:600; color:var(--tx-1);">{{ g.title }}</span>
+              <span style="font-size:12px; color:var(--tx-3);">{{ g.progress or 0 }}%</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="goal-bar-bg">
+                <div class="goal-bar-fill" style="width:{{ g.progress or 0 }}%;"></div>
+              </div>
+              {% if g.self_score %}
+              <span style="font-size:11px; font-weight:700; color:#7c3aed;">자기평가 {{ g.self_score }}/5</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+        <div style="color:var(--tx-3); font-size:13px; text-align:center; padding:20px;">
+          활성 목표가 없습니다.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 후계자로 지목된 포지션 -->
+    <div class="card" style="margin:0;">
+      <div class="card-head">
+        <span class="card-title">후계자로 지목된 포지션</span>
+      </div>
+      <div class="card-body" style="padding:16px 20px;">
+        {% if succession_as_candidate %}
+          {% for s in succession_as_candidate %}
+          <div style="display:flex; align-items:center; gap:12px; padding:10px 0;
+                      border-bottom:1px solid #f1f5f9;">
+            <div style="flex:1;">
+              <div style="font-size:13px; font-weight:700; color:var(--tx-1);">{{ s.position_title }}</div>
+              {% if s.incumbent_name %}
+              <div style="font-size:11px; color:var(--tx-3); margin-top:2px;">
+                현직: {{ s.incumbent_name }}
+              </div>
+              {% endif %}
+              {% if s.note %}
+              <div style="font-size:11px; color:var(--tx-3); margin-top:2px;">{{ s.note }}</div>
+              {% endif %}
+            </div>
+            <div>
+              {% if s.readiness == 'ready_now' %}
+                <span class="badge-sm readiness-now">즉시 가능</span>
+              {% elif s.readiness == 'ready_1y' %}
+                <span class="badge-sm readiness-1y">1년 내</span>
+              {% elif s.readiness == 'ready_2y' %}
+                <span class="badge-sm readiness-2y">2년 내</span>
+              {% else %}
+                <span class="badge-sm readiness-long">장기 육성</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+        <div style="color:var(--tx-3); font-size:13px; text-align:center; padding:20px;">
+          후계자로 지목된 포지션이 없습니다.
+        </div>
+        {% endif %}
+        {% if session.get('user_role') in ('manager', 'admin') %}
+        <div style="margin-top:14px; text-align:right;">
+          <a href="{{ url_for('succession') }}" class="btn btn-ghost btn-sm">
+            <i class="fas fa-sitemap"></i> 후계자 계획 관리
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

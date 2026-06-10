@@ -582,6 +582,20 @@ def init_db(db_path: str = None):
                 reject_reason TEXT,
                 created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            -- v0.49: 후계자 계획
+            CREATE TABLE IF NOT EXISTS succession_plans (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                position_title  TEXT NOT NULL,
+                incumbent_id    INTEGER REFERENCES users(id),
+                candidate_id    INTEGER NOT NULL REFERENCES users(id),
+                readiness       TEXT NOT NULL DEFAULT 'ready_1y'
+                                    CHECK(readiness IN ('ready_now','ready_1y','ready_2y','long_term')),
+                note            TEXT,
+                created_by      INTEGER NOT NULL REFERENCES users(id),
+                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         ''')
 
         # 컬럼 마이그레이션: 기존 DB에 없을 수 있는 컬럼 추가
