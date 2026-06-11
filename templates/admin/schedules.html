@@ -410,8 +410,8 @@
 <script>
 (function(){
   var today = new Date().toISOString().slice(0,10);
-  // 날짜 기본값
-  document.querySelectorAll('input[type=date]').forEach(function(el){
+  // effective_from만 today로 기본값 (effective_to는 비워둠 = 무기한)
+  document.querySelectorAll('input[name="effective_from"]').forEach(function(el){
     if(!el.value) el.value = today;
   });
 
