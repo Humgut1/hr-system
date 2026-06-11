@@ -606,6 +606,163 @@ def _seed_transactional(c, all_uids: list, admin_id: int):
     print(f"   지원자: {total_applicants}명")
 
 
+def _seed_checkins_annual():
+    """
+    전 직원 1년치 출퇴근 기록 시드.
+    - 기간: 오늘 기준 1년 전 ~ 어제
+    - 직원별 성향(타입) 랜덤 배정 → 현실감 있는 패턴
+    - 이미 존재하는 날짜는 INSERT OR IGNORE로 스킵 (idempotent)
+    """
+    import json as _json
+
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute('PRAGMA foreign_keys = OFF')
+
+    rng   = random.Random(777)
+    today = date.today()
+    start = today - timedelta(days=365)
+
+    # 활성 직원 목록
+    users = c.execute(
+        "SELECT id FROM users WHERE status='active'"
+    ).fetchall()
+    all_uids = [r['id'] for r in users]
+
+    # 공휴일 집합
+    holidays = set(
+        r[0] for r in c.execute(
+            "SELECT date FROM public_holidays WHERE date BETWEEN ? AND ?",
+            (start.isoformat(), today.isoformat())
+        ).fetchall()
+    )
+
+    # 기본 스케줄 ID
+    sched_row = c.execute(
+        "SELECT id FROM work_schedules WHERE is_default=1 LIMIT 1"
+    ).fetchone()
+    default_sched_id = sched_row['id'] if sched_row else None
+
+    # ── 직원별 성향 배정 ──────────────────────────────────────────
+    # type: diligent(성실), late_riser(지각형), overtime(야근형), balanced(보통), remote_friendly(재택)
+    PROFILES = ['diligent', 'late_riser', 'overtime', 'balanced', 'balanced', 'balanced']
+    profile_map = {uid: rng.choice(PROFILES) for uid in all_uids}
+
+    def gen_times(profile, d_str, rng):
+        """(check_in, check_out, regular_min, overtime_min, night_min, break_min, status) 반환.
+        None 반환 시 해당 날짜는 결근 처리 (행 없음).
+        """
+        p = profile
+
+        # 결근 확률
+        absent_prob = {'diligent':0.01, 'late_riser':0.04, 'overtime':0.02,
+                       'balanced':0.03, 'remote_friendly':0.02}.get(p, 0.03)
+        if rng.random() < absent_prob:
+            return None
+
+        # 출근 시각 (분 단위)
+        if p == 'diligent':
+            in_min = rng.randint(8*60+30, 9*60+5)    # 8:30~9:05
+        elif p == 'late_riser':
+            in_min = rng.randint(9*60+5, 9*60+40)    # 9:05~9:40 (자주 지각)
+        elif p == 'overtime':
+            in_min = rng.randint(8*60+50, 9*60+10)   # 9:00 전후
+        elif p == 'remote_friendly':
+            in_min = rng.randint(8*60+40, 9*60+15)
+        else:  # balanced
+            in_min = rng.randint(8*60+45, 9*60+15)   # 8:45~9:15
+
+        # 퇴근 시각 (분 단위)
+        if p == 'overtime':
+            # 30% 확률로 야근 (20:00 이후)
+            if rng.random() < 0.30:
+                out_min = rng.randint(20*60, 22*60+30)
+            else:
+                out_min = rng.randint(18*60+30, 20*60)
+        elif p == 'diligent':
+            out_min = rng.randint(18*60, 19*60+30)
+        elif p == 'late_riser':
+            # 늦게 오면 일찍 가기도
+            out_min = rng.randint(17*60+30, 19*60)
+        else:
+            out_min = rng.randint(18*60, 19*60+20)
+
+        # 5% 조퇴
+        if rng.random() < 0.05:
+            out_min = rng.randint(15*60, 17*60+30)
+
+        # 휴게: 근무 4h 초과 시 30분, 8h 초과 시 60분 (근로기준법 §54)
+        raw_min = out_min - in_min
+        if raw_min >= 480:
+            break_min = 60
+        elif raw_min >= 240:
+            break_min = 30
+        else:
+            break_min = 0
+
+        total_min  = max(0, raw_min - break_min)
+        regular_min  = min(total_min, 480)
+        overtime_min = max(0, total_min - 480)
+
+        # 야간 근무 (22:00 이후)
+        night_start = 22 * 60
+        if out_min > night_start:
+            night_min = out_min - max(in_min, night_start)
+        else:
+            night_min = 0
+
+        in_h, in_m   = divmod(in_min,  60)
+        out_h, out_m = divmod(out_min, 60)
+        check_in  = f"{in_h:02d}:{in_m:02d}:00"
+        check_out = f"{out_h:02d}:{out_m:02d}:00"
+
+        # 출결 상태 판정 (지각: 9:10 이후, 조퇴: 17:30 이전)
+        if in_min > 9*60+10:
+            status = 'late'
+        elif out_min < 17*60+30:
+            status = 'early_leave'
+        else:
+            status = 'present'
+
+        return check_in, check_out, regular_min, overtime_min, night_min, break_min, status
+
+    # ── INSERT ──────────────────────────────────────────────────
+    rows_added = 0
+    cur_day = start
+    while cur_day < today:
+        d_str = cur_day.isoformat()
+        is_weekend = cur_day.weekday() >= 5
+        is_holiday = d_str in holidays
+
+        if not is_weekend and not is_holiday:
+            for uid in all_uids:
+                result = gen_times(profile_map[uid], d_str, rng)
+                if result is None:
+                    cur_day += timedelta(days=1)
+                    continue
+                ci, co, reg, ot, nt, brk, status = result
+                try:
+                    c.execute(
+                        """INSERT OR IGNORE INTO checkins
+                           (user_id, date, check_in, check_out,
+                            regular_min, overtime_min, night_min, break_min,
+                            attendance_status, schedule_id)
+                           VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                        (uid, d_str, ci, co, reg, ot, nt, brk, status, default_sched_id)
+                    )
+                    rows_added += c.rowcount
+                except Exception:
+                    pass
+
+        cur_day += timedelta(days=1)
+
+    conn.commit()
+    c.execute('PRAGMA foreign_keys = ON')
+    conn.close()
+    print(f"[seed] 연간 출퇴근 시드 완료: {rows_added}행 추가 ({len(all_uids)}명 × ~260일)")
+
+
 def _seed_manager_ids():
     """각 부서에서 CL 레벨 기준으로 manager_id 자동 배정."""
     conn = sqlite3.connect(DB)
@@ -1063,4 +1220,9 @@ def run():
 
 
 if __name__ == '__main__':
-    run()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == 'checkins':
+        _seed_checkins_annual()
+    else:
+        run()
+        _seed_checkins_annual()
