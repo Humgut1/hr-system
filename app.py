@@ -6831,6 +6831,53 @@ def people_analytics():
     bonus_configs = {r['grade']: r['bonus_months']
                      for r in db.execute('SELECT grade, bonus_months FROM grade_bonus_config').fetchall()}
 
+    # ── 52h 모니터링 데이터 ───────────────────────────────────────────
+    import json as _json
+    from datetime import timedelta as _td
+    eight_ago = (today - _td(weeks=8)).isoformat()
+    ot_rows = db.execute(
+        """SELECT u.id AS user_id, u.name, u.emp_no, d.name AS dept_name,
+                  date(c.date, '-' || ((cast(strftime('%w', c.date) AS INTEGER) + 6) % 7) || ' days') AS week_start,
+                  SUM(c.regular_min + c.overtime_min) AS total_min,
+                  SUM(c.overtime_min) AS ot_min
+           FROM checkins c JOIN users u ON c.user_id=u.id
+           LEFT JOIN departments d ON u.department_id=d.id
+           WHERE u.status='active' AND c.date >= ?
+           GROUP BY u.id, week_start ORDER BY total_min DESC""",
+        (eight_ago,)
+    ).fetchall()
+    ot_violations, ot_warnings, ot_safe_count = [], [], 0
+    for r in ot_rows:
+        e = dict(r)
+        e['total_h'] = round(e['total_min'] / 60, 1)
+        e['over_h']  = round(max(0, e['total_min'] - WEEKLY_TOTAL_MAX) / 60, 1)
+        if e['total_min'] > WEEKLY_TOTAL_MAX:
+            ot_violations.append(e)
+        elif e['total_min'] >= WEEKLY_WARNING:
+            ot_warnings.append(e)
+        else:
+            ot_safe_count += 1
+    flagged_ids = {r['user_id'] for r in ot_violations + ot_warnings}
+    trend_rows = db.execute(
+        """SELECT u.id AS user_id, u.name,
+                  date(c.date, '-' || ((cast(strftime('%w', c.date) AS INTEGER) + 6) % 7) || ' days') AS week_start,
+                  SUM(c.regular_min + c.overtime_min) AS total_min
+           FROM checkins c JOIN users u ON c.user_id=u.id
+           WHERE u.status='active' AND c.date >= ?
+           GROUP BY u.id, week_start ORDER BY u.id, week_start""",
+        ((today - _td(weeks=4)).isoformat(),)
+    ).fetchall()
+    ot_chart = {}
+    for r in trend_rows:
+        if r['user_id'] not in flagged_ids:
+            continue
+        uid = r['user_id']
+        if uid not in ot_chart:
+            ot_chart[uid] = {'name': r['name'], 'weeks': [], 'hours': []}
+        ot_chart[uid]['weeks'].append(r['week_start'])
+        ot_chart[uid]['hours'].append(round(r['total_min'] / 60, 1))
+    ot_chart_json = _json.dumps(list(ot_chart.values()))
+
     return render_template('analytics/index.html',
         active_page='analytics',
         total_active=total_active, turnover_rate=turnover_rate,
@@ -6840,7 +6887,9 @@ def people_analytics():
         compa_rows=compa_rows, risk_employees=risk_employees,
         cycles=cycles, today_year=today_year, today_month=today_month,
         pay_equity=pay_equity, outliers=outliers, dept_compa_avg=dept_compa_avg,
-        bonus_configs=bonus_configs
+        bonus_configs=bonus_configs,
+        ot_violations=ot_violations, ot_warnings=ot_warnings,
+        ot_safe_count=ot_safe_count, ot_chart_json=ot_chart_json,
     )
 
 

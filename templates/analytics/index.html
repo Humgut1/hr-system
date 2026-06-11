@@ -12,6 +12,9 @@
   <button class="ana-tab-btn" onclick="switchAnaTab('payequity', this)">
     <i class="fas fa-balance-scale"></i> Pay Equity
   </button>
+  <button class="ana-tab-btn" onclick="switchAnaTab('overtime', this)">
+    <i class="fas fa-exclamation-triangle"></i> 52h 모니터링
+  </button>
   <button class="ana-tab-btn" onclick="switchAnaTab('reports', this)">
     <i class="fas fa-file-excel"></i> 데이터 내보내기
   </button>
@@ -413,6 +416,107 @@
   </div>
 </div>
 
+<!-- 52h 모니터링 탭 -->
+<div id="ana-panel-overtime" class="ana-panel">
+
+  <!-- 요약 카드 3개 -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px;">
+    <div class="card" style="padding:20px;border-left:4px solid #ef4444;">
+      <div style="font-size:.72rem;color:var(--tx-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">위반 (52h 초과)</div>
+      <div style="font-size:2rem;font-weight:800;color:#ef4444;">{{ ot_violations | length }}</div>
+      <div style="font-size:.78rem;color:var(--tx-3);margin-top:2px;">건 · 최근 8주 기준</div>
+    </div>
+    <div class="card" style="padding:20px;border-left:4px solid #f59e0b;">
+      <div style="font-size:.72rem;color:var(--tx-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">경고 (48h~52h)</div>
+      <div style="font-size:2rem;font-weight:800;color:#f59e0b;">{{ ot_warnings | length }}</div>
+      <div style="font-size:.78rem;color:var(--tx-3);margin-top:2px;">건</div>
+    </div>
+    <div class="card" style="padding:20px;border-left:4px solid #22c55e;">
+      <div style="font-size:.72rem;color:var(--tx-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">정상 (48h 미만)</div>
+      <div style="font-size:2rem;font-weight:800;color:#22c55e;">{{ ot_safe_count }}</div>
+      <div style="font-size:.78rem;color:var(--tx-3);margin-top:2px;">주·직원 조합</div>
+    </div>
+  </div>
+
+  <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 18px;margin-bottom:24px;font-size:.82rem;color:#92400e;">
+    <i class="fas fa-balance-scale" style="margin-right:6px;"></i>
+    <strong>근로기준법 §53</strong> — 1주 최대 근로시간: 법정 40시간 + 연장 12시간 = <strong>주 52시간</strong>
+    (5인 이상 사업장). 위반 시 2년 이하 징역 또는 2,000만원 이하 벌금.
+  </div>
+
+  {% if ot_violations %}
+  <div class="card" style="padding:24px;margin-bottom:20px;">
+    <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px;color:#ef4444;">
+      <i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>52시간 초과 위반 ({{ ot_violations | length }}건)
+    </h3>
+    <table style="width:100%;border-collapse:collapse;font-size:.875rem;">
+      <thead><tr style="border-bottom:2px solid #fecaca;">
+        <th style="text-align:left;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">직원</th>
+        <th style="text-align:left;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">부서</th>
+        <th style="text-align:center;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">해당 주</th>
+        <th style="text-align:right;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">총 근무시간</th>
+        <th style="text-align:right;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">초과시간</th>
+      </tr></thead>
+      <tbody>
+        {% for v in ot_violations | sort(attribute='total_min', reverse=True) %}
+        <tr style="border-bottom:1px solid #fef2f2;">
+          <td style="padding:10px 0;"><div style="font-weight:600;">{{ v.name }}</div><div style="font-size:.75rem;color:var(--tx-3);">{{ v.emp_no or '' }}</div></td>
+          <td style="padding:10px 0;color:var(--tx-2);">{{ v.dept_name or '—' }}</td>
+          <td style="padding:10px 0;text-align:center;color:var(--tx-2);">{{ v.week_start }}</td>
+          <td style="padding:10px 0;text-align:right;"><span style="background:#fee2e2;color:#dc2626;font-weight:700;padding:3px 10px;border-radius:999px;">{{ v.total_h }}h</span></td>
+          <td style="padding:10px 0;text-align:right;font-weight:700;color:#ef4444;">+{{ v.over_h }}h</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if ot_warnings %}
+  <div class="card" style="padding:24px;margin-bottom:20px;">
+    <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px;color:#f59e0b;">
+      <i class="fas fa-exclamation-circle" style="margin-right:6px;"></i>경고 (48h~52h, {{ ot_warnings | length }}건)
+    </h3>
+    <table style="width:100%;border-collapse:collapse;font-size:.875rem;">
+      <thead><tr style="border-bottom:2px solid #fde68a;">
+        <th style="text-align:left;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">직원</th>
+        <th style="text-align:left;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">부서</th>
+        <th style="text-align:center;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">해당 주</th>
+        <th style="text-align:right;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">총 근무시간</th>
+        <th style="text-align:right;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">여유시간</th>
+      </tr></thead>
+      <tbody>
+        {% for w in ot_warnings | sort(attribute='total_min', reverse=True) %}
+        <tr style="border-bottom:1px solid #fffbeb;">
+          <td style="padding:10px 0;"><div style="font-weight:600;">{{ w.name }}</div><div style="font-size:.75rem;color:var(--tx-3);">{{ w.emp_no or '' }}</div></td>
+          <td style="padding:10px 0;color:var(--tx-2);">{{ w.dept_name or '—' }}</td>
+          <td style="padding:10px 0;text-align:center;color:var(--tx-2);">{{ w.week_start }}</td>
+          <td style="padding:10px 0;text-align:right;"><span style="background:#fef3c7;color:#d97706;font-weight:700;padding:3px 10px;border-radius:999px;">{{ w.total_h }}h</span></td>
+          <td style="padding:10px 0;text-align:right;font-weight:600;color:#d97706;">{{ (52 - w.total_h) | round(1) }}h 여유</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if not ot_violations and not ot_warnings %}
+  <div class="card" style="padding:48px;text-align:center;">
+    <i class="fas fa-check-circle" style="font-size:40px;color:#22c55e;margin-bottom:16px;display:block;"></i>
+    <div style="font-size:1.1rem;font-weight:700;margin-bottom:8px;">최근 8주간 52시간 위반 없음</div>
+    <div style="color:var(--tx-3);font-size:.875rem;">모든 직원이 법정 근로시간 내에서 근무하고 있습니다.</div>
+  </div>
+  {% endif %}
+
+  {% if ot_violations or ot_warnings %}
+  <div class="card" style="padding:24px;margin-top:20px;">
+    <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px;">최근 4주 근무시간 추이 (위반·경고 직원)</h3>
+    <canvas id="otChart" height="120"></canvas>
+  </div>
+  {% endif %}
+
+</div>
+
 <!-- 데이터 내보내기 탭 -->
 <div id="ana-panel-reports" class="ana-panel">
   <p style="color:var(--tx-3); font-size:13px; margin-bottom:20px;">
@@ -535,6 +639,37 @@ function switchAnaTab(id, btn) {
     var btn = document.querySelector('[onclick*="switchAnaTab(\'' + tab + '\'"]');
     if (btn) switchAnaTab(tab, btn);
   }
+})();
+
+// 52h 추이 차트
+(function(){
+  var canvas = document.getElementById('otChart');
+  if (!canvas) return;
+  var raw = {{ ot_chart_json | safe }};
+  if (!raw.length) return;
+  var allWeeks = [...new Set(raw.flatMap(d => d.weeks))].sort();
+  var colors = ['#ef4444','#f59e0b','#3b82f6','#8b5cf6','#06b6d4','#84cc16'];
+  new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: allWeeks,
+      datasets: raw.slice(0,8).map((d,i) => ({
+        label: d.name,
+        data: allWeeks.map(w => { var idx = d.weeks.indexOf(w); return idx>=0 ? d.hours[idx] : null; }),
+        borderColor: colors[i % colors.length],
+        backgroundColor: colors[i % colors.length] + '22',
+        fill: false, tension: 0.3, pointRadius: 4, spanGaps: true,
+      }))
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        y: { min:0, suggestedMax:60, ticks: { callback: v => v+'h' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
 })();
 </script>
 {% endblock %}
