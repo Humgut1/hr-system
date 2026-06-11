@@ -239,7 +239,7 @@
     <!-- 사번 고정 안내 -->
     <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--r);margin-bottom:16px;font-size:13px;">
       <i class="fas fa-lock" style="color:#16a34a;"></i>
-      <span><strong>사번 · 이름</strong>은 항상 포함됩니다 (기준 식별자)</span>
+      <span><strong>사번</strong>은 항상 포함됩니다 (기준 식별자) · 이름은 직원 정보에서 선택</span>
     </div>
 
     <!-- 소스별 필드 패널 -->
@@ -400,9 +400,6 @@ function updateSummary() {
   wrap.innerHTML = `
     <span class="sel-chip" style="background:#f0fdf4;color:#16a34a;">
       <i class="fas fa-lock" style="font-size:10px;"></i> 사번
-    </span>
-    <span class="sel-chip" style="background:#f0fdf4;color:#16a34a;">
-      <i class="fas fa-lock" style="font-size:10px;"></i> 이름
     </span>`;
   selectedFields.forEach(k => {
     const chip = document.getElementById('chip-' + k);

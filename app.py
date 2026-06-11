@@ -1346,6 +1346,7 @@ REPORT_SOURCES = [
         'key': 'employee', 'label': '직원 정보',
         'icon': 'fa-user', 'color': '#dbeafe', 'icon_color': '#1d4ed8',
         'fields': [
+            {'key': 'name',            'label': '이름',      'sql': 'u.name',            'agg': False, 'needs': []},
             {'key': 'dept',            'label': '부서',      'sql': 'd.name',            'agg': False, 'needs': ['dept_join']},
             {'key': 'position',        'label': '직급',      'sql': 'p.name',            'agg': False, 'needs': ['pos_join']},
             {'key': 'job_family',      'label': '직군',      'sql': 'jf.name',           'agg': False, 'needs': ['jf_join']},
@@ -1418,10 +1419,10 @@ def build_report_query(field_keys, filters, limit=200):
     if filters.get('dept_id'):
         needs.add('dept_join')
 
-    # SELECT 절
-    select_parts = ['u.emp_no AS "사번"', 'u.name AS "이름"']
-    col_labels   = ['사번', '이름']
-    group_non_agg = ['u.id', 'u.emp_no', 'u.name']
+    # SELECT 절 — 사번만 고정, 이름은 선택
+    select_parts  = ['u.emp_no AS "사번"']
+    col_labels    = ['사번']
+    group_non_agg = ['u.id', 'u.emp_no']
 
     for f in selected:
         select_parts.append(f'{f["sql"]} AS "{f["label"]}"')
