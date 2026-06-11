@@ -30,6 +30,7 @@ from master_db import (
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('HR_SECRET_KEY', 'dev-only-change-in-prod')
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # ── 토스페이먼츠 키 ─────────────────────────────────────────
 TOSS_CLIENT_KEY = os.environ.get(
