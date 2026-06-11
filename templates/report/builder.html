@@ -1,0 +1,567 @@
+{% extends 'base.html' %}
+{% block title %}HR 데이터 마법사{% endblock %}
+{% block page_title %}HR 데이터 마법사{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── 레이아웃 ── */
+.rb-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.rb-left  { position: sticky; top: 80px; }
+.rb-right {}
+
+/* ── 스텝 인디케이터 ── */
+.rb-steps {
+  display: flex; align-items: center; gap: 0;
+  margin-bottom: 24px;
+}
+.rb-step {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600; color: var(--tx-3);
+}
+.rb-step.active { color: var(--primary); }
+.rb-step.done   { color: #16a34a; }
+.rb-step-num {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--border); color: var(--tx-3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; flex-shrink: 0;
+}
+.rb-step.active .rb-step-num { background: var(--primary); color: #fff; }
+.rb-step.done   .rb-step-num { background: #16a34a; color: #fff; }
+.rb-step-line {
+  flex: 1; height: 2px; background: var(--border); margin: 0 8px; min-width: 24px;
+}
+.rb-step-line.done { background: #16a34a; }
+
+/* ── 소스 카드 ── */
+.src-card {
+  border: 2px solid var(--border);
+  border-radius: var(--r);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 8px;
+}
+.src-card:hover  { border-color: var(--primary); }
+.src-card.active { border-color: var(--primary); background: #eff6ff; }
+.src-icon {
+  width: 38px; height: 38px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.src-info { flex: 1; min-width: 0; }
+.src-label  { font-size: 14px; font-weight: 700; color: var(--tx-1); }
+.src-count  { font-size: 12px; color: var(--tx-3); margin-top: 2px; }
+.src-check  { color: var(--primary); font-size: 18px; display: none; }
+.src-card.active .src-check { display: block; }
+
+/* ── 필드 패널 ── */
+.field-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px;
+  margin-bottom: 16px;
+  display: none;
+}
+.field-panel.visible { display: block; }
+.field-panel-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px; font-weight: 700; color: var(--tx-1);
+}
+.field-chips {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.field-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px;
+  border: 1.5px solid var(--border);
+  font-size: 12.5px; font-weight: 600; color: var(--tx-2);
+  cursor: pointer; transition: all .12s;
+  user-select: none;
+}
+.field-chip:hover   { border-color: var(--primary); color: var(--primary); }
+.field-chip.selected {
+  background: var(--primary); border-color: var(--primary);
+  color: #fff;
+}
+
+/* ── 필터 섹션 ── */
+.filter-row {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  align-items: flex-end;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  margin-bottom: 20px;
+}
+.filter-group { display: flex; flex-direction: column; gap: 4px; }
+.filter-group label { font-size: 12px; font-weight: 700; color: var(--tx-3); }
+.filter-group input,
+.filter-group select {
+  padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: var(--r); font-size: 13px;
+  background: var(--bg); color: var(--tx-1);
+}
+
+/* ── 미리보기 테이블 ── */
+.preview-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  margin-bottom: 16px;
+}
+.preview-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 13px;
+}
+.preview-table th {
+  background: var(--card);
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--tx-3);
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+  position: sticky; top: 0;
+}
+.preview-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  color: var(--tx-1);
+}
+.preview-table tr:last-child td { border-bottom: none; }
+.preview-table tr:hover td { background: var(--card); }
+.preview-table td:first-child { font-weight: 700; color: var(--primary); }
+
+/* ── 액션 버튼 ── */
+.btn-preview {
+  padding: 10px 22px; border-radius: var(--r);
+  background: var(--primary); color: #fff;
+  font-size: 14px; font-weight: 700;
+  border: none; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: opacity .15s;
+}
+.btn-preview:hover   { opacity: .88; }
+.btn-preview:disabled { opacity: .5; cursor: not-allowed; }
+.btn-export {
+  padding: 10px 22px; border-radius: var(--r);
+  background: #16a34a; color: #fff;
+  font-size: 14px; font-weight: 700;
+  border: none; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: opacity .15s;
+}
+.btn-export:hover    { opacity: .88; }
+.btn-export:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── 선택 요약 칩 ── */
+.selected-summary {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-bottom: 16px;
+  min-height: 28px;
+}
+.sel-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 999px;
+  background: #eff6ff; color: var(--primary);
+  font-size: 12px; font-weight: 600;
+}
+.sel-chip .rm { cursor: pointer; font-size: 10px; opacity: .7; }
+.sel-chip .rm:hover { opacity: 1; }
+
+.empty-state {
+  padding: 60px 24px; text-align: center;
+  color: var(--tx-3); font-size: 14px;
+}
+.empty-state i { font-size: 36px; margin-bottom: 12px; display: block; opacity: .4; }
+
+@media (max-width: 900px) {
+  .rb-layout { grid-template-columns: 1fr; }
+  .rb-left   { position: static; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- 스텝 인디케이터 -->
+<div class="rb-steps" id="stepIndicator">
+  <div class="rb-step active" id="step1-ind">
+    <div class="rb-step-num">1</div><span>소스 선택</span>
+  </div>
+  <div class="rb-step-line" id="line1"></div>
+  <div class="rb-step" id="step2-ind">
+    <div class="rb-step-num">2</div><span>필드 &amp; 필터</span>
+  </div>
+  <div class="rb-step-line" id="line2"></div>
+  <div class="rb-step" id="step3-ind">
+    <div class="rb-step-num">3</div><span>미리보기</span>
+  </div>
+</div>
+
+<div class="rb-layout">
+
+  <!-- ── 왼쪽: 소스 + 필드 선택 ── -->
+  <div class="rb-left">
+
+    <!-- 소스 카드 목록 -->
+    <div style="font-size:11px;font-weight:800;color:var(--tx-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">
+      데이터 소스 선택
+    </div>
+    {% for src in report_sources %}
+    <div class="src-card" id="src-{{ src.key }}" onclick="toggleSource('{{ src.key }}')">
+      <div class="src-icon" style="background:{{ src.color }};color:{{ src.icon_color }};">
+        <i class="fas {{ src.icon }}"></i>
+      </div>
+      <div class="src-info">
+        <div class="src-label">{{ src.label }}</div>
+        <div class="src-count">{{ src.fields|length }}개 필드</div>
+      </div>
+      <i class="fas fa-check-circle src-check"></i>
+    </div>
+    {% endfor %}
+
+  </div>
+
+  <!-- ── 오른쪽: 필드 체크박스 + 필터 + 미리보기 ── -->
+  <div class="rb-right">
+
+    <!-- 사번 고정 안내 -->
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--r);margin-bottom:16px;font-size:13px;">
+      <i class="fas fa-lock" style="color:#16a34a;"></i>
+      <span><strong>사번 · 이름</strong>은 항상 포함됩니다 (기준 식별자)</span>
+    </div>
+
+    <!-- 소스별 필드 패널 -->
+    {% for src in report_sources %}
+    <div class="field-panel" id="panel-{{ src.key }}">
+      <div class="field-panel-header">
+        <div class="src-icon" style="width:28px;height:28px;font-size:13px;background:{{ src.color }};color:{{ src.icon_color }};">
+          <i class="fas {{ src.icon }}"></i>
+        </div>
+        {{ src.label }}
+        <span style="margin-left:auto;font-size:11px;color:var(--tx-3);font-weight:400;" id="cnt-{{ src.key }}">0개 선택</span>
+      </div>
+      <div class="field-chips">
+        {% for f in src.fields %}
+        <div class="field-chip" id="chip-{{ f.key }}" onclick="toggleField('{{ f.key }}','{{ src.key }}')">
+          {{ f.label }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+
+    <!-- 아무것도 선택 안 했을 때 -->
+    <div id="no-source-hint" class="empty-state">
+      <i class="fas fa-magic"></i>
+      왼쪽에서 데이터 소스를 선택하면 필드가 나타납니다
+    </div>
+
+    <!-- 필터 -->
+    <div id="filter-section" style="display:none;">
+      <div style="font-size:11px;font-weight:800;color:var(--tx-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">
+        필터 설정 <span style="font-weight:400;font-size:11px;">(선택사항)</span>
+      </div>
+      <div class="filter-row">
+        <div class="filter-group">
+          <label>기간 시작</label>
+          <input type="date" id="f-date-from" value="{{ '%s-01-01' % today_year }}">
+        </div>
+        <div class="filter-group">
+          <label>기간 종료</label>
+          <input type="date" id="f-date-to" value="{{ '%s-12-31' % today_year }}">
+        </div>
+        <div class="filter-group">
+          <label>부서</label>
+          <select id="f-dept">
+            <option value="">전체</option>
+            {% for d in depts %}
+            <option value="{{ d.id }}">{{ d.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>고용형태</label>
+          <select id="f-employment">
+            <option value="">전체</option>
+            <option value="정규직">정규직</option>
+            <option value="계약직">계약직</option>
+            <option value="인턴">인턴</option>
+            <option value="프리랜서">프리랜서</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 선택 요약 -->
+      <div style="font-size:11px;font-weight:800;color:var(--tx-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">
+        선택된 필드
+      </div>
+      <div class="selected-summary" id="selectedSummary">
+        <span class="sel-chip" style="background:#f0fdf4;color:#16a34a;">
+          <i class="fas fa-lock" style="font-size:10px;"></i> 사번
+        </span>
+        <span class="sel-chip" style="background:#f0fdf4;color:#16a34a;">
+          <i class="fas fa-lock" style="font-size:10px;"></i> 이름
+        </span>
+      </div>
+
+      <!-- 액션 버튼 -->
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <button class="btn-preview" id="btnPreview" onclick="runPreview()">
+          <i class="fas fa-table"></i> 미리보기
+        </button>
+        <button class="btn-export" id="btnExport" onclick="runExport()" disabled>
+          <i class="fas fa-file-excel"></i> Excel 내보내기
+        </button>
+        <span id="previewMeta" style="font-size:12px;color:var(--tx-3);"></span>
+      </div>
+    </div>
+
+    <!-- 미리보기 테이블 -->
+    <div id="previewArea" style="margin-top:24px; display:none;">
+      <div style="font-size:11px;font-weight:800;color:var(--tx-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">
+        미리보기 결과 <span id="previewCount" style="font-weight:400;"></span>
+      </div>
+      <div class="preview-wrap">
+        <table class="preview-table" id="previewTable">
+          <thead id="previewHead"></thead>
+          <tbody id="previewBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const selectedSources = new Set();
+const selectedFields  = new Set();
+let lastPreviewData   = null;
+
+// ── 소스 토글 ──────────────────────────────────────────────────
+function toggleSource(key) {
+  const card = document.getElementById('src-' + key);
+  const panel = document.getElementById('panel-' + key);
+  if (selectedSources.has(key)) {
+    selectedSources.delete(key);
+    card.classList.remove('active');
+    panel.classList.remove('visible');
+    // 해당 소스 필드 전부 해제
+    panel.querySelectorAll('.field-chip.selected').forEach(c => {
+      c.classList.remove('selected');
+      selectedFields.delete(c.id.replace('chip-',''));
+    });
+  } else {
+    selectedSources.add(key);
+    card.classList.add('active');
+    panel.classList.add('visible');
+  }
+  updateUI();
+}
+
+// ── 필드 토글 ─────────────────────────────────────────────────
+function toggleField(fieldKey, srcKey) {
+  const chip = document.getElementById('chip-' + fieldKey);
+  if (selectedFields.has(fieldKey)) {
+    selectedFields.delete(fieldKey);
+    chip.classList.remove('selected');
+  } else {
+    selectedFields.add(fieldKey);
+    chip.classList.add('selected');
+  }
+  updateSrcCount(srcKey);
+  updateSummary();
+  updateExportBtn(false);
+}
+
+function updateSrcCount(srcKey) {
+  const panel = document.getElementById('panel-' + srcKey);
+  const cnt   = panel.querySelectorAll('.field-chip.selected').length;
+  document.getElementById('cnt-' + srcKey).textContent = cnt + '개 선택';
+}
+
+// ── 요약 칩 ───────────────────────────────────────────────────
+function updateSummary() {
+  const wrap = document.getElementById('selectedSummary');
+  // 고정 칩 유지
+  wrap.innerHTML = `
+    <span class="sel-chip" style="background:#f0fdf4;color:#16a34a;">
+      <i class="fas fa-lock" style="font-size:10px;"></i> 사번
+    </span>
+    <span class="sel-chip" style="background:#f0fdf4;color:#16a34a;">
+      <i class="fas fa-lock" style="font-size:10px;"></i> 이름
+    </span>`;
+  selectedFields.forEach(k => {
+    const chip = document.getElementById('chip-' + k);
+    if (!chip) return;
+    const label = chip.textContent.trim();
+    wrap.insertAdjacentHTML('beforeend',
+      `<span class="sel-chip">${label}
+         <span class="rm" onclick="removeField('${k}')">✕</span>
+       </span>`);
+  });
+}
+
+function removeField(key) {
+  // 어느 소스인지 찾기
+  const chip = document.getElementById('chip-' + key);
+  if (!chip) return;
+  chip.classList.remove('selected');
+  selectedFields.delete(key);
+  // src 카운트 갱신
+  {% for src in report_sources %}
+  updateSrcCount('{{ src.key }}');
+  {% endfor %}
+  updateSummary();
+  updateExportBtn(false);
+}
+
+// ── UI 상태 동기화 ────────────────────────────────────────────
+function updateUI() {
+  const hasSource = selectedSources.size > 0;
+  document.getElementById('no-source-hint').style.display = hasSource ? 'none' : 'block';
+  document.getElementById('filter-section').style.display  = hasSource ? 'block' : 'none';
+
+  // 스텝 인디케이터
+  const step1 = document.getElementById('step1-ind');
+  const step2 = document.getElementById('step2-ind');
+  const line1 = document.getElementById('line1');
+  if (hasSource) {
+    step1.classList.add('done'); step1.classList.remove('active');
+    step2.classList.add('active');
+    line1.classList.add('done');
+  } else {
+    step1.classList.remove('done'); step1.classList.add('active');
+    step2.classList.remove('active');
+    line1.classList.remove('done');
+  }
+  updateSummary();
+  updateExportBtn(false);
+}
+
+function updateExportBtn(hasData) {
+  document.getElementById('btnExport').disabled = !hasData;
+  if (hasData) {
+    document.getElementById('step3-ind').classList.add('active');
+    document.getElementById('line2').classList.add('done');
+  }
+}
+
+// ── 미리보기 ──────────────────────────────────────────────────
+async function runPreview() {
+  if (selectedFields.size === 0) {
+    alert('필드를 1개 이상 선택하세요.');
+    return;
+  }
+  const btn = document.getElementById('btnPreview');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 조회 중...';
+  btn.disabled = true;
+
+  const payload = {
+    fields:  [...selectedFields],
+    filters: getFilters(),
+  };
+
+  try {
+    const res  = await fetch('/report/preview', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+
+    lastPreviewData = data;
+    renderTable(data);
+    document.getElementById('previewMeta').textContent = data.sql_hint;
+    updateExportBtn(true);
+  } catch(e) {
+    alert('오류: ' + e.message);
+  } finally {
+    btn.innerHTML = '<i class="fas fa-table"></i> 미리보기';
+    btn.disabled = false;
+  }
+}
+
+function renderTable(data) {
+  const area = document.getElementById('previewArea');
+  const head = document.getElementById('previewHead');
+  const body = document.getElementById('previewBody');
+  document.getElementById('previewCount').textContent = `(${data.rows.length}행)`;
+
+  head.innerHTML = '<tr>' + data.columns.map(c =>
+    `<th>${c}</th>`).join('') + '</tr>';
+
+  body.innerHTML = data.rows.map(row =>
+    '<tr>' + row.map((v, i) => {
+      if (v === null || v === undefined) return '<td style="color:var(--tx-3);">—</td>';
+      // 숫자 포맷: 총지급액 등 큰 숫자
+      const col = data.columns[i];
+      if ((col.includes('지급') || col.includes('실수령') || col.includes('기본급') || col.includes('수당')) && typeof v === 'number') {
+        return `<td>${v.toLocaleString()}원</td>`;
+      }
+      if ((col.includes('진행률') || col.includes('평균')) && typeof v === 'number') {
+        return `<td>${v}%</td>`;
+      }
+      return `<td>${v}</td>`;
+    }).join('') + '</tr>'
+  ).join('');
+
+  area.style.display = 'block';
+  area.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── Excel 내보내기 ────────────────────────────────────────────
+async function runExport() {
+  if (!lastPreviewData) return;
+  const payload = {
+    fields:  [...selectedFields],
+    filters: getFilters(),
+  };
+  const res  = await fetch('/report/export', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) { alert('내보내기 실패'); return; }
+  const blob = await res.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'HR_커스텀리포트.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── 필터 수집 ─────────────────────────────────────────────────
+function getFilters() {
+  return {
+    date_from:       document.getElementById('f-date-from').value,
+    date_to:         document.getElementById('f-date-to').value,
+    dept_id:         document.getElementById('f-dept').value,
+    employment_type: document.getElementById('f-employment').value,
+  };
+}
+
+// ── 초기화 ────────────────────────────────────────────────────
+(function() {
+  const params = new URLSearchParams(location.search);
+  // 오늘 연도로 기간 기본값
+  const y = new Date().getFullYear();
+  document.getElementById('f-date-from').value = y + '-01-01';
+  document.getElementById('f-date-to').value   = y + '-12-31';
+})();
+</script>
+{% endblock %}

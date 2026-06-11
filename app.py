@@ -1340,6 +1340,146 @@ ATTENDANCE_STATUS_COLOR = {
 }
 
 
+# ── HR 커스텀 리포트 빌더 ────────────────────────────────────────────────────
+REPORT_SOURCES = [
+    {
+        'key': 'employee', 'label': '직원 정보',
+        'icon': 'fa-user', 'color': '#dbeafe', 'icon_color': '#1d4ed8',
+        'fields': [
+            {'key': 'dept',            'label': '부서',      'sql': 'd.name',            'agg': False, 'needs': ['dept_join']},
+            {'key': 'position',        'label': '직급',      'sql': 'p.name',            'agg': False, 'needs': ['pos_join']},
+            {'key': 'job_family',      'label': '직군',      'sql': 'jf.name',           'agg': False, 'needs': ['jf_join']},
+            {'key': 'employment_type', 'label': '고용형태',  'sql': 'u.employment_type', 'agg': False, 'needs': []},
+            {'key': 'hire_date',       'label': '입사일',    'sql': 'u.hire_date',       'agg': False, 'needs': []},
+            {'key': 'base_salary',     'label': '기본급',    'sql': 'es.base_salary',    'agg': False, 'needs': ['sal_join']},
+            {'key': 'emp_status',      'label': '재직상태',  'sql': 'u.status',          'agg': False, 'needs': []},
+        ]
+    },
+    {
+        'key': 'checkin', 'label': '출퇴근',
+        'icon': 'fa-business-time', 'color': '#fef3c7', 'icon_color': '#b45309',
+        'fields': [
+            {'key': 'work_days',    'label': '출근일수',   'sql': 'COUNT(DISTINCT c.date)',                                                   'agg': True, 'needs': ['checkin_join']},
+            {'key': 'regular_h',   'label': '정규(시간)', 'sql': 'ROUND(COALESCE(SUM(c.regular_min),0)/60.0,1)',                             'agg': True, 'needs': ['checkin_join']},
+            {'key': 'overtime_h',  'label': '연장(시간)', 'sql': 'ROUND(COALESCE(SUM(c.overtime_min),0)/60.0,1)',                            'agg': True, 'needs': ['checkin_join']},
+            {'key': 'night_h',     'label': '야간(시간)', 'sql': 'ROUND(COALESCE(SUM(c.night_min),0)/60.0,1)',                               'agg': True, 'needs': ['checkin_join']},
+            {'key': 'late_count',  'label': '지각횟수',   'sql': "SUM(CASE WHEN c.attendance_status='late' THEN 1 ELSE 0 END)",              'agg': True, 'needs': ['checkin_join']},
+            {'key': 'early_leave', 'label': '조퇴횟수',   'sql': "SUM(CASE WHEN c.attendance_status='early_leave' THEN 1 ELSE 0 END)",       'agg': True, 'needs': ['checkin_join']},
+        ]
+    },
+    {
+        'key': 'payroll', 'label': '급여',
+        'icon': 'fa-won-sign', 'color': '#dcfce7', 'icon_color': '#16a34a',
+        'fields': [
+            {'key': 'total_gross',  'label': '총지급액',      'sql': 'COALESCE(SUM(ps.gross_pay),0)',           'agg': True, 'needs': ['payroll_join']},
+            {'key': 'total_net',    'label': '총실수령액',    'sql': 'COALESCE(SUM(ps.net_pay),0)',             'agg': True, 'needs': ['payroll_join']},
+            {'key': 'avg_gross',    'label': '월평균지급액',  'sql': 'ROUND(COALESCE(AVG(ps.gross_pay),0),0)',  'agg': True, 'needs': ['payroll_join']},
+            {'key': 'total_ot_pay', 'label': '연장수당합계',  'sql': 'COALESCE(SUM(ps.overtime_pay),0)',        'agg': True, 'needs': ['payroll_join']},
+        ]
+    },
+    {
+        'key': 'leave', 'label': '근태',
+        'icon': 'fa-clock', 'color': '#ffedd5', 'icon_color': '#c2410c',
+        'fields': [
+            {'key': 'leave_days',   'label': '휴가사용일수', 'sql': "COALESCE(SUM(CASE WHEN lr.status='approved' THEN lr.days ELSE 0 END),0)", 'agg': True, 'needs': ['leave_join']},
+            {'key': 'leave_count',  'label': '휴가신청건수', 'sql': 'COUNT(DISTINCT lr.id)',                                                    'agg': True, 'needs': ['leave_join']},
+            {'key': 'annual_used',  'label': '연차사용일수', 'sql': "COALESCE(SUM(CASE WHEN lr.type='annual' AND lr.status='approved' THEN lr.days ELSE 0 END),0)", 'agg': True, 'needs': ['leave_join']},
+        ]
+    },
+    {
+        'key': 'performance', 'label': '성과',
+        'icon': 'fa-chart-line', 'color': '#f3e8ff', 'icon_color': '#7c3aed',
+        'fields': [
+            {'key': 'perf_grade',    'label': '성과등급',     'sql': 'cr.final_grade',           'agg': False, 'needs': ['perf_join']},
+            {'key': 'self_avg',      'label': '자기평가평균', 'sql': 'ROUND(cr.self_avg,2)',      'agg': False, 'needs': ['perf_join']},
+            {'key': 'mgr_avg',       'label': '매니저평가',   'sql': 'ROUND(cr.mgr_avg,2)',       'agg': False, 'needs': ['perf_join']},
+            {'key': 'goal_progress', 'label': '목표진행률',   'sql': 'ROUND(AVG(pg.progress),1)', 'agg': True,  'needs': ['goal_join']},
+        ]
+    },
+]
+_REPORT_FIELD_MAP = {f['key']: f for src in REPORT_SOURCES for f in src['fields']}
+
+
+def build_report_query(field_keys, filters, limit=200):
+    """화이트리스트 기반 동적 SQL 생성. (SQL injection 없음 — 모든 식별자는 상수에서만 옴)"""
+    import re
+
+    # 날짜 포맷 검증
+    def safe_date(s):
+        return s if s and re.match(r'^\d{4}-\d{2}-\d{2}$', s) else None
+
+    date_from = safe_date(filters.get('date_from'))
+    date_to   = safe_date(filters.get('date_to'))
+
+    selected  = [_REPORT_FIELD_MAP[k] for k in field_keys if k in _REPORT_FIELD_MAP]
+    needs     = set()
+    for f in selected:
+        needs.update(f['needs'])
+    if filters.get('dept_id'):
+        needs.add('dept_join')
+
+    # SELECT 절
+    select_parts = ['u.emp_no AS "사번"', 'u.name AS "이름"']
+    col_labels   = ['사번', '이름']
+    group_non_agg = ['u.id', 'u.emp_no', 'u.name']
+
+    for f in selected:
+        select_parts.append(f'{f["sql"]} AS "{f["label"]}"')
+        col_labels.append(f['label'])
+        if not f['agg']:
+            group_non_agg.append(f['sql'])
+
+    # JOIN 절
+    joins = []
+    if 'dept_join' in needs:
+        joins.append('LEFT JOIN departments d ON u.department_id = d.id')
+    if 'pos_join' in needs:
+        joins.append('LEFT JOIN positions p ON u.position_id = p.id')
+    if 'jf_join' in needs:
+        joins.append('LEFT JOIN job_families jf ON u.job_family_id = jf.id')
+    if 'sal_join' in needs:
+        joins.append('LEFT JOIN employee_salary es ON es.user_id = u.id')
+    if 'checkin_join' in needs:
+        date_cond = f" AND c.date BETWEEN '{date_from}' AND '{date_to}'" if date_from and date_to else ''
+        joins.append(f'LEFT JOIN checkins c ON c.user_id = u.id{date_cond}')
+    if 'payroll_join' in needs:
+        date_cond = (f" AND (ps.year || '-' || printf('%02d',ps.month)) BETWEEN "
+                     f"'{date_from[:7]}' AND '{date_to[:7]}'") if date_from and date_to else ''
+        joins.append(f'LEFT JOIN payslips ps ON ps.user_id = u.id{date_cond}')
+    if 'leave_join' in needs:
+        date_cond = f" AND lr.start_date BETWEEN '{date_from}' AND '{date_to}'" if date_from and date_to else ''
+        joins.append(f'LEFT JOIN leave_requests lr ON lr.user_id = u.id{date_cond}')
+    if 'perf_join' in needs:
+        joins.append(
+            'LEFT JOIN (SELECT user_id, final_grade, self_avg, mgr_avg '
+            'FROM calibration_results WHERE id IN '
+            '(SELECT MAX(id) FROM calibration_results GROUP BY user_id)) cr ON cr.user_id = u.id'
+        )
+    if 'goal_join' in needs:
+        joins.append('LEFT JOIN performance_goals pg ON pg.user_id = u.id')
+
+    # WHERE 절
+    where_parts = ["u.status = 'active'"]
+    params = []
+    if filters.get('dept_id'):
+        where_parts.append('u.department_id = ?')
+        params.append(int(filters['dept_id']))
+    if filters.get('employment_type'):
+        where_parts.append('u.employment_type = ?')
+        params.append(filters['employment_type'])
+
+    sql = (
+        f"SELECT {', '.join(select_parts)}\n"
+        f"FROM users u\n"
+        + ('\n'.join(joins) + '\n' if joins else '')
+        + f"WHERE {' AND '.join(where_parts)}\n"
+        f"GROUP BY {', '.join(group_non_agg)}\n"
+        f"ORDER BY u.emp_no\n"
+        + (f'LIMIT {int(limit)}' if limit else '')
+    )
+    return sql, params, col_labels
+
+
 def get_user_schedule(db, user_id, date_str):
     """직원의 해당 날짜 활성 스케줄 반환. 없으면 회사 기본 스케줄."""
     row = db.execute('''
@@ -7114,6 +7254,67 @@ def export_attendance():
             r['reason'] or '', r['created_at'] or '',
         ], align_map=am)
     auto_width(ws); freeze_header(ws)
+    return to_response(wb, fname)
+
+
+@app.route('/report/builder')
+@admin_required
+def report_builder():
+    db   = get_db()
+    depts = db.execute(
+        'SELECT id, name FROM departments ORDER BY name'
+    ).fetchall()
+    return render_template('report/builder.html',
+                           active_page='report',
+                           report_sources=REPORT_SOURCES,
+                           depts=depts)
+
+
+@app.route('/report/preview', methods=['POST'])
+@admin_required
+def report_preview():
+    import json as _json
+    data      = request.get_json(force=True)
+    fields    = data.get('fields', [])
+    filters   = data.get('filters', {})
+    if not fields:
+        return jsonify({'error': '필드를 1개 이상 선택하세요.'}), 400
+    try:
+        sql, params, col_labels = build_report_query(fields, filters, limit=200)
+        db   = get_db()
+        rows = db.execute(sql, params).fetchall()
+        return jsonify({
+            'columns': col_labels,
+            'rows':    [list(r) for r in rows],
+            'total':   len(rows),
+            'sql_hint': f"-- {len(rows)}행 반환 (최대 200행 미리보기)" ,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/report/export', methods=['POST'])
+@admin_required
+def report_export():
+    import json as _json
+    data    = request.get_json(force=True)
+    fields  = data.get('fields', [])
+    filters = data.get('filters', {})
+    if not fields:
+        return jsonify({'error': '필드를 1개 이상 선택하세요.'}), 400
+    sql, params, col_labels = build_report_query(fields, filters, limit=None)
+    db   = get_db()
+    rows = db.execute(sql, params).fetchall()
+
+    wb, ws = make_wb('커스텀 리포트')
+    write_header(ws, col_labels)
+    for i, r in enumerate(rows, 2):
+        write_row(ws, i, list(r))
+    auto_width(ws)
+    freeze_header(ws)
+
+    import urllib.parse as _up
+    fname = _up.quote('HR_커스텀리포트.xlsx')
     return to_response(wb, fname)
 
 
