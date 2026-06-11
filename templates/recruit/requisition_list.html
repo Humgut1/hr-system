@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}채용 요청서{% endblock %}
+{% block page_title %}채용 요청서{% endblock %}
+
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+  <div style="display:flex; gap:6px; flex-wrap:wrap;">
+    <a href="{{ url_for('requisition_list') }}"
+       class="btn btn-sm {% if not status_filter %}btn-primary{% else %}btn-ghost{% endif %}">전체</a>
+    {% for key, label in status_labels.items() %}
+    <a href="{{ url_for('requisition_list', status=key) }}"
+       class="btn btn-sm {% if status_filter == key %}btn-primary{% else %}btn-ghost{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <a href="{{ url_for('requisition_new') }}" class="btn btn-primary btn-sm">
+    <i class="fas fa-plus"></i> 채용 요청서 작성
+  </a>
+</div>
+
+{% if reqs %}
+<div class="card" style="padding:0;">
+  <table class="data-table" style="margin:0;">
+    <thead>
+      <tr>
+        <th>제목</th>
+        <th>부서</th>
+        <th>직급</th>
+        <th>인원</th>
+        <th>고용형태</th>
+        <th>신청자</th>
+        <th>상태</th>
+        <th>작성일</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in reqs %}
+    {% set status_colors = {
+      'draft':        ('#f1f5f9','#475569'),
+      'pending_dept': ('#fef9c3','#854d0e'),
+      'pending_hr':   ('#dbeafe','#1e40af'),
+      'approved':     ('#dcfce7','#166534'),
+      'rejected':     ('#fee2e2','#991b1b'),
+      'posted':       ('#ede9fe','#5b21b6'),
+    } %}
+    {% set sc = status_colors.get(r.status, ('#f1f5f9','#475569')) %}
+    <tr style="cursor:pointer;" onclick="location.href='{{ url_for('requisition_detail', req_id=r.id) }}'">
+      <td><strong>{{ r.title }}</strong></td>
+      <td style="font-size:12px; color:var(--tx-2);">{{ r.dept_name or '-' }}</td>
+      <td style="font-size:12px; color:var(--tx-2);">{{ r.pos_name or '-' }}</td>
+      <td style="text-align:center;">{{ r.headcount }}명</td>
+      <td style="font-size:12px;">{{ emp_type_labels.get(r.employment_type, r.employment_type) }}</td>
+      <td style="font-size:12px;">{{ r.requester_name or '-' }}</td>
+      <td>
+        <span style="font-size:11px; padding:3px 8px; border-radius:99px;
+                     background:{{ sc[0] }}; color:{{ sc[1] }}; font-weight:600;">
+          {{ status_labels.get(r.status, r.status) }}
+        </span>
+      </td>
+      <td style="font-size:12px; color:var(--tx-3);">{{ r.created_at[:10] }}</td>
+      <td onclick="event.stopPropagation();">
+        <a href="{{ url_for('requisition_detail', req_id=r.id) }}" class="btn btn-ghost btn-sm" style="font-size:11px;">상세</a>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body" style="text-align:center; padding:48px 0; color:var(--tx-3);">
+    <i class="fas fa-file-alt" style="font-size:40px; display:block; margin-bottom:12px; color:var(--border);"></i>
+    채용 요청서가 없습니다.
+    <div style="margin-top:16px;">
+      <a href="{{ url_for('requisition_new') }}" class="btn btn-primary btn-sm">
+        <i class="fas fa-plus"></i> 첫 번째 채용 요청서 작성
+      </a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

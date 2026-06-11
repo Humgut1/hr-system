@@ -109,6 +109,9 @@
           <i class="fas fa-file-invoice-dollar"></i><span>보상 검토 (ACR)</span>
         </a>
         {% endif %}
+        <a href="{{ url_for('requisition_list') }}" class="nav-item{% if active_page == 'requisition' %} active{% endif %}" title="채용 요청서">
+          <i class="fas fa-file-alt"></i><span>채용 요청서</span>
+        </a>
         <a href="{{ url_for('recruit_postings') }}" class="nav-item{% if active_page in ('recruit','recruit_pipeline','recruiter') %} active{% endif %}" title="채용 관리">
           <i class="fas fa-user-tie"></i><span>채용 관리</span>
         </a>

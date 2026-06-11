@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+{% block title %}채용 요청서 작성{% endblock %}
+{% block page_title %}채용 요청서 작성{% endblock %}
+
+{% block content %}
+
+<div style="max-width:720px;">
+  <form method="POST" id="req-form">
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head"><span class="card-title">기본 정보</span></div>
+      <div class="card-body">
+
+        <div class="form-group">
+          <label class="form-label">채용 포지션 제목 <span style="color:#dc2626;">*</span></label>
+          <input type="text" name="title" class="form-control"
+                 value="{{ req.title if req else '' }}"
+                 placeholder="예: 백엔드 개발자 (Python/Flask)" required>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label">부서</label>
+            <select name="department_id" class="form-control">
+              <option value="">부서 선택</option>
+              {% for d in depts %}
+              <option value="{{ d.id }}" {% if req and req.department_id == d.id %}selected{% endif %}>
+                {{ d.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">직급</label>
+            <select name="position_id" class="form-control">
+              <option value="">직급 선택</option>
+              {% for p in poses %}
+              <option value="{{ p.id }}" {% if req and req.position_id == p.id %}selected{% endif %}>
+                {{ p.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label">채용 인원 <span style="color:#dc2626;">*</span></label>
+            <input type="number" name="headcount" class="form-control" min="1" max="99"
+                   value="{{ req.headcount if req else 1 }}" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">고용 형태</label>
+            <select name="employment_type" class="form-control">
+              {% for key, label in emp_type_labels.items() %}
+              <option value="{{ key }}" {% if req and req.employment_type == key %}selected{% elif not req and key == 'full_time' %}selected{% endif %}>
+                {{ label }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label">희망 입사일</label>
+            <input type="date" name="target_start_date" class="form-control"
+                   value="{{ req.target_start_date if req and req.target_start_date else '' }}">
+          </div>
+          <div class="form-group" style="visibility:hidden;"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head"><span class="card-title">채용 사유 및 요건</span></div>
+      <div class="card-body">
+
+        <div class="form-group">
+          <label class="form-label">채용 사유 <span style="color:#dc2626;">*</span></label>
+          <textarea name="reason" class="form-control" rows="4" required
+                    placeholder="채용이 필요한 이유를 구체적으로 작성해주세요.&#10;예: 신규 프로젝트 론칭으로 인한 백엔드 인력 보강">{{ req.reason if req else '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">요구 스킬 / 자격요건</label>
+          <textarea name="required_skills" class="form-control" rows="3"
+                    placeholder="예: Python 3년 이상, Flask/Django 경험, AWS 기본 이해">{{ req.required_skills if req else '' }}</textarea>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-head"><span class="card-title">급여 범위 (선택)</span></div>
+      <div class="card-body">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label">최소 (만원/연)</label>
+            <input type="number" name="salary_min" class="form-control" min="0" step="100"
+                   value="{{ (req.salary_min // 10000) if req and req.salary_min else '' }}"
+                   placeholder="3000">
+          </div>
+          <div class="form-group">
+            <label class="form-label">최대 (만원/연)</label>
+            <input type="number" name="salary_max" class="form-control" min="0" step="100"
+                   value="{{ (req.salary_max // 10000) if req and req.salary_max else '' }}"
+                   placeholder="5000">
+          </div>
+        </div>
+        <div style="font-size:12px; color:var(--tx-3);">* 입력값은 만원 단위로 저장됩니다. (예: 3000 → 3,000만원)</div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <a href="{{ url_for('requisition_list') }}" class="btn btn-ghost">취소</a>
+      <button type="submit" name="action" value="save" class="btn btn-ghost">
+        <i class="fas fa-save"></i> 임시 저장
+      </button>
+      <button type="submit" name="action" value="submit" class="btn btn-primary"
+              onclick="return confirm('부서장 승인을 요청합니다. 계속하시겠습니까?');">
+        <i class="fas fa-paper-plane"></i> 승인 요청
+      </button>
+    </div>
+
+  </form>
+</div>
+
+{% block scripts %}
+{{ super() }}
+<script>
+// 급여 만원 단위 → 원 단위 변환
+document.getElementById('req-form').addEventListener('submit', function() {
+  ['salary_min','salary_max'].forEach(function(name) {
+    var el = document.querySelector('[name="'+name+'"]');
+    if (el && el.value) el.value = parseInt(el.value) * 10000;
+  });
+});
+</script>
+{% endblock %}
+
+{% endblock %}

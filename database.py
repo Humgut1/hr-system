@@ -978,6 +978,43 @@ def init_db(db_path: str = None):
             UNIQUE(user_id, year)
         )''')
 
+        # job_postings 컬럼 마이그레이션 (v0.59 — Requisition 연동)
+        jp_cols = {r[1] for r in c.execute('PRAGMA table_info(job_postings)').fetchall()}
+        for col, ddl in [
+            ('employment_type', "TEXT NOT NULL DEFAULT 'full_time'"),
+            ('salary_min',      'INTEGER DEFAULT 0'),
+            ('salary_max',      'INTEGER DEFAULT 0'),
+        ]:
+            if col not in jp_cols:
+                c.execute(f'ALTER TABLE job_postings ADD COLUMN {col} {ddl}')
+
+        # ── v0.59.0 Requisition 승인 워크플로우 ─────────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS job_requisitions (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            title              TEXT NOT NULL,
+            department_id      INTEGER REFERENCES departments(id),
+            position_id        INTEGER REFERENCES positions(id),
+            headcount          INTEGER NOT NULL DEFAULT 1,
+            employment_type    TEXT NOT NULL DEFAULT 'full_time',
+            reason             TEXT,
+            required_skills    TEXT,
+            salary_min         INTEGER DEFAULT 0,
+            salary_max         INTEGER DEFAULT 0,
+            target_start_date  TEXT,
+            status             TEXT NOT NULL DEFAULT 'draft'
+                               CHECK(status IN ('draft','pending_dept','pending_hr','approved','rejected','posted')),
+            requester_id       INTEGER REFERENCES users(id),
+            dept_approver_id   INTEGER REFERENCES users(id),
+            dept_approved_at   TIMESTAMP,
+            dept_reject_reason TEXT,
+            hr_approver_id     INTEGER REFERENCES users(id),
+            hr_approved_at     TIMESTAMP,
+            hr_reject_reason   TEXT,
+            posting_id         INTEGER REFERENCES job_postings(id),
+            created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
         # company_config 기본 row (없으면 삽입 — setup_completed=0 유지해서 위자드 표시)
         if c.execute('SELECT COUNT(*) FROM company_config').fetchone()[0] == 0:
             c.execute('INSERT INTO company_config (id) VALUES (1)')

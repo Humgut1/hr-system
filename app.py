@@ -5219,6 +5219,292 @@ SOURCE_LABELS = {
     'other':    '기타',
 }
 
+REQUISITION_STATUS_LABEL = {
+    'draft':        '작성 중',
+    'pending_dept': '부서장 승인 대기',
+    'pending_hr':   'HR 승인 대기',
+    'approved':     '승인 완료',
+    'rejected':     '반려',
+    'posted':       '공고 전환 완료',
+}
+
+REQUISITION_EMP_TYPE_LABEL = {
+    'full_time':  '정규직',
+    'part_time':  '파트타임',
+    'contract':   '계약직',
+    'intern':     '인턴',
+    'freelance':  '프리랜서',
+}
+
+# ── Requisition 라우트 ────────────────────────────────────────────────
+
+@app.route('/recruit/requisitions')
+@login_required
+def requisition_list():
+    db   = get_db()
+    uid  = session['user_id']
+    role = session.get('user_role')
+    status_f = request.args.get('status', '')
+
+    sql = (
+        'SELECT r.*, d.name AS dept_name, p.name AS pos_name, '
+        'u.name AS requester_name, da.name AS dept_approver_name, ha.name AS hr_approver_name '
+        'FROM job_requisitions r '
+        'LEFT JOIN departments d  ON r.department_id   = d.id '
+        'LEFT JOIN positions   p  ON r.position_id     = p.id '
+        'LEFT JOIN users       u  ON r.requester_id    = u.id '
+        'LEFT JOIN users       da ON r.dept_approver_id = da.id '
+        'LEFT JOIN users       ha ON r.hr_approver_id   = ha.id '
+        'WHERE 1=1'
+    )
+    params = []
+    if role == 'manager':
+        mgr_dept = session.get('dept_id') or 0
+        # 본인 신청 + 같은 부서 신청 (부서장으로서 승인할 것들)
+        sql += ' AND (r.requester_id=? OR r.department_id=?)'
+        params += [uid, mgr_dept]
+    elif role not in ('admin', 'recruiter'):
+        sql += ' AND r.requester_id=?'
+        params.append(uid)
+
+    if status_f:
+        sql += ' AND r.status=?'
+        params.append(status_f)
+
+    sql += ' ORDER BY r.created_at DESC'
+    reqs = db.execute(sql, params).fetchall()
+
+    return render_template('recruit/requisition_list.html',
+        reqs=reqs,
+        status_filter=status_f,
+        status_labels=REQUISITION_STATUS_LABEL,
+        emp_type_labels=REQUISITION_EMP_TYPE_LABEL,
+        active_page='recruit'
+    )
+
+
+@app.route('/recruit/requisitions/new', methods=['GET', 'POST'])
+@login_required
+def requisition_new():
+    db    = get_db()
+    depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+
+    if request.method == 'POST':
+        f = request.form
+        rid = db.execute(
+            'INSERT INTO job_requisitions '
+            '(title, department_id, position_id, headcount, employment_type, reason, '
+            ' required_skills, salary_min, salary_max, target_start_date, '
+            ' status, requester_id) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+            (
+                f.get('title','').strip(),
+                f.get('department_id') or None,
+                f.get('position_id') or None,
+                int(f.get('headcount', 1)),
+                f.get('employment_type', 'full_time'),
+                f.get('reason','').strip(),
+                f.get('required_skills','').strip(),
+                int(f.get('salary_min') or 0),
+                int(f.get('salary_max') or 0),
+                f.get('target_start_date','').strip() or None,
+                'draft',
+                session['user_id'],
+            )
+        ).lastrowid
+        db.commit()
+
+        action = f.get('action', 'save')
+        if action == 'submit':
+            return redirect(url_for('requisition_submit', req_id=rid))
+        return redirect(url_for('requisition_detail', req_id=rid))
+
+    return render_template('recruit/requisition_form.html',
+        req=None, depts=depts, poses=poses,
+        emp_type_labels=REQUISITION_EMP_TYPE_LABEL,
+        active_page='recruit'
+    )
+
+
+@app.route('/recruit/requisitions/<int:req_id>')
+@login_required
+def requisition_detail(req_id):
+    db  = get_db()
+    uid = session['user_id']
+    role = session.get('user_role')
+
+    req = db.execute(
+        'SELECT r.*, d.name AS dept_name, p.name AS pos_name, '
+        'u.name AS requester_name, da.name AS dept_approver_name, ha.name AS hr_approver_name '
+        'FROM job_requisitions r '
+        'LEFT JOIN departments d  ON r.department_id    = d.id '
+        'LEFT JOIN positions   p  ON r.position_id      = p.id '
+        'LEFT JOIN users       u  ON r.requester_id     = u.id '
+        'LEFT JOIN users       da ON r.dept_approver_id = da.id '
+        'LEFT JOIN users       ha ON r.hr_approver_id   = ha.id '
+        'WHERE r.id=?', (req_id,)
+    ).fetchone()
+    if not req:
+        flash('채용 요청서를 찾을 수 없습니다.', 'error')
+        return redirect(url_for('requisition_list'))
+
+    # 권한 체크: 본인 or 매니저(같은 부서) or admin/recruiter
+    mgr_dept = session.get('dept_id') or 0
+    if role not in ('admin', 'recruiter') and req['requester_id'] != uid:
+        if role != 'manager' or req['department_id'] != mgr_dept:
+            flash('접근 권한이 없습니다.', 'error')
+            return redirect(url_for('requisition_list'))
+
+    posting = None
+    if req['posting_id']:
+        posting = db.execute('SELECT * FROM job_postings WHERE id=?', (req['posting_id'],)).fetchone()
+
+    return render_template('recruit/requisition_detail.html',
+        req=req, posting=posting,
+        status_labels=REQUISITION_STATUS_LABEL,
+        emp_type_labels=REQUISITION_EMP_TYPE_LABEL,
+        active_page='recruit'
+    )
+
+
+@app.route('/recruit/requisitions/<int:req_id>/submit', methods=['POST'])
+@login_required
+def requisition_submit(req_id):
+    """작성 완료 → 부서장 승인 요청."""
+    db  = get_db()
+    uid = session['user_id']
+    req = db.execute('SELECT * FROM job_requisitions WHERE id=? AND requester_id=?', (req_id, uid)).fetchone()
+    if not req or req['status'] != 'draft':
+        flash('처리할 수 없는 요청입니다.', 'error')
+        return redirect(url_for('requisition_list'))
+
+    db.execute(
+        "UPDATE job_requisitions SET status='pending_dept', updated_at=CURRENT_TIMESTAMP WHERE id=?",
+        (req_id,)
+    )
+    db.commit()
+
+    # 같은 부서 매니저/어드민에게 알림
+    approvers = db.execute(
+        "SELECT id FROM users WHERE role IN ('manager','admin') AND department_id=? AND id!=?",
+        (req['department_id'], uid)
+    ).fetchall()
+    for a in approvers:
+        add_notification(db, a['id'], '채용 요청서 승인 요청',
+                         f'"{req["title"]}" 채용 요청서 부서장 승인이 필요합니다.')
+    db.commit()
+    flash('부서장 승인 요청이 전송되었습니다.', 'success')
+    return redirect(url_for('requisition_detail', req_id=req_id))
+
+
+@app.route('/recruit/requisitions/<int:req_id>/dept-approve', methods=['POST'])
+@login_required
+def requisition_dept_approve(req_id):
+    """부서장 승인."""
+    db   = get_db()
+    uid  = session['user_id']
+    role = session.get('user_role')
+    if role not in ('admin', 'manager'):
+        flash('권한이 없습니다.', 'error')
+        return redirect(url_for('requisition_detail', req_id=req_id))
+
+    req = db.execute('SELECT * FROM job_requisitions WHERE id=?', (req_id,)).fetchone()
+    if not req or req['status'] != 'pending_dept':
+        flash('처리할 수 없는 요청입니다.', 'error')
+        return redirect(url_for('requisition_detail', req_id=req_id))
+
+    action = request.form.get('action', 'approve')
+    if action == 'approve':
+        db.execute(
+            "UPDATE job_requisitions SET status='pending_hr', "
+            "dept_approver_id=?, dept_approved_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP "
+            "WHERE id=?",
+            (uid, req_id)
+        )
+        # HR Admin에게 알림
+        hr_admins = db.execute("SELECT id FROM users WHERE role='admin'").fetchall()
+        for h in hr_admins:
+            add_notification(db, h['id'], 'HR 채용 요청서 승인 요청',
+                             f'"{req["title"]}" 요청서가 부서장 승인을 완료하고 HR 최종 승인을 기다립니다.')
+        flash('부서장 승인 완료. HR 검토 단계로 이동했습니다.', 'success')
+    else:
+        reason = request.form.get('reject_reason', '')
+        db.execute(
+            "UPDATE job_requisitions SET status='rejected', "
+            "dept_approver_id=?, dept_approved_at=CURRENT_TIMESTAMP, "
+            "dept_reject_reason=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (uid, reason, req_id)
+        )
+        add_notification(db, req['requester_id'], '채용 요청서 반려',
+                         f'"{req["title"]}" 요청서가 부서장 검토에서 반려되었습니다. 사유: {reason}')
+        flash('요청서를 반려했습니다.', 'success')
+
+    db.commit()
+    return redirect(url_for('requisition_detail', req_id=req_id))
+
+
+@app.route('/recruit/requisitions/<int:req_id>/hr-approve', methods=['POST'])
+@login_required
+def requisition_hr_approve(req_id):
+    """HR 최종 승인 → 공고 자동 생성."""
+    db   = get_db()
+    uid  = session['user_id']
+    role = session.get('user_role')
+    if role != 'admin':
+        flash('HR Admin만 최종 승인할 수 있습니다.', 'error')
+        return redirect(url_for('requisition_detail', req_id=req_id))
+
+    req = db.execute('SELECT * FROM job_requisitions WHERE id=?', (req_id,)).fetchone()
+    if not req or req['status'] != 'pending_hr':
+        flash('처리할 수 없는 요청입니다.', 'error')
+        return redirect(url_for('requisition_detail', req_id=req_id))
+
+    action = request.form.get('action', 'approve')
+    if action == 'approve':
+        # 채용 공고 자동 생성
+        posting_id = db.execute(
+            'INSERT INTO job_postings (title, department_id, position_id, description, '
+            'employment_type, salary_min, salary_max, status, created_by) '
+            'VALUES (?,?,?,?,?,?,?,?,?)',
+            (
+                req['title'],
+                req['department_id'],
+                req['position_id'],
+                req['reason'] or '',
+                req['employment_type'],
+                req['salary_min'] or 0,
+                req['salary_max'] or 0,
+                'draft',
+                uid,
+            )
+        ).lastrowid
+
+        db.execute(
+            "UPDATE job_requisitions SET status='posted', "
+            "hr_approver_id=?, hr_approved_at=CURRENT_TIMESTAMP, "
+            "posting_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (uid, posting_id, req_id)
+        )
+        add_notification(db, req['requester_id'], '채용 요청서 최종 승인',
+                         f'"{req["title"]}" 요청서가 승인되어 채용 공고가 생성되었습니다.')
+        flash('HR 승인 완료. 채용 공고(draft)가 자동 생성되었습니다.', 'success')
+    else:
+        reason = request.form.get('reject_reason', '')
+        db.execute(
+            "UPDATE job_requisitions SET status='rejected', "
+            "hr_approver_id=?, hr_approved_at=CURRENT_TIMESTAMP, "
+            "hr_reject_reason=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (uid, reason, req_id)
+        )
+        add_notification(db, req['requester_id'], '채용 요청서 HR 반려',
+                         f'"{req["title"]}" 요청서가 HR 검토에서 반려되었습니다. 사유: {reason}')
+        flash('요청서를 반려했습니다.', 'success')
+
+    db.commit()
+    return redirect(url_for('requisition_detail', req_id=req_id))
+
+
 @app.route('/recruit/postings')
 @recruiter_or_admin
 def recruit_postings():
@@ -5889,8 +6175,8 @@ def attendance_home():
 @app.route('/attendance/overtime/new', methods=['POST'])
 @login_required
 def overtime_new():
-    """OT 사전/사후 신청."""
-    from datetime import datetime as _dt
+    """연장근무 사전/사후 신청."""
+    from datetime import datetime as _dt, date as _date
     db   = get_db()
     uid  = session['user_id']
     d    = request.form
@@ -5905,11 +6191,26 @@ def overtime_new():
         return redirect(url_for('attendance_home', tab='ot'))
 
     try:
-        t1 = _dt.fromisoformat(f'{date_val}T{ot_start}')
-        t2 = _dt.fromisoformat(f'{date_val}T{ot_end}')
+        t1   = _dt.fromisoformat(f'{date_val}T{ot_start}')
+        t2   = _dt.fromisoformat(f'{date_val}T{ot_end}')
+        now  = _dt.now()
+        today_str = _date.today().isoformat()
+
         if t2 <= t1:
             flash('종료 시간이 시작 시간보다 늦어야 합니다.', 'error')
             return redirect(url_for('attendance_home', tab='ot'))
+
+        if req_type == 'pre':
+            # 사전 승인: 시작 시간이 현재 시각 이후여야 함
+            if t1 <= now:
+                flash('사전 승인은 현재 시각 이후의 시간만 신청 가능합니다.', 'error')
+                return redirect(url_for('attendance_home', tab='ot'))
+        else:
+            # 사후 신고: 종료 시간이 현재 시각 이전이어야 함
+            if t2 > now:
+                flash('사후 신고는 이미 종료된 시간에 대해서만 신청 가능합니다.', 'error')
+                return redirect(url_for('attendance_home', tab='ot'))
+
         ot_minutes = int((t2 - t1).total_seconds() / 60)
     except ValueError:
         flash('시간 형식이 올바르지 않습니다.', 'error')
@@ -5921,7 +6222,7 @@ def overtime_new():
         (uid, date_val, ot_start, ot_end, ot_minutes, reason, req_type)
     )
     db.commit()
-    flash('OT 신청이 접수되었습니다.', 'success')
+    flash('연장근무 신청이 접수되었습니다.', 'success')
     return redirect(url_for('attendance_home', tab='ot'))
 
 

@@ -1,0 +1,267 @@
+{% extends 'base.html' %}
+{% block title %}채용 요청서 상세{% endblock %}
+{% block page_title %}채용 요청서 상세{% endblock %}
+
+{% block content %}
+
+{% set status_colors = {
+  'draft':        ('#f1f5f9','#475569'),
+  'pending_dept': ('#fef9c3','#854d0e'),
+  'pending_hr':   ('#dbeafe','#1e40af'),
+  'approved':     ('#dcfce7','#166534'),
+  'rejected':     ('#fee2e2','#991b1b'),
+  'posted':       ('#ede9fe','#5b21b6'),
+} %}
+{% set sc = status_colors.get(req.status, ('#f1f5f9','#475569')) %}
+
+<div style="max-width:800px;">
+
+  <!-- 헤더 -->
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+    <div>
+      <h2 style="margin:0 0 6px; font-size:22px;">{{ req.title }}</h2>
+      <span style="font-size:12px; padding:4px 12px; border-radius:99px;
+                   background:{{ sc[0] }}; color:{{ sc[1] }}; font-weight:700;">
+        {{ status_labels.get(req.status, req.status) }}
+      </span>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      {% if req.status == 'draft' and req.requester_id == session.user_id %}
+      <form method="POST" action="{{ url_for('requisition_submit', req_id=req.id) }}">
+        <button type="submit" class="btn btn-primary btn-sm"
+                onclick="return confirm('부서장 승인을 요청합니다.');">
+          <i class="fas fa-paper-plane"></i> 승인 요청
+        </button>
+      </form>
+      {% endif %}
+      <a href="{{ url_for('requisition_list') }}" class="btn btn-ghost btn-sm">
+        <i class="fas fa-arrow-left"></i> 목록
+      </a>
+    </div>
+  </div>
+
+  <!-- 승인 흐름 스텝 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body" style="padding:20px;">
+      <div style="display:flex; align-items:center; gap:0;">
+        {% set steps = [
+          ('작성', 'draft', 'fa-edit', req.requester_name),
+          ('부서장 승인', 'pending_dept', 'fa-user-check', req.dept_approver_name),
+          ('HR 승인', 'pending_hr', 'fa-building', req.hr_approver_name),
+          ('공고 생성', 'posted', 'fa-bullhorn', None),
+        ] %}
+        {% for label, key, icon, actor in steps %}
+        {% set is_done = (
+          (key == 'draft') or
+          (key == 'pending_dept' and req.status in ('pending_hr','approved','posted','rejected') and req.dept_approved_at) or
+          (key == 'pending_hr'   and req.status in ('approved','posted','rejected') and req.hr_approved_at) or
+          (key == 'posted'       and req.status == 'posted')
+        ) %}
+        {% set is_active = (
+          (key == 'draft'        and req.status == 'draft') or
+          (key == 'pending_dept' and req.status == 'pending_dept') or
+          (key == 'pending_hr'   and req.status == 'pending_hr') or
+          (key == 'posted'       and req.status == 'posted')
+        ) %}
+        {% set is_rejected = (req.status == 'rejected' and (
+          (key == 'pending_dept' and req.dept_reject_reason) or
+          (key == 'pending_hr'   and req.hr_reject_reason)
+        )) %}
+        <div style="display:flex; flex-direction:column; align-items:center; flex:1; min-width:0;">
+          <div style="width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px;
+                      background:{% if is_rejected %}#fee2e2{% elif is_done or is_active %}var(--primary){% else %}var(--bg-3){% endif %};
+                      color:{% if is_rejected %}#991b1b{% elif is_done or is_active %}#fff{% else %}var(--tx-3){% endif %};
+                      font-weight:700;">
+            {% if is_rejected %}<i class="fas fa-times"></i>
+            {% elif is_done %}<i class="fas fa-check"></i>
+            {% else %}<i class="fas {{ icon }}"></i>{% endif %}
+          </div>
+          <div style="font-size:11px; font-weight:600; margin-top:6px; text-align:center;
+                      color:{% if is_rejected %}#991b1b{% elif is_done or is_active %}var(--primary){% else %}var(--tx-3){% endif %};">
+            {{ label }}
+          </div>
+          {% if actor %}
+          <div style="font-size:10px; color:var(--tx-3); margin-top:2px; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:80px;">{{ actor }}</div>
+          {% endif %}
+        </div>
+        {% if not loop.last %}
+        <div style="flex:1; height:2px; background:{% if is_done %}var(--primary){% else %}var(--border){% endif %}; margin-bottom:28px; min-width:16px;"></div>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 반려 사유 배너 -->
+  {% if req.status == 'rejected' %}
+  <div class="info-banner" style="background:#fee2e2; border-color:#fca5a5; color:#991b1b; margin-bottom:16px;">
+    <i class="fas fa-times-circle"></i>
+    <strong>반려됨</strong> —
+    {% if req.hr_reject_reason %}HR 검토 반려: {{ req.hr_reject_reason }}
+    {% elif req.dept_reject_reason %}부서장 반려: {{ req.dept_reject_reason }}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+
+    <!-- 요청 내용 -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">요청 내용</span></div>
+      <div class="card-body">
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          {% macro row(label, val) %}
+          <tr>
+            <td style="padding:6px 0; color:var(--tx-3); width:40%; vertical-align:top;">{{ label }}</td>
+            <td style="padding:6px 0; font-weight:600; color:var(--tx-1);">{{ val or '-' }}</td>
+          </tr>
+          {% endmacro %}
+          {{ row('부서',      req.dept_name) }}
+          {{ row('직급',      req.pos_name) }}
+          {{ row('채용 인원', req.headcount ~ '명') }}
+          {{ row('고용 형태', emp_type_labels.get(req.employment_type, req.employment_type)) }}
+          {{ row('희망 입사일', req.target_start_date) }}
+          {% if req.salary_min or req.salary_max %}
+          {{ row('급여 범위',
+            ('{:,}'.format(req.salary_min // 10000) ~ '만원' if req.salary_min else '?') ~
+            ' ~ ' ~
+            ('{:,}'.format(req.salary_max // 10000) ~ '만원' if req.salary_max else '?')
+          ) }}
+          {% endif %}
+          {{ row('신청자',  req.requester_name) }}
+          {{ row('신청일',  req.created_at[:10]) }}
+        </table>
+      </div>
+    </div>
+
+    <!-- 채용 사유 & 스킬 -->
+    <div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-head"><span class="card-title">채용 사유</span></div>
+        <div class="card-body">
+          <p style="font-size:13px; color:var(--tx-1); line-height:1.7; margin:0; white-space:pre-wrap;">{{ req.reason or '-' }}</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">요구 스킬 / 자격요건</span></div>
+        <div class="card-body">
+          <p style="font-size:13px; color:var(--tx-1); line-height:1.7; margin:0; white-space:pre-wrap;">{{ req.required_skills or '-' }}</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 연결된 채용 공고 -->
+  {% if posting %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head">
+      <span class="card-title"><i class="fas fa-bullhorn" style="margin-right:6px; color:var(--primary);"></i>연결된 채용 공고</span>
+      <a href="{{ url_for('recruit_posting_detail', posting_id=posting.id) }}" class="btn btn-primary btn-sm">공고 보기 →</a>
+    </div>
+    <div class="card-body">
+      <div style="font-size:13px;">
+        <strong>{{ posting.title }}</strong>
+        <span style="margin-left:10px; font-size:11px; padding:2px 8px; border-radius:99px;
+                     background:{% if posting.status == 'open' %}#dcfce7{% else %}#f1f5f9{% endif %};
+                     color:{% if posting.status == 'open' %}#166534{% else %}#475569{% endif %};">
+          {{ '공개 중' if posting.status == 'open' else posting.status }}
+        </span>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 부서장 승인 액션 -->
+  {% if req.status == 'pending_dept' and session.user_role in ('admin','manager') %}
+  <div class="card" style="margin-bottom:16px; border:2px solid #fbbf24;">
+    <div class="card-head" style="background:#fffbeb;">
+      <span class="card-title"><i class="fas fa-user-check" style="margin-right:6px; color:#d97706;"></i>부서장 승인 필요</span>
+    </div>
+    <div class="card-body">
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <form method="POST" action="{{ url_for('requisition_dept_approve', req_id=req.id) }}" style="margin:0;">
+          <input type="hidden" name="action" value="approve">
+          <button type="submit" class="btn btn-primary"
+                  onclick="return confirm('이 채용 요청을 승인합니다. HR 검토 단계로 넘깁니다.');">
+            <i class="fas fa-check"></i> 부서장 승인
+          </button>
+        </form>
+        <button type="button" class="btn btn-danger" onclick="showRejectModal('dept')">
+          <i class="fas fa-times"></i> 반려
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- HR 최종 승인 액션 -->
+  {% if req.status == 'pending_hr' and session.user_role == 'admin' %}
+  <div class="card" style="margin-bottom:16px; border:2px solid var(--primary);">
+    <div class="card-head" style="background:#eff6ff;">
+      <span class="card-title"><i class="fas fa-building" style="margin-right:6px; color:var(--primary);"></i>HR 최종 승인 필요</span>
+    </div>
+    <div class="card-body">
+      <p style="font-size:13px; color:var(--tx-2); margin-bottom:12px;">
+        승인 시 채용 공고(draft)가 자동 생성됩니다. 공고 내용은 이후 직접 편집하세요.
+      </p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <form method="POST" action="{{ url_for('requisition_hr_approve', req_id=req.id) }}" style="margin:0;">
+          <input type="hidden" name="action" value="approve">
+          <button type="submit" class="btn btn-primary"
+                  onclick="return confirm('최종 승인 후 채용 공고가 생성됩니다. 계속하시겠습니까?');">
+            <i class="fas fa-check"></i> HR 최종 승인 + 공고 생성
+          </button>
+        </form>
+        <button type="button" class="btn btn-danger" onclick="showRejectModal('hr')">
+          <i class="fas fa-times"></i> 반려
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- 반려 모달 -->
+<div id="reject-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:var(--bg-1); border-radius:12px; padding:24px; width:400px; max-width:90vw;">
+    <h3 style="margin:0 0 12px; font-size:16px;" id="reject-modal-title">반려</h3>
+    <form id="reject-form" method="POST">
+      <input type="hidden" name="action" value="reject">
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label">반려 사유 <span style="color:#dc2626;">*</span></label>
+        <textarea name="reject_reason" class="form-control" rows="3" required
+                  style="resize:none;" placeholder="반려 사유를 입력해주세요."></textarea>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('reject-modal').style.display='none'">취소</button>
+        <button type="submit" class="btn btn-danger">반려</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% block scripts %}
+{{ super() }}
+<script>
+function showRejectModal(type) {
+  var modal = document.getElementById('reject-modal');
+  var form  = document.getElementById('reject-form');
+  var title = document.getElementById('reject-modal-title');
+  if (type === 'dept') {
+    title.textContent = '부서장 반려';
+    form.action = '{{ url_for("requisition_dept_approve", req_id=req.id) }}';
+  } else {
+    title.textContent = 'HR 반려';
+    form.action = '{{ url_for("requisition_hr_approve", req_id=req.id) }}';
+  }
+  modal.style.display = 'flex';
+}
+document.getElementById('reject-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.style.display = 'none';
+});
+</script>
+{% endblock %}
+
+{% endblock %}
