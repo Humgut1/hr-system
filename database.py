@@ -904,8 +904,47 @@ def init_db(db_path: str = None):
         pa_cols2 = {r[1] for r in c.execute('PRAGMA table_info(personnel_actions)').fetchall()}
         if 'applied_at' not in pa_cols2:
             c.execute('ALTER TABLE personnel_actions ADD COLUMN applied_at TIMESTAMP')
-            # 기존 approved 레코드는 이미 적용 완료
             c.execute("UPDATE personnel_actions SET applied_at=CURRENT_TIMESTAMP WHERE status='approved'")
+
+        # ── v0.56.0 Work Schedule 시스템 ────────────────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS work_schedules (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            name            TEXT NOT NULL,
+            schedule_type   TEXT NOT NULL DEFAULT 'fixed',
+            work_days       TEXT NOT NULL DEFAULT 'mon,tue,wed,thu,fri',
+            work_start      TEXT DEFAULT '09:00',
+            work_end        TEXT DEFAULT '18:00',
+            core_start      TEXT DEFAULT '10:00',
+            core_end        TEXT DEFAULT '16:00',
+            daily_hours_min INTEGER DEFAULT 480,
+            grace_minutes   INTEGER DEFAULT 10,
+            is_default      INTEGER DEFAULT 0,
+            note            TEXT,
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        c.execute('''CREATE TABLE IF NOT EXISTS user_schedule_assignments (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id        INTEGER NOT NULL REFERENCES users(id),
+            schedule_id    INTEGER NOT NULL REFERENCES work_schedules(id),
+            effective_from DATE NOT NULL,
+            effective_to   DATE,
+            note           TEXT,
+            assigned_by    INTEGER REFERENCES users(id),
+            created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        # checkins: 출결 상태 + 적용 스케줄 컬럼 추가
+        checkin_cols2 = {r[1] for r in c.execute('PRAGMA table_info(checkins)').fetchall()}
+        if 'attendance_status' not in checkin_cols2:
+            c.execute("ALTER TABLE checkins ADD COLUMN attendance_status TEXT DEFAULT 'present'")
+        if 'schedule_id' not in checkin_cols2:
+            c.execute('ALTER TABLE checkins ADD COLUMN schedule_id INTEGER REFERENCES work_schedules(id)')
+
+        # leave_requests: 반차 오전/오후 구분
+        lr_cols = {r[1] for r in c.execute('PRAGMA table_info(leave_requests)').fetchall()}
+        if 'half_day_slot' not in lr_cols:
+            c.execute("ALTER TABLE leave_requests ADD COLUMN half_day_slot TEXT DEFAULT NULL")
 
         # company_config 기본 row (없으면 삽입 — setup_completed=0 유지해서 위자드 표시)
         if c.execute('SELECT COUNT(*) FROM company_config').fetchone()[0] == 0:

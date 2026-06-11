@@ -1,0 +1,480 @@
+{% extends 'base.html' %}
+{% block title %}근무 스케줄 관리{% endblock %}
+{% block page_title %}근무 스케줄 관리{% endblock %}
+
+{% block head %}
+<style>
+.stype-badge {
+  display:inline-block; padding:2px 9px; border-radius:20px;
+  font-size:11px; font-weight:700; white-space:nowrap;
+}
+.sched-card {
+  border:1px solid var(--border); border-radius:10px;
+  padding:16px 18px; background:var(--card);
+  display:flex; align-items:flex-start; gap:14px;
+  transition:box-shadow .15s;
+}
+.sched-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.08); }
+.sched-card-icon {
+  width:40px; height:40px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; flex-shrink:0;
+}
+.sched-card-body { flex:1; min-width:0; }
+.sched-card-title { font-weight:700; font-size:15px; margin-bottom:4px; }
+.sched-card-meta  { font-size:12px; color:var(--tx-3); display:flex; gap:12px; flex-wrap:wrap; }
+.default-crown { color:#f59e0b; margin-left:4px; font-size:12px; }
+.day-chip {
+  display:inline-block; padding:2px 7px; border-radius:6px;
+  font-size:11px; font-weight:600;
+  background:var(--primary)18; color:var(--primary);
+  border:1px solid var(--primary)30;
+}
+.day-chip.off { background:var(--border); color:var(--tx-3); border-color:var(--border); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% set day_labels = {'mon':'월','tue':'화','wed':'수','thu':'목','fri':'금','sat':'토','sun':'일'} %}
+
+<div style="display:grid; grid-template-columns:1fr 380px; gap:20px; align-items:start;">
+
+  <!-- ══ 왼쪽: 스케줄 목록 ══ -->
+  <div>
+    <!-- 스케줄 카드 목록 -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head">
+        <span class="card-title">스케줄 목록</span>
+        <span style="font-size:13px;color:var(--tx-3);">{{ schedules|length }}개</span>
+      </div>
+      <div style="padding:12px 18px; display:flex; flex-direction:column; gap:12px;">
+        {% for s in schedules %}
+        {% set tc = schedule_type_color.get(s.schedule_type,'#6b7280') %}
+        <div class="sched-card">
+          <div class="sched-card-icon" style="background:{{ tc }}18; color:{{ tc }};">
+            {% if s.schedule_type == 'fixed' %}<i class="fas fa-clock"></i>
+            {% elif s.schedule_type == 'flex' %}<i class="fas fa-sliders-h"></i>
+            {% elif s.schedule_type == 'discretionary' %}<i class="fas fa-user-cog"></i>
+            {% elif s.schedule_type == 'short' %}<i class="fas fa-baby"></i>
+            {% else %}<i class="fas fa-home"></i>{% endif %}
+          </div>
+          <div class="sched-card-body">
+            <div class="sched-card-title">
+              {{ s.name }}
+              {% if s.is_default %}<span class="default-crown" title="기본 스케줄">★ 기본</span>{% endif %}
+            </div>
+            <div style="margin-bottom:6px;">
+              <span class="stype-badge" style="background:{{ tc }}18;color:{{ tc }};border:1px solid {{ tc }}30;">
+                {{ schedule_type_label.get(s.schedule_type, s.schedule_type) }}
+              </span>
+            </div>
+            <div class="sched-card-meta">
+              {% if s.schedule_type in ('fixed','short') and s.work_start %}
+              <span><i class="fas fa-sign-in-alt" style="margin-right:3px;"></i>{{ s.work_start }} ~ {{ s.work_end }}</span>
+              {% endif %}
+              {% if s.schedule_type == 'flex' and s.core_start %}
+              <span><i class="fas fa-compress-arrows-alt" style="margin-right:3px;"></i>코어 {{ s.core_start }} ~ {{ s.core_end }}</span>
+              {% endif %}
+              {% if s.schedule_type == 'discretionary' %}
+              <span><i class="fas fa-hourglass-half" style="margin-right:3px;"></i>{{ (s.daily_hours_min or 480) // 60 }}h/일</span>
+              {% endif %}
+              {% if s.grace_minutes %}
+              <span><i class="fas fa-stopwatch" style="margin-right:3px;"></i>유예 {{ s.grace_minutes }}분</span>
+              {% endif %}
+              <span><i class="fas fa-users" style="margin-right:3px;"></i>{{ s.assign_count }}명 배정</span>
+            </div>
+            {% if s.work_days %}
+            <div style="margin-top:8px; display:flex; gap:4px;">
+              {% for d in ['mon','tue','wed','thu','fri','sat','sun'] %}
+              {% set on = d in s.work_days %}
+              <span class="day-chip {{ '' if on else 'off' }}">{{ day_labels[d] }}</span>
+              {% endfor %}
+            </div>
+            {% endif %}
+            {% if s.note %}<div style="margin-top:6px;font-size:12px;color:var(--tx-3);">{{ s.note }}</div>{% endif %}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+            {% if not s.is_default %}
+            <form method="POST">
+              <input type="hidden" name="action" value="set_default">
+              <input type="hidden" name="schedule_id" value="{{ s.id }}">
+              <button type="submit" class="btn btn-sm btn-ghost" title="기본으로 설정">기본 설정</button>
+            </form>
+            {% endif %}
+            <button class="btn btn-sm btn-primary"
+                    onclick="openAssign({{ s.id }}, '{{ s.name|e }}')"
+                    title="배정">배정</button>
+            {% if not s.is_default %}
+            <form method="POST" onsubmit="return confirm('스케줄과 모든 배정 이력이 삭제됩니다. 계속하시겠습니까?')">
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="schedule_id" value="{{ s.id }}">
+              <button type="submit" class="btn btn-sm"
+                      style="background:#fef2f2;color:var(--red);border:1px solid #fecaca;">
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% else %}
+        <div style="text-align:center;color:var(--tx-3);padding:40px;">
+          등록된 스케줄이 없습니다. 오른쪽에서 추가해주세요.
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- 배정 이력 -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">배정 현황</span>
+        <span style="font-size:13px;color:var(--tx-3);">{{ assignments|length }}건</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>직원</th>
+              <th>스케줄</th>
+              <th>적용 시작</th>
+              <th>종료일</th>
+              <th>비고</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in assignments %}
+            <tr>
+              <td>
+                <div class="u-cell">
+                  <div class="avatar-xs">{{ a.user_name[0] }}</div>
+                  <div>
+                    <div style="font-weight:600;">{{ a.user_name }}</div>
+                    <div style="font-size:11px;color:var(--tx-3);">{{ a.dept_name or '' }}</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                {% set tc = schedule_type_color.get(a.schedule_type,'#6b7280') %}
+                <span class="stype-badge" style="background:{{ tc }}18;color:{{ tc }};border:1px solid {{ tc }}30;">
+                  {{ a.sched_name }}
+                </span>
+              </td>
+              <td style="color:var(--tx-3);font-size:13px;">{{ a.effective_from }}</td>
+              <td style="color:var(--tx-3);font-size:13px;">{{ a.effective_to or '무기한' }}</td>
+              <td style="color:var(--tx-3);font-size:12px;">{{ a.note or '—' }}</td>
+              <td>
+                <form method="POST"
+                      onsubmit="return confirm('배정을 해제하시겠습니까?')">
+                  <input type="hidden" name="action" value="unassign">
+                  <input type="hidden" name="assign_id" value="{{ a.id }}">
+                  <button type="submit" class="btn btn-sm"
+                          style="background:#fef2f2;color:var(--red);border:1px solid #fecaca;">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="6" style="text-align:center;color:var(--tx-3);padding:32px;">
+                배정 이력이 없습니다.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 오른쪽: 스케줄 추가 ══ -->
+  <div style="position:sticky; top:20px;">
+    <div class="card">
+      <div class="card-head"><span class="card-title">스케줄 추가</span></div>
+      <div class="card-body">
+        <form method="POST" id="addSchedForm" style="display:flex;flex-direction:column;gap:14px;">
+          <input type="hidden" name="action" value="add">
+
+          <!-- 스케줄 유형 선택 -->
+          <div class="field" style="margin:0;">
+            <label class="form-label">유형 <span style="color:var(--red);">*</span></label>
+            <div style="display:flex;flex-direction:column;gap:6px;" id="typeRadios">
+              {% for key, label, color, law, desc in schedule_types %}
+              <label style="cursor:pointer;">
+                <input type="radio" name="schedule_type" value="{{ key }}"
+                       {% if key=='fixed' %}checked{% endif %}
+                       class="stype-radio" style="display:none;">
+                <div class="stype-opt" data-key="{{ key }}" data-color="{{ color }}"
+                     style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);
+                            background:var(--bg);cursor:pointer;transition:all .15s;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-weight:700;font-size:13px;">{{ label }}</span>
+                    <span style="font-size:10px;color:{{ color }};background:{{ color }}15;
+                                 padding:1px 6px;border-radius:10px;">{{ law }}</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--tx-3);margin-top:2px;">{{ desc }}</div>
+                </div>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="field" style="margin:0;">
+            <label class="form-label">스케줄 이름 <span style="color:var(--red);">*</span></label>
+            <input type="text" name="name" class="input" placeholder="예: 기본 고정근무" required>
+          </div>
+
+          <!-- 근무 요일 -->
+          <div class="field" style="margin:0;">
+            <label class="form-label">근무 요일</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              {% for dk, dl in [('mon','월'),('tue','화'),('wed','수'),('thu','목'),('fri','금'),('sat','토'),('sun','일')] %}
+              <label style="cursor:pointer;">
+                <input type="checkbox" name="work_days" value="{{ dk }}"
+                       {% if dk not in ('sat','sun') %}checked{% endif %}
+                       style="display:none;" class="day-cb">
+                <span class="day-chip day-toggle" data-day="{{ dk }}">{{ dl }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- 고정/단축 시간 -->
+          <div id="fixedOpts">
+            <div class="grid-2" style="gap:10px;">
+              <div class="field" style="margin:0;">
+                <label class="form-label">출근 시간</label>
+                <input type="time" name="work_start" class="input" value="09:00">
+              </div>
+              <div class="field" style="margin:0;">
+                <label class="form-label">퇴근 시간</label>
+                <input type="time" name="work_end" class="input" value="18:00">
+              </div>
+            </div>
+          </div>
+
+          <!-- 선택근로 코어타임 -->
+          <div id="flexOpts" hidden>
+            <div class="grid-2" style="gap:10px;">
+              <div class="field" style="margin:0;">
+                <label class="form-label">코어타임 시작</label>
+                <input type="time" name="core_start" class="input" value="10:00">
+              </div>
+              <div class="field" style="margin:0;">
+                <label class="form-label">코어타임 종료</label>
+                <input type="time" name="core_end" class="input" value="16:00">
+              </div>
+            </div>
+          </div>
+
+          <!-- 재량근로 일 기준 시간 -->
+          <div id="discrOpts" hidden>
+            <div class="field" style="margin:0;">
+              <label class="form-label">1일 간주 근로시간 (분)</label>
+              <input type="number" name="daily_hours_min" class="input" value="480" min="60" max="720">
+              <span style="font-size:11px;color:var(--tx-3);">480분 = 8시간</span>
+            </div>
+          </div>
+
+          <div class="field" style="margin:0;">
+            <label class="form-label">지각 유예 시간 (분)</label>
+            <input type="number" name="grace_minutes" class="input" value="10" min="0" max="60">
+          </div>
+
+          <div class="field" style="margin:0;">
+            <label class="form-label">비고</label>
+            <input type="text" name="note" class="input" placeholder="임산부 단축근무 등">
+          </div>
+
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+            <input type="checkbox" name="is_default" value="1">
+            회사 기본 스케줄로 설정
+          </label>
+
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-plus"></i> 추가
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 배정 모달 ══ -->
+<div id="assignModal" style="display:none;position:fixed;inset:0;z-index:1000;
+     background:rgba(0,0,0,.45);align-items:center;justify-content:center;">
+  <div style="background:var(--card);border-radius:14px;width:460px;max-width:95vw;
+              padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="font-size:17px;font-weight:700;margin-bottom:20px;">
+      <i class="fas fa-calendar-check" style="color:var(--primary);margin-right:8px;"></i>
+      스케줄 배정 — <span id="assignSchedName"></span>
+    </div>
+
+    <!-- 탭 -->
+    <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px;">
+      <button class="assign-tab-btn" data-tab="bulk"
+              style="padding:8px 16px;font-weight:700;border:none;background:none;cursor:pointer;
+                     color:var(--primary);border-bottom:2px solid var(--primary);margin-bottom:-2px;">
+        일괄 배정
+      </button>
+      <button class="assign-tab-btn" data-tab="individual"
+              style="padding:8px 16px;font-weight:600;border:none;background:none;cursor:pointer;
+                     color:var(--tx-3);">
+        개별 배정
+      </button>
+    </div>
+
+    <!-- 일괄 -->
+    <form method="POST" id="bulkForm">
+      <input type="hidden" name="action" value="assign_bulk">
+      <input type="hidden" name="schedule_id" id="bulkSchedId">
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="field" style="margin:0;">
+          <label class="form-label">대상 부서 (미선택 시 전체)</label>
+          <select name="dept_id" class="input">
+            <option value="">전체 직원</option>
+            {% for d in depts %}
+            <option value="{{ d.id }}">{{ d.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="grid-2" style="gap:10px;">
+          <div class="field" style="margin:0;">
+            <label class="form-label">적용 시작일</label>
+            <input type="date" name="effective_from" class="input"
+                   value="{{ today_date }}">
+          </div>
+          <div class="field" style="margin:0;">
+            <label class="form-label">종료일 (무기한이면 비워둠)</label>
+            <input type="date" name="effective_to" class="input">
+          </div>
+        </div>
+        <div class="field" style="margin:0;">
+          <label class="form-label">비고</label>
+          <input type="text" name="note" class="input" placeholder="예: 2026 하반기 적용">
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+          <button type="button" onclick="closeAssign()" class="btn btn-ghost">취소</button>
+          <button type="submit" class="btn btn-primary">배정</button>
+        </div>
+      </div>
+    </form>
+
+    <!-- 개별 -->
+    <form method="POST" id="indivForm" style="display:none;">
+      <input type="hidden" name="action" value="assign_individual">
+      <input type="hidden" name="schedule_id" id="indivSchedId">
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="field" style="margin:0;">
+          <label class="form-label">직원 <span style="color:var(--red);">*</span></label>
+          <select name="user_id" class="input" required>
+            <option value="">-- 선택 --</option>
+            {% for e in employees %}
+            <option value="{{ e.id }}">{{ e.name }}
+              {% if e.emp_no %}({{ e.emp_no }}){% endif %}
+              — {{ e.dept_name or '' }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="grid-2" style="gap:10px;">
+          <div class="field" style="margin:0;">
+            <label class="form-label">적용 시작일 <span style="color:var(--red);">*</span></label>
+            <input type="date" name="effective_from" class="input"
+                   value="{{ today_date }}" required>
+          </div>
+          <div class="field" style="margin:0;">
+            <label class="form-label">종료일
+              <span style="font-size:11px;color:var(--tx-3);">(임산부 단축 등 기간 지정)</span>
+            </label>
+            <input type="date" name="effective_to" class="input">
+          </div>
+        </div>
+        <div class="field" style="margin:0;">
+          <label class="form-label">비고</label>
+          <input type="text" name="note" class="input" placeholder="예: 임산부 단축근무 (§74)">
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+          <button type="button" onclick="closeAssign()" class="btn btn-ghost">취소</button>
+          <button type="submit" class="btn btn-primary">배정</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  var today = new Date().toISOString().slice(0,10);
+  // 날짜 기본값
+  document.querySelectorAll('input[type=date]').forEach(function(el){
+    if(!el.value) el.value = today;
+  });
+
+  // ── 유형 라디오 스타일 ──
+  var radios = document.querySelectorAll('.stype-radio');
+  var opts   = document.querySelectorAll('.stype-opt');
+
+  function updateTypeUI(){
+    var sel = document.querySelector('.stype-radio:checked');
+    opts.forEach(function(o){
+      var active = sel && o.dataset.key === sel.value;
+      o.style.background    = active ? o.dataset.color + '15' : '';
+      o.style.borderColor   = active ? o.dataset.color : 'var(--border)';
+    });
+    // 옵션 패널 보이기
+    var key = sel ? sel.value : 'fixed';
+    document.getElementById('fixedOpts').hidden  = !['fixed','short'].includes(key);
+    document.getElementById('flexOpts').hidden   = key !== 'flex';
+    document.getElementById('discrOpts').hidden  = key !== 'discretionary';
+  }
+  radios.forEach(function(r){ r.addEventListener('change', updateTypeUI); });
+  updateTypeUI();
+
+  // ── 요일 체크박스 토글 ──
+  document.querySelectorAll('.day-cb').forEach(function(cb){
+    var chip = cb.parentElement.querySelector('.day-toggle');
+    function syncChip(){
+      chip.classList.toggle('off', !cb.checked);
+    }
+    cb.addEventListener('change', syncChip);
+    syncChip();
+  });
+
+  // ── 배정 모달 ──
+  window.openAssign = function(sid, sname){
+    document.getElementById('bulkSchedId').value  = sid;
+    document.getElementById('indivSchedId').value = sid;
+    document.getElementById('assignSchedName').textContent = sname;
+    document.getElementById('assignModal').style.display = 'flex';
+  };
+  window.closeAssign = function(){
+    document.getElementById('assignModal').style.display = 'none';
+  };
+
+  // 배정 탭 전환
+  document.querySelectorAll('.assign-tab-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var tab = btn.dataset.tab;
+      document.getElementById('bulkForm').style.display  = tab==='bulk'       ? '' : 'none';
+      document.getElementById('indivForm').style.display = tab==='individual' ? '' : 'none';
+      document.querySelectorAll('.assign-tab-btn').forEach(function(b){
+        var isActive = b.dataset.tab === tab;
+        b.style.color        = isActive ? 'var(--primary)' : 'var(--tx-3)';
+        b.style.fontWeight   = isActive ? '700' : '600';
+        b.style.borderBottom = isActive ? '2px solid var(--primary)' : 'none';
+      });
+    });
+  });
+
+  // 모달 배경 클릭 닫기
+  document.getElementById('assignModal').addEventListener('click', function(e){
+    if(e.target === this) closeAssign();
+  });
+}());
+</script>
+{% endblock %}

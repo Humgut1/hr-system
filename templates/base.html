@@ -116,6 +116,9 @@
         <a href="{{ url_for('people_analytics') }}" class="nav-item{% if active_page in ('analytics','export') %} active{% endif %}" title="분석·보고서">
           <i class="fas fa-chart-pie"></i><span>분석·보고서</span>
         </a>
+        <a href="{{ url_for('admin_schedules') }}" class="nav-item{% if active_page == 'schedules' %} active{% endif %}" title="근무 스케줄">
+          <i class="fas fa-calendar-alt"></i><span>근무 스케줄</span>
+        </a>
         <a href="{{ url_for('admin_settings') }}" class="nav-item{% if active_page in ('settings','departments','holidays','benefits','overtime_monitor') %} active{% endif %}" title="설정">
           <i class="fas fa-cog"></i><span>설정</span>
         </a>

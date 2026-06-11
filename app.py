@@ -522,6 +522,28 @@ def admin_setup():
             perf_cycle, use_peer_review, use_self_review, grade_system,
             dt.now().isoformat()
         ))
+        # ── 기본 Work Schedule 자동 생성 ───────────────────────────
+        stype_map = {
+            'standard':    ('fixed',         '기본 고정근무',   '09:00', '18:00', '10:00', '16:00', 480),
+            'flex':        ('flex',          '선택근로제',      '08:00', '20:00', core_start, core_end, 480),
+            'elastic':     ('fixed',         '탄력근로제',      work_start, work_end, '10:00', '16:00', 480),
+            'autonomous':  ('discretionary', '재량근로제',      None,    None,    None,    None,    480),
+        }
+        ws_vals = stype_map.get(work_system, stype_map['standard'])
+        existing_default = db.execute('SELECT id FROM work_schedules WHERE is_default=1').fetchone()
+        if not existing_default:
+            db.execute(
+                'INSERT INTO work_schedules '
+                '(name, schedule_type, work_start, work_end, core_start, core_end, daily_hours_min, is_default) '
+                'VALUES (?,?,?,?,?,?,?,1)',
+                (ws_vals[1], ws_vals[0], ws_vals[2], ws_vals[3], ws_vals[4], ws_vals[5], ws_vals[6])
+            )
+        else:
+            db.execute(
+                'UPDATE work_schedules SET name=?, schedule_type=?, work_start=?, work_end=?, '
+                'core_start=?, core_end=?, daily_hours_min=? WHERE is_default=1',
+                (ws_vals[1], ws_vals[0], ws_vals[2], ws_vals[3], ws_vals[4], ws_vals[5], ws_vals[6])
+            )
         db.commit()
         session['onboarded'] = 1
         flash('회사 설정이 완료되었습니다! TalentCore에 오신 것을 환영합니다. 🎉', 'success')
@@ -1287,6 +1309,93 @@ def employee_benefits_save(emp_id):
 # ── 스킬 & 자격증 CRUD ───────────────────────────────────────────────
 
 SKILL_LEVELS = {'beginner':'초급', 'intermediate':'중급', 'advanced':'고급', 'expert':'전문가'}
+
+# ── Work Schedule 상수 ──────────────────────────────────────────
+SCHEDULE_TYPES = [
+    ('fixed',         '고정근무',   '#6366f1', '근로기준법 §50',  '출퇴근 시간 고정'),
+    ('flex',          '선택근로',   '#0891b2', '근로기준법 §52',  '코어타임 내 자유 출퇴근'),
+    ('discretionary', '재량근로',   '#059669', '근로기준법 §58③', '업무 방식·시간 재량'),
+    ('short',         '단축근로',   '#d97706', '근로기준법 §74',  '임산부·육아 단축근무'),
+    ('remote',        '재택/원격',  '#7c3aed', '텔레워크 가이드', '위치 무관 근무'),
+]
+SCHEDULE_TYPE_LABEL = {k: v for k, v, *_ in SCHEDULE_TYPES}
+SCHEDULE_TYPE_COLOR = {k: c for k, _, c, *_ in SCHEDULE_TYPES}
+ATTENDANCE_STATUS_LABEL = {
+    'present':     '정상',
+    'late':        '지각',
+    'early_leave': '조퇴',
+    'absent':      '결근',
+    'on_leave':    '휴가',
+    'holiday':     '공휴일',
+    'remote':      '재택',
+}
+ATTENDANCE_STATUS_COLOR = {
+    'present':     '#059669',
+    'late':        '#d97706',
+    'early_leave': '#f59e0b',
+    'absent':      '#dc2626',
+    'on_leave':    '#6366f1',
+    'holiday':     '#0891b2',
+    'remote':      '#7c3aed',
+}
+
+
+def get_user_schedule(db, user_id, date_str):
+    """직원의 해당 날짜 활성 스케줄 반환. 없으면 회사 기본 스케줄."""
+    row = db.execute('''
+        SELECT ws.* FROM user_schedule_assignments usa
+        JOIN work_schedules ws ON usa.schedule_id = ws.id
+        WHERE usa.user_id = ?
+          AND usa.effective_from <= ?
+          AND (usa.effective_to IS NULL OR usa.effective_to >= ?)
+        ORDER BY usa.effective_from DESC LIMIT 1
+    ''', (user_id, date_str, date_str)).fetchone()
+    if row:
+        return dict(row)
+    row = db.execute('SELECT * FROM work_schedules WHERE is_default=1 LIMIT 1').fetchone()
+    return dict(row) if row else None
+
+
+def judge_attendance(check_in_time, schedule):
+    """체크인 시각 기준 출결 상태 판정 → present / late"""
+    if not schedule or not check_in_time:
+        return 'present'
+    stype = schedule.get('schedule_type', 'fixed')
+    try:
+        ci_h, ci_m = map(int, check_in_time.split(':'))
+        checkin_min = ci_h * 60 + ci_m
+        grace = int(schedule.get('grace_minutes') or 10)
+        if stype in ('fixed', 'short'):
+            ws = schedule.get('work_start', '09:00')
+            ws_h, ws_m = map(int, ws.split(':'))
+            if checkin_min > ws_h * 60 + ws_m + grace:
+                return 'late'
+        elif stype == 'flex':
+            cs = schedule.get('core_start', '10:00')
+            cs_h, cs_m = map(int, cs.split(':'))
+            if checkin_min > cs_h * 60 + cs_m + grace:
+                return 'late'
+    except Exception:
+        pass
+    return 'present'
+
+
+def judge_early_leave(check_out_time, schedule):
+    """퇴근 시각 기준 조퇴 여부 판정"""
+    if not schedule or not check_out_time:
+        return False
+    stype = schedule.get('schedule_type', 'fixed')
+    try:
+        co_h, co_m = map(int, check_out_time.split(':'))
+        checkout_min = co_h * 60 + co_m
+        grace = int(schedule.get('grace_minutes') or 10)
+        if stype in ('fixed', 'short'):
+            we = schedule.get('work_end', '18:00')
+            we_h, we_m = map(int, we.split(':'))
+            return checkout_min < we_h * 60 + we_m - grace
+    except Exception:
+        pass
+    return False
 
 DEPT_TYPES = [
     ('division', '부문',  '#6366f1', '사업부·부문 단위'),
@@ -2345,6 +2454,145 @@ def departments():
                            dept_type_color=DEPT_TYPE_COLOR,
                            dept_type_parent=DEPT_TYPE_PARENT_ALLOWED,
                            active_page='departments')
+
+
+# ── Work Schedules ──────────────────────────────────────────
+@app.route('/admin/schedules', methods=['GET', 'POST'])
+@admin_required
+def admin_schedules():
+    from datetime import date
+    db = get_db()
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        if action == 'add':
+            name      = request.form.get('name', '').strip()
+            stype     = request.form.get('schedule_type', 'fixed')
+            work_days = ','.join(request.form.getlist('work_days') or ['mon','tue','wed','thu','fri'])
+            w_start   = request.form.get('work_start') or None
+            w_end     = request.form.get('work_end')   or None
+            c_start   = request.form.get('core_start') or None
+            c_end     = request.form.get('core_end')   or None
+            d_hours   = int(request.form.get('daily_hours_min', 480) or 480)
+            grace     = int(request.form.get('grace_minutes', 10) or 10)
+            note      = request.form.get('note', '').strip() or None
+            is_def    = 1 if request.form.get('is_default') else 0
+            if name:
+                if is_def:
+                    db.execute('UPDATE work_schedules SET is_default=0')
+                db.execute(
+                    'INSERT INTO work_schedules '
+                    '(name,schedule_type,work_days,work_start,work_end,core_start,core_end,'
+                    'daily_hours_min,grace_minutes,is_default,note) '
+                    'VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                    (name, stype, work_days, w_start, w_end, c_start, c_end,
+                     d_hours, grace, is_def, note)
+                )
+                db.commit()
+                flash(f'스케줄 "{name}" 이(가) 추가됐습니다.', 'success')
+
+        elif action == 'delete':
+            sid = request.form.get('schedule_id')
+            db.execute('DELETE FROM user_schedule_assignments WHERE schedule_id=?', (sid,))
+            db.execute('DELETE FROM work_schedules WHERE id=?', (sid,))
+            db.commit()
+            flash('스케줄이 삭제됐습니다.', 'info')
+
+        elif action == 'set_default':
+            sid = request.form.get('schedule_id')
+            db.execute('UPDATE work_schedules SET is_default=0')
+            db.execute('UPDATE work_schedules SET is_default=1 WHERE id=?', (sid,))
+            db.commit()
+            flash('기본 스케줄이 변경됐습니다.', 'success')
+
+        elif action == 'assign_bulk':
+            sid        = request.form.get('schedule_id')
+            dept_id    = request.form.get('dept_id') or None
+            eff_from   = request.form.get('effective_from') or date.today().isoformat()
+            eff_to     = request.form.get('effective_to')   or None
+            note       = request.form.get('note', '').strip() or None
+            assigner   = session['user_id']
+            if dept_id:
+                users = db.execute(
+                    "SELECT id FROM users WHERE department_id=? AND status='active'", (dept_id,)
+                ).fetchall()
+            else:
+                users = db.execute("SELECT id FROM users WHERE status='active'").fetchall()
+            for u in users:
+                db.execute(
+                    'INSERT INTO user_schedule_assignments '
+                    '(user_id,schedule_id,effective_from,effective_to,note,assigned_by) '
+                    'VALUES (?,?,?,?,?,?)',
+                    (u['id'], sid, eff_from, eff_to, note, assigner)
+                )
+            db.commit()
+            flash(f'{len(users)}명에게 스케줄이 배정됐습니다.', 'success')
+
+        elif action == 'assign_individual':
+            sid      = request.form.get('schedule_id')
+            uid      = request.form.get('user_id')
+            eff_from = request.form.get('effective_from') or date.today().isoformat()
+            eff_to   = request.form.get('effective_to')   or None
+            note     = request.form.get('note', '').strip() or None
+            assigner = session['user_id']
+            if uid and sid:
+                db.execute(
+                    'INSERT INTO user_schedule_assignments '
+                    '(user_id,schedule_id,effective_from,effective_to,note,assigned_by) '
+                    'VALUES (?,?,?,?,?,?)',
+                    (uid, sid, eff_from, eff_to, note, assigner)
+                )
+                db.commit()
+                flash('개별 스케줄 배정이 완료됐습니다.', 'success')
+
+        elif action == 'unassign':
+            aid = request.form.get('assign_id')
+            db.execute('DELETE FROM user_schedule_assignments WHERE id=?', (aid,))
+            db.commit()
+            flash('배정이 해제됐습니다.', 'info')
+
+        return redirect(url_for('admin_schedules'))
+
+    schedules = db.execute(
+        'SELECT ws.*, '
+        '(SELECT COUNT(*) FROM user_schedule_assignments usa WHERE usa.schedule_id=ws.id) AS assign_count '
+        'FROM work_schedules ws ORDER BY ws.is_default DESC, ws.name'
+    ).fetchall()
+
+    assignments = db.execute('''
+        SELECT usa.id, usa.user_id, usa.schedule_id, usa.effective_from, usa.effective_to, usa.note,
+               u.name AS user_name, u.emp_no,
+               d.name AS dept_name,
+               ws.name AS sched_name, ws.schedule_type
+        FROM user_schedule_assignments usa
+        JOIN users u ON usa.user_id = u.id
+        LEFT JOIN departments d ON u.department_id = d.id
+        JOIN work_schedules ws ON usa.schedule_id = ws.id
+        ORDER BY usa.effective_from DESC
+        LIMIT 200
+    ''').fetchall()
+
+    employees = db.execute(
+        "SELECT u.id, u.name, u.emp_no, d.name dept_name "
+        "FROM users u LEFT JOIN departments d ON u.department_id=d.id "
+        "WHERE u.status='active' ORDER BY u.name"
+    ).fetchall()
+
+    depts = db.execute('SELECT id, name FROM departments ORDER BY name').fetchall()
+
+    from datetime import date
+    return render_template('admin/schedules.html',
+                           schedules=schedules,
+                           assignments=assignments,
+                           employees=employees,
+                           depts=depts,
+                           schedule_types=SCHEDULE_TYPES,
+                           schedule_type_label=SCHEDULE_TYPE_LABEL,
+                           schedule_type_color=SCHEDULE_TYPE_COLOR,
+                           attendance_status_label=ATTENDANCE_STATUS_LABEL,
+                           today_date=date.today().isoformat(),
+                           active_page='schedules')
 
 
 # ── Leave / Attendance ──────────────────────────────────────
@@ -5457,12 +5705,24 @@ def do_checkin():
     uid   = session['user_id']
     today = date.today().isoformat()
     now   = datetime.now().strftime('%H:%M')
+
+    schedule = get_user_schedule(db, uid, today)
+    status   = judge_attendance(now, schedule)
+    sched_id = schedule['id'] if schedule else None
+
     db.execute(
-        'INSERT INTO checkins (user_id, date, check_in) VALUES (?, ?, ?) '
-        'ON CONFLICT(user_id, date) DO UPDATE SET check_in=excluded.check_in',
-        (uid, today, now)
+        'INSERT INTO checkins (user_id, date, check_in, attendance_status, schedule_id) VALUES (?, ?, ?, ?, ?) '
+        'ON CONFLICT(user_id, date) DO UPDATE SET check_in=excluded.check_in, '
+        'attendance_status=excluded.attendance_status, schedule_id=excluded.schedule_id',
+        (uid, today, now, status, sched_id)
     )
     db.commit()
+
+    if status == 'late':
+        sched_name = schedule.get('name', '') if schedule else ''
+        work_start = schedule.get('work_start', '') if schedule else ''
+        flash(f'지각 처리됐습니다. (기준 출근 시각: {work_start})', 'warning')
+
     return redirect(url_for('attendance_home'))
 
 
@@ -5489,17 +5749,30 @@ def do_checkout():
             'SELECT 1 FROM public_holidays WHERE date=?', (today,)
         ).fetchone())
         holiday_min = hrs['regular_min'] + hrs['overtime_min'] if is_holiday else 0
+        schedule     = get_user_schedule(db, uid, today)
+        early        = judge_early_leave(now, schedule)
+        cur_status   = db.execute(
+            'SELECT attendance_status FROM checkins WHERE user_id=? AND date=?', (uid, today)
+        ).fetchone()
+        new_status = cur_status['attendance_status'] if cur_status else 'present'
+        if early and new_status not in ('late',):
+            new_status = 'early_leave'
+
         db.execute(
             'UPDATE checkins '
-            'SET check_out=?, regular_min=?, overtime_min=?, night_min=?, holiday_min=?, break_min=? '
+            'SET check_out=?, regular_min=?, overtime_min=?, night_min=?, holiday_min=?, break_min=?, attendance_status=? '
             'WHERE user_id=? AND date=?',
             (now,
              hrs['regular_min'], hrs['overtime_min'],
              hrs['night_min'],   holiday_min,
-             hrs['break_min'],
+             hrs['break_min'],   new_status,
              uid, today)
         )
         db.commit()
+
+        if early:
+            we = schedule.get('work_end', '') if schedule else ''
+            flash(f'조퇴 처리됐습니다. (기준 퇴근 시각: {we})', 'warning')
 
         # ── 주 52시간 실시간 체크 (근로기준법 §53) ────────────────
         weekly = calc_weekly_hours(db, uid, today)
