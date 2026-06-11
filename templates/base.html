@@ -113,8 +113,11 @@
           <i class="fas fa-user-tie"></i><span>채용 관리</span>
         </a>
         {% if session.user_role == 'admin' %}
-        <a href="{{ url_for('people_analytics') }}" class="nav-item{% if active_page in ('analytics','export') %} active{% endif %}" title="분석·보고서">
+        <a href="{{ url_for('people_analytics') }}" class="nav-item{% if active_page == 'analytics' %} active{% endif %}" title="분석·보고서">
           <i class="fas fa-chart-pie"></i><span>분석·보고서</span>
+        </a>
+        <a href="{{ url_for('export_hub') }}" class="nav-item{% if active_page == 'export' %} active{% endif %}" title="데이터 내보내기">
+          <i class="fas fa-file-excel"></i><span>데이터 내보내기</span>
         </a>
         <a href="{{ url_for('admin_schedules') }}" class="nav-item{% if active_page == 'schedules' %} active{% endif %}" title="근무 스케줄">
           <i class="fas fa-calendar-alt"></i><span>근무 스케줄</span>

@@ -477,6 +477,19 @@
         </form>
       </div>
     </div>
+    <div class="card" style="margin:0;">
+      <div class="card-body">
+        <div style="display:flex; align-items:center; gap:14px; margin-bottom:12px;">
+          <div style="width:40px;height:40px;border-radius:8px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;"><i class="fas fa-business-time"></i></div>
+          <div><div style="font-weight:700;font-size:13px;">출퇴근 기록 (근무시간)</div><div style="font-size:12px;color:var(--tx-3);">정규/연장/야간 근무분 · 출결상태</div></div>
+        </div>
+        <form method="get" action="{{ url_for('export_checkins') }}" target="_blank" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select name="year" class="input" style="width:90px;font-size:12px;padding:5px 8px;">{% for y in range(today_year,today_year-5,-1) %}<option value="{{ y }}" {% if y==today_year %}selected{% endif %}>{{ y }}년</option>{% endfor %}</select>
+          <select name="month" class="input" style="width:70px;font-size:12px;padding:5px 8px;">{% for m in range(1,13) %}<option value="{{ m }}" {% if m==today_month %}selected{% endif %}>{{ m }}월</option>{% endfor %}</select>
+          <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-download"></i></button>
+        </form>
+      </div>
+    </div>
   </div>
 
   <div style="font-size:11px; font-weight:800; color:var(--tx-3); text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px;">성과 · 채용</div>
