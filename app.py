@@ -7068,6 +7068,64 @@ def export_attendance():
     return to_response(wb, fname)
 
 
+@app.route('/export/checkins')
+@admin_required
+def export_checkins():
+    db    = get_db()
+    year  = request.args.get('year',  date.today().year,  type=int)
+    month = request.args.get('month', date.today().month, type=int)
+
+    rows = db.execute(
+        '''SELECT u.emp_no, u.name, d.name AS dept,
+                  c.check_in, c.check_out,
+                  c.regular_min, c.overtime_min, c.night_min, c.holiday_min, c.break_min,
+                  c.attendance_status,
+                  ws.name AS schedule_name
+           FROM checkins c
+           JOIN users u ON c.user_id = u.id
+           LEFT JOIN departments d ON u.department_id = d.id
+           LEFT JOIN work_schedules ws ON c.schedule_id = ws.id
+           WHERE strftime('%Y', c.check_in) = ?
+             AND strftime('%m', c.check_in) = ?
+           ORDER BY d.name, u.name, c.check_in''',
+        (str(year), f"{month:02d}")
+    ).fetchall()
+
+    STATUS_KO = {
+        'present':'정상', 'late':'지각', 'early_leave':'조퇴',
+        'absent':'결근', 'on_leave':'휴가', 'holiday':'공휴일', 'remote':'재택',
+    }
+
+    sheet_name = f"{year}년 {month}월 출퇴근"
+    fname = urllib.parse.quote(f"{year}년{month}월_출퇴근기록.xlsx")
+    wb, ws_sheet = make_wb(sheet_name)
+    headers = [
+        '사번', '이름', '부서', '출근일시', '퇴근일시',
+        '정규(분)', '연장(분)', '야간(분)', '휴일(분)', '휴게(분)',
+        '정규(시간)', '연장(시간)', '야간(시간)',
+        '출결상태', '근무제',
+    ]
+    write_header(ws_sheet, headers)
+    am = {i: ('center' if i >= 5 else 'left') for i in range(1, 16)}
+    for i, r in enumerate(rows, 2):
+        reg_h  = round((r['regular_min']  or 0) / 60, 2)
+        ot_h   = round((r['overtime_min'] or 0) / 60, 2)
+        ngt_h  = round((r['night_min']    or 0) / 60, 2)
+        write_row(ws_sheet, i, [
+            r['emp_no'] or '', r['name'], r['dept'] or '',
+            r['check_in'] or '', r['check_out'] or '',
+            r['regular_min'] or 0, r['overtime_min'] or 0,
+            r['night_min'] or 0,   r['holiday_min'] or 0,
+            r['break_min'] or 0,
+            reg_h, ot_h, ngt_h,
+            STATUS_KO.get(r['attendance_status'], r['attendance_status'] or ''),
+            r['schedule_name'] or '',
+        ], align_map=am)
+    auto_width(ws_sheet)
+    freeze_header(ws_sheet)
+    return to_response(wb, fname)
+
+
 @app.route('/export/performance')
 @admin_required
 def export_performance():
@@ -7967,6 +8025,7 @@ def admin_bonus_pay():
 def overtime_monitor():
     """주 52시간 위반 모니터링 대시보드."""
     import json as _json
+    from datetime import timedelta
     db = get_db()
 
     # 기준: 최근 8주
