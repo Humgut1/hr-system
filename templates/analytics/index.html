@@ -5,7 +5,7 @@
 {% block content %}
 
 <!-- 탭 -->
-<div style="display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:24px;">
+<div style="display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:24px; flex-wrap:wrap;">
   <button class="ana-tab-btn active" onclick="switchAnaTab('analytics', this)">
     <i class="fas fa-chart-pie"></i> 인력 분석
   </button>
@@ -14,6 +14,9 @@
   </button>
   <button class="ana-tab-btn" onclick="switchAnaTab('overtime', this)">
     <i class="fas fa-exclamation-triangle"></i> 52h 모니터링
+  </button>
+  <button class="ana-tab-btn" onclick="switchAnaTab('wizard', this)">
+    <i class="fas fa-magic"></i> HR 데이터 마법사
   </button>
   <button class="ana-tab-btn" onclick="switchAnaTab('reports', this)">
     <i class="fas fa-file-excel"></i> 데이터 내보내기
@@ -30,6 +33,72 @@
 .ana-tab-btn.active { color:var(--primary); border-bottom-color:var(--primary); }
 .ana-panel { display:none; }
 .ana-panel.active { display:block; }
+
+/* ── HR 데이터 마법사 ── */
+.wz-layout { display:grid; grid-template-columns:300px 1fr; gap:20px; align-items:start; }
+.wz-left   { position:sticky; top:80px; }
+.src-card  { border:1.5px solid var(--border); border-radius:var(--r); padding:12px 14px; cursor:pointer;
+             transition:all .15s; display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.src-card:hover  { border-color:var(--primary); }
+.src-card.active { border-color:var(--primary); background:#eff6ff; }
+.src-icon  { width:34px; height:34px; border-radius:8px; display:flex; align-items:center;
+             justify-content:center; font-size:15px; flex-shrink:0; }
+.src-check { color:var(--primary); font-size:16px; display:none; }
+.src-card.active .src-check { display:block; }
+.field-panel { border:1px solid var(--border); border-radius:var(--r); padding:14px; margin-bottom:14px; display:none; }
+.field-panel.visible { display:block; }
+.field-chips { display:flex; flex-wrap:wrap; gap:7px; }
+.field-chip  { display:inline-flex; align-items:center; padding:5px 11px; border-radius:999px;
+              border:1.5px solid var(--border); font-size:12px; font-weight:600; color:var(--tx-2);
+              cursor:pointer; transition:all .12s; user-select:none; }
+.field-chip:hover   { border-color:var(--primary); color:var(--primary); }
+.field-chip.sel     { background:var(--primary); border-color:var(--primary); color:#fff; }
+.wz-filter  { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; padding:14px;
+              background:var(--card); border:1px solid var(--border); border-radius:var(--r); margin-bottom:18px; }
+.wz-filter label  { font-size:11px; font-weight:700; color:var(--tx-3); display:block; margin-bottom:3px; }
+.wz-filter input,
+.wz-filter select { padding:6px 9px; border:1px solid var(--border); border-radius:var(--r);
+                    font-size:12px; background:var(--bg); color:var(--text); }
+.sel-summary { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; min-height:26px; }
+.sel-chip    { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:999px;
+              background:#eff6ff; color:var(--primary); font-size:12px; font-weight:600; }
+.sel-chip .rm { cursor:pointer; font-size:10px; opacity:.7; }
+.btn-wz-preview { padding:9px 20px; border-radius:var(--r); background:var(--primary); color:#fff;
+                  font-size:13px; font-weight:700; border:none; cursor:pointer;
+                  display:inline-flex; align-items:center; gap:7px; transition:opacity .15s; }
+.btn-wz-preview:hover    { opacity:.88; }
+.btn-wz-preview:disabled { opacity:.5; cursor:not-allowed; }
+.btn-wz-export  { padding:9px 20px; border-radius:var(--r); background:#16a34a; color:#fff;
+                  font-size:13px; font-weight:700; border:none; cursor:pointer;
+                  display:inline-flex; align-items:center; gap:7px; transition:opacity .15s; }
+.btn-wz-export:hover    { opacity:.88; }
+.btn-wz-export:disabled { opacity:.5; cursor:not-allowed; }
+.viz-tabs { display:flex; gap:4px; border-bottom:1.5px solid var(--border); margin-bottom:14px; }
+.viz-tab  { padding:7px 14px; font-size:12px; font-weight:700; color:var(--tx-3); cursor:pointer;
+            border:none; background:none; border-bottom:2px solid transparent;
+            margin-bottom:-2px; font-family:inherit; display:flex; align-items:center; gap:5px; }
+.viz-tab.active { color:var(--primary); border-bottom-color:var(--primary); }
+.viz-panel { display:none; }
+.viz-panel.active { display:block; }
+.preview-wrap { overflow-x:auto; border:1px solid var(--border); border-radius:var(--r); margin-bottom:14px; }
+.preview-tbl  { width:100%; border-collapse:collapse; font-size:13px; }
+.preview-tbl th { background:var(--card); padding:9px 12px; text-align:left; font-size:11px;
+                  font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--tx-3);
+                  border-bottom:2px solid var(--border); white-space:nowrap; cursor:pointer; }
+.preview-tbl td { padding:9px 12px; border-bottom:1px solid var(--border); white-space:nowrap; }
+.preview-tbl tr:last-child td { border-bottom:none; }
+.preview-tbl tr:hover td { background:var(--card); }
+.preview-tbl td:first-child { font-weight:700; color:var(--primary); }
+.pivot-tbl   { width:100%; border-collapse:collapse; font-size:13px; }
+.pivot-tbl th { background:var(--card); padding:9px 12px; text-align:right; font-size:11px;
+               font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--tx-3);
+               border-bottom:2px solid var(--border); white-space:nowrap; }
+.pivot-tbl th:first-child { text-align:left; }
+.pivot-tbl td { padding:9px 12px; border-bottom:1px solid var(--border); text-align:right; }
+.pivot-tbl td:first-child { text-align:left; font-weight:600; }
+.stat-mini-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-bottom:16px; }
+.stat-mini-card { background:var(--card); border-radius:var(--r); padding:12px 14px; }
+@media (max-width:860px) { .wz-layout { grid-template-columns:1fr; } .wz-left { position:static; } }
 </style>
 
 <div id="ana-panel-analytics" class="ana-panel active">
@@ -517,6 +586,163 @@
 
 </div>
 
+<!-- HR 데이터 마법사 탭 -->
+<div id="ana-panel-wizard" class="ana-panel">
+  <div class="wz-layout">
+    <!-- 왼쪽: 데이터 소스 카드 -->
+    <div class="wz-left">
+      <div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--tx-3); margin-bottom:10px;">① 데이터 소스 선택</div>
+      {% for src in report_sources %}
+      <div class="src-card" id="src-card-{{ src.key }}" onclick="wzToggleSource('{{ src.key }}')">
+        <div class="src-icon" style="background:{{ src.color }}; color:{{ src.icon_color }};">
+          <i class="fas {{ src.icon }}"></i>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:13px; font-weight:700;">{{ src.label }}</div>
+          <div style="font-size:11px; color:var(--tx-3);">{{ src.fields|length }}개 필드</div>
+        </div>
+        <i class="fas fa-check-circle src-check"></i>
+      </div>
+      {% endfor %}
+
+      <div style="margin-top:20px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--tx-3); margin-bottom:10px;">② 기간 필터</div>
+      <div style="background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:12px;">
+        <div style="margin-bottom:8px;">
+          <label style="font-size:11px; font-weight:700; color:var(--tx-3); display:block; margin-bottom:3px;">시작일</label>
+          <input type="date" id="wz-date-from" style="width:100%; padding:6px 9px; border:1px solid var(--border); border-radius:var(--r); font-size:12px; background:var(--bg); color:var(--text);">
+        </div>
+        <div>
+          <label style="font-size:11px; font-weight:700; color:var(--tx-3); display:block; margin-bottom:3px;">종료일</label>
+          <input type="date" id="wz-date-to" style="width:100%; padding:6px 9px; border:1px solid var(--border); border-radius:var(--r); font-size:12px; background:var(--bg); color:var(--text);">
+        </div>
+      </div>
+    </div>
+
+    <!-- 오른쪽: 필드 선택 + 미리보기 + 분석 -->
+    <div>
+      <div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--tx-3); margin-bottom:10px;">③ 필드 선택</div>
+
+      {% for src in report_sources %}
+      <div class="field-panel" id="field-panel-{{ src.key }}">
+        <div style="font-size:12px; font-weight:700; color:var(--tx-2); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+          <div class="src-icon" style="width:22px;height:22px;font-size:11px;background:{{ src.color }};color:{{ src.icon_color }};border-radius:5px;flex-shrink:0;">
+            <i class="fas {{ src.icon }}"></i>
+          </div>
+          {{ src.label }}
+        </div>
+        <div class="field-chips">
+          {% for f in src.fields %}
+          <div class="field-chip" id="chip-{{ f.key }}" onclick="wzToggleField('{{ f.key }}', '{{ f.label }}')">
+            {{ f.label }}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+
+      <!-- 선택된 필드 요약 -->
+      <div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--tx-3); margin-bottom:6px;">선택된 컬럼</div>
+      <div class="sel-summary" id="wz-sel-summary">
+        <span style="font-size:12px; color:var(--tx-3); padding:3px 0;">소스를 선택하고 필드를 고르세요</span>
+      </div>
+
+      <!-- 실행 버튼 -->
+      <div style="display:flex; gap:10px; margin-bottom:20px;">
+        <button class="btn-wz-preview" id="btn-wz-run" onclick="wzRunPreview()" disabled>
+          <i class="fas fa-play"></i> 미리보기
+        </button>
+        <button class="btn-wz-export" id="btn-wz-export" onclick="wzRunExport()" disabled>
+          <i class="fas fa-file-excel"></i> Excel 내보내기
+        </button>
+      </div>
+
+      <!-- 결과 영역 -->
+      <div id="wz-result-area" style="display:none;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+          <div style="font-size:13px; font-weight:700;">
+            결과 <span id="wz-row-count" style="color:var(--primary); font-size:13px; font-weight:800;"></span>건
+          </div>
+        </div>
+
+        <!-- 분석 서브탭 -->
+        <div class="viz-tabs">
+          <button class="viz-tab active" onclick="wzSwitchViz('table', this)"><i class="fas fa-table"></i> 테이블</button>
+          <button class="viz-tab" onclick="wzSwitchViz('chart', this)"><i class="fas fa-chart-bar"></i> 차트</button>
+          <button class="viz-tab" onclick="wzSwitchViz('pivot', this)"><i class="fas fa-th"></i> 피벗</button>
+          <button class="viz-tab" onclick="wzSwitchViz('stats', this)"><i class="fas fa-calculator"></i> 통계</button>
+        </div>
+
+        <!-- 테이블 뷰 -->
+        <div class="viz-panel active" id="viz-table">
+          <div class="preview-wrap">
+            <table class="preview-tbl" id="wz-table"></table>
+          </div>
+        </div>
+
+        <!-- 차트 뷰 -->
+        <div class="viz-panel" id="viz-chart">
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
+            <div>
+              <label style="font-size:11px; font-weight:700; color:var(--tx-3); display:block; margin-bottom:3px;">X축 (레이블)</label>
+              <select id="chart-x-col" style="padding:6px 9px; border:1px solid var(--border); border-radius:var(--r); font-size:12px; background:var(--bg); color:var(--text);"></select>
+            </div>
+            <div>
+              <label style="font-size:11px; font-weight:700; color:var(--tx-3); display:block; margin-bottom:3px;">Y축 (값)</label>
+              <select id="chart-y-col" style="padding:6px 9px; border:1px solid var(--border); border-radius:var(--r); font-size:12px; background:var(--bg); color:var(--text);"></select>
+            </div>
+            <div>
+              <label style="font-size:11px; font-weight:700; color:var(--tx-3); display:block; margin-bottom:3px;">차트 유형</label>
+              <select id="chart-type" style="padding:6px 9px; border:1px solid var(--border); border-radius:var(--r); font-size:12px; background:var(--bg); color:var(--text);">
+                <option value="bar">막대</option>
+                <option value="line">선</option>
+                <option value="pie">파이</option>
+                <option value="doughnut">도넛</option>
+              </select>
+            </div>
+            <button onclick="wzRenderChart()" style="padding:7px 14px; background:var(--primary); color:#fff; border:none; border-radius:var(--r); font-size:12px; font-weight:700; cursor:pointer; margin-top:16px;">적용</button>
+          </div>
+          <div style="max-height:380px; position:relative;">
+            <canvas id="wz-chart-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- 피벗 뷰 -->
+        <div class="viz-panel" id="viz-pivot">
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
+            <div>
+              <label style="font-size:11px; font-weight:700; color:var(--tx-3); display:block; margin-bottom:3px;">그룹 기준</label>
+              <select id="pivot-group-col" style="padding:6px 9px; border:1px solid var(--border); border-radius:var(--r); font-size:12px; background:var(--bg); color:var(--text);"></select>
+            </div>
+            <div>
+              <label style="font-size:11px; font-weight:700; color:var(--tx-3); display:block; margin-bottom:3px;">집계 값</label>
+              <select id="pivot-val-col" style="padding:6px 9px; border:1px solid var(--border); border-radius:var(--r); font-size:12px; background:var(--bg); color:var(--text);"></select>
+            </div>
+            <div>
+              <label style="font-size:11px; font-weight:700; color:var(--tx-3); display:block; margin-bottom:3px;">집계 함수</label>
+              <select id="pivot-agg-fn" style="padding:6px 9px; border:1px solid var(--border); border-radius:var(--r); font-size:12px; background:var(--bg); color:var(--text);">
+                <option value="sum">합계</option>
+                <option value="avg">평균</option>
+                <option value="count">건수</option>
+                <option value="max">최대</option>
+                <option value="min">최소</option>
+              </select>
+            </div>
+            <button onclick="wzRenderPivot()" style="padding:7px 14px; background:var(--primary); color:#fff; border:none; border-radius:var(--r); font-size:12px; font-weight:700; cursor:pointer; margin-top:16px;">피벗 적용</button>
+          </div>
+          <div class="preview-wrap">
+            <table class="pivot-tbl" id="wz-pivot-table"></table>
+          </div>
+        </div>
+
+        <!-- 통계 뷰 -->
+        <div class="viz-panel" id="viz-stats">
+          <div id="wz-stats-content"></div>
+        </div>
+      </div><!-- /wz-result-area -->
+    </div>
+  </div>
+</div>
+
 <!-- 데이터 내보내기 탭 -->
 <div id="ana-panel-reports" class="ana-panel">
   <p style="color:var(--tx-3); font-size:13px; margin-bottom:20px;">
@@ -626,6 +852,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 function switchAnaTab(id, btn) {
   document.querySelectorAll('.ana-panel').forEach(p => p.classList.remove('active'));
@@ -670,6 +897,295 @@ function switchAnaTab(id, btn) {
       }
     }
   });
+})();
+
+// ═══════════════════════════════════════
+//  HR 데이터 마법사 JS
+// ═══════════════════════════════════════
+(function() {
+  var wzSources   = {};   // { key: true/false }
+  var wzFields    = {};   // { fieldKey: label }
+  var wzData      = [];   // 미리보기 결과 rows
+  var wzCols      = [];   // 컬럼 헤더
+  var wzChartInst = null; // Chart.js 인스턴스
+
+  window.wzToggleSource = function(key) {
+    wzSources[key] = !wzSources[key];
+    var card  = document.getElementById('src-card-' + key);
+    var panel = document.getElementById('field-panel-' + key);
+    if (wzSources[key]) {
+      card.classList.add('active');
+      panel.classList.add('visible');
+    } else {
+      card.classList.remove('active');
+      panel.classList.remove('visible');
+      // 해당 소스 필드 선택 해제
+      panel.querySelectorAll('.field-chip.sel').forEach(function(c) {
+        c.classList.remove('sel');
+        delete wzFields[c.id.replace('chip-','')];
+      });
+    }
+    wzUpdateUI();
+  };
+
+  window.wzToggleField = function(key, label) {
+    var chip = document.getElementById('chip-' + key);
+    if (wzFields[key]) {
+      delete wzFields[key];
+      chip.classList.remove('sel');
+    } else {
+      wzFields[key] = label;
+      chip.classList.add('sel');
+    }
+    wzUpdateUI();
+  };
+
+  window.wzUpdateUI = function() {
+    var fieldKeys = Object.keys(wzFields);
+    var sum = document.getElementById('wz-sel-summary');
+    if (fieldKeys.length === 0) {
+      sum.innerHTML = '<span style="font-size:12px;color:var(--tx-3);padding:3px 0;">소스를 선택하고 필드를 고르세요</span>';
+    } else {
+      sum.innerHTML = fieldKeys.map(function(k) {
+        return '<span class="sel-chip">' + wzFields[k] + '<span class="rm" onclick="wzToggleField(\'' + k + '\',\'' + wzFields[k] + '\')">✕</span></span>';
+      }).join('');
+    }
+    var hasField = fieldKeys.length > 0;
+    document.getElementById('btn-wz-run').disabled    = !hasField;
+    document.getElementById('btn-wz-export').disabled = !hasField;
+  };
+
+  window.wzGetFilters = function() {
+    return {
+      fields:    Object.keys(wzFields),
+      date_from: document.getElementById('wz-date-from').value || '',
+      date_to:   document.getElementById('wz-date-to').value   || ''
+    };
+  };
+
+  window.wzRunPreview = function() {
+    var btn = document.getElementById('btn-wz-run');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 조회 중…';
+    fetch('/report/preview', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(wzGetFilters())
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-play"></i> 미리보기';
+      if (d.error) { alert('오류: ' + d.error); return; }
+      wzData = d.rows;
+      wzCols = d.columns;
+      document.getElementById('wz-row-count').textContent = d.total;
+      wzRenderTable();
+      wzPopulateColSelects();
+      wzRenderStats();
+      document.getElementById('wz-result-area').style.display = 'block';
+    })
+    .catch(function(e) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-play"></i> 미리보기';
+      alert('요청 실패: ' + e);
+    });
+  };
+
+  window.wzRunExport = function() {
+    var filters = wzGetFilters();
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/report/export';
+    form.target = '_blank';
+    var inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = 'payload';
+    inp.value = JSON.stringify(filters);
+    form.appendChild(inp);
+    var csrf = document.createElement('input');
+    csrf.type = 'hidden';
+    csrf.name = '_method';
+    csrf.value = 'POST';
+    form.appendChild(csrf);
+    document.body.appendChild(form);
+    // POST to /report/export as JSON via fetch → blob download
+    fetch('/report/export', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(filters)
+    })
+    .then(function(r){ return r.blob(); })
+    .then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'hr_report.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+    document.body.removeChild(form);
+  };
+
+  window.wzRenderTable = function() {
+    var tbl = document.getElementById('wz-table');
+    if (!wzCols.length) { tbl.innerHTML = ''; return; }
+    var thead = '<thead><tr>' + wzCols.map(function(c,i) {
+      return '<th onclick="wzSortTable(' + i + ')">' + c + ' <i class="fas fa-sort" style="font-size:9px;opacity:.4;"></i></th>';
+    }).join('') + '</tr></thead>';
+    var tbody = '<tbody>' + wzData.map(function(row) {
+      return '<tr>' + wzCols.map(function(c) {
+        var v = row[c];
+        if (v === null || v === undefined) v = '–';
+        return '<td>' + v + '</td>';
+      }).join('') + '</tr>';
+    }).join('') + '</tbody>';
+    tbl.innerHTML = thead + tbody;
+  };
+
+  var _sortDir = {};
+  window.wzSortTable = function(colIdx) {
+    var col = wzCols[colIdx];
+    _sortDir[col] = !_sortDir[col];
+    wzData.sort(function(a, b) {
+      var va = a[col], vb = b[col];
+      if (va === null || va === undefined) va = '';
+      if (vb === null || vb === undefined) vb = '';
+      var n = parseFloat(va), m = parseFloat(vb);
+      if (!isNaN(n) && !isNaN(m)) return _sortDir[col] ? n-m : m-n;
+      return _sortDir[col] ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+    });
+    wzRenderTable();
+  };
+
+  window.wzPopulateColSelects = function() {
+    var selects = ['chart-x-col','chart-y-col','pivot-group-col','pivot-val-col'];
+    selects.forEach(function(id) {
+      var el = document.getElementById(id);
+      el.innerHTML = wzCols.map(function(c) { return '<option value="'+c+'">'+c+'</option>'; }).join('');
+    });
+    // Y축 기본값을 두 번째 컬럼으로
+    if (wzCols.length > 1) {
+      document.getElementById('chart-y-col').value = wzCols[1];
+      document.getElementById('pivot-val-col').value = wzCols[1];
+    }
+  };
+
+  window.wzSwitchViz = function(panel, btn) {
+    document.querySelectorAll('.viz-panel').forEach(function(p){ p.classList.remove('active'); });
+    document.querySelectorAll('.viz-tab').forEach(function(b){ b.classList.remove('active'); });
+    document.getElementById('viz-' + panel).classList.add('active');
+    btn.classList.add('active');
+    if (panel === 'chart') wzRenderChart();
+    if (panel === 'pivot') wzRenderPivot();
+  };
+
+  window.wzRenderChart = function() {
+    var xCol = document.getElementById('chart-x-col').value;
+    var yCol = document.getElementById('chart-y-col').value;
+    var type = document.getElementById('chart-type').value;
+    if (!wzData.length || !xCol || !yCol) return;
+
+    var labels = wzData.map(function(r){ return r[xCol] || '–'; });
+    var values = wzData.map(function(r){ var v = parseFloat(r[yCol]); return isNaN(v) ? 0 : v; });
+    var colors = ['#3b82f6','#ef4444','#f59e0b','#10b981','#8b5cf6','#f97316','#06b6d4','#ec4899'];
+    var bgColors = (type === 'pie' || type === 'doughnut')
+      ? labels.map(function(_,i){ return colors[i % colors.length]; })
+      : colors[0];
+
+    var canvas = document.getElementById('wz-chart-canvas');
+    if (wzChartInst) wzChartInst.destroy();
+    wzChartInst = new Chart(canvas, {
+      type: type,
+      data: {
+        labels: labels,
+        datasets: [{
+          label: yCol,
+          data: values,
+          backgroundColor: bgColors,
+          borderColor: (type === 'line') ? colors[0] : undefined,
+          fill: false,
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom' } }
+      }
+    });
+  };
+
+  window.wzRenderPivot = function() {
+    var gCol = document.getElementById('pivot-group-col').value;
+    var vCol = document.getElementById('pivot-val-col').value;
+    var fn   = document.getElementById('pivot-agg-fn').value;
+    if (!wzData.length || !gCol || !vCol) return;
+
+    var groups = {};
+    wzData.forEach(function(row) {
+      var g = row[gCol] || '(없음)';
+      var v = parseFloat(row[vCol]) || 0;
+      if (!groups[g]) groups[g] = [];
+      groups[g].push(v);
+    });
+
+    var fnLabel = {sum:'합계',avg:'평균',count:'건수',max:'최대',min:'최소'};
+    var rows = Object.keys(groups).sort().map(function(g) {
+      var vals = groups[g];
+      var result;
+      if (fn === 'sum')   result = vals.reduce(function(a,b){return a+b;},0).toFixed(1);
+      else if (fn === 'avg')   result = (vals.reduce(function(a,b){return a+b;},0)/vals.length).toFixed(2);
+      else if (fn === 'count') result = vals.length;
+      else if (fn === 'max')   result = Math.max.apply(null,vals).toFixed(1);
+      else if (fn === 'min')   result = Math.min.apply(null,vals).toFixed(1);
+      return '<tr><td>' + g + '</td><td>' + result + '</td></tr>';
+    });
+
+    document.getElementById('wz-pivot-table').innerHTML =
+      '<thead><tr><th style="text-align:left">' + gCol + '</th><th>' + fnLabel[fn] + ' (' + vCol + ')</th></tr></thead>' +
+      '<tbody>' + rows.join('') + '</tbody>';
+  };
+
+  window.wzRenderStats = function() {
+    var el = document.getElementById('wz-stats-content');
+    if (!wzData.length || !wzCols.length) { el.innerHTML = '<p style="color:var(--tx-3);font-size:13px;">데이터가 없습니다.</p>'; return; }
+
+    var numCols = wzCols.filter(function(c) {
+      return wzData.some(function(r){ return !isNaN(parseFloat(r[c])); });
+    });
+
+    if (!numCols.length) { el.innerHTML = '<p style="color:var(--tx-3);font-size:13px;">수치형 컬럼이 없습니다.</p>'; return; }
+
+    var cards = numCols.map(function(c) {
+      var vals = wzData.map(function(r){ return parseFloat(r[c]); }).filter(function(v){ return !isNaN(v); });
+      if (!vals.length) return '';
+      var sum  = vals.reduce(function(a,b){return a+b;},0);
+      var avg  = sum / vals.length;
+      var mx   = Math.max.apply(null,vals);
+      var mn   = Math.min.apply(null,vals);
+      vals.sort(function(a,b){return a-b;});
+      var med  = vals.length%2===0 ? (vals[vals.length/2-1]+vals[vals.length/2])/2 : vals[Math.floor(vals.length/2)];
+      return '<div class="card" style="margin:0;padding:14px;">' +
+        '<div style="font-size:12px;font-weight:800;color:var(--tx-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em;">' + c + '</div>' +
+        '<div class="stat-mini-grid">' +
+        _statMini('합계', sum.toLocaleString(undefined,{maximumFractionDigits:1})) +
+        _statMini('평균', avg.toFixed(2)) +
+        _statMini('최대', mx.toLocaleString(undefined,{maximumFractionDigits:1})) +
+        _statMini('최소', mn.toLocaleString(undefined,{maximumFractionDigits:1})) +
+        _statMini('중앙값', med.toFixed(1)) +
+        _statMini('건수', vals.length) +
+        '</div></div>';
+    }).join('');
+
+    el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;">' + cards + '</div>';
+  };
+
+  function _statMini(label, val) {
+    return '<div class="stat-mini-card">' +
+      '<div style="font-size:10px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;">' + label + '</div>' +
+      '<div style="font-size:16px;font-weight:800;color:var(--text);">' + val + '</div>' +
+      '</div>';
+  }
 })();
 </script>
 {% endblock %}

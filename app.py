@@ -7031,6 +7031,7 @@ def people_analytics():
         bonus_configs=bonus_configs,
         ot_violations=ot_violations, ot_warnings=ot_warnings,
         ot_safe_count=ot_safe_count, ot_chart_json=ot_chart_json,
+        report_sources=REPORT_SOURCES,
     )
 
 
@@ -7261,14 +7262,7 @@ def export_attendance():
 @app.route('/report/builder')
 @admin_required
 def report_builder():
-    db   = get_db()
-    depts = db.execute(
-        'SELECT id, name FROM departments ORDER BY name'
-    ).fetchall()
-    return render_template('report/builder.html',
-                           active_page='report',
-                           report_sources=REPORT_SOURCES,
-                           depts=depts)
+    return redirect(url_for('people_analytics', tab='wizard'))
 
 
 @app.route('/report/preview', methods=['POST'])
@@ -7286,7 +7280,7 @@ def report_preview():
         rows = db.execute(sql, params).fetchall()
         return jsonify({
             'columns': col_labels,
-            'rows':    [list(r) for r in rows],
+            'rows':    [dict(r) for r in rows],
             'total':   len(rows),
             'sql_hint': f"-- {len(rows)}행 반환 (최대 200행 미리보기)" ,
         })
