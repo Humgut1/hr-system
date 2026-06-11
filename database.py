@@ -751,6 +751,7 @@ def init_db(db_path: str = None):
             ('bonus_c',  '0.5'),
             ('bonus_d',  '0.0'),
             ('show_merit_to_employee', '1'),  # 직원에게 사전 공개 여부
+            ('carry_over_max', '10'),           # 연차 이월 최대 일수
         ]:
             if col not in cc_cols:
                 c.execute(f'ALTER TABLE company_config ADD COLUMN {col} REAL DEFAULT {default}')
@@ -945,6 +946,37 @@ def init_db(db_path: str = None):
         lr_cols = {r[1] for r in c.execute('PRAGMA table_info(leave_requests)').fetchall()}
         if 'half_day_slot' not in lr_cols:
             c.execute("ALTER TABLE leave_requests ADD COLUMN half_day_slot TEXT DEFAULT NULL")
+
+        # ── v0.58.0 OT 승인 + 연차 이월 ────────────────────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS overtime_requests (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id      INTEGER NOT NULL REFERENCES users(id),
+            date         TEXT NOT NULL,
+            ot_start     TEXT NOT NULL,
+            ot_end       TEXT NOT NULL,
+            ot_minutes   INTEGER NOT NULL DEFAULT 0,
+            reason       TEXT,
+            request_type TEXT NOT NULL DEFAULT 'pre'
+                         CHECK(request_type IN ('pre','post')),
+            status       TEXT NOT NULL DEFAULT 'pending'
+                         CHECK(status IN ('pending','approved','rejected')),
+            approver_id  INTEGER REFERENCES users(id),
+            approved_at  TIMESTAMP,
+            reject_reason TEXT,
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        c.execute('''CREATE TABLE IF NOT EXISTS leave_balances (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id         INTEGER NOT NULL REFERENCES users(id),
+            year            INTEGER NOT NULL,
+            total_days      REAL NOT NULL DEFAULT 0,
+            used_days       REAL NOT NULL DEFAULT 0,
+            carry_over_days REAL NOT NULL DEFAULT 0,
+            carry_over_max  REAL NOT NULL DEFAULT 10,
+            updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, year)
+        )''')
 
         # company_config 기본 row (없으면 삽입 — setup_completed=0 유지해서 위자드 표시)
         if c.execute('SELECT COUNT(*) FROM company_config').fetchone()[0] == 0:

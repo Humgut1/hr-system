@@ -5744,6 +5744,95 @@ def attendance_home():
         pending_count  = db.execute("SELECT COUNT(*) FROM leave_requests WHERE status='pending'").fetchone()[0]
         reviewed_count = db.execute("SELECT COUNT(*) FROM leave_requests WHERE status='reviewed'").fetchone()[0]
 
+    # ── OT 신청 목록 ──────────────────────────────────────────────
+    my_ot_requests = db.execute(
+        'SELECT o.*, u.name AS approver_name '
+        'FROM overtime_requests o '
+        'LEFT JOIN users u ON o.approver_id=u.id '
+        'WHERE o.user_id=? ORDER BY o.date DESC LIMIT 20',
+        (uid,)
+    ).fetchall()
+
+    # 매니저/Admin: 팀 OT 승인 대기
+    ot_pending_list = []
+    if role in ('admin', 'manager'):
+        ot_sql = (
+            'SELECT o.*, u.name AS user_name, d.name AS dept_name '
+            'FROM overtime_requests o '
+            'JOIN users u ON o.user_id=u.id '
+            'LEFT JOIN departments d ON u.department_id=d.id '
+            "WHERE o.status='pending'"
+        )
+        ot_params = []
+        if role == 'manager':
+            mgr_dept = session.get('dept_id') or 0
+            cur_uid  = session.get('user_id')
+            ot_sql  += ' AND (u.department_id=? OR u.manager_id=?)'
+            ot_params += [mgr_dept, cur_uid]
+        ot_sql += ' ORDER BY o.date DESC'
+        ot_pending_list = db.execute(ot_sql, ot_params).fetchall()
+
+    # ── 개인 월간 리포트 (전월 vs 이번 달) ───────────────────────
+    def _month_stats(y, m):
+        import calendar as _cal
+        fd = date(y, m, 1).isoformat()
+        ld = date(y, m, _cal.monthrange(y, m)[1]).isoformat()
+        rows = db.execute(
+            'SELECT regular_min, overtime_min, night_min, check_in '
+            'FROM checkins WHERE user_id=? AND date>=? AND date<=? AND check_in IS NOT NULL',
+            (uid, fd, ld)
+        ).fetchall()
+        work_days    = len(rows)
+        total_reg    = sum(r['regular_min']  for r in rows)
+        total_ot     = sum(r['overtime_min'] for r in rows)
+        total_night  = sum(r['night_min']    for r in rows)
+        return dict(work_days=work_days, total_reg=total_reg,
+                    total_ot=total_ot, total_night=total_night)
+
+    this_stats = _month_stats(today.year, today.month)
+    prev_month_d = (today.replace(day=1) - timedelta(days=1))
+    prev_stats   = _month_stats(prev_month_d.year, prev_month_d.month)
+
+    def _diff(cur, prv):
+        return cur - prv
+
+    monthly_report = dict(
+        this_month=f'{today.year}년 {today.month}월',
+        work_days=this_stats['work_days'],
+        work_days_diff=_diff(this_stats['work_days'], prev_stats['work_days']),
+        total_hours=round(this_stats['total_reg'] / 60, 1),
+        total_hours_diff=round(_diff(this_stats['total_reg'], prev_stats['total_reg']) / 60, 1),
+        ot_hours=round(this_stats['total_ot'] / 60, 1),
+        ot_hours_diff=round(_diff(this_stats['total_ot'], prev_stats['total_ot']) / 60, 1),
+        night_hours=round(this_stats['total_night'] / 60, 1),
+        night_hours_diff=round(_diff(this_stats['total_night'], prev_stats['total_night']) / 60, 1),
+    )
+
+    # ── 최소 11시간 휴식 미준수 감지 ────────────────────────────
+    min_rest_violations = []
+    recent_days = db.execute(
+        'SELECT date, check_in, check_out FROM checkins '
+        'WHERE user_id=? AND date>=? AND check_in IS NOT NULL AND check_out IS NOT NULL '
+        'ORDER BY date DESC LIMIT 14',
+        (uid, (today - timedelta(days=14)).isoformat())
+    ).fetchall()
+    for i in range(len(recent_days) - 1):
+        try:
+            prev_co = recent_days[i+1]['check_out']
+            curr_ci = recent_days[i]['check_in']
+            if prev_co and curr_ci:
+                from datetime import datetime as _dt
+                t1 = _dt.fromisoformat(prev_co)
+                t2 = _dt.fromisoformat(curr_ci)
+                gap_hours = (t2 - t1).total_seconds() / 3600
+                if gap_hours < 11:
+                    min_rest_violations.append({
+                        'date': recent_days[i]['date'],
+                        'gap_hours': round(gap_hours, 1),
+                    })
+        except Exception:
+            pass
+
     active_tab = request.args.get('tab', 'home')
 
     return render_template('attendance/home.html',
@@ -5760,6 +5849,11 @@ def attendance_home():
         month_night_min=month_night_min,
         extra_pay=extra_pay,
         weekly_hours=weekly_hours,
+        monthly_report=monthly_report,
+        min_rest_violations=min_rest_violations,
+        # OT 탭
+        my_ot_requests=my_ot_requests,
+        ot_pending_list=ot_pending_list,
         # 휴가 탭
         all_requests=all_requests, leave_meta=LEAVE_META,
         leave_meta_json=_json.dumps({k: {
@@ -5790,6 +5884,140 @@ def attendance_home():
         active_tab=active_tab,
         active_page='attendance_home'
     )
+
+
+@app.route('/attendance/overtime/new', methods=['POST'])
+@login_required
+def overtime_new():
+    """OT 사전/사후 신청."""
+    from datetime import datetime as _dt
+    db   = get_db()
+    uid  = session['user_id']
+    d    = request.form
+    date_val  = d.get('date','').strip()
+    ot_start  = d.get('ot_start','').strip()
+    ot_end    = d.get('ot_end','').strip()
+    reason    = d.get('reason','').strip()
+    req_type  = d.get('request_type','pre')
+
+    if not date_val or not ot_start or not ot_end:
+        flash('날짜와 시간을 모두 입력해주세요.', 'error')
+        return redirect(url_for('attendance_home', tab='ot'))
+
+    try:
+        t1 = _dt.fromisoformat(f'{date_val}T{ot_start}')
+        t2 = _dt.fromisoformat(f'{date_val}T{ot_end}')
+        if t2 <= t1:
+            flash('종료 시간이 시작 시간보다 늦어야 합니다.', 'error')
+            return redirect(url_for('attendance_home', tab='ot'))
+        ot_minutes = int((t2 - t1).total_seconds() / 60)
+    except ValueError:
+        flash('시간 형식이 올바르지 않습니다.', 'error')
+        return redirect(url_for('attendance_home', tab='ot'))
+
+    db.execute(
+        'INSERT INTO overtime_requests (user_id, date, ot_start, ot_end, ot_minutes, reason, request_type) '
+        'VALUES (?,?,?,?,?,?,?)',
+        (uid, date_val, ot_start, ot_end, ot_minutes, reason, req_type)
+    )
+    db.commit()
+    flash('OT 신청이 접수되었습니다.', 'success')
+    return redirect(url_for('attendance_home', tab='ot'))
+
+
+@app.route('/attendance/overtime/<int:ot_id>/approve', methods=['POST'])
+@login_required
+def overtime_approve(ot_id):
+    db  = get_db()
+    uid = session['user_id']
+    if session.get('user_role') not in ('admin', 'manager'):
+        flash('권한이 없습니다.', 'error')
+        return redirect(url_for('attendance_home', tab='ot'))
+    row = db.execute('SELECT * FROM overtime_requests WHERE id=?', (ot_id,)).fetchone()
+    if not row or row['status'] != 'pending':
+        flash('처리할 수 없는 신청입니다.', 'error')
+        return redirect(url_for('attendance_home', tab='ot'))
+    db.execute(
+        "UPDATE overtime_requests SET status='approved', approver_id=?, approved_at=CURRENT_TIMESTAMP WHERE id=?",
+        (uid, ot_id)
+    )
+    db.commit()
+    add_notification(db, row['user_id'], 'OT 신청 승인',
+                     f'{row["date"]} OT 신청({row["ot_minutes"]}분)이 승인되었습니다.')
+    flash('OT 신청을 승인했습니다.', 'success')
+    return redirect(url_for('attendance_home', tab='ot'))
+
+
+@app.route('/attendance/overtime/<int:ot_id>/reject', methods=['POST'])
+@login_required
+def overtime_reject(ot_id):
+    db  = get_db()
+    uid = session['user_id']
+    if session.get('user_role') not in ('admin', 'manager'):
+        flash('권한이 없습니다.', 'error')
+        return redirect(url_for('attendance_home', tab='ot'))
+    row = db.execute('SELECT * FROM overtime_requests WHERE id=?', (ot_id,)).fetchone()
+    if not row or row['status'] != 'pending':
+        flash('처리할 수 없는 신청입니다.', 'error')
+        return redirect(url_for('attendance_home', tab='ot'))
+    reason = request.form.get('reject_reason', '')
+    db.execute(
+        "UPDATE overtime_requests SET status='rejected', approver_id=?, approved_at=CURRENT_TIMESTAMP, "
+        "reject_reason=? WHERE id=?",
+        (uid, reason, ot_id)
+    )
+    db.commit()
+    add_notification(db, row['user_id'], 'OT 신청 반려',
+                     f'{row["date"]} OT 신청이 반려되었습니다. 사유: {reason}')
+    flash('OT 신청을 반려했습니다.', 'success')
+    return redirect(url_for('attendance_home', tab='ot'))
+
+
+@app.route('/attendance/leave-carryover', methods=['POST'])
+@login_required
+def leave_carryover():
+    """연차 이월 계산 — Admin 전용. 전년도 잔여연차를 이번 연도로 이월."""
+    if session.get('user_role') != 'admin':
+        flash('관리자만 실행할 수 있습니다.', 'error')
+        return redirect(url_for('attendance_home'))
+    from datetime import date
+    db   = get_db()
+    year = date.today().year
+    carry_max = 10  # 이월 최대 일수
+
+    cfg = db.execute('SELECT carry_over_max FROM company_config WHERE id=1').fetchone()
+    if cfg and cfg['carry_over_max']:
+        carry_max = cfg['carry_over_max']
+
+    employees = db.execute(
+        "SELECT id, hire_date FROM users WHERE role != 'guest' AND (termination_date IS NULL OR termination_date='')"
+    ).fetchall()
+
+    processed = 0
+    for emp in employees:
+        total = calc_annual_leave(emp['hire_date']) if emp['hire_date'] else 15
+        used  = db.execute(
+            "SELECT COALESCE(SUM(days),0) FROM leave_requests "
+            "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm') "
+            "AND strftime('%Y',start_date)=?",
+            (emp['id'], str(year - 1))
+        ).fetchone()[0]
+        remain    = max(0, total - float(used))
+        carry_amt = min(remain, carry_max)
+
+        db.execute(
+            'INSERT INTO leave_balances (user_id, year, total_days, used_days, carry_over_days, carry_over_max) '
+            'VALUES (?,?,?,?,?,?) '
+            'ON CONFLICT(user_id, year) DO UPDATE SET '
+            '  total_days=excluded.total_days, used_days=excluded.used_days, '
+            '  carry_over_days=excluded.carry_over_days, updated_at=CURRENT_TIMESTAMP',
+            (emp['id'], year, total + carry_amt, float(used), carry_amt, carry_max)
+        )
+        processed += 1
+
+    db.commit()
+    flash(f'{processed}명 연차 이월 처리 완료 (최대 {carry_max}일)', 'success')
+    return redirect(url_for('attendance_home'))
 
 
 @app.route('/attendance/remote', methods=['POST'])

@@ -233,6 +233,9 @@
   <button class="att-tab-btn" data-tab="leaves">
     휴가{% if pending_leave > 0 %}<span class="att-tab-badge">{{ pending_leave }}</span>{% endif %}
   </button>
+  <button class="att-tab-btn" data-tab="ot">
+    OT 신청{% if my_ot_requests and my_ot_requests|selectattr('status','eq','pending')|list|length > 0 %}<span class="att-tab-badge">{{ my_ot_requests|selectattr('status','eq','pending')|list|length }}</span>{% endif %}
+  </button>
   <button class="att-tab-btn" data-tab="calendar">캘린더</button>
   {% if session.user_role in ('admin','manager') %}
   <button class="att-tab-btn" data-tab="approvals">
@@ -382,7 +385,212 @@
     </div>
   </div>
 
+  <!-- 개인 월간 리포트 카드 -->
+  {% if monthly_report %}
+  <div class="card" style="margin-top:16px;">
+    <div class="card-head">
+      <span class="card-title"><i class="fas fa-chart-bar" style="margin-right:6px; color:var(--primary);"></i>{{ monthly_report.this_month }} 리포트</span>
+      <span style="font-size:11px; color:var(--tx-3);">전월 대비</span>
+    </div>
+    <div class="card-body">
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px;">
+        {% set stats = [
+          ('출근일', monthly_report.work_days, monthly_report.work_days_diff, '일', 'fa-calendar-check'),
+          ('총 근무', monthly_report.total_hours, monthly_report.total_hours_diff, 'h', 'fa-clock'),
+          ('연장근무', monthly_report.ot_hours, monthly_report.ot_hours_diff, 'h', 'fa-business-time'),
+          ('야간근무', monthly_report.night_hours, monthly_report.night_hours_diff, 'h', 'fa-moon'),
+        ] %}
+        {% for label, val, diff, unit, icon in stats %}
+        <div style="text-align:center; padding:12px 8px; background:var(--bg-2); border-radius:10px;">
+          <i class="fas {{ icon }}" style="font-size:18px; color:var(--primary); margin-bottom:6px; display:block;"></i>
+          <div style="font-size:22px; font-weight:800; color:var(--tx-1);">{{ val }}{{ unit }}</div>
+          <div style="font-size:11px; color:var(--tx-3); margin-bottom:4px;">{{ label }}</div>
+          {% if diff > 0 %}
+          <span style="font-size:11px; color:#16a34a; font-weight:600;">▲ +{{ diff }}{{ unit }}</span>
+          {% elif diff < 0 %}
+          <span style="font-size:11px; color:#dc2626; font-weight:600;">▼ {{ diff }}{{ unit }}</span>
+          {% else %}
+          <span style="font-size:11px; color:var(--tx-3);">— 동일</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 11시간 휴식 미준수 경고 -->
+  {% if min_rest_violations %}
+  <div class="info-banner" style="margin-top:12px; background:#fef9c3; border-color:#ca8a04; color:#713f12;">
+    <i class="fas fa-moon" style="color:#ca8a04;"></i>
+    <strong>최소 휴식 미준수 {{ min_rest_violations|length }}건</strong> — 퇴근 후 11시간 이상 휴식 필요 (근로기준법 §59의2)
+    <ul style="margin:6px 0 0 16px; font-size:12px;">
+      {% for v in min_rest_violations %}
+      <li>{{ v.date }}: 휴식 {{ v.gap_hours }}시간</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
 </div><!-- /tab-home -->
+
+
+<!-- ════════════════════════════════════
+     TAB: OT 신청
+════════════════════════════════════ -->
+<div id="tab-ot" class="att-tab-content" style="display:none;">
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start;">
+
+    <!-- OT 신청 폼 -->
+    <div class="card">
+      <div class="card-head"><span class="card-title"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>OT 신청</span></div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('overtime_new') }}">
+          <div class="form-group" style="margin-bottom:10px;">
+            <label class="form-label">신청 구분</label>
+            <select name="request_type" class="form-control" style="padding:6px 10px;">
+              <option value="pre">사전 승인</option>
+              <option value="post">사후 신고</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label class="form-label">날짜</label>
+            <input type="date" name="date" class="form-control" value="{{ today.isoformat() }}" required style="padding:6px 10px;">
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">시작 시간</label>
+              <input type="time" name="ot_start" class="form-control" value="18:00" required style="padding:6px 10px;">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">종료 시간</label>
+              <input type="time" name="ot_end" class="form-control" value="21:00" required style="padding:6px 10px;">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label class="form-label">사유</label>
+            <textarea name="reason" class="form-control" rows="2" placeholder="업무 내용을 간략히 입력해주세요." style="padding:6px 10px; resize:none;"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%;">
+            <i class="fas fa-paper-plane"></i> 신청
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 내 OT 신청 이력 -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">내 OT 신청 내역</span></div>
+      <div class="card-body" style="padding:0;">
+        {% if my_ot_requests %}
+        <table class="data-table" style="margin:0;">
+          <thead><tr><th>날짜</th><th>시간</th><th>분</th><th>구분</th><th>상태</th></tr></thead>
+          <tbody>
+          {% for o in my_ot_requests %}
+          <tr>
+            <td style="font-size:12px;">{{ o.date }}</td>
+            <td style="font-size:12px;">{{ o.ot_start }}~{{ o.ot_end }}</td>
+            <td style="font-size:12px;">{{ o.ot_minutes }}분</td>
+            <td><span style="font-size:11px; padding:2px 6px; border-radius:4px; background:#f1f5f9; color:var(--tx-2);">{{ '사전' if o.request_type == 'pre' else '사후' }}</span></td>
+            <td>
+              {% if o.status == 'approved' %}
+              <span class="badge badge-success" style="font-size:11px;">승인</span>
+              {% elif o.status == 'rejected' %}
+              <span class="badge badge-danger" style="font-size:11px;" title="{{ o.reject_reason or '' }}">반려</span>
+              {% else %}
+              <span class="badge badge-warning" style="font-size:11px;">대기</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div style="text-align:center; color:var(--tx-3); padding:24px 0; font-size:13px;">
+          <i class="fas fa-business-time" style="font-size:28px; display:block; margin-bottom:8px; color:var(--border);"></i>
+          신청 내역이 없습니다.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 매니저/Admin: OT 승인 대기 -->
+  {% if session.user_role in ('admin','manager') and ot_pending_list %}
+  <div class="card" style="margin-top:16px;">
+    <div class="card-head">
+      <span class="card-title"><i class="fas fa-tasks" style="margin-right:6px;"></i>OT 승인 대기</span>
+      <span class="badge badge-warning">{{ ot_pending_list|length }}건</span>
+    </div>
+    <div class="card-body" style="padding:0;">
+      <table class="data-table" style="margin:0;">
+        <thead><tr><th>직원</th><th>부서</th><th>날짜</th><th>시간</th><th>사유</th><th>구분</th><th>처리</th></tr></thead>
+        <tbody>
+        {% for o in ot_pending_list %}
+        <tr>
+          <td>{{ o.user_name }}</td>
+          <td style="font-size:12px; color:var(--tx-3);">{{ o.dept_name or '-' }}</td>
+          <td style="font-size:12px;">{{ o.date }}</td>
+          <td style="font-size:12px;">{{ o.ot_start }}~{{ o.ot_end }} ({{ o.ot_minutes }}분)</td>
+          <td style="font-size:12px; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ o.reason or '-' }}</td>
+          <td><span style="font-size:11px; padding:2px 6px; border-radius:4px; background:#f1f5f9;">{{ '사전' if o.request_type == 'pre' else '사후' }}</span></td>
+          <td>
+            <div style="display:flex; gap:4px;">
+              <form method="POST" action="{{ url_for('overtime_approve', ot_id=o.id) }}" style="margin:0;">
+                <button type="submit" class="btn btn-success btn-sm" style="font-size:11px; padding:3px 8px;">승인</button>
+              </form>
+              <button type="button" class="btn btn-danger btn-sm" style="font-size:11px; padding:3px 8px;"
+                onclick="showOtRejectModal({{ o.id }}, '{{ o.user_name }}')">반려</button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Admin: 연차 이월 -->
+  {% if session.user_role == 'admin' %}
+  <div class="card" style="margin-top:16px;">
+    <div class="card-head"><span class="card-title"><i class="fas fa-retweet" style="margin-right:6px;"></i>연차 이월 처리</span></div>
+    <div class="card-body">
+      <p style="font-size:13px; color:var(--tx-2); margin-bottom:12px;">
+        전년도 잔여 연차를 이번 연도로 이월합니다. 연도 초(1월)에 1회 실행하세요.<br>
+        이월 최대 일수는 회사 설정에서 조정 가능합니다 (기본 10일).
+      </p>
+      <form method="POST" action="{{ url_for('leave_carryover') }}" onsubmit="return confirm('연차 이월을 실행합니다. 계속하시겠습니까?');">
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-retweet"></i> 연차 이월 실행
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+</div><!-- /tab-ot -->
+
+
+<!-- OT 반려 모달 -->
+<div id="ot-reject-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:var(--bg-1); border-radius:12px; padding:24px; width:360px; max-width:90vw;">
+    <h3 style="margin:0 0 12px; font-size:16px;">OT 신청 반려</h3>
+    <p id="ot-reject-name" style="font-size:13px; color:var(--tx-2); margin-bottom:12px;"></p>
+    <form id="ot-reject-form" method="POST">
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label">반려 사유</label>
+        <textarea name="reject_reason" class="form-control" rows="3" style="padding:6px 10px; resize:none;" placeholder="반려 사유를 입력하세요."></textarea>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('ot-reject-modal').style.display='none'">취소</button>
+        <button type="submit" class="btn btn-danger">반려</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 
 <!-- ════════════════════════════════════
@@ -727,6 +935,22 @@ document.addEventListener('DOMContentLoaded', function(){
     btn.addEventListener('click', function(){ switchTab(this.getAttribute('data-tab')); });
   });
   switchTab('{{ active_tab }}' || 'home');
+});
+
+// ── OT 반려 모달 ─────────────────────────────────────
+function showOtRejectModal(otId, userName) {
+  document.getElementById('ot-reject-name').textContent = userName + '님의 OT 신청을 반려합니다.';
+  document.getElementById('ot-reject-form').action = '/attendance/overtime/' + otId + '/reject';
+  var modal = document.getElementById('ot-reject-modal');
+  modal.style.display = 'flex';
+}
+document.addEventListener('DOMContentLoaded', function(){
+  var modal = document.getElementById('ot-reject-modal');
+  if (modal) {
+    modal.addEventListener('click', function(e){
+      if (e.target === modal) modal.style.display = 'none';
+    });
+  }
 });
 
 // ── LEAVE_META JS 객체 ───────────────────────────────
