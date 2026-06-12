@@ -5199,17 +5199,30 @@ def profile():
 
 # ── Recruit ─────────────────────────────────────────────────
 STAGES = [
-    ('applied',    '지원 접수'),
-    ('screening',  '서류 심사'),
-    ('interview1', '1차 면접'),
-    ('interview2', '2차 면접'),
-    ('final',      '최종 면접'),
-    ('offered',    '오퍼'),
-    ('hired',      '입사 확정'),
-    ('rejected',   '불합격'),
+    ('review',    '서류 검토'),
+    ('screening', '리크루터 스크리닝'),
+    ('inter1',    '1차 인터뷰'),
+    ('kickoff',   '킥오프 미팅'),
+    ('inter2',    '2차 인터뷰'),
+    ('debrief',   '디브리프 미팅'),
+    ('offer',     '오퍼'),
+    ('accepted',  '오퍼 수락'),
+    ('rejected',  '오퍼 거절'),
 ]
 STAGE_MAP     = dict(STAGES)
-ACTIVE_STAGES = [s for s in STAGES if s[0] != 'rejected']
+ACTIVE_STAGES = [s for s in STAGES if s[0] not in ('accepted', 'rejected')]
+
+STAGE_COLORS = {
+    'review':    '#B4B2A9',
+    'screening': '#AFA9EC',
+    'inter1':    '#85B7EB',
+    'kickoff':   '#97C459',
+    'inter2':    '#5DCAA5',
+    'debrief':   '#EF9F27',
+    'offer':     '#ED93B1',
+    'accepted':  '#5DCAA5',
+    'rejected':  '#F09595',
+}
 
 SOURCE_LABELS = {
     'direct':   '직접 지원',
@@ -5782,34 +5795,133 @@ def recruit_posting_edit(posting_id):
 @recruiter_or_admin
 def recruit_pipeline():
     db         = get_db()
-    posting_id = request.args.get('posting', '')
+    posting_id = request.args.get('posting', type=int)
     postings   = db.execute(
-        "SELECT * FROM job_postings WHERE status != 'draft' ORDER BY created_at DESC"
+        "SELECT jp.*, d.name AS dept_name, "
+        "r.name AS recruiter_name, hm.name AS hiring_manager_name, co.name AS coordinator_name "
+        "FROM job_postings jp "
+        "LEFT JOIN departments d ON jp.department_id = d.id "
+        "LEFT JOIN users r  ON jp.recruiter_id = r.id "
+        "LEFT JOIN users hm ON jp.hiring_manager_id = hm.id "
+        "LEFT JOIN users co ON jp.coordinator_id = co.id "
+        "WHERE jp.status != 'draft' ORDER BY jp.created_at DESC"
     ).fetchall()
 
-    sql    = (
-        'SELECT a.*, jp.title AS posting_title '
-        'FROM applicants a '
-        'JOIN job_postings jp ON a.posting_id = jp.id '
-    )
-    params = []
-    if posting_id:
-        sql += 'WHERE a.posting_id = ? '
-        params.append(posting_id)
-    sql += 'ORDER BY a.created_at DESC'
-    applicants = db.execute(sql, params).fetchall()
+    if not posting_id and postings:
+        posting_id = postings[0]['id']
 
+    current_posting = None
     pipeline = {stage: [] for stage, _ in STAGES}
-    for a in applicants:
-        stage = a['stage']
-        if stage in pipeline:
-            pipeline[stage].append(a)
+
+    if posting_id:
+        current_posting = next((p for p in postings if p['id'] == posting_id), None)
+        applicants = db.execute(
+            'SELECT a.*, '
+            '(julianday("now") - julianday(a.created_at)) AS days_in_pipeline '
+            'FROM applicants a '
+            'WHERE a.posting_id = ? '
+            'ORDER BY a.created_at DESC',
+            (posting_id,)
+        ).fetchall()
+        for a in applicants:
+            stage = a['stage']
+            if stage in pipeline:
+                pipeline[stage].append(dict(a))
 
     return render_template('recruit/pipeline.html',
                            pipeline=pipeline, stages=STAGES,
+                           stage_colors=STAGE_COLORS,
                            active_stages=ACTIVE_STAGES,
-                           postings=postings, posting_id=posting_id,
+                           postings=postings,
+                           posting_id=posting_id,
+                           current_posting=current_posting,
                            active_page='recruit_pipeline')
+
+
+@app.route('/recruit/applicants/<int:applicant_id>/stage', methods=['POST'])
+@recruiter_or_admin
+def recruit_stage_update(applicant_id):
+    """AJAX — 드래그앤드롭 단계 변경"""
+    import json as _json
+    data      = request.get_json(force=True)
+    new_stage = data.get('stage', '')
+    if new_stage not in STAGE_MAP:
+        return jsonify({'ok': False, 'error': 'invalid stage'}), 400
+    db = get_db()
+    applicant = db.execute('SELECT * FROM applicants WHERE id=?', (applicant_id,)).fetchone()
+    if not applicant:
+        return jsonify({'ok': False, 'error': 'not found'}), 404
+    old_stage = applicant['stage']
+    db.execute('UPDATE applicants SET stage=? WHERE id=?', (new_stage, applicant_id))
+    db.execute(
+        'INSERT INTO applicant_logs (applicant_id, stage, note, changed_by) VALUES (?,?,?,?)',
+        (applicant_id, new_stage, f'{STAGE_MAP.get(old_stage, old_stage)} → {STAGE_MAP[new_stage]}', session['user_id'])
+    )
+    log_recruit(applicant_id, 'stage_changed', {'from': old_stage, 'to': new_stage})
+    db.commit()
+    return jsonify({'ok': True, 'stage': new_stage, 'label': STAGE_MAP[new_stage]})
+
+
+@app.route('/recruit/applicants/<int:applicant_id>/panel')
+@recruiter_or_admin
+def recruit_applicant_panel(applicant_id):
+    """슬라이드인 패널용 JSON"""
+    import json as _json
+    db = get_db()
+    a = db.execute(
+        'SELECT a.*, jp.title AS posting_title, jp.id AS posting_id '
+        'FROM applicants a JOIN job_postings jp ON a.posting_id = jp.id '
+        'WHERE a.id=?', (applicant_id,)
+    ).fetchone()
+    if not a:
+        return jsonify({'ok': False}), 404
+
+    rounds = db.execute(
+        'SELECT r.*, '
+        '(SELECT COUNT(*) FROM interview_feedback f WHERE f.round_id = r.id) AS feedback_count, '
+        '(SELECT AVG(f.score_overall) FROM interview_feedback f WHERE f.round_id = r.id) AS avg_score '
+        'FROM interview_rounds r WHERE r.applicant_id=? ORDER BY r.round_no',
+        (applicant_id,)
+    ).fetchall()
+
+    logs = db.execute(
+        'SELECT l.stage, l.note, l.created_at, u.name AS changed_by_name '
+        'FROM applicant_logs l JOIN users u ON l.changed_by = u.id '
+        'WHERE l.applicant_id=? ORDER BY l.created_at DESC LIMIT 10',
+        (applicant_id,)
+    ).fetchall()
+
+    return jsonify({
+        'ok': True,
+        'applicant': {
+            'id':          a['id'],
+            'name':        a['name'],
+            'email':       a['email'],
+            'phone':       a['phone'] or '',
+            'source':      SOURCE_LABELS.get(a['source'], a['source']),
+            'stage':       a['stage'],
+            'stage_label': STAGE_MAP.get(a['stage'], a['stage']),
+            'resume_note': a['resume_note'] or '',
+            'created_at':  a['created_at'][:10],
+            'days':        int(db.execute(
+                'SELECT julianday("now") - julianday(created_at) FROM applicants WHERE id=?',
+                (applicant_id,)).fetchone()[0] or 0),
+            'posting_title': a['posting_title'],
+            'posting_id':    a['posting_id'],
+        },
+        'rounds': [{'round_no': r['round_no'],
+                    'round_type': ROUND_TYPE_LABEL.get(r['round_type'], r['round_type']),
+                    'status': ROUND_STATUS_LABEL.get(r['status'], r['status']),
+                    'scheduled_at': (r['scheduled_at'] or '')[:16],
+                    'feedback_count': r['feedback_count'],
+                    'avg_score': round(r['avg_score'], 1) if r['avg_score'] else None}
+                   for r in rounds],
+        'logs': [{'stage': STAGE_MAP.get(l['stage'], l['stage']),
+                  'note': l['note'] or '',
+                  'created_at': l['created_at'][:16],
+                  'changed_by': l['changed_by_name']}
+                 for l in logs],
+    })
 
 @app.route('/recruit/applicants/<int:applicant_id>', methods=['GET', 'POST'])
 @recruiter_or_admin

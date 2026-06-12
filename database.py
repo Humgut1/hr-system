@@ -1086,6 +1086,60 @@ def init_db(db_path: str = None):
             created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
 
+        # ── v0.62.0 파이프라인 고도화 ────────────────────────────────────────
+        # job_postings 에 recruiter_id / hiring_manager_id / coordinator_id 추가
+        jp_cols2 = {r[1] for r in c.execute('PRAGMA table_info(job_postings)').fetchall()}
+        for col, ddl in [
+            ('recruiter_id',       'INTEGER REFERENCES users(id)'),
+            ('hiring_manager_id',  'INTEGER REFERENCES users(id)'),
+            ('coordinator_id',     'INTEGER REFERENCES users(id)'),
+        ]:
+            if col not in jp_cols2:
+                c.execute(f'ALTER TABLE job_postings ADD COLUMN {col} {ddl}')
+
+        # applicants.stage → 새 9단계 체계 마이그레이션
+        # SQLite는 CHECK 제약 수정 불가 → 테이블 재생성(rename swap) 방식
+        NEW_STAGES = ('review','screening','inter1','kickoff','inter2','debrief','offer','accepted','rejected')
+        STAGE_MAP_MIGRATE = {
+            'applied':    'review',
+            'screening':  'screening',
+            'interview1': 'inter1',
+            'interview2': 'inter2',
+            'final':      'debrief',
+            'offered':    'offer',
+            'hired':      'accepted',
+            'rejected':   'rejected',
+        }
+        existing_stages = {r[0] for r in c.execute("SELECT DISTINCT stage FROM applicants").fetchall()}
+        needs_migration  = bool(existing_stages - set(NEW_STAGES))
+        if needs_migration:
+            c.execute('''CREATE TABLE IF NOT EXISTS applicants_new (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                posting_id  INTEGER NOT NULL REFERENCES job_postings(id),
+                name        TEXT NOT NULL,
+                email       TEXT NOT NULL,
+                phone       TEXT,
+                source      TEXT DEFAULT 'direct',
+                resume_note TEXT,
+                stage       TEXT NOT NULL DEFAULT 'review',
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )''')
+            rows = c.execute('SELECT * FROM applicants').fetchall()
+            for row in rows:
+                row = dict(row)
+                old_stage = row['stage']
+                row['stage'] = STAGE_MAP_MIGRATE.get(old_stage, 'review')
+                c.execute(
+                    'INSERT INTO applicants_new (id,posting_id,name,email,phone,source,resume_note,stage,created_at) '
+                    'VALUES (:id,:posting_id,:name,:email,:phone,:source,:resume_note,:stage,:created_at)', row
+                )
+            conn.commit()
+            conn.execute('PRAGMA foreign_keys = OFF')
+            conn.execute('DROP TABLE applicants')
+            conn.execute('ALTER TABLE applicants_new RENAME TO applicants')
+            conn.commit()
+            conn.execute('PRAGMA foreign_keys = ON')
+
         # salary_grades 밴드 데이터 전면 업데이트 (v0.60 — 리서치 기반 시장 연봉)
         # Amazon Korea levels.fyi + 블라인드 데이터 기반 한국 테크 스타트업 기준
         # (만원 단위 → ×10000)
