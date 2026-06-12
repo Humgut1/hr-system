@@ -1015,6 +1015,73 @@ def init_db(db_path: str = None):
             updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
 
+        # job_requisitions 컬럼 마이그레이션 (v0.60 — 레벨체계 연동)
+        req_cols = {r[1] for r in c.execute('PRAGMA table_info(job_requisitions)').fetchall()}
+        if 'job_family_id' not in req_cols:
+            c.execute('ALTER TABLE job_requisitions ADD COLUMN job_family_id INTEGER REFERENCES job_families(id)')
+        if 'track' not in req_cols:
+            c.execute("ALTER TABLE job_requisitions ADD COLUMN track TEXT DEFAULT 'IC' CHECK(track IN ('IC','M'))")
+        if 'salary_mid' not in req_cols:
+            c.execute('ALTER TABLE job_requisitions ADD COLUMN salary_mid INTEGER DEFAULT 0')
+
+        # salary_grades 밴드 데이터 전면 업데이트 (v0.60 — 리서치 기반 시장 연봉)
+        # Amazon Korea levels.fyi + 블라인드 데이터 기반 한국 테크 스타트업 기준
+        # (만원 단위 → ×10000)
+        JF_MULT = {
+            1: 1.00,   # SWE
+            2: 1.05,   # DATA/ML
+            3: 1.00,   # PM
+            4: 1.00,   # INFRA/DevOps
+            5: 0.90,   # DESIGN
+            6: 0.85,   # MKT
+            7: 0.85,   # SALES
+            8: 0.75,   # OPS/CS
+            9: 0.85,   # FIN
+            10: 0.80,  # HR
+            11: 0.90,  # LEGAL
+            12: 0.95,  # STRAT
+        }
+        # IC 기준 밴드 (만원): {level: (min, mid, max)}
+        IC_BANDS = {
+            1: (2400, 2700, 3200),
+            2: (3200, 3700, 4400),
+            3: (4200, 5000, 6000),
+            4: (5500, 7000, 8500),
+            5: (7500, 9300, 11500),
+            6: (10000, 12500, 16000),
+            7: (14000, 18000, 22000),
+            8: (18000, 24000, 30000),
+            9: (25000, 35000, 50000),
+        }
+        # 기존 데이터 있는 경우도 업데이트 (UPSERT 효과)
+        for jf_id, mult in JF_MULT.items():
+            jf_exists = c.execute('SELECT 1 FROM job_families WHERE id=?', (jf_id,)).fetchone()
+            if not jf_exists:
+                continue
+            for level, (mn, md, mx) in IC_BANDS.items():
+                pos = c.execute('SELECT id FROM positions WHERE level=?', (level,)).fetchone()
+                if not pos:
+                    continue
+                pos_id = pos[0]
+                m_mn  = int(mn * 10000 * mult)
+                m_mid = int(md * 10000 * mult)
+                m_max = int(mx * 10000 * mult)
+                m_ann = m_mid
+                existing = c.execute(
+                    'SELECT id FROM salary_grades WHERE job_family_id=? AND position_id=?',
+                    (jf_id, pos_id)
+                ).fetchone()
+                if existing:
+                    c.execute(
+                        'UPDATE salary_grades SET min_salary=?, mid_salary=?, max_salary=?, annual_salary=? WHERE id=?',
+                        (m_mn, m_mid, m_max, m_ann, existing[0])
+                    )
+                else:
+                    c.execute(
+                        'INSERT INTO salary_grades (job_family_id, position_id, annual_salary, min_salary, mid_salary, max_salary) VALUES (?,?,?,?,?,?)',
+                        (jf_id, pos_id, m_ann, m_mn, m_mid, m_max)
+                    )
+
         # company_config 기본 row (없으면 삽입 — setup_completed=0 유지해서 위자드 표시)
         if c.execute('SELECT COUNT(*) FROM company_config').fetchone()[0] == 0:
             c.execute('INSERT INTO company_config (id) VALUES (1)')

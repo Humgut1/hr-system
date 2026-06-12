@@ -2,142 +2,491 @@
 {% block title %}채용 요청서 작성{% endblock %}
 {% block page_title %}채용 요청서 작성{% endblock %}
 
-{% block content %}
+{% block extra_css %}
+<style>
+.req-wrap { max-width: 760px; }
 
-<div style="max-width:720px;">
+.req-section {
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-lg);
+  padding: 28px 32px;
+  margin-bottom: 16px;
+}
+.req-section-title {
+  font-size: 13px; font-weight: 700;
+  color: var(--on-surface-muted);
+  text-transform: uppercase; letter-spacing: .07em;
+  margin-bottom: 22px;
+  padding-bottom: 12px;
+  border-bottom: 1.5px solid var(--surface-container-high);
+  display: flex; align-items: center; gap: 8px;
+}
+.req-section-title i { color: var(--primary); font-size: 14px; }
+
+.req-grid { display: grid; gap: 16px; }
+.req-grid-2 { grid-template-columns: 1fr 1fr; }
+@media (max-width: 640px) { .req-grid-2 { grid-template-columns: 1fr; } }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label {
+  font-size: 11px; font-weight: 700;
+  color: var(--on-surface-variant);
+  letter-spacing: .04em; text-transform: uppercase;
+}
+.field .req-mark { color: var(--primary); margin-left: 2px; }
+
+.input, .select, .textarea {
+  background: var(--surface-container-low);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px; border: 0; outline: 0;
+  font-size: 14px; font-weight: 500;
+  color: var(--on-surface);
+  transition: background .15s, box-shadow .15s;
+  width: 100%;
+}
+.input:focus, .select:focus, .textarea:focus {
+  background: var(--surface-container-lowest);
+  box-shadow: 0 0 0 2px rgba(43,91,255,.22);
+}
+.input::placeholder, .textarea::placeholder { color: var(--on-surface-muted); font-weight: 400; }
+.textarea { resize: vertical; line-height: 1.65; min-height: 96px; }
+.select { cursor: pointer; }
+
+/* 인원수 스피너 */
+.headcount-wrap { position: relative; }
+.headcount-wrap .input { padding-right: 40px; text-align: center; font-size: 18px; font-weight: 800; }
+.hc-btn {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--secondary-container); color: var(--on-secondary-container);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; cursor: pointer; border: 0;
+  transition: background .15s;
+}
+.hc-btn:hover { background: var(--primary); color: #fff; }
+.hc-btn.minus { left: 10px; }
+.hc-btn.plus  { right: 10px; }
+
+/* 고용형태 카드 */
+.emp-type-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; }
+@media (max-width: 640px) { .emp-type-grid { grid-template-columns: repeat(3,1fr); } }
+.emp-type-card {
+  padding: 10px 6px; border-radius: var(--radius-sm);
+  background: var(--surface-container-low);
+  text-align: center; cursor: pointer;
+  transition: all .15s; font-size: 12px; font-weight: 600;
+  color: var(--on-surface-variant); user-select: none;
+}
+.emp-type-card:hover { background: var(--secondary-container); color: var(--on-secondary-container); }
+.emp-type-card.selected {
+  background: linear-gradient(135deg, var(--primary), var(--primary-container));
+  color: #fff; box-shadow: 0 4px 12px rgba(43,91,255,.28);
+}
+.emp-type-card .etc-icon { font-size: 18px; display: block; margin-bottom: 4px; }
+
+/* 직군 카드 */
+.jf-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
+@media (max-width: 640px) { .jf-grid { grid-template-columns: repeat(3,1fr); } }
+.jf-card {
+  padding: 10px 8px; border-radius: var(--radius-sm);
+  background: var(--surface-container-low);
+  text-align: center; cursor: pointer;
+  transition: all .15s; font-size: 11px; font-weight: 600;
+  color: var(--on-surface-variant); user-select: none;
+  border: 1.5px solid transparent;
+}
+.jf-card:hover { border-color: var(--primary); color: var(--primary); }
+.jf-card.selected { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 4px 12px rgba(43,91,255,.28); }
+.jf-card .jf-icon { font-size: 16px; display: block; margin-bottom: 4px; }
+
+/* 레벨 선택 */
+.level-grid { display: grid; grid-template-columns: repeat(9,1fr); gap: 6px; }
+@media (max-width: 640px) { .level-grid { grid-template-columns: repeat(5,1fr); } }
+.level-card {
+  padding: 8px 4px; border-radius: var(--radius-sm);
+  background: var(--surface-container-low);
+  text-align: center; cursor: pointer;
+  transition: all .15s; font-size: 11px; font-weight: 700;
+  color: var(--on-surface-variant); user-select: none;
+  border: 1.5px solid transparent;
+}
+.level-card:hover { border-color: var(--primary); color: var(--primary); }
+.level-card.selected { background: var(--primary); color: #fff; border-color: var(--primary); }
+.level-card.m-eligible { border-color: #10b981; }
+.level-card.m-eligible.selected { background: var(--primary); border-color: var(--primary); }
+.level-card span { display: block; font-size: 9px; font-weight: 500; margin-top: 2px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* IC/M 트랙 */
+.track-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.track-card {
+  padding: 12px 16px; border-radius: var(--radius-sm);
+  background: var(--surface-container-low);
+  cursor: pointer; transition: all .15s;
+  border: 2px solid transparent; user-select: none;
+}
+.track-card:hover { border-color: var(--primary); }
+.track-card.selected.ic { background: #eff6ff; border-color: #2b5bff; }
+.track-card.selected.m  { background: #f0fdf4; border-color: #10b981; }
+.track-card .track-name { font-size: 14px; font-weight: 800; color: var(--on-surface); }
+.track-card .track-desc { font-size: 11px; color: var(--on-surface-muted); margin-top: 2px; }
+#m-track-card { opacity: .4; pointer-events: none; }
+#m-track-card.unlocked { opacity: 1; pointer-events: auto; }
+
+/* 연봉 밴드 미리보기 */
+.salary-band-preview {
+  background: var(--surface-container-low);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: flex; align-items: center; gap: 0;
+  margin-top: 12px; min-height: 56px;
+}
+.band-segment { flex: 1; text-align: center; }
+.band-segment .band-val { font-size: 18px; font-weight: 800; color: var(--on-surface); }
+.band-segment .band-lbl { font-size: 10px; color: var(--on-surface-muted); margin-top: 2px; font-weight: 600; text-transform: uppercase; }
+.band-sep { width: 1px; height: 40px; background: var(--surface-container-high); margin: 0 8px; }
+.band-track-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 99px; margin-left: auto; }
+.band-track-ic { background: #eff6ff; color: #1d4ed8; }
+.band-track-m  { background: #f0fdf4; color: #15803d; }
+.band-empty { font-size: 13px; color: var(--on-surface-muted); text-align: center; width: 100%; }
+
+/* 급여 범위 */
+.salary-inputs { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; }
+.salary-sep { text-align: center; font-size: 16px; color: var(--on-surface-muted); font-weight: 700; margin-top: 18px; }
+
+/* 액션 바 */
+.req-actions {
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-lg);
+  padding: 20px 28px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  box-shadow: var(--shadow-ambient);
+}
+.req-actions-hint { font-size: 12px; color: var(--on-surface-muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="req-wrap">
   <form method="POST" id="req-form">
 
-    <div class="card" style="margin-bottom:16px;">
-      <div class="card-head"><span class="card-title">기본 정보</span></div>
-      <div class="card-body">
+    <!-- 섹션 1: 포지션 기본 정보 -->
+    <div class="req-section">
+      <div class="req-section-title">
+        <i class="fas fa-briefcase"></i> 포지션 정보
+      </div>
+      <div class="req-grid" style="gap:20px;">
 
-        <div class="form-group">
-          <label class="form-label">채용 포지션 제목 <span style="color:#dc2626;">*</span></label>
-          <input type="text" name="title" class="form-control"
+        <div class="field">
+          <label>포지션 제목 <span class="req-mark">*</span></label>
+          <input type="text" name="title" class="input"
                  value="{{ req.title if req else '' }}"
                  placeholder="예: 백엔드 개발자 (Python/Flask)" required>
         </div>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-          <div class="form-group">
-            <label class="form-label">부서</label>
-            <select name="department_id" class="form-control">
-              <option value="">부서 선택</option>
+        <div class="req-grid req-grid-2">
+          <div class="field">
+            <label>부서</label>
+            <select name="department_id" class="select">
+              <option value="">— 부서 선택 —</option>
               {% for d in depts %}
-              <option value="{{ d.id }}" {% if req and req.department_id == d.id %}selected{% endif %}>
-                {{ d.name }}
-              </option>
+              <option value="{{ d.id }}" {% if req and req.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
               {% endfor %}
             </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">직급</label>
-            <select name="position_id" class="form-control">
-              <option value="">직급 선택</option>
-              {% for p in poses %}
-              <option value="{{ p.id }}" {% if req and req.position_id == p.id %}selected{% endif %}>
-                {{ p.name }}
-              </option>
-              {% endfor %}
-            </select>
+          <div class="field">
+            <label>채용 인원 <span class="req-mark">*</span></label>
+            <div class="headcount-wrap">
+              <button type="button" class="hc-btn minus" onclick="changeHC(-1)">−</button>
+              <input type="number" name="headcount" id="hc-input" class="input"
+                     value="{{ req.headcount if req else 1 }}" min="1" max="99" required>
+              <button type="button" class="hc-btn plus" onclick="changeHC(1)">+</button>
+            </div>
           </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-          <div class="form-group">
-            <label class="form-label">채용 인원 <span style="color:#dc2626;">*</span></label>
-            <input type="number" name="headcount" class="form-control" min="1" max="99"
-                   value="{{ req.headcount if req else 1 }}" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">고용 형태</label>
-            <select name="employment_type" class="form-control">
-              {% for key, label in emp_type_labels.items() %}
-              <option value="{{ key }}" {% if req and req.employment_type == key %}selected{% elif not req and key == 'full_time' %}selected{% endif %}>
-                {{ label }}
-              </option>
-              {% endfor %}
-            </select>
-          </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-          <div class="form-group">
-            <label class="form-label">희망 입사일</label>
-            <input type="date" name="target_start_date" class="form-control"
-                   value="{{ req.target_start_date if req and req.target_start_date else '' }}">
-          </div>
-          <div class="form-group" style="visibility:hidden;"></div>
         </div>
 
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:16px;">
-      <div class="card-head"><span class="card-title">채용 사유 및 요건</span></div>
-      <div class="card-body">
+    <!-- 섹션 2: 직군 + 레벨 + 트랙 -->
+    <div class="req-section">
+      <div class="req-section-title">
+        <i class="fas fa-layer-group"></i> 직군 · 레벨 · 트랙
+        <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;margin-left:4px;opacity:.6;">선택 시 연봉 밴드 자동 적용</span>
+      </div>
+      <div class="req-grid" style="gap:20px;">
 
-        <div class="form-group">
-          <label class="form-label">채용 사유 <span style="color:#dc2626;">*</span></label>
-          <textarea name="reason" class="form-control" rows="4" required
-                    placeholder="채용이 필요한 이유를 구체적으로 작성해주세요.&#10;예: 신규 프로젝트 론칭으로 인한 백엔드 인력 보강">{{ req.reason if req else '' }}</textarea>
+        <!-- 직군 -->
+        <div class="field">
+          <label>직군 (Job Family)</label>
+          <input type="hidden" name="job_family_id" id="jf-hidden" value="{{ req.job_family_id if req else '' }}">
+          {% set jf_icons = {'SWE':'💻','DATA':'📊','PM':'🎯','INFRA':'🔧','DESIGN':'🎨','MKT':'📣','SALES':'🤝','OPS':'⚙️','FIN':'💰','HR':'👥','LEGAL':'⚖️','STRAT':'🗺️'} %}
+          <div class="jf-grid">
+            {% for jf in jfs %}
+            <div class="jf-card {% if req and req.job_family_id == jf.id %}selected{% endif %}"
+                 data-jf-id="{{ jf.id }}" onclick="selectJF(this)">
+              <span class="jf-icon">{{ jf_icons.get(jf.code, '📁') }}</span>
+              {{ jf.name }}
+            </div>
+            {% endfor %}
+          </div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label">요구 스킬 / 자격요건</label>
-          <textarea name="required_skills" class="form-control" rows="3"
-                    placeholder="예: Python 3년 이상, Flask/Django 경험, AWS 기본 이해">{{ req.required_skills if req else '' }}</textarea>
+        <!-- 레벨 -->
+        <div class="field">
+          <label>레벨 (Level)</label>
+          <input type="hidden" name="position_id" id="pos-hidden" value="{{ req.position_id if req else '' }}">
+          <div class="level-grid">
+            {% for pos in poses %}
+            <div class="level-card {% if req and req.position_id == pos.id %}selected{% endif %} {% if pos.level >= manager_track_min_level %}m-eligible{% endif %}"
+                 data-pos-id="{{ pos.id }}" data-level="{{ pos.level }}"
+                 onclick="selectLevel(this)">
+              L{{ pos.level }}
+              <span>{% if pos.level==1 %}Jr.{% elif pos.level==2 %}Assoc.{% elif pos.level==3 %}Mid{% elif pos.level==4 %}Senior{% elif pos.level==5 %}Staff{% elif pos.level==6 %}Sr.Staff{% elif pos.level==7 %}Principal{% elif pos.level==8 %}Dist.{% else %}Fellow{% endif %}</span>
+            </div>
+            {% endfor %}
+          </div>
+          <div style="font-size:10px;color:var(--on-surface-muted);margin-top:4px;">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#10b981;margin-right:4px;vertical-align:middle;"></span>녹색 테두리(L5+) = Manager 트랙 선택 가능
+          </div>
+        </div>
+
+        <!-- 트랙 -->
+        <div class="field">
+          <label>트랙 (Track)</label>
+          <input type="hidden" name="track" id="track-hidden" value="{{ req.track if req else 'IC' }}">
+          <div class="track-toggle">
+            <div class="track-card ic {% if not req or req.track == 'IC' %}selected{% endif %}"
+                 id="ic-track-card" onclick="selectTrack('IC')">
+              <div class="track-name">🔵 IC</div>
+              <div class="track-desc">Individual Contributor<br>기술 전문가 트랙</div>
+            </div>
+            <div class="track-card m {% if req and req.track == 'M' %}selected{% endif %}"
+                 id="m-track-card" onclick="selectTrack('M')">
+              <div class="track-name">🟢 M</div>
+              <div class="track-desc">Manager<br>L5+ 부터 선택 가능</div>
+            </div>
+          </div>
+          <div id="track-title-display" style="font-size:12px;font-weight:600;margin-top:6px;min-height:18px;"></div>
+        </div>
+
+        <!-- 연봉 밴드 미리보기 -->
+        <div class="field">
+          <label>연봉 밴드 (시장 기준 자동 계산)</label>
+          <div class="salary-band-preview" id="band-preview">
+            <span class="band-empty">직군과 레벨을 선택하면 연봉 밴드가 자동으로 표시됩니다</span>
+          </div>
         </div>
 
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:24px;">
-      <div class="card-head"><span class="card-title">급여 범위 (선택)</span></div>
-      <div class="card-body">
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-          <div class="form-group">
-            <label class="form-label">최소 (만원/연)</label>
-            <input type="number" name="salary_min" class="form-control" min="0" step="100"
-                   value="{{ (req.salary_min // 10000) if req and req.salary_min else '' }}"
-                   placeholder="3000">
-          </div>
-          <div class="form-group">
-            <label class="form-label">최대 (만원/연)</label>
-            <input type="number" name="salary_max" class="form-control" min="0" step="100"
-                   value="{{ (req.salary_max // 10000) if req and req.salary_max else '' }}"
-                   placeholder="5000">
+    <!-- 섹션 3: 채용 조건 -->
+    <div class="req-section">
+      <div class="req-section-title">
+        <i class="fas fa-sliders-h"></i> 채용 조건
+      </div>
+      <div class="req-grid" style="gap:20px;">
+        <div class="field">
+          <label>고용 형태</label>
+          <input type="hidden" name="employment_type" id="emp-type-hidden"
+                 value="{{ req.employment_type if req else 'full_time' }}">
+          {% set emp_icons = {'full_time':'🏢','part_time':'⏱️','contract':'📋','intern':'🎓','freelance':'🌐'} %}
+          <div class="emp-type-grid">
+            {% for key, label in emp_type_labels.items() %}
+            <div class="emp-type-card {% if (req and req.employment_type == key) or (not req and key == 'full_time') %}selected{% endif %}"
+                 data-val="{{ key }}" onclick="selectEmpType(this)">
+              <span class="etc-icon">{{ emp_icons.get(key, '📄') }}</span>
+              {{ label }}
+            </div>
+            {% endfor %}
           </div>
         </div>
-        <div style="font-size:12px; color:var(--tx-3);">* 입력값은 만원 단위로 저장됩니다. (예: 3000 → 3,000만원)</div>
+        <div class="field">
+          <label>희망 입사일</label>
+          <input type="date" name="target_start_date" class="input"
+                 value="{{ req.target_start_date if req and req.target_start_date else '' }}">
+        </div>
       </div>
     </div>
 
-    <div style="display:flex; gap:10px; justify-content:flex-end;">
-      <a href="{{ url_for('requisition_list') }}" class="btn btn-ghost">취소</a>
-      <button type="submit" name="action" value="save" class="btn btn-ghost">
-        <i class="fas fa-save"></i> 임시 저장
-      </button>
-      <button type="submit" name="action" value="submit" class="btn btn-primary"
-              onclick="return confirm('부서장 승인을 요청합니다. 계속하시겠습니까?');">
-        <i class="fas fa-paper-plane"></i> 승인 요청
-      </button>
+    <!-- 섹션 4: 급여 범위 -->
+    <div class="req-section">
+      <div class="req-section-title">
+        <i class="fas fa-won-sign"></i> 급여 범위
+        <span style="font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;margin-left:6px;opacity:.6;">밴드 자동 적용 후 직접 수정 가능</span>
+      </div>
+      <div class="salary-inputs">
+        <div class="field" style="margin:0;">
+          <label>최소 연봉 (만원)</label>
+          <input type="number" name="salary_min" id="inp-salary-min" class="input" min="0" step="100"
+                 value="{{ (req.salary_min // 10000) if req and req.salary_min else '' }}"
+                 placeholder="3,000">
+        </div>
+        <div class="salary-sep">~</div>
+        <div class="field" style="margin:0;">
+          <label>최대 연봉 (만원)</label>
+          <input type="number" name="salary_max" id="inp-salary-max" class="input" min="0" step="100"
+                 value="{{ (req.salary_max // 10000) if req and req.salary_max else '' }}"
+                 placeholder="5,000">
+        </div>
+      </div>
+      <input type="hidden" name="salary_mid" id="inp-salary-mid"
+             value="{{ (req.salary_mid // 10000) if req and req.salary_mid else 0 }}">
+      <div style="margin-top:8px;font-size:11px;color:var(--on-surface-muted);">
+        만원 단위 입력 · 예: 3000 → 3,000만원/년
+      </div>
+    </div>
+
+    <!-- 섹션 5: 채용 배경 & 요건 -->
+    <div class="req-section">
+      <div class="req-section-title">
+        <i class="fas fa-align-left"></i> 채용 배경 & 요건
+      </div>
+      <div class="req-grid" style="gap:20px;">
+        <div class="field">
+          <label>채용 사유 <span class="req-mark">*</span></label>
+          <textarea name="reason" class="textarea" rows="4" required
+            placeholder="채용이 필요한 이유를 구체적으로 작성해주세요.&#10;예) 신규 프로젝트 론칭으로 인한 백엔드 인력 보강">{{ req.reason if req else '' }}</textarea>
+        </div>
+        <div class="field">
+          <label>요구 스킬 / 자격요건</label>
+          <textarea name="required_skills" class="textarea" rows="3"
+            placeholder="예) Python 3년+, Flask/Django 경험, AWS 기본 이해">{{ req.required_skills if req else '' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 액션 바 -->
+    <div class="req-actions">
+      <div class="req-actions-hint">
+        <i class="fas fa-info-circle" style="margin-right:4px;"></i>
+        임시저장 후 나중에 제출하거나, 바로 승인 요청할 수 있습니다.
+      </div>
+      <div style="display:flex;gap:10px;">
+        <a href="{{ url_for('requisition_list') }}" class="btn btn-ghost btn-sm">취소</a>
+        <button type="submit" name="action" value="save" class="btn btn-secondary btn-sm">
+          <i class="fas fa-save"></i> 임시 저장
+        </button>
+        <button type="submit" name="action" value="submit" class="btn btn-primary btn-sm"
+                onclick="return confirm('부서장 승인을 요청합니다. 계속하시겠습니까?');">
+          <i class="fas fa-paper-plane"></i> 승인 요청
+        </button>
+      </div>
     </div>
 
   </form>
 </div>
+{% endblock %}
 
 {% block scripts %}
 {{ super() }}
 <script>
-// 급여 만원 단위 → 원 단위 변환
+var IC_TITLES = {{ ic_track_title | tojson }};
+var M_TITLES  = {{ m_track_title  | tojson }};
+var MANAGER_MIN_LEVEL = {{ manager_track_min_level }};
+
+var _jfId  = document.getElementById('jf-hidden').value  || null;
+var _posId = document.getElementById('pos-hidden').value || null;
+var _level = null;
+var _track = document.getElementById('track-hidden').value || 'IC';
+
+// 초기화
+document.querySelectorAll('.level-card').forEach(function(c) {
+  if (String(c.dataset.posId) === String(_posId)) _level = parseInt(c.dataset.level);
+});
+updateTrackUI();
+if (_jfId && _level) loadBand();
+
+function changeHC(delta) {
+  var el = document.getElementById('hc-input');
+  var v = parseInt(el.value) + delta;
+  if (v < 1) v = 1; if (v > 99) v = 99;
+  el.value = v;
+}
+
+function selectJF(el) {
+  document.querySelectorAll('.jf-card').forEach(function(c){ c.classList.remove('selected'); });
+  el.classList.add('selected');
+  _jfId = el.dataset.jfId;
+  document.getElementById('jf-hidden').value = _jfId;
+  if (_level) loadBand();
+}
+
+function selectLevel(el) {
+  document.querySelectorAll('.level-card').forEach(function(c){ c.classList.remove('selected'); });
+  el.classList.add('selected');
+  _posId = el.dataset.posId;
+  _level = parseInt(el.dataset.level);
+  document.getElementById('pos-hidden').value = _posId;
+  var mCard = document.getElementById('m-track-card');
+  if (_level >= MANAGER_MIN_LEVEL) {
+    mCard.classList.add('unlocked');
+  } else {
+    mCard.classList.remove('unlocked');
+    if (_track === 'M') selectTrack('IC');
+  }
+  updateTrackTitle();
+  if (_jfId) loadBand();
+}
+
+function selectTrack(track) {
+  _track = track;
+  document.getElementById('track-hidden').value = track;
+  document.getElementById('ic-track-card').classList.toggle('selected', track === 'IC');
+  document.getElementById('m-track-card').classList.toggle('selected', track === 'M');
+  updateTrackTitle();
+  if (_jfId && _level) loadBand();
+}
+
+function updateTrackUI() {
+  var mCard = document.getElementById('m-track-card');
+  if (_level && _level >= MANAGER_MIN_LEVEL) mCard.classList.add('unlocked');
+  else mCard.classList.remove('unlocked');
+  updateTrackTitle();
+}
+
+function updateTrackTitle() {
+  var el = document.getElementById('track-title-display');
+  if (!_level) { el.textContent = ''; return; }
+  var titles = _track === 'M' ? M_TITLES : IC_TITLES;
+  el.textContent = titles[String(_level)] || '';
+  el.style.color = _track === 'M' ? '#15803d' : 'var(--primary)';
+}
+
+function loadBand() {
+  fetch('/api/salary-band?job_family_id=' + _jfId + '&level=' + _level + '&track=' + _track)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.error) return;
+      var badge = _track === 'M'
+        ? '<span class="band-track-badge band-track-m">M 트랙 +10%</span>'
+        : '<span class="band-track-badge band-track-ic">IC 트랙</span>';
+      document.getElementById('band-preview').innerHTML =
+        '<div class="band-segment"><div class="band-val">₩' + d.min_man.toLocaleString() + 'M</div><div class="band-lbl">Min</div></div>' +
+        '<div class="band-sep"></div>' +
+        '<div class="band-segment"><div class="band-val" style="color:var(--primary)">₩' + d.mid_man.toLocaleString() + 'M</div><div class="band-lbl">Mid</div></div>' +
+        '<div class="band-sep"></div>' +
+        '<div class="band-segment"><div class="band-val">₩' + d.max_man.toLocaleString() + 'M</div><div class="band-lbl">Max</div></div>' +
+        badge;
+      document.getElementById('inp-salary-min').value = d.min_man;
+      document.getElementById('inp-salary-mid').value = d.mid_man;
+      document.getElementById('inp-salary-max').value = d.max_man;
+    });
+}
+
+function selectEmpType(el) {
+  document.querySelectorAll('.emp-type-card').forEach(function(c){ c.classList.remove('selected'); });
+  el.classList.add('selected');
+  document.getElementById('emp-type-hidden').value = el.dataset.val;
+}
+
 document.getElementById('req-form').addEventListener('submit', function() {
-  ['salary_min','salary_max'].forEach(function(name) {
-    var el = document.querySelector('[name="'+name+'"]');
+  ['salary_min', 'salary_max'].forEach(function(name) {
+    var el = document.querySelector('[name="' + name + '"]');
     if (el && el.value) el.value = parseInt(el.value) * 10000;
   });
+  var mid = document.getElementById('inp-salary-mid');
+  if (mid && mid.value) mid.value = parseInt(mid.value) * 10000;
 });
 </script>
-{% endblock %}
-
 {% endblock %}

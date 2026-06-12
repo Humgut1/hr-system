@@ -5236,6 +5236,78 @@ REQUISITION_EMP_TYPE_LABEL = {
     'freelance':  '프리랜서',
 }
 
+# M 트랙은 L5(CL5, level=5) 이상에서만 선택 가능
+REQUISITION_TRACK_LABEL = {
+    'IC': 'IC (Individual Contributor)',
+    'M':  'M (Manager)',
+}
+MANAGER_TRACK_MIN_LEVEL = 5
+
+# M 트랙 직함 (레벨별)
+M_TRACK_TITLE = {
+    5: 'M1 · Team Lead',
+    6: 'M2 · Engineering Manager',
+    7: 'M3 · Senior Manager',
+    8: 'M4 · Director',
+    9: 'M5 · VP / C-Level',
+}
+IC_TRACK_TITLE = {
+    1: 'L1 · Junior Associate',
+    2: 'L2 · Associate',
+    3: 'L3 · Mid-level',
+    4: 'L4 · Senior',
+    5: 'L5 · Staff / Tech Lead',
+    6: 'L6 · Senior Staff',
+    7: 'L7 · Principal',
+    8: 'L8 · Distinguished',
+    9: 'L9 · Fellow / CTO',
+}
+
+# ── Salary Band API ───────────────────────────────────────────────────
+@app.route('/api/salary-band')
+@login_required
+def api_salary_band():
+    """직군 + 레벨 + 트랙 → 연봉 밴드 JSON 반환."""
+    db         = get_db()
+    jf_id      = request.args.get('job_family_id', type=int)
+    level      = request.args.get('level', type=int)
+    track      = request.args.get('track', 'IC')
+
+    if not jf_id or not level:
+        return jsonify({'error': 'job_family_id and level required'}), 400
+
+    pos = db.execute('SELECT id FROM positions WHERE level=?', (level,)).fetchone()
+    if not pos:
+        return jsonify({'error': 'level not found'}), 404
+
+    band = db.execute(
+        'SELECT min_salary, mid_salary, max_salary FROM salary_grades '
+        'WHERE job_family_id=? AND position_id=?',
+        (jf_id, pos['id'])
+    ).fetchone()
+
+    if not band:
+        return jsonify({'min': 0, 'mid': 0, 'max': 0})
+
+    mn  = band['min_salary']
+    mid = band['mid_salary']
+    mx  = band['max_salary']
+
+    # M 트랙: IC 대비 +10% (Amazon SDM vs SDE 기준)
+    if track == 'M' and level >= MANAGER_TRACK_MIN_LEVEL:
+        mn  = int(mn  * 1.10)
+        mid = int(mid * 1.10)
+        mx  = int(mx  * 1.10)
+
+    return jsonify({
+        'min': mn,
+        'mid': mid,
+        'max': mx,
+        'min_man': mn  // 10000,
+        'mid_man': mid // 10000,
+        'max_man': mx  // 10000,
+    })
+
 # ── Requisition 라우트 ────────────────────────────────────────────────
 
 @app.route('/recruit/requisitions')
@@ -5289,24 +5361,29 @@ def requisition_new():
     db    = get_db()
     depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
     poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+    jfs   = db.execute('SELECT * FROM job_families ORDER BY id').fetchall()
 
     if request.method == 'POST':
         f = request.form
         rid = db.execute(
             'INSERT INTO job_requisitions '
-            '(title, department_id, position_id, headcount, employment_type, reason, '
-            ' required_skills, salary_min, salary_max, target_start_date, '
+            '(title, department_id, position_id, job_family_id, track, '
+            ' headcount, employment_type, reason, '
+            ' required_skills, salary_min, salary_mid, salary_max, target_start_date, '
             ' status, requester_id) '
-            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
             (
                 f.get('title','').strip(),
                 f.get('department_id') or None,
                 f.get('position_id') or None,
+                f.get('job_family_id') or None,
+                f.get('track', 'IC'),
                 int(f.get('headcount', 1)),
                 f.get('employment_type', 'full_time'),
                 f.get('reason','').strip(),
                 f.get('required_skills','').strip(),
                 int(f.get('salary_min') or 0),
+                int(f.get('salary_mid') or 0),
                 int(f.get('salary_max') or 0),
                 f.get('target_start_date','').strip() or None,
                 'draft',
@@ -5321,8 +5398,12 @@ def requisition_new():
         return redirect(url_for('requisition_detail', req_id=rid))
 
     return render_template('recruit/requisition_form.html',
-        req=None, depts=depts, poses=poses,
+        req=None, depts=depts, poses=poses, jfs=jfs,
         emp_type_labels=REQUISITION_EMP_TYPE_LABEL,
+        track_labels=REQUISITION_TRACK_LABEL,
+        manager_track_min_level=MANAGER_TRACK_MIN_LEVEL,
+        ic_track_title=IC_TRACK_TITLE,
+        m_track_title=M_TRACK_TITLE,
         active_page='recruit'
     )
 
@@ -5335,11 +5416,13 @@ def requisition_detail(req_id):
     role = session.get('user_role')
 
     req = db.execute(
-        'SELECT r.*, d.name AS dept_name, p.name AS pos_name, '
+        'SELECT r.*, d.name AS dept_name, p.name AS pos_name, p.level AS pos_level, '
+        'jf.name AS jf_name, jf.code AS jf_code, '
         'u.name AS requester_name, da.name AS dept_approver_name, ha.name AS hr_approver_name '
         'FROM job_requisitions r '
         'LEFT JOIN departments d  ON r.department_id    = d.id '
         'LEFT JOIN positions   p  ON r.position_id      = p.id '
+        'LEFT JOIN job_families jf ON r.job_family_id   = jf.id '
         'LEFT JOIN users       u  ON r.requester_id     = u.id '
         'LEFT JOIN users       da ON r.dept_approver_id = da.id '
         'LEFT JOIN users       ha ON r.hr_approver_id   = ha.id '
@@ -5364,6 +5447,8 @@ def requisition_detail(req_id):
         req=req, posting=posting,
         status_labels=REQUISITION_STATUS_LABEL,
         emp_type_labels=REQUISITION_EMP_TYPE_LABEL,
+        ic_track_title=IC_TRACK_TITLE,
+        m_track_title=M_TRACK_TITLE,
         active_page='recruit'
     )
 
