@@ -5216,29 +5216,34 @@ def profile():
 
 # ── Recruit ─────────────────────────────────────────────────
 STAGES = [
-    ('review',    '서류 검토'),
-    ('screening', '리크루터 스크리닝'),
-    ('inter1',    '1차 인터뷰'),
-    ('kickoff',   '킥오프 미팅'),
-    ('inter2',    '2차 인터뷰'),
-    ('debrief',   '디브리프 미팅'),
-    ('offer',     '오퍼'),
-    ('accepted',  '오퍼 수락'),
-    ('rejected',  '오퍼 거절'),
+    ('review',       '서류 검토'),
+    ('screening',    '리크루터 스크리닝'),
+    ('inter1',       '1차 인터뷰'),
+    ('kickoff',      '킥오프 미팅'),
+    ('inter2',       '2차 인터뷰'),
+    ('debrief',      '디브리프 미팅'),
+    ('offer',        '오퍼'),
+    ('accepted',     '최종 합격'),      # 후보자가 오퍼 수락
+    ('rejected',     '오퍼 거절'),      # 후보자가 오퍼 거절 (후보자 의사결정)
+    ('disqualified', '불합격'),         # 회사가 후보자 탈락 처리 (어느 단계에서든)
 ]
 STAGE_MAP     = dict(STAGES)
-ACTIVE_STAGES = [s for s in STAGES if s[0] not in ('accepted', 'rejected')]
+# 진행 중인 단계 (칸반 열 기준) — 터미널 3종 제외
+ACTIVE_STAGES = [s for s in STAGES if s[0] not in ('accepted', 'rejected', 'disqualified')]
+# 터미널 단계 (재진입 불가)
+TERMINAL_STAGES = {'accepted', 'rejected', 'disqualified'}
 
 STAGE_COLORS = {
-    'review':    '#B4B2A9',
-    'screening': '#AFA9EC',
-    'inter1':    '#85B7EB',
-    'kickoff':   '#97C459',
-    'inter2':    '#5DCAA5',
-    'debrief':   '#EF9F27',
-    'offer':     '#ED93B1',
-    'accepted':  '#5DCAA5',
-    'rejected':  '#F09595',
+    'review':       '#B4B2A9',
+    'screening':    '#AFA9EC',
+    'inter1':       '#85B7EB',
+    'kickoff':      '#97C459',
+    'inter2':       '#5DCAA5',
+    'debrief':      '#EF9F27',
+    'offer':        '#ED93B1',
+    'accepted':     '#27ae60',
+    'rejected':     '#F09595',
+    'disqualified': '#c0392b',
 }
 
 SOURCE_LABELS = {
@@ -5861,16 +5866,23 @@ def recruit_pipeline():
 @recruiter_or_admin
 def recruit_stage_update(applicant_id):
     """AJAX — 드래그앤드롭 단계 변경"""
-    import json as _json
     data      = request.get_json(force=True)
     new_stage = data.get('stage', '')
     if new_stage not in STAGE_MAP:
         return jsonify({'ok': False, 'error': 'invalid stage'}), 400
+    # 불합격 처리는 전용 라우트로만 허용 (사유 코드 필수)
+    if new_stage == 'disqualified':
+        return jsonify({'ok': False, 'error': 'use disqualify endpoint'}), 400
+    # 오퍼 거절은 오퍼 단계에서만 허용
+    if new_stage == 'rejected':
+        return jsonify({'ok': False, 'error': 'use disqualify endpoint'}), 400
     db = get_db()
     applicant = db.execute('SELECT * FROM applicants WHERE id=?', (applicant_id,)).fetchone()
     if not applicant:
         return jsonify({'ok': False, 'error': 'not found'}), 404
     old_stage = applicant['stage']
+    if old_stage in TERMINAL_STAGES:
+        return jsonify({'ok': False, 'error': '터미널 단계에서는 이동할 수 없습니다.'}), 400
     db.execute('UPDATE applicants SET stage=? WHERE id=?', (new_stage, applicant_id))
     db.execute(
         'INSERT INTO applicant_logs (applicant_id, stage, note, changed_by) VALUES (?,?,?,?)',
@@ -5879,6 +5891,110 @@ def recruit_stage_update(applicant_id):
     log_recruit(applicant_id, 'stage_changed', {'from': old_stage, 'to': new_stage})
     db.commit()
     return jsonify({'ok': True, 'stage': new_stage, 'label': STAGE_MAP[new_stage]})
+
+
+@app.route('/recruit/applicants/<int:applicant_id>/disqualify', methods=['POST'])
+@recruiter_or_admin
+def recruit_disqualify(applicant_id):
+    """불합격 처리 — 어느 단계에서든, 사유 코드 기록"""
+    db        = get_db()
+    applicant = db.execute('SELECT * FROM applicants WHERE id=?', (applicant_id,)).fetchone()
+    if not applicant:
+        abort(404)
+    if applicant['stage'] in TERMINAL_STAGES:
+        flash('이미 처리 완료된 후보자입니다.', 'warning')
+        return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+
+    reason_code = request.form.get('reason_code', '').strip()
+    note        = request.form.get('note', '').strip() or None
+    from_stage  = applicant['stage']   # 어느 단계에서 불합격됐는지 기록
+
+    if not reason_code:
+        flash('불합격 사유 코드를 선택해주세요.', 'warning')
+        return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+
+    db.execute(
+        'UPDATE applicants SET stage=?, disqualified_from=?, disqualify_reason=? WHERE id=?',
+        ('disqualified', from_stage, reason_code, applicant_id)
+    )
+    db.execute(
+        'INSERT INTO applicant_logs (applicant_id, stage, note, changed_by) VALUES (?,?,?,?)',
+        (applicant_id, 'disqualified',
+         f'[불합격] {STAGE_MAP.get(from_stage, from_stage)} 단계 · 사유: {REJECTION_REASON_CODES.get(reason_code, reason_code)}' + (f' · {note}' if note else ''),
+         session['user_id'])
+    )
+    log_recruit(applicant_id, 'disqualified',
+                {'from_stage': from_stage, 'reason_code': reason_code, 'note': note})
+    db.commit()
+    flash(f'{applicant["name"]} 님이 불합격 처리됐습니다.', 'info')
+    return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+
+
+@app.route('/recruit/applicants/<int:applicant_id>/offer-reject', methods=['POST'])
+@recruiter_or_admin
+def recruit_offer_reject(applicant_id):
+    """오퍼 거절 처리 — offer 단계 후보자에 한해"""
+    db        = get_db()
+    applicant = db.execute('SELECT * FROM applicants WHERE id=?', (applicant_id,)).fetchone()
+    if not applicant:
+        abort(404)
+    if applicant['stage'] != 'offer':
+        flash('오퍼 단계의 후보자에게만 오퍼 거절 처리가 가능합니다.', 'warning')
+        return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+
+    note = request.form.get('note', '').strip() or None
+    db.execute('UPDATE applicants SET stage=? WHERE id=?', ('rejected', applicant_id))
+    db.execute(
+        'INSERT INTO applicant_logs (applicant_id, stage, note, changed_by) VALUES (?,?,?,?)',
+        (applicant_id, 'rejected', note or '후보자가 오퍼를 거절했습니다.', session['user_id'])
+    )
+    log_recruit(applicant_id, 'offer_rejected', {'note': note})
+    db.commit()
+    flash(f'{applicant["name"]} 님이 오퍼를 거절했습니다.', 'info')
+    return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+
+
+@app.route('/recruit/applicants/<int:applicant_id>/hire', methods=['POST'])
+@recruiter_or_admin
+def recruit_hire(applicant_id):
+    """최종 합격 처리 — offer 단계 후보자에 한해"""
+    db        = get_db()
+    applicant = db.execute('SELECT * FROM applicants WHERE id=?', (applicant_id,)).fetchone()
+    if not applicant:
+        abort(404)
+    if applicant['stage'] != 'offer':
+        flash('오퍼 단계의 후보자에게만 최종 합격 처리가 가능합니다.', 'warning')
+        return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+
+    db.execute('UPDATE applicants SET stage=? WHERE id=?', ('accepted', applicant_id))
+    db.execute(
+        'INSERT INTO applicant_logs (applicant_id, stage, note, changed_by) VALUES (?,?,?,?)',
+        (applicant_id, 'accepted', '최종 합격 처리', session['user_id'])
+    )
+    log_recruit(applicant_id, 'hired', {})
+    db.commit()
+    flash(f'🎉 {applicant["name"]} 님 최종 합격 처리됐습니다!', 'success')
+    return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+
+
+@app.route('/recruit/rounds/<int:round_id>/notes/add', methods=['POST'])
+@login_required
+def recruit_round_note_add(round_id):
+    """면접 라운드 빠른 메모 추가"""
+    db      = get_db()
+    rnd     = db.execute('SELECT * FROM interview_rounds WHERE id=?', (round_id,)).fetchone()
+    if not rnd:
+        abort(404)
+    content = request.form.get('content', '').strip()
+    if not content:
+        flash('내용을 입력해주세요.', 'warning')
+        return redirect(request.referrer or url_for('recruit_applicant_detail', applicant_id=rnd['applicant_id']))
+    db.execute(
+        'INSERT INTO interview_round_notes (round_id, author_id, content) VALUES (?,?,?)',
+        (round_id, session['user_id'], content)
+    )
+    db.commit()
+    return redirect(url_for('recruit_applicant_detail', applicant_id=rnd['applicant_id']) + '#interviews')
 
 
 @app.route('/recruit/applicants/<int:applicant_id>/panel')
@@ -5990,6 +6106,12 @@ def recruit_applicant_detail(applicant_id):
             'FROM interview_feedback f JOIN users u ON f.interviewer_id = u.id '
             'WHERE f.round_id=? ORDER BY f.submitted_at', (r['id'],)
         ).fetchall()
+        # 라운드별 빠른 메모
+        round_notes = db.execute(
+            'SELECT n.*, u.name AS author_name '
+            'FROM interview_round_notes n JOIN users u ON n.author_id = u.id '
+            'WHERE n.round_id=? ORDER BY n.created_at', (r['id'],)
+        ).fetchall()
         # 인터뷰어 누적 면접 시간 (분)
         for iv in interviewers:
             total_min = db.execute(
@@ -6010,6 +6132,7 @@ def recruit_applicant_detail(applicant_id):
             'round': dict(r),
             'interviewers': interviewers_list,
             'feedbacks': feedbacks_list,
+            'notes': [dict(n) for n in round_notes],
         })
 
     # 채용 전체 활동 로그

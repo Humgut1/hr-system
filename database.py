@@ -1086,6 +1086,23 @@ def init_db(db_path: str = None):
             created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
 
+        # ── v0.63.0 불합격 처리 + 면접 노트 ───────────────────────────────────
+        # applicants: disqualified_from 컬럼 추가 (어느 단계에서 불합격됐는지 기록)
+        ap_cols = {r[1] for r in c.execute('PRAGMA table_info(applicants)').fetchall()}
+        if 'disqualified_from' not in ap_cols:
+            c.execute('ALTER TABLE applicants ADD COLUMN disqualified_from TEXT')
+        if 'disqualify_reason' not in ap_cols:
+            c.execute('ALTER TABLE applicants ADD COLUMN disqualify_reason TEXT')
+
+        # 라운드별 면접 노트 (면접 중 빠른 메모, 피드백 폼과 별개)
+        c.execute('''CREATE TABLE IF NOT EXISTS interview_round_notes (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            round_id     INTEGER NOT NULL REFERENCES interview_rounds(id) ON DELETE CASCADE,
+            author_id    INTEGER NOT NULL REFERENCES users(id),
+            content      TEXT NOT NULL,
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
         # ── v0.62.1 지원자 서류 첨부 ────────────────────────────────────────
         c.execute('''CREATE TABLE IF NOT EXISTS applicant_documents (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,

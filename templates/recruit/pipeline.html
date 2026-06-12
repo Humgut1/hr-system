@@ -186,28 +186,32 @@
 </div>
 
 <!-- 요약 바 -->
-{% set ns = namespace(total=0, active=0, accepted=0, rejected=0) %}
+{% set ns = namespace(total=0, active=0, accepted=0, rejected=0, disqualified=0) %}
 {% for stage, _ in stages %}
   {% for a in pipeline[stage] %}
     {% set ns.total = ns.total + 1 %}
-    {% if stage not in ('accepted','rejected') %}{% set ns.active = ns.active + 1 %}{% endif %}
+    {% if stage not in ('accepted','rejected','disqualified') %}{% set ns.active = ns.active + 1 %}{% endif %}
     {% if stage == 'accepted' %}{% set ns.accepted = ns.accepted + 1 %}{% endif %}
     {% if stage == 'rejected' %}{% set ns.rejected = ns.rejected + 1 %}{% endif %}
+    {% if stage == 'disqualified' %}{% set ns.disqualified = ns.disqualified + 1 %}{% endif %}
   {% endfor %}
 {% endfor %}
 <div class="sum-bar">
   <div class="sum-card"><div class="sum-num">{{ ns.total }}</div><div class="sum-lbl">전체 지원자</div></div>
-  <div class="sum-card"><div class="sum-num">{{ ns.active }}</div><div class="sum-lbl">진행 중</div></div>
-  <div class="sum-card"><div class="sum-num" style="color:#27ae60;">{{ ns.accepted }}</div><div class="sum-lbl">수락</div></div>
-  <div class="sum-card"><div class="sum-num" style="color:#e74c3c;">{{ ns.rejected }}</div><div class="sum-lbl">거절</div></div>
+  <div class="sum-card"><div class="sum-num" style="color:var(--primary);">{{ ns.active }}</div><div class="sum-lbl">진행 중</div></div>
+  <div class="sum-card"><div class="sum-num" style="color:#27ae60;">{{ ns.accepted }}</div><div class="sum-lbl">최종 합격</div></div>
+  <div class="sum-card"><div class="sum-num" style="color:#c87700;">{{ ns.rejected }}</div><div class="sum-lbl">오퍼 거절</div></div>
+  <div class="sum-card"><div class="sum-num" style="color:#c0392b;">{{ ns.disqualified }}</div><div class="sum-lbl">불합격</div></div>
 </div>
 {% endif %}
 
-<!-- 칸반 보드 -->
+<!-- 칸반 보드 — 진행 중 + 터미널 -->
 <div class="pipe-wrap">
   <div class="pipe-board" id="pipeBoard">
     {% for stage, label in stages %}
-    <div class="pipe-col" data-stage="{{ stage }}">
+    {% if stage not in ('disqualified',) %}
+    <div class="pipe-col" data-stage="{{ stage }}"
+         {% if stage in ('accepted','rejected') %}style="opacity:.75;"{% endif %}>
       <div class="pipe-col-head">
         <span class="pipe-col-name">{{ label }}</span>
         <span class="pipe-col-cnt" id="cnt-{{ stage }}">{{ pipeline[stage]|length }}</span>
@@ -219,7 +223,8 @@
         <div class="pipe-card"
              draggable="true"
              data-id="{{ a.id }}"
-             data-stage="{{ stage }}">
+             data-stage="{{ stage }}"
+             {% if stage in ('accepted','rejected') %}style="opacity:.7;"{% endif %}>
           <div class="pipe-card-qa">
             <a href="{{ url_for('recruit_applicant_detail', applicant_id=a.id) }}"
                onclick="event.stopPropagation()"
@@ -232,14 +237,83 @@
           <div class="pipe-card-meta">
             <div class="pipe-card-av">{{ a.name[0] }}</div>
             <span style="font-size:10px;color:var(--tx-3);flex:1;">{{ days }}일째</span>
+            {% if stage not in ('accepted','rejected') %}
             <span style="font-size:11px;font-weight:700;
               color:{% if days <= 7 %}#27ae60{% elif days <= 14 %}#c87700{% else %}#e74c3c{% endif %};">●</span>
+            {% endif %}
           </div>
         </div>
         {% endfor %}
       </div>
     </div>
+    {% endif %}
     {% endfor %}
+  </div>
+</div>
+
+<!-- 불합격 섹션 (진행 보드와 분리) -->
+{% if pipeline['disqualified'] %}
+<div style="margin-top:20px; border-top:2px dashed var(--border); padding-top:16px;">
+  <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+    <span style="font-size:13px; font-weight:700; color:#c0392b;">
+      <i class="fas fa-times-circle"></i> 불합격 {{ pipeline['disqualified']|length }}명
+    </span>
+    <span style="font-size:11px; color:var(--tx-4);">이 공고에서 불합격 처리된 후보자입니다.</span>
+  </div>
+  <div style="display:flex; flex-wrap:wrap; gap:8px;">
+    {% for a in pipeline['disqualified'] %}
+    <div style="background:var(--bg-2); border:1px solid var(--border); border-radius:var(--r-sm);
+                padding:8px 12px; display:flex; align-items:center; gap:8px; opacity:.7; cursor:pointer;"
+         onclick="location.href='{{ url_for('recruit_applicant_detail', applicant_id=a.id) }}'">
+      <div style="width:24px; height:24px; border-radius:50%; background:#c0392b;
+                  display:flex; align-items:center; justify-content:center;
+                  font-size:10px; font-weight:700; color:#fff;">{{ a.name[0] }}</div>
+      <div>
+        <div style="font-size:12px; font-weight:700; color:var(--tx-2);">{{ a.name }}</div>
+        {% if a.disqualified_from %}
+        <div style="font-size:10px; color:var(--tx-4);">
+          {{ stage_map.get(a.disqualified_from, a.disqualified_from) }} 단계
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- 불합격 처리 모달 (드래그 시 사용) -->
+<div id="dq-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45);
+     z-index:900; align-items:center; justify-content:center;">
+  <div style="background:#ffffff; border-radius:12px; padding:28px; width:400px;
+              max-width:90vw; box-shadow:0 8px 32px rgba(0,0,0,.2);">
+    <div style="font-size:16px; font-weight:900; color:#c0392b; margin-bottom:6px;">
+      <i class="fas fa-times-circle"></i> 불합격 처리
+    </div>
+    <div style="font-size:12px; color:#666; margin-bottom:16px;">
+      <span id="dq-name" style="font-weight:700;"></span> 님을 불합격 처리합니다.
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:11px; font-weight:700; color:#666; display:block; margin-bottom:4px;">
+        불합격 사유 <span style="color:#e74c3c;">*</span>
+      </label>
+      <select id="dq-reason" class="input" style="font-size:12px; width:100%;">
+        <option value="">— 사유를 선택하세요 —</option>
+        {% for code, label in rejection_reason_codes.items() %}
+        <option value="{{ code }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="font-size:11px; font-weight:700; color:#666; display:block; margin-bottom:4px;">추가 메모</label>
+      <textarea id="dq-note" class="input" rows="2" style="font-size:12px; width:100%;"
+                placeholder="내부 메모 (선택)"></textarea>
+    </div>
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button onclick="closeDqModal()" class="btn btn-ghost btn-sm">취소</button>
+      <button onclick="confirmDisqualify()" class="btn btn-sm"
+              style="background:#c0392b; color:#fff; border:none;">불합격 확정</button>
+    </div>
   </div>
 </div>
 
@@ -250,10 +324,18 @@
 (function () {
   const STAGE_LABELS  = {{ stage_map | tojson }};
   const STAGES_ORDER  = {{ stages | map(attribute=0) | list | tojson }};
+  const TERMINAL_STAGES = ['accepted', 'rejected', 'disqualified'];
   let dragId = null, dragFromStage = null, isDragging = false;
+  let pendingDqId = null, pendingDqName = null;
 
   /* ── 드래그앤드롭 ── */
   function initCard(card) {
+    const fromStage = card.dataset.stage;
+    // 터미널 단계 카드는 드래그 불가
+    if (TERMINAL_STAGES.includes(fromStage)) {
+      card.removeAttribute('draggable');
+      return;
+    }
     card.addEventListener('dragstart', e => {
       isDragging    = true;
       dragId        = parseInt(card.dataset.id);
@@ -276,7 +358,11 @@
 
   document.querySelectorAll('.pipe-col-body').forEach(body => {
     const stage = body.closest('.pipe-col').dataset.stage;
-    body.addEventListener('dragover',  e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; body.classList.add('drag-over'); });
+    body.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      body.classList.add('drag-over');
+    });
     body.addEventListener('dragleave', e => {
       if (!body.contains(e.relatedTarget)) body.classList.remove('drag-over');
     });
@@ -284,6 +370,22 @@
       e.preventDefault(); body.classList.remove('drag-over');
       const id = parseInt(e.dataTransfer.getData('text/plain'));
       if (!id || dragFromStage === stage) return;
+      // 터미널 단계로 드래그 차단 (오퍼 거절/합격은 상세 페이지에서만)
+      if (stage === 'rejected' || stage === 'accepted') {
+        showToast('오퍼 수락/거절은 상세 페이지에서 처리해주세요.');
+        return;
+      }
+      if (stage === 'disqualified') {
+        // 불합격 → 사유 모달 먼저
+        const card = document.querySelector(`.pipe-card[data-id="${id}"]`);
+        pendingDqId   = id;
+        pendingDqName = card ? card.querySelector('.pipe-card-name').textContent : '';
+        document.getElementById('dq-name').textContent = pendingDqName;
+        document.getElementById('dq-reason').value = '';
+        document.getElementById('dq-note').value   = '';
+        document.getElementById('dq-modal').style.display = 'flex';
+        return;
+      }
       changeStage(id, stage, () => {
         const card = document.querySelector(`.pipe-card[data-id="${id}"]`);
         if (card) { card.dataset.stage = stage; body.appendChild(card); updateCounts(); }
@@ -306,6 +408,30 @@
     })
     .catch(() => showToast('네트워크 오류'));
   }
+
+  /* ── 불합격 모달 ── */
+  window.closeDqModal = function() {
+    document.getElementById('dq-modal').style.display = 'none';
+    pendingDqId = null; pendingDqName = null;
+  };
+
+  window.confirmDisqualify = function() {
+    const reason = document.getElementById('dq-reason').value;
+    const note   = document.getElementById('dq-note').value;
+    if (!reason) { alert('불합격 사유를 선택해주세요.'); return; }
+    if (!pendingDqId) return;
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/recruit/applicants/${pendingDqId}/disqualify`;
+    [['reason_code', reason], ['note', note]].forEach(([k, v]) => {
+      const i = document.createElement('input');
+      i.type = 'hidden'; i.name = k; i.value = v;
+      form.appendChild(i);
+    });
+    document.body.appendChild(form);
+    form.submit();
+  };
 
   function updateCounts() {
     document.querySelectorAll('.pipe-col').forEach(col => {
