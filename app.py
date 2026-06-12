@@ -5856,6 +5856,7 @@ def recruit_pipeline():
                            stage_colors=STAGE_COLORS,
                            active_stages=ACTIVE_STAGES,
                            source_labels=SOURCE_LABELS,
+                           rejection_reason_codes=REJECTION_REASON_CODES,
                            postings=postings,
                            posting_id=posting_id,
                            current_posting=current_posting,
