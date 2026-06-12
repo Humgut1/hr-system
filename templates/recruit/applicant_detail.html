@@ -4,185 +4,101 @@
 
 {% block content %}
 <style>
-/* ── 2패널 레이아웃 ─────────────────────────────────────────── */
-.apd-wrap {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  min-height: calc(100vh - 200px);
-  background: var(--bg-1);
-}
-
-/* ── 왼쪽 패널 ─────────────────────────────────────────────── */
-.apd-left {
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-1);
-  overflow-y: auto;
-}
-.apd-profile { padding: 20px; border-bottom: 1px solid var(--border); }
-.apd-avatar {
-  width: 56px; height: 56px; border-radius: 50%; background: var(--primary);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 22px; font-weight: 900; color: #fff; margin-bottom: 12px;
-}
-.apd-name { font-size: 18px; font-weight: 900; color: var(--tx-1); margin-bottom: 2px; }
-.apd-posting { font-size: 12px; color: var(--tx-3); margin-bottom: 10px; }
-.apd-stage-pill {
-  display: inline-block; padding: 4px 12px; border-radius: 999px;
-  font-size: 12px; font-weight: 700; background: var(--primary); color: #fff;
-}
-
-.apd-info { padding: 16px 20px; border-bottom: 1px solid var(--border); }
-.apd-info-label { font-size: 10px; color: var(--tx-4); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
-.apd-info-val { font-size: 13px; color: var(--tx-1); font-weight: 600; margin-bottom: 10px; }
-.apd-info-val:last-child { margin-bottom: 0; }
-.apd-info-val a { color: var(--primary); text-decoration: none; }
-
-.apd-pipeline { padding: 14px 20px; border-bottom: 1px solid var(--border); }
-.apd-pipeline-title { font-size: 10px; color: var(--tx-4); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; }
-.apd-step { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
-.apd-step-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.apd-step-done   { background: #27ae60; }
-.apd-step-active { background: var(--primary); box-shadow: 0 0 0 2px rgba(56,139,253,.25); }
-.apd-step-todo   { background: var(--border); }
-.apd-step-label-done   { color: var(--tx-3); }
-.apd-step-label-active { color: var(--tx-1); font-weight: 700; }
-.apd-step-label-todo   { color: var(--tx-4); }
-.apd-step-date { margin-left: auto; font-size: 10px; color: var(--tx-4); }
-
-.apd-actions { padding: 14px 20px; margin-top: auto; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
-
-/* ── 오른쪽 패널 ────────────────────────────────────────────── */
-.apd-right { display: flex; flex-direction: column; background: var(--bg-1); }
-
-.apd-tabs {
-  display: flex; border-bottom: 1px solid var(--border);
-  background: var(--bg-2); flex-shrink: 0;
-}
-.apd-tab {
-  padding: 11px 20px; font-size: 13px; font-weight: 600; color: var(--tx-3);
-  border-bottom: 2px solid transparent; cursor: pointer; background: none; border-left: none;
-  border-right: none; border-top: none; margin-bottom: -1px;
-}
-.apd-tab.on { color: var(--primary); border-bottom-color: var(--primary); }
-.apd-tab-badge {
-  margin-left: 5px; font-size: 10px; background: var(--primary); color: #fff;
-  padding: 1px 5px; border-radius: 999px;
-}
-
-.apd-tab-content { flex: 1; overflow-y: auto; display: none; }
-.apd-tab-content.on { display: block; }
-
-/* ── 서류 탭 ────────────────────────────────────────────────── */
-.apd-doc-wrap {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  height: 100%;
-  min-height: 500px;
-}
-.apd-doc-list { border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--bg-1); }
-.apd-doc-list-head {
-  padding: 12px 16px; border-bottom: 1px solid var(--border);
-  font-size: 11px; font-weight: 700; color: var(--tx-3);
-  display: flex; align-items: center; justify-content: space-between;
-}
-.apd-doc-item {
-  padding: 12px 14px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
-  transition: background .12s;
-}
-.apd-doc-item:hover { background: var(--bg-2); }
-.apd-doc-item.active { background: #e6f1fb; }
-.apd-doc-item.active .apd-doc-name { color: #0c447c; }
-.apd-doc-icon {
-  width: 32px; height: 38px; border-radius: 4px; border: 1px solid var(--border);
-  background: var(--bg-2); display: flex; align-items: center; justify-content: center;
-  font-size: 9px; font-weight: 700; color: var(--tx-3); flex-shrink: 0;
-}
-.apd-doc-icon.pdf  { background: #fcebeb; border-color: #f7c1c1; color: #a32d2d; }
-.apd-doc-icon.docx { background: #e6f1fb; border-color: #b5d4f4; color: #185fa5; }
-.apd-doc-icon.hwp  { background: #eaf3de; border-color: #c5e3a0; color: #3b6d11; }
-.apd-doc-name { font-size: 13px; font-weight: 600; color: var(--tx-1); margin-bottom: 2px; word-break: break-all; }
-.apd-doc-meta { font-size: 11px; color: var(--tx-4); }
-
-.apd-doc-empty {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  color: var(--tx-4); font-size: 13px; padding: 40px; text-align: center;
-}
-
-.apd-doc-viewer { flex: 1; display: flex; flex-direction: column; background: var(--bg-2); }
-.apd-viewer-toolbar {
-  padding: 10px 16px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 10px; flex-shrink: 0; background: var(--bg-1);
-}
-.apd-viewer-toolbar-name { font-size: 13px; font-weight: 600; color: var(--tx-1); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.apd-viewer-iframe { flex: 1; border: none; width: 100%; min-height: 0; }
-.apd-viewer-nopreview {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  color: var(--tx-4); font-size: 13px; text-align: center; padding: 40px;
-}
-
-.apd-upload-form {
-  padding: 12px 14px; border-top: 1px solid var(--border);
-  background: var(--bg-2);
-}
-
-/* ── 메모 뱃지 ──────────────────────────────────────────────── */
-.apd-note-box {
-  margin: 14px; padding: 12px 14px;
-  background: var(--bg-2); border-radius: var(--r-sm);
-  border-left: 3px solid var(--primary);
-  font-size: 12px; color: var(--tx-2); line-height: 1.6; white-space: pre-wrap;
-}
-.apd-note-label { font-size: 10px; font-weight: 700; color: var(--tx-3); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
-
-/* ── 인터뷰 탭 ──────────────────────────────────────────────── */
-.apd-interviews-body { padding: 18px; }
-
-/* ── 공통 ────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
-  .apd-wrap { grid-template-columns: 1fr; }
-  .apd-left { border-right: none; border-bottom: 1px solid var(--border); }
-  .apd-doc-wrap { grid-template-columns: 1fr; }
-  .apd-doc-list { border-right: none; border-bottom: 1px solid var(--border); max-height: 200px; overflow-y: auto; }
+.apd-wrap { display:grid; grid-template-columns:300px 1fr; gap:0; border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; min-height:calc(100vh - 200px); background:var(--bg-1); }
+.apd-left { border-right:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-1); overflow-y:auto; }
+.apd-profile { padding:20px; border-bottom:1px solid var(--border); }
+.apd-avatar { width:56px; height:56px; border-radius:50%; background:var(--primary); display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:900; color:#fff; margin-bottom:12px; }
+.apd-name { font-size:18px; font-weight:900; color:var(--tx-1); margin-bottom:2px; }
+.apd-posting { font-size:12px; color:var(--tx-3); margin-bottom:10px; }
+.apd-stage-pill { display:inline-block; padding:4px 12px; border-radius:999px; font-size:12px; font-weight:700; background:var(--primary); color:#fff; }
+.apd-info { padding:16px 20px; border-bottom:1px solid var(--border); }
+.apd-info-label { font-size:10px; color:var(--tx-4); text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px; }
+.apd-info-val { font-size:13px; color:var(--tx-1); font-weight:600; margin-bottom:10px; }
+.apd-info-val:last-child { margin-bottom:0; }
+.apd-info-val a { color:var(--primary); text-decoration:none; }
+.apd-pipeline { padding:14px 20px; border-bottom:1px solid var(--border); }
+.apd-pipeline-title { font-size:10px; color:var(--tx-4); text-transform:uppercase; letter-spacing:.05em; margin-bottom:10px; }
+.apd-step { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:12px; }
+.apd-step-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.apd-step-done   { background:#27ae60; }
+.apd-step-active { background:var(--primary); box-shadow:0 0 0 2px rgba(56,139,253,.25); }
+.apd-step-todo   { background:var(--border); }
+.apd-step-label-done   { color:var(--tx-3); }
+.apd-step-label-active { color:var(--tx-1); font-weight:700; }
+.apd-step-label-todo   { color:var(--tx-4); }
+.apd-step-date { margin-left:auto; font-size:10px; color:var(--tx-4); }
+.apd-actions { padding:14px 20px; margin-top:auto; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:8px; }
+.apd-right { display:flex; flex-direction:column; background:var(--bg-1); }
+.apd-tabs { display:flex; border-bottom:1px solid var(--border); background:var(--bg-2); flex-shrink:0; overflow-x:auto; }
+.apd-tab { padding:11px 18px; font-size:13px; font-weight:600; color:var(--tx-3); border-bottom:2px solid transparent; cursor:pointer; background:none; border-left:none; border-right:none; border-top:none; margin-bottom:-1px; white-space:nowrap; }
+.apd-tab.on { color:var(--primary); border-bottom-color:var(--primary); }
+.apd-tab-badge { margin-left:5px; font-size:10px; background:var(--primary); color:#fff; padding:1px 5px; border-radius:999px; }
+.apd-tab-content { flex:1; overflow-y:auto; display:none; }
+.apd-tab-content.on { display:block; }
+.apd-doc-wrap { display:grid; grid-template-columns:220px 1fr; height:100%; min-height:500px; }
+.apd-doc-list { border-right:1px solid var(--border); display:flex; flex-direction:column; background:var(--bg-1); }
+.apd-doc-list-head { padding:12px 16px; border-bottom:1px solid var(--border); font-size:11px; font-weight:700; color:var(--tx-3); display:flex; align-items:center; justify-content:space-between; }
+.apd-doc-item { padding:12px 14px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; gap:10px; cursor:pointer; transition:background .12s; }
+.apd-doc-item:hover { background:var(--bg-2); }
+.apd-doc-item.active { background:#e6f1fb; }
+.apd-doc-item.active .apd-doc-name { color:#0c447c; }
+.apd-doc-icon { width:32px; height:38px; border-radius:4px; border:1px solid var(--border); background:var(--bg-2); display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; color:var(--tx-3); flex-shrink:0; }
+.apd-doc-icon.pdf  { background:#fcebeb; border-color:#f7c1c1; color:#a32d2d; }
+.apd-doc-icon.docx { background:#e6f1fb; border-color:#b5d4f4; color:#185fa5; }
+.apd-doc-icon.hwp  { background:#eaf3de; border-color:#c5e3a0; color:#3b6d11; }
+.apd-doc-name { font-size:13px; font-weight:600; color:var(--tx-1); margin-bottom:2px; word-break:break-all; }
+.apd-doc-meta { font-size:11px; color:var(--tx-4); }
+.apd-doc-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--tx-4); font-size:13px; padding:40px; text-align:center; }
+.apd-doc-viewer { flex:1; display:flex; flex-direction:column; background:var(--bg-2); }
+.apd-viewer-toolbar { padding:10px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; flex-shrink:0; background:var(--bg-1); }
+.apd-viewer-toolbar-name { font-size:13px; font-weight:600; color:var(--tx-1); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.apd-viewer-iframe { flex:1; border:none; width:100%; min-height:0; }
+.apd-viewer-nopreview { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--tx-4); font-size:13px; text-align:center; padding:40px; }
+.apd-upload-form { padding:12px 14px; border-top:1px solid var(--border); background:var(--bg-2); }
+.apd-note-box { margin:14px; padding:12px 14px; background:var(--bg-2); border-radius:var(--r-sm); border-left:3px solid var(--primary); font-size:12px; color:var(--tx-2); line-height:1.6; white-space:pre-wrap; }
+.apd-note-label { font-size:10px; font-weight:700; color:var(--tx-3); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
+.apd-interviews-body { padding:18px; }
+.email-badge { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; font-weight:700; }
+.email-badge-fail   { background:#fde8e8; color:#c0392b; }
+.email-badge-pass   { background:#e6f7ed; color:#27ae60; }
+.email-badge-offer  { background:#e6f1fb; color:#1a6fbe; }
+.email-badge-invite { background:#fff8e1; color:#c87700; }
+@media (max-width:900px) {
+  .apd-wrap { grid-template-columns:1fr; }
+  .apd-left { border-right:none; border-bottom:1px solid var(--border); }
+  .apd-doc-wrap { grid-template-columns:1fr; }
+  .apd-doc-list { border-right:none; border-bottom:1px solid var(--border); max-height:200px; overflow-y:auto; }
 }
 </style>
 
-<!-- 브레드크럼 -->
-<div style="display:flex; gap:8px; margin-bottom:14px; align-items:center;">
+<div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
   <a href="{{ url_for('recruit_pipeline', posting=applicant.posting_id) }}"
      class="btn btn-ghost btn-sm"><i class="fas fa-arrow-left"></i> 파이프라인으로</a>
 </div>
 
 <div class="apd-wrap">
 
-  <!-- ── 왼쪽: 후보자 정보 ─────────────────────────────────── -->
+  <!-- ── 왼쪽 패널 ─────────────────────────────────────────── -->
   <div class="apd-left">
-
     <div class="apd-profile">
       <div class="apd-avatar">{{ applicant.name[0] }}</div>
       <div class="apd-name">{{ applicant.name }}</div>
       <div class="apd-posting">{{ applicant.posting_title }}</div>
-      <span class="apd-stage-pill">{{ stage_map.get(applicant.stage, applicant.stage) }}</span>
+      <span class="apd-stage-pill" style="background:{{ {'accepted':'#27ae60','rejected':'#c87700','disqualified':'#c0392b'}.get(applicant.stage, 'var(--primary)') }}">
+        {{ stage_map.get(applicant.stage, applicant.stage) }}
+      </span>
     </div>
 
     <div class="apd-info">
       <div class="apd-info-label">연락처</div>
       <div class="apd-info-val"><a href="mailto:{{ applicant.email }}">{{ applicant.email }}</a></div>
-      {% if applicant.phone %}
-      <div class="apd-info-val"><a href="tel:{{ applicant.phone }}">{{ applicant.phone }}</a></div>
-      {% endif %}
+      {% if applicant.phone %}<div class="apd-info-val"><a href="tel:{{ applicant.phone }}">{{ applicant.phone }}</a></div>{% endif %}
       <div class="apd-info-label" style="margin-top:10px;">지원 정보</div>
       <div class="apd-info-val">{{ source_labels.get(applicant.source, applicant.source) }}</div>
       <div class="apd-info-val">{{ applicant.created_at[:10] }} 지원</div>
     </div>
 
-    <!-- 채용 진행 단계 -->
+    <!-- 채용 진행 단계 타임라인 -->
     <div class="apd-pipeline">
       <div class="apd-pipeline-title">채용 진행 단계</div>
       {% set current_stage = applicant.stage %}
@@ -191,114 +107,110 @@
       {% for s, lbl in stages %}
       {% set idx = loop.index0 %}
       <div class="apd-step">
-        <div class="apd-step-dot
-          {% if idx < current_idx %}apd-step-done
-          {% elif idx == current_idx %}apd-step-active
-          {% else %}apd-step-todo{% endif %}"></div>
-        <span class="
-          {% if idx < current_idx %}apd-step-label-done
-          {% elif idx == current_idx %}apd-step-label-active
-          {% else %}apd-step-label-todo{% endif %}">{{ lbl }}</span>
-        {% if idx == current_idx %}
-        <span class="apd-step-date">진행 중</span>
-        {% endif %}
+        <div class="apd-step-dot {% if idx < current_idx %}apd-step-done{% elif idx == current_idx %}apd-step-active{% else %}apd-step-todo{% endif %}"></div>
+        <span class="{% if idx < current_idx %}apd-step-label-done{% elif idx == current_idx %}apd-step-label-active{% else %}apd-step-label-todo{% endif %}">{{ lbl }}</span>
+        {% if idx == current_idx %}<span class="apd-step-date">진행 중</span>{% endif %}
       </div>
       {% endfor %}
     </div>
 
-    <!-- 단계 변경 / 불합격 처리 -->
+    <!-- 액션 -->
     <div class="apd-actions">
       {% if applicant.stage in ('disqualified', 'accepted', 'rejected') %}
-        <!-- 터미널 상태 배지 -->
-        <div style="text-align:center; padding:10px; border-radius:var(--r-sm);
-          {% if applicant.stage == 'accepted' %}background:#e6f7ed; color:#27ae60;
-          {% elif applicant.stage == 'rejected' %}background:#fff3e0; color:#c87700;
-          {% else %}background:#fde8e8; color:#c0392b;{% endif %}
-          font-size:13px; font-weight:700;">
-          {% if applicant.stage == 'accepted' %}🎉 최종 합격{% elif applicant.stage == 'rejected' %}오퍼 거절{% else %}불합격{% endif %}
+        <div style="text-align:center;padding:10px;border-radius:var(--r-sm);
+          {% if applicant.stage == 'accepted' %}background:#e6f7ed;color:#27ae60;
+          {% elif applicant.stage == 'rejected' %}background:#fff3e0;color:#c87700;
+          {% else %}background:#fde8e8;color:#c0392b;{% endif %}
+          font-size:13px;font-weight:700;">
+          {% if applicant.stage == 'accepted' %}🎉 최종 합격
+            {% if applicant.hired_employee_id %}<div style="font-size:11px;margin-top:4px;">직원 전환 완료</div>{% endif %}
+          {% elif applicant.stage == 'rejected' %}오퍼 거절
+          {% else %}불합격
+          {% endif %}
         </div>
         {% if applicant.stage == 'disqualified' and applicant.disqualified_from %}
-        <div style="font-size:11px; color:var(--tx-4); text-align:center;">
+        <div style="font-size:11px;color:var(--tx-4);text-align:center;">
           {{ stage_map.get(applicant.disqualified_from, applicant.disqualified_from) }} 단계에서 탈락
-          {% if applicant.disqualify_reason %}· {{ rejection_reason_codes.get(applicant.disqualify_reason, applicant.disqualify_reason) }}{% endif %}
+          {% if applicant.disqualify_reason %} · {{ rejection_reason_codes.get(applicant.disqualify_reason, applicant.disqualify_reason) }}{% endif %}
         </div>
         {% endif %}
+
+        <!-- 합격자: 직원 등록 연결 -->
+        {% if applicant.stage == 'accepted' and not applicant.hired_employee_id %}
+        <a href="{{ url_for('employee_new', from_applicant=applicant.id, name=applicant.name, email=applicant.email or '', phone=applicant.phone or '') }}"
+           class="btn btn-primary btn-sm" style="width:100%;text-align:center;">
+          <i class="fas fa-user-plus"></i> 직원으로 등록
+        </a>
+        {% endif %}
+
       {% else %}
-        <!-- 진행 중인 후보자 — 단계 이동 -->
+        <!-- 단계 이동 -->
         <form method="POST">
           <div style="margin-bottom:8px;">
             <label class="form-label" style="font-size:11px;">단계 이동</label>
             <select name="stage" class="input" style="font-size:12px;">
               {% for s, lbl in stages %}
-              {% if s not in ('disqualified', 'rejected', 'accepted') %}
+              {% if s not in ('disqualified','rejected','accepted') %}
               <option value="{{ s }}" {% if applicant.stage == s %}selected{% endif %}>{{ lbl }}</option>
               {% endif %}
               {% endfor %}
             </select>
           </div>
           <div style="margin-bottom:8px;">
-            <textarea name="note" class="input" rows="2" style="font-size:12px;"
-                      placeholder="메모 (선택)"></textarea>
+            <textarea name="note" class="input" rows="2" style="font-size:12px;" placeholder="메모 (선택)"></textarea>
           </div>
-          <button type="submit" class="btn btn-primary btn-sm" style="width:100%; margin-bottom:6px;">
+          <button type="submit" class="btn btn-primary btn-sm" style="width:100%;margin-bottom:6px;">
             <i class="fas fa-arrow-right"></i> 단계 이동
           </button>
         </form>
 
-        <!-- 오퍼 수락 / 오퍼 거절 — offer 단계에서만 표시 -->
+        <!-- 이메일 보내기 -->
+        <button type="button" onclick="openEmailModal()"
+                class="btn btn-ghost btn-sm" style="width:100%;">
+          <i class="fas fa-envelope"></i> 이메일 보내기
+        </button>
+
         {% if applicant.stage == 'offer' %}
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:2px;">
           <form action="{{ url_for('recruit_hire', applicant_id=applicant.id) }}" method="POST">
-            <button type="submit" class="btn btn-sm" style="width:100%; background:#27ae60; color:#fff; border:none;"
-                    onclick="return confirm('최종 합격 처리할까요?')">
+            <button type="submit" class="btn btn-sm" style="width:100%;background:#27ae60;color:#fff;border:none;"
+                    onclick="return confirm('최종 합격 처리할까요? 직원 등록 페이지로 이동합니다.')">
               🎉 합격 처리
             </button>
           </form>
           <button type="button" onclick="document.getElementById('offer-reject-modal').style.display='flex'"
-                  class="btn btn-ghost btn-sm" style="width:100%; color:#c87700; border-color:#c87700;">
+                  class="btn btn-ghost btn-sm" style="width:100%;color:#c87700;border-color:#c87700;">
             오퍼 거절
           </button>
         </div>
         {% endif %}
 
-        <!-- 불합격 처리 버튼 -->
         <button type="button" onclick="document.getElementById('disqualify-modal').style.display='flex'"
-                class="btn btn-sm" style="width:100%; background:#fde8e8; color:#c0392b; border:1px solid #f7c1c1;">
+                class="btn btn-sm" style="width:100%;background:#fde8e8;color:#c0392b;border:1px solid #f7c1c1;">
           <i class="fas fa-times-circle"></i> 불합격 처리
         </button>
       {% endif %}
     </div>
-
   </div>
 
-  <!-- ── 오른쪽: 서류 / 면접 / 로그 ─────────────────────────── -->
+  <!-- ── 오른쪽 패널 ─────────────────────────────────────────── -->
   <div class="apd-right">
-
     <div class="apd-tabs">
-      <button class="apd-tab on" data-tab="docs">
-        서류
-        {% if documents %}<span class="apd-tab-badge">{{ documents|length }}</span>{% endif %}
-      </button>
-      <button class="apd-tab" data-tab="interviews">
-        면접
-        {% if rounds_data %}<span class="apd-tab-badge">{{ rounds_data|length }}</span>{% endif %}
-      </button>
+      <button class="apd-tab on" data-tab="docs">서류{% if documents %}<span class="apd-tab-badge">{{ documents|length }}</span>{% endif %}</button>
+      <button class="apd-tab" data-tab="interviews">면접{% if rounds_data %}<span class="apd-tab-badge">{{ rounds_data|length }}</span>{% endif %}</button>
+      <button class="apd-tab" data-tab="offers">오퍼{% if offers %}<span class="apd-tab-badge">{{ offers|length }}</span>{% endif %}</button>
+      <button class="apd-tab" data-tab="emails">이메일{% if email_logs %}<span class="apd-tab-badge">{{ email_logs|length }}</span>{% endif %}</button>
       <button class="apd-tab" data-tab="log">활동 로그</button>
     </div>
 
-    <!-- ── 서류 탭 ──────────────────────────────────────────── -->
+    <!-- ── 서류 탭 ─────────────────────────────────────────────── -->
     <div class="apd-tab-content on" id="apd-docs">
       <div class="apd-doc-wrap">
-
-        <!-- 서류 목록 -->
         <div class="apd-doc-list">
           <div class="apd-doc-list-head">
             <span>제출 서류 {{ documents|length }}건</span>
-            <button onclick="document.getElementById('upload-drawer').classList.toggle('open')"
-                    style="background:none; border:none; cursor:pointer; color:var(--primary); font-size:13px;"
-                    title="서류 추가"><i class="fas fa-plus"></i></button>
+            <button id="upload-toggle-btn" style="background:none;border:none;cursor:pointer;color:var(--primary);font-size:13px;" title="서류 추가"><i class="fas fa-plus"></i></button>
           </div>
-
           {% if documents %}
           {% for doc in documents %}
           {% set ext = doc.stored_name.rsplit('.', 1)[1] if '.' in doc.stored_name else '' %}
@@ -309,7 +221,7 @@
                data-doc-ext="{{ ext }}"
                onclick="selectDoc(this)">
             <div class="apd-doc-icon {{ ext }}">{{ ext|upper }}</div>
-            <div style="min-width:0; flex:1;">
+            <div style="min-width:0;flex:1;">
               <div class="apd-doc-name">{{ doc_type_label.get(doc.doc_type, doc.doc_type) }}</div>
               <div class="apd-doc-meta">{{ doc.original_name }}</div>
               <div class="apd-doc-meta">{{ '%.1f'|format(doc.file_size / 1024) }} KB</div>
@@ -318,35 +230,25 @@
           {% endfor %}
           {% else %}
           <div class="apd-doc-empty">
-            <i class="fas fa-file-alt" style="font-size:28px; margin-bottom:10px; opacity:.3;"></i>
+            <i class="fas fa-file-alt" style="font-size:28px;margin-bottom:10px;opacity:.3;"></i>
             <div>제출된 서류가 없습니다.</div>
-            <div style="font-size:11px; margin-top:4px;">+ 버튼으로 추가하세요.</div>
           </div>
           {% endif %}
-
-          <!-- 업로드 드로어 -->
-          <div id="upload-drawer"
-               style="border-top:1px solid var(--border); background:var(--bg-2); display:none; padding:12px 14px;">
-            <form action="{{ url_for('recruit_doc_upload', applicant_id=applicant.id) }}"
-                  method="POST" enctype="multipart/form-data">
+          <div id="upload-drawer" style="border-top:1px solid var(--border);background:var(--bg-2);display:none;padding:12px 14px;">
+            <form action="{{ url_for('recruit_doc_upload', applicant_id=applicant.id) }}" method="POST" enctype="multipart/form-data">
               <div style="margin-bottom:8px;">
                 <label class="form-label" style="font-size:11px;">서류 종류</label>
                 <select name="doc_type" class="input" style="font-size:12px;">
-                  {% for k, v in doc_type_label.items() %}
-                  <option value="{{ k }}">{{ v }}</option>
-                  {% endfor %}
+                  {% for k, v in doc_type_label.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
                 </select>
               </div>
               <div style="margin-bottom:8px;">
                 <label class="form-label" style="font-size:11px;">파일 (최대 20MB)</label>
-                <input type="file" name="file" class="input" style="font-size:12px;"
-                       accept=".pdf,.doc,.docx,.hwp,.pptx,.png,.jpg,.jpeg">
+                <input type="file" name="file" class="input" style="font-size:12px;" accept=".pdf,.doc,.docx,.hwp,.pptx,.png,.jpg,.jpeg">
               </div>
               <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">업로드</button>
             </form>
           </div>
-
-          <!-- 리크루터 메모 -->
           {% if applicant.resume_note %}
           <div class="apd-note-box">
             <div class="apd-note-label">리크루터 메모</div>
@@ -354,106 +256,64 @@
           </div>
           {% endif %}
         </div>
-
-        <!-- 문서 뷰어 -->
         <div class="apd-doc-viewer" id="doc-viewer">
           {% if documents %}
           {% set first = documents[0] %}
           {% set first_ext = first.stored_name.rsplit('.', 1)[1] if '.' in first.stored_name else '' %}
           <div class="apd-viewer-toolbar">
             <span class="apd-viewer-toolbar-name" id="viewer-filename">{{ first.original_name }}</span>
-            <a id="viewer-download" href="{{ url_for('recruit_doc_file', doc_id=first.id) }}"
-               class="btn btn-ghost btn-sm" download><i class="fas fa-download"></i></a>
-            <a id="viewer-open" href="{{ url_for('recruit_doc_file', doc_id=first.id) }}"
-               target="_blank" class="btn btn-ghost btn-sm"><i class="fas fa-external-link-alt"></i></a>
-            {% if session.get('role') in ('admin', 'recruiter') %}
-            <form id="viewer-delete-form"
-                  action="{{ url_for('recruit_doc_delete', doc_id=first.id) }}"
-                  method="POST" style="display:inline;"
-                  onsubmit="return confirm('이 서류를 삭제할까요?');">
-              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">
-                <i class="fas fa-trash"></i>
-              </button>
+            <a id="viewer-download" href="{{ url_for('recruit_doc_file', doc_id=first.id) }}" class="btn btn-ghost btn-sm" download><i class="fas fa-download"></i></a>
+            <a id="viewer-open" href="{{ url_for('recruit_doc_file', doc_id=first.id) }}" target="_blank" class="btn btn-ghost btn-sm"><i class="fas fa-external-link-alt"></i></a>
+            {% if session.get('role') in ('admin','recruiter') %}
+            <form id="viewer-delete-form" action="{{ url_for('recruit_doc_delete', doc_id=first.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('이 서류를 삭제할까요?');">
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);"><i class="fas fa-trash"></i></button>
             </form>
             {% endif %}
           </div>
           {% if first_ext == 'pdf' %}
-          <iframe id="doc-iframe" class="apd-viewer-iframe" style="flex:1;"
-                  src="{{ url_for('recruit_doc_file', doc_id=first.id) }}"></iframe>
+          <iframe id="doc-iframe" class="apd-viewer-iframe" style="flex:1;" src="{{ url_for('recruit_doc_file', doc_id=first.id) }}"></iframe>
           {% else %}
           <div class="apd-viewer-nopreview" id="doc-nopreview">
-            <i class="fas fa-file" style="font-size:36px; margin-bottom:12px; opacity:.3;"></i>
+            <i class="fas fa-file" style="font-size:36px;margin-bottom:12px;opacity:.3;"></i>
             <div>이 파일은 미리보기를 지원하지 않습니다.</div>
-            <div style="font-size:11px; margin-top:4px;">다운로드하거나 새 탭에서 열어보세요.</div>
           </div>
           {% endif %}
           {% else %}
           <div class="apd-viewer-nopreview">
-            <i class="fas fa-file-alt" style="font-size:40px; margin-bottom:14px; opacity:.2;"></i>
-            <div style="font-size:14px; color:var(--tx-3);">왼쪽에서 서류를 선택하세요.</div>
+            <i class="fas fa-file-alt" style="font-size:40px;margin-bottom:14px;opacity:.2;"></i>
+            <div style="font-size:14px;color:var(--tx-3);">왼쪽에서 서류를 선택하세요.</div>
           </div>
           {% endif %}
         </div>
-
       </div>
     </div>
 
-    <!-- ── 면접 탭 ──────────────────────────────────────────── -->
+    <!-- ── 면접 탭 ─────────────────────────────────────────────── -->
     <div class="apd-tab-content" id="apd-interviews">
       <div class="apd-interviews-body">
-
-        <!-- 라운드 추가 폼 -->
         <div class="card" style="margin-bottom:16px;">
           <div class="card-head"><span class="card-title">면접 라운드 추가</span></div>
           <div class="card-body">
             <form action="{{ url_for('recruit_round_new', applicant_id=applicant.id) }}" method="POST">
-              <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
-                <div class="field" style="margin-bottom:0;">
-                  <label class="form-label" style="font-size:12px;">라운드 번호</label>
-                  <select name="round_no" class="input">
-                    {% for i in range(1, 6) %}
-                    <option value="{{ i }}">{{ i }}차</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div class="field" style="margin-bottom:0;">
-                  <label class="form-label" style="font-size:12px;">면접 유형</label>
-                  <select name="round_type" class="input">
-                    {% for val, label in round_type_label.items() %}
-                    <option value="{{ val }}">{{ label }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div class="field" style="margin-bottom:0;">
-                  <label class="form-label" style="font-size:12px;">예정 시간 (분)</label>
-                  <select name="planned_min" class="input">
-                    <option value="30">30분</option>
-                    <option value="45">45분</option>
-                    <option value="60" selected>60분</option>
-                    <option value="90">90분</option>
-                    <option value="120">120분</option>
-                  </select>
-                </div>
-                <div class="field" style="margin-bottom:0;">
-                  <label class="form-label" style="font-size:12px;">예정 일시</label>
-                  <input type="datetime-local" name="scheduled_at" class="input">
-                </div>
-                <div class="field" style="margin-bottom:0;">
-                  <label class="form-label" style="font-size:12px;">진행 방식</label>
-                  <select name="location_type" class="input">
-                    <option value="video">화상</option>
-                    <option value="in_person">대면</option>
-                    <option value="phone">전화</option>
-                  </select>
-                </div>
-                <div class="field" style="margin-bottom:0;">
-                  <label class="form-label" style="font-size:12px;">미팅 링크 (선택)</label>
-                  <input type="url" name="meet_link" class="input" placeholder="https://meet.google.com/...">
-                </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                <div class="field" style="margin-bottom:0;"><label class="form-label" style="font-size:12px;">라운드 번호</label>
+                  <select name="round_no" class="input">{% for i in range(1,6) %}<option value="{{ i }}">{{ i }}차</option>{% endfor %}</select></div>
+                <div class="field" style="margin-bottom:0;"><label class="form-label" style="font-size:12px;">면접 유형</label>
+                  <select name="round_type" class="input">{% for val, label in round_type_label.items() %}<option value="{{ val }}">{{ label }}</option>{% endfor %}</select></div>
+                <div class="field" style="margin-bottom:0;"><label class="form-label" style="font-size:12px;">예정 시간(분)</label>
+                  <select name="planned_min" class="input"><option value="30">30분</option><option value="45">45분</option><option value="60" selected>60분</option><option value="90">90분</option><option value="120">120분</option></select></div>
+                <div class="field" style="margin-bottom:0;"><label class="form-label" style="font-size:12px;">예정 일시</label>
+                  <input type="datetime-local" name="scheduled_at" class="input"></div>
+                <div class="field" style="margin-bottom:0;"><label class="form-label" style="font-size:12px;">진행 방식</label>
+                  <select name="location_type" class="input"><option value="video">화상</option><option value="in_person">대면</option><option value="phone">전화</option></select></div>
+                <div class="field" style="margin-bottom:0;"><label class="form-label" style="font-size:12px;">미팅 링크(선택)</label>
+                  <input type="url" name="meet_link" class="input" placeholder="https://meet.google.com/..."></div>
               </div>
               <div style="margin-top:12px;">
-                <button type="submit" class="btn btn-primary btn-sm">
-                  <i class="fas fa-plus"></i> 라운드 생성
+                <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> 라운드 생성</button>
+                <!-- 면접 안내 이메일 버튼 -->
+                <button type="button" onclick="openEmailModal('interview_invite')" class="btn btn-ghost btn-sm" style="margin-left:8px;">
+                  <i class="fas fa-envelope"></i> 면접 안내 이메일
                 </button>
               </div>
             </form>
@@ -461,9 +321,8 @@
         </div>
 
         {% if not rounds_data %}
-        <div style="text-align:center; padding:40px; color:var(--tx-3); font-size:14px;">
-          <i class="fas fa-video" style="font-size:32px; display:block; margin-bottom:12px; opacity:.3;"></i>
-          아직 면접 라운드가 없습니다.
+        <div style="text-align:center;padding:40px;color:var(--tx-3);font-size:14px;">
+          <i class="fas fa-video" style="font-size:32px;display:block;margin-bottom:12px;opacity:.3;"></i>아직 면접 라운드가 없습니다.
         </div>
         {% endif %}
 
@@ -474,65 +333,38 @@
         {% set pass_count = feedbacks | selectattr('recommendation','eq','pass') | list | length %}
         {% set hold_count = feedbacks | selectattr('recommendation','eq','hold') | list | length %}
         {% set fail_count = feedbacks | selectattr('recommendation','eq','fail') | list | length %}
-
         <div class="card" style="margin-bottom:14px;">
-          <div style="padding:14px 20px; background:var(--bg-2); border-bottom:1px solid var(--border);
-                      display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-            <div style="display:flex; align-items:center; gap:10px;">
-              <span style="font-size:15px; font-weight:900; color:var(--tx-1);">
-                {{ r.round_no }}차 — {{ round_type_label.get(r.round_type, r.round_type) }}
-              </span>
-              <span class="badge
-                {% if r.status == 'completed' %}badge-active
-                {% elif r.status in ('cancelled', 'no_show') %}badge-inactive
-                {% else %}badge-pending{% endif %}"
-                style="font-size:11px;">
-                {{ round_status_label.get(r.status, r.status) }}
-              </span>
+          <div style="padding:14px 20px;background:var(--bg-2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:15px;font-weight:900;color:var(--tx-1);">{{ r.round_no }}차 — {{ round_type_label.get(r.round_type, r.round_type) }}</span>
+              <span class="badge {% if r.status == 'completed' %}badge-active{% elif r.status in ('cancelled','no_show') %}badge-inactive{% else %}badge-pending{% endif %}" style="font-size:11px;">{{ round_status_label.get(r.status, r.status) }}</span>
             </div>
-            <div style="display:flex; gap:10px; font-size:12px; color:var(--tx-3); align-items:center;">
-              {% if r.scheduled_at %}
-              <span><i class="fas fa-calendar"></i> {{ r.scheduled_at[:16] }}</span>
-              {% endif %}
-              <span><i class="fas fa-clock"></i>
-                {% if r.actual_min %}{{ r.actual_min }}분 실제{% else %}{{ r.planned_min }}분 예정{% endif %}
-              </span>
+            <div style="display:flex;gap:10px;font-size:12px;color:var(--tx-3);align-items:center;">
+              {% if r.scheduled_at %}<span><i class="fas fa-calendar"></i> {{ r.scheduled_at[:16] }}</span>{% endif %}
+              <span><i class="fas fa-clock"></i> {% if r.actual_min %}{{ r.actual_min }}분 실제{% else %}{{ r.planned_min }}분 예정{% endif %}</span>
             </div>
           </div>
-
           <div class="card-body">
-            <!-- 인터뷰어 -->
             <div style="margin-bottom:14px;">
-              <div style="font-size:12px; font-weight:700; color:var(--tx-3); margin-bottom:8px; text-transform:uppercase; letter-spacing:.05em;">인터뷰어</div>
-              <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <div style="font-size:12px;font-weight:700;color:var(--tx-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">인터뷰어</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                 {% for iv in interviewers %}
-                <div style="display:flex; align-items:center; gap:6px; padding:5px 10px;
-                            border-radius:20px; border:1px solid var(--border); font-size:13px; background:var(--bg-1);">
-                  <div style="width:22px; height:22px; border-radius:50%; background:var(--primary);
-                              display:flex; align-items:center; justify-content:center;
-                              font-size:10px; font-weight:700; color:#fff; flex-shrink:0;">
-                    {{ iv.interviewer_name[0] }}
-                  </div>
+                <div style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;border:1px solid var(--border);font-size:13px;background:var(--bg-1);">
+                  <div style="width:22px;height:22px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0;">{{ iv.interviewer_name[0] }}</div>
                   <span>{{ iv.interviewer_name }}</span>
-                  <span title="{% if iv.feedback_submitted %}피드백 제출 완료{% else %}피드백 미제출{% endif %}"
-                        style="width:8px; height:8px; border-radius:50%;
-                               background:{% if iv.feedback_submitted %}#27ae60{% else %}#e74c3c{% endif %};"></span>
+                  <span title="{% if iv.feedback_submitted %}피드백 제출 완료{% else %}피드백 미제출{% endif %}" style="width:8px;height:8px;border-radius:50%;background:{% if iv.feedback_submitted %}#27ae60{% else %}#e74c3c{% endif %};"></span>
                   {% if r.status != 'completed' %}
-                  <form action="{{ url_for('recruit_round_remove_interviewer', round_id=r.id, interviewer_id=iv.interviewer_id) }}"
-                        method="POST" style="display:inline;">
-                    <button type="submit" style="background:none; border:none; cursor:pointer; color:var(--tx-4); font-size:11px; padding:0 2px;" title="제거">×</button>
+                  <form action="{{ url_for('recruit_round_remove_interviewer', round_id=r.id, interviewer_id=iv.interviewer_id) }}" method="POST" style="display:inline;">
+                    <button type="submit" style="background:none;border:none;cursor:pointer;color:var(--tx-4);font-size:11px;padding:0 2px;">×</button>
                   </form>
                   {% endif %}
                 </div>
                 {% endfor %}
                 {% if r.status != 'completed' %}
-                <form action="{{ url_for('recruit_round_assign_interviewer', round_id=r.id) }}" method="POST"
-                      style="display:flex; gap:6px; align-items:center;">
-                  <select name="interviewer_id" class="input" style="font-size:12px; padding:5px 8px; height:auto;">
+                <form action="{{ url_for('recruit_round_assign_interviewer', round_id=r.id) }}" method="POST" style="display:flex;gap:6px;align-items:center;">
+                  <select name="interviewer_id" class="input" style="font-size:12px;padding:5px 8px;height:auto;">
                     <option value="">인터뷰어 추가</option>
-                    {% for iv in interviewers_all %}
-                    <option value="{{ iv.id }}">{{ iv.name }}</option>
-                    {% endfor %}
+                    {% for iv in interviewers_all %}<option value="{{ iv.id }}">{{ iv.name }}</option>{% endfor %}
                   </select>
                   <button type="submit" class="btn btn-ghost btn-sm"><i class="fas fa-plus"></i></button>
                 </form>
@@ -540,157 +372,196 @@
               </div>
             </div>
 
-            <!-- 피드백 -->
             {% if feedbacks %}
             <div style="margin-bottom:12px;">
-              <div style="font-size:12px; font-weight:700; color:var(--tx-3); margin-bottom:8px; text-transform:uppercase; letter-spacing:.05em;">피드백</div>
+              <div style="font-size:12px;font-weight:700;color:var(--tx-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">피드백</div>
               {% for fb in feedbacks %}
-              <div style="padding:10px 0; border-top:1px solid var(--border); display:flex; gap:10px; align-items:flex-start;">
-                <div style="min-width:90px; font-size:13px; font-weight:700; color:var(--tx-1);">
-                  {{ fb.interviewer_name }}
-                  {% if fb.is_edited %}
-                  <span title="피드백 수정됨 (컴플라이언스 기록 보존)"
-                        style="font-size:10px; color:var(--warning); margin-left:2px;">⚠ 수정됨</span>
-                  {% endif %}
-                </div>
-                <div style="min-width:50px;">
-                  <span style="font-size:11px; padding:3px 8px; border-radius:var(--r-sm); font-weight:700;
-                    {% if fb.recommendation == 'pass' %}background:#e6f7ed; color:#27ae60;
-                    {% elif fb.recommendation == 'hold' %}background:#fff8e1; color:#c87700;
-                    {% else %}background:#fde8e8; color:#e74c3c;{% endif %}">
-                    {{ recommendation_label.get(fb.recommendation, fb.recommendation) }}
-                  </span>
-                </div>
-                <div style="flex:1; font-size:12px;">
-                  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:6px;">
-                    {% set score_labels = [('score_technical','기술'),('score_communication','소통'),('score_culture_fit','컬처'),('score_growth','성장'),('score_overall','종합')] %}
-                    {% for fld, slbl in score_labels %}
-                    {% if fb[fld] %}
-                    <span style="font-size:11px; color:var(--tx-3);">
-                      {{ slbl }}
-                      <strong style="color:{% if fb[fld] >= 4 %}#27ae60{% elif fb[fld] >= 3 %}#f39c12{% else %}#e74c3c{% endif %};">
-                        {{ fb[fld] }}/5
-                      </strong>
-                    </span>
-                    {% endif %}
+              <div style="padding:10px 0;border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;">
+                <div style="min-width:90px;font-size:13px;font-weight:700;color:var(--tx-1);">{{ fb.interviewer_name }}{% if fb.is_edited %}<span title="피드백 수정됨" style="font-size:10px;color:var(--warning);margin-left:2px;">⚠</span>{% endif %}</div>
+                <div style="min-width:50px;"><span style="font-size:11px;padding:3px 8px;border-radius:var(--r-sm);font-weight:700;{% if fb.recommendation == 'pass' %}background:#e6f7ed;color:#27ae60;{% elif fb.recommendation == 'hold' %}background:#fff8e1;color:#c87700;{% else %}background:#fde8e8;color:#e74c3c;{% endif %}">{{ recommendation_label.get(fb.recommendation, fb.recommendation) }}</span></div>
+                <div style="flex:1;font-size:12px;">
+                  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+                    {% for fld, slbl in [('score_technical','기술'),('score_communication','소통'),('score_culture_fit','컬처'),('score_growth','성장'),('score_overall','종합')] %}
+                    {% if fb[fld] %}<span style="font-size:11px;color:var(--tx-3);">{{ slbl }} <strong style="color:{% if fb[fld] >= 4 %}#27ae60{% elif fb[fld] >= 3 %}#f39c12{% else %}#e74c3c{% endif %};">{{ fb[fld] }}/5</strong></span>{% endif %}
                     {% endfor %}
                   </div>
-                  {% if fb.strengths %}<div style="color:var(--tx-2); margin-bottom:3px;"><b style="color:var(--tx-3);">강점:</b> {{ fb.strengths }}</div>{% endif %}
+                  {% if fb.strengths %}<div style="color:var(--tx-2);margin-bottom:3px;"><b style="color:var(--tx-3);">강점:</b> {{ fb.strengths }}</div>{% endif %}
                   {% if fb.concerns %}<div style="color:var(--tx-2);"><b style="color:var(--tx-3);">우려:</b> {{ fb.concerns }}</div>{% endif %}
                 </div>
               </div>
               {% endfor %}
-              <!-- 집계 -->
-              <div style="margin-top:10px; padding:10px 14px; background:var(--bg-2);
-                          border-radius:var(--r-sm); display:flex; gap:16px; font-size:13px; align-items:center; flex-wrap:wrap;">
-                <span style="color:#27ae60; font-weight:700;"><i class="fas fa-thumbs-up"></i> {{ pass_count }} 추천</span>
-                <span style="color:#c87700; font-weight:700;"><i class="fas fa-pause"></i> {{ hold_count }} 보류</span>
-                <span style="color:#e74c3c; font-weight:700;"><i class="fas fa-thumbs-down"></i> {{ fail_count }} 불가</span>
-                {% set avg_overall = [] %}
-                {% for fb in feedbacks %}{% if fb.score_overall %}{% set _ = avg_overall.append(fb.score_overall) %}{% endif %}{% endfor %}
-                {% if avg_overall %}
-                <span style="margin-left:auto; color:var(--tx-3);">
-                  종합 평균 <strong style="color:var(--tx-1);">{{ '%.1f'|format(avg_overall|sum / avg_overall|length) }} / 5</strong>
-                </span>
-                {% endif %}
+              <div style="margin-top:10px;padding:10px 14px;background:var(--bg-2);border-radius:var(--r-sm);display:flex;gap:16px;font-size:13px;align-items:center;flex-wrap:wrap;">
+                <span style="color:#27ae60;font-weight:700;"><i class="fas fa-thumbs-up"></i> {{ pass_count }} 추천</span>
+                <span style="color:#c87700;font-weight:700;"><i class="fas fa-pause"></i> {{ hold_count }} 보류</span>
+                <span style="color:#e74c3c;font-weight:700;"><i class="fas fa-thumbs-down"></i> {{ fail_count }} 불가</span>
+                {% set avg_overall = [] %}{% for fb in feedbacks %}{% if fb.score_overall %}{% set _ = avg_overall.append(fb.score_overall) %}{% endif %}{% endfor %}
+                {% if avg_overall %}<span style="margin-left:auto;color:var(--tx-3);">종합 평균 <strong style="color:var(--tx-1);">{{ '%.1f'|format(avg_overall|sum / avg_overall|length) }} / 5</strong></span>{% endif %}
               </div>
             </div>
             {% else %}
-            <div style="font-size:13px; color:var(--tx-4); padding:8px 0;">아직 제출된 피드백이 없습니다.</div>
+            <div style="font-size:13px;color:var(--tx-4);padding:8px 0;">아직 제출된 피드백이 없습니다.</div>
             {% endif %}
 
-            <!-- 면접 노트 (빠른 메모) -->
+            <!-- 면접 노트 -->
             <div style="margin-bottom:14px;">
-              <div style="font-size:12px; font-weight:700; color:var(--tx-3); margin-bottom:8px; text-transform:uppercase; letter-spacing:.05em;">
-                면접 노트
-                <span style="font-size:10px; font-weight:400; color:var(--tx-4); text-transform:none;">— 면접 중 빠른 메모, 팀 전체에 공개됩니다</span>
-              </div>
+              <div style="font-size:12px;font-weight:700;color:var(--tx-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">면접 노트 <span style="font-size:10px;font-weight:400;color:var(--tx-4);text-transform:none;">— 면접 중 빠른 메모</span></div>
               {% for note in rd.notes %}
-              <div style="padding:8px 10px; background:var(--bg-2); border-radius:var(--r-sm);
-                          margin-bottom:6px; display:flex; gap:10px; align-items:flex-start;">
-                <div style="width:24px; height:24px; border-radius:50%; background:var(--primary);
-                            display:flex; align-items:center; justify-content:center;
-                            font-size:10px; font-weight:700; color:#fff; flex-shrink:0;">
-                  {{ note.author_name[0] }}
-                </div>
+              <div style="padding:8px 10px;background:var(--bg-2);border-radius:var(--r-sm);margin-bottom:6px;display:flex;gap:10px;align-items:flex-start;">
+                <div style="width:24px;height:24px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0;">{{ note.author_name[0] }}</div>
                 <div style="flex:1;">
-                  <div style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">
-                    <span style="font-size:12px; font-weight:700; color:var(--tx-1);">{{ note.author_name }}</span>
-                    <span style="font-size:11px; color:var(--tx-4);">{{ note.created_at[:16] }}</span>
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+                    <span style="font-size:12px;font-weight:700;color:var(--tx-1);">{{ note.author_name }}</span>
+                    <span style="font-size:11px;color:var(--tx-4);">{{ note.created_at[:16] }}</span>
                   </div>
-                  <div style="font-size:13px; color:var(--tx-2); white-space:pre-wrap; line-height:1.5;">{{ note.content }}</div>
+                  <div style="font-size:13px;color:var(--tx-2);white-space:pre-wrap;line-height:1.5;">{{ note.content }}</div>
                 </div>
               </div>
-              {% else %}
-              <div style="font-size:13px; color:var(--tx-4); padding:4px 0 8px;">아직 메모가 없습니다.</div>
-              {% endfor %}
-              <form action="{{ url_for('recruit_round_note_add', round_id=r.id) }}" method="POST"
-                    style="display:flex; gap:8px; align-items:flex-end; margin-top:6px;">
-                <textarea name="content" class="input" rows="2" style="flex:1; font-size:12px; resize:none;"
-                          placeholder="면접 중 메모를 남기세요 (후보자 반응, 특이사항 등)..."></textarea>
-                <button type="submit" class="btn btn-ghost btn-sm" style="flex-shrink:0;">
-                  <i class="fas fa-paper-plane"></i>
-                </button>
+              {% else %}<div style="font-size:13px;color:var(--tx-4);padding:4px 0 8px;">아직 메모가 없습니다.</div>{% endfor %}
+              <form action="{{ url_for('recruit_round_note_add', round_id=r.id) }}" method="POST" style="display:flex;gap:8px;align-items:flex-end;margin-top:6px;">
+                <textarea name="content" class="input" rows="2" style="flex:1;font-size:12px;resize:none;" placeholder="면접 중 메모 (후보자 반응, 특이사항 등)..."></textarea>
+                <button type="submit" class="btn btn-ghost btn-sm"><i class="fas fa-paper-plane"></i></button>
               </form>
             </div>
 
-            <!-- 액션 -->
-            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; padding-top:12px; border-top:1px solid var(--border);">
-              <a href="{{ url_for('recruit_round_feedback', round_id=r.id) }}" class="btn btn-primary btn-sm">
-                <i class="fas fa-edit"></i> 내 피드백 작성
-              </a>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:12px;border-top:1px solid var(--border);">
+              <a href="{{ url_for('recruit_round_feedback', round_id=r.id) }}" class="btn btn-primary btn-sm"><i class="fas fa-edit"></i> 내 피드백 작성</a>
               {% if r.status == 'scheduled' %}
-              <button type="button" class="btn btn-ghost btn-sm"
-                      onclick="document.getElementById('cf-{{ r.id }}').style.display='block'; this.style.display='none';">
-                <i class="fas fa-check"></i> 면접 완료 처리
-              </button>
+              <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('cf-{{ r.id }}').style.display='block';this.style.display='none';"><i class="fas fa-check"></i> 면접 완료 처리</button>
               {% endif %}
-              {% if r.meet_link %}
-              <a href="{{ r.meet_link }}" target="_blank" class="btn btn-ghost btn-sm">
-                <i class="fas fa-video"></i> 미팅 링크
-              </a>
-              {% endif %}
+              {% if r.meet_link %}<a href="{{ r.meet_link }}" target="_blank" class="btn btn-ghost btn-sm"><i class="fas fa-video"></i> 미팅 링크</a>{% endif %}
             </div>
-
-            <!-- 완료 처리 폼 -->
-            <div id="cf-{{ r.id }}" style="display:none; margin-top:12px; padding:12px; background:var(--bg-2); border-radius:var(--r-sm);">
+            <div id="cf-{{ r.id }}" style="display:none;margin-top:12px;padding:12px;background:var(--bg-2);border-radius:var(--r-sm);">
               <form action="{{ url_for('recruit_round_complete', round_id=r.id) }}" method="POST">
-                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:10px;">
-                  <div>
-                    <label class="form-label" style="font-size:12px;">상태</label>
-                    <select name="status" class="input">
-                      <option value="completed">완료</option>
-                      <option value="cancelled">취소</option>
-                      <option value="no_show">노쇼</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label class="form-label" style="font-size:12px;">시작 시각</label>
-                    <input type="datetime-local" name="actual_start" class="input">
-                  </div>
-                  <div>
-                    <label class="form-label" style="font-size:12px;">종료 시각</label>
-                    <input type="datetime-local" name="actual_end" class="input">
-                  </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+                  <div><label class="form-label" style="font-size:12px;">상태</label><select name="status" class="input"><option value="completed">완료</option><option value="cancelled">취소</option><option value="no_show">노쇼</option></select></div>
+                  <div><label class="form-label" style="font-size:12px;">시작 시각</label><input type="datetime-local" name="actual_start" class="input"></div>
+                  <div><label class="form-label" style="font-size:12px;">종료 시각</label><input type="datetime-local" name="actual_end" class="input"></div>
                 </div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <label class="form-label" style="font-size:12px; white-space:nowrap; margin-bottom:0;">실제 소요(분)</label>
-                  <input type="number" name="actual_min" class="input" value="{{ r.planned_min }}" style="width:80px; padding:5px 8px;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <label class="form-label" style="font-size:12px;white-space:nowrap;margin-bottom:0;">실제 소요(분)</label>
+                  <input type="number" name="actual_min" class="input" value="{{ r.planned_min }}" style="width:80px;padding:5px 8px;">
                   <button type="submit" class="btn btn-primary btn-sm">저장</button>
-                  <button type="button" class="btn btn-ghost btn-sm"
-                          onclick="document.getElementById('cf-{{ r.id }}').style.display='none';">취소</button>
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('cf-{{ r.id }}').style.display='none';">취소</button>
                 </div>
               </form>
             </div>
-
           </div>
         </div>
         {% endfor %}
-
       </div>
     </div>
 
-    <!-- ── 활동 로그 탭 ──────────────────────────────────────── -->
+    <!-- ── 오퍼 탭 ─────────────────────────────────────────────── -->
+    <div class="apd-tab-content" id="apd-offers">
+      <div style="padding:18px;">
+        {% if applicant.stage not in ('disqualified','rejected') %}
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-head"><span class="card-title">오퍼 생성</span></div>
+          <div class="card-body">
+            <form action="{{ url_for('recruit_offers', applicant_id=applicant.id) }}" method="POST">
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">연봉 (원)</label>
+                  <input type="number" name="salary" class="input" placeholder="60000000">
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">입사 예정일</label>
+                  <input type="date" name="start_date" class="input">
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">오퍼 유효 기간</label>
+                  <input type="date" name="expiry_date" class="input">
+                </div>
+              </div>
+              <div class="field" style="margin-bottom:12px;">
+                <label class="form-label" style="font-size:12px;">추가 조건 (선택 — 비워두면 기본 문구 자동 생성)</label>
+                <textarea name="body" class="input" rows="3" placeholder="스톡옵션, 사이닝 보너스, 재택근무 조건 등..."></textarea>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <button type="submit" name="action" value="draft" class="btn btn-ghost btn-sm">초안 저장</button>
+                <button type="submit" name="action" value="send" class="btn btn-primary btn-sm"
+                        onclick="return confirm('오퍼 발송 처리하겠습니까? 이메일 발송 기록이 저장됩니다.')">
+                  <i class="fas fa-paper-plane"></i> 발송 처리
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if offers %}
+        {% for offer in offers %}
+        <div class="card" style="margin-bottom:10px;">
+          <div style="padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span style="font-size:14px;font-weight:700;color:var(--tx-1);">
+                {% if offer.salary %}연봉 {{ '{:,}'.format(offer.salary) }}원{% else %}연봉 협의{% endif %}
+              </span>
+              <span style="font-size:11px;padding:3px 10px;border-radius:999px;font-weight:700;color:#fff;
+                background:{{ {'draft':'#6b7280','sent':'#3b82f6','accepted':'#10b981','rejected':'#ef4444','expired':'#9ca3af','negotiating':'#f59e0b'}.get(offer.status,'#6b7280') }}">
+                {{ offer_status_label.get(offer.status, offer.status) }}
+              </span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--tx-3);">
+              {% if offer.start_date %}<span><i class="fas fa-calendar"></i> {{ offer.start_date }} 입사</span>{% endif %}
+              {% if offer.expiry_date %}<span>만료 {{ offer.expiry_date }}</span>{% endif %}
+              <a href="{{ url_for('recruit_offer_letter', offer_id=offer.id) }}" target="_blank" class="btn btn-ghost btn-sm"><i class="fas fa-file-alt"></i> 오퍼 레터</a>
+              {% if offer.status == 'draft' %}
+              <form action="{{ url_for('recruit_offer_send', offer_id=offer.id) }}" method="POST">
+                <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('발송 처리할까요?')"><i class="fas fa-paper-plane"></i> 발송</button>
+              </form>
+              {% endif %}
+            </div>
+          </div>
+          {% if offer.body %}
+          <div style="padding:0 20px 14px;font-size:13px;color:var(--tx-3);white-space:pre-wrap;line-height:1.6;">{{ offer.body[:200] }}{% if offer.body|length > 200 %}...{% endif %}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <div style="text-align:center;padding:60px;color:var(--tx-3);">
+          <i class="fas fa-file-contract" style="font-size:36px;display:block;margin-bottom:12px;opacity:.3;"></i>
+          아직 생성된 오퍼가 없습니다.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── 이메일 탭 ───────────────────────────────────────────── -->
+    <div class="apd-tab-content" id="apd-emails">
+      <div style="padding:18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <span style="font-size:14px;font-weight:700;color:var(--tx-1);">발송 이메일 이력</span>
+          <button type="button" onclick="openEmailModal()" class="btn btn-primary btn-sm">
+            <i class="fas fa-envelope"></i> 이메일 작성
+          </button>
+        </div>
+        {% if email_logs %}
+        {% for em in email_logs %}
+        <div class="card" style="margin-bottom:10px;">
+          <div style="padding:12px 16px;display:flex;align-items:flex-start;gap:12px;">
+            <span class="email-badge {% if em.email_type == 'fail' %}email-badge-fail{% elif em.email_type == 'pass' %}email-badge-pass{% elif em.email_type == 'offer' %}email-badge-offer{% else %}email-badge-invite{% endif %}">
+              {{ {'interview_invite':'면접 안내','pass':'합격','fail':'불합격','offer':'오퍼','custom':'일반'}.get(em.email_type, em.email_type) }}
+            </span>
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:600;color:var(--tx-1);margin-bottom:3px;">{{ em.subject }}</div>
+              <div style="font-size:12px;color:var(--tx-3);margin-bottom:4px;">수신: {{ em.recipient }}</div>
+              <div style="font-size:12px;color:var(--tx-3);white-space:pre-wrap;background:var(--bg-2);padding:8px 10px;border-radius:var(--r-sm);line-height:1.6;">{{ em.body[:300] }}{% if em.body|length > 300 %}...{% endif %}</div>
+            </div>
+            <div style="font-size:11px;color:var(--tx-4);white-space:nowrap;">{{ em.sent_at[:16] }}<br>{{ em.sent_by_name or '-' }}</div>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div style="text-align:center;padding:60px;color:var(--tx-3);">
+          <i class="fas fa-envelope-open" style="font-size:36px;display:block;margin-bottom:12px;opacity:.3;"></i>
+          발송된 이메일이 없습니다.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── 활동 로그 탭 ────────────────────────────────────────── -->
     <div class="apd-tab-content" id="apd-log">
       <div style="padding:18px;">
         <div class="card">
@@ -698,100 +569,119 @@
           {% if activity_logs %}
           <div style="padding:0 20px;">
             {% for log in activity_logs %}
-            <div style="padding:12px 0; border-bottom:1px solid var(--border); display:flex; gap:12px;">
-              <div style="width:8px; height:8px; border-radius:50%; background:var(--primary); margin-top:6px; flex-shrink:0;"></div>
+            <div style="padding:12px 0;border-bottom:1px solid var(--border);display:flex;gap:12px;">
+              <div style="width:8px;height:8px;border-radius:50%;background:var(--primary);margin-top:6px;flex-shrink:0;"></div>
               <div style="flex:1;">
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:3px;">
-                  <span style="font-size:12px; font-weight:700; color:var(--tx-1);">{{ log.event_type }}</span>
-                  {% if log.actor_name %}
-                  <span style="font-size:12px; color:var(--tx-3);">· {{ log.actor_name }}</span>
-                  {% endif %}
-                  <span style="font-size:11px; color:var(--tx-4); margin-left:auto;">{{ log.created_at[:16] }}</span>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+                  <span style="font-size:12px;font-weight:700;color:var(--tx-1);">{{ log.event_type }}</span>
+                  {% if log.actor_name %}<span style="font-size:12px;color:var(--tx-3);">· {{ log.actor_name }}</span>{% endif %}
+                  <span style="font-size:11px;color:var(--tx-4);margin-left:auto;">{{ log.created_at[:16] }}</span>
                 </div>
                 {% if log.meta and log.meta != '{}' %}
-                <div style="font-size:12px; color:var(--tx-3); font-family:monospace; background:var(--bg-2);
-                            padding:4px 8px; border-radius:4px; word-break:break-all;">{{ log.meta }}</div>
+                <div style="font-size:12px;color:var(--tx-3);font-family:monospace;background:var(--bg-2);padding:4px 8px;border-radius:4px;word-break:break-all;">{{ log.meta }}</div>
                 {% endif %}
               </div>
             </div>
             {% endfor %}
           </div>
           {% else %}
-          <div class="card-body" style="text-align:center; color:var(--tx-3);">아직 기록이 없습니다.</div>
+          <div class="card-body" style="text-align:center;color:var(--tx-3);">아직 기록이 없습니다.</div>
           {% endif %}
         </div>
       </div>
     </div>
-
   </div>
 </div>
-<!-- ── 불합격 처리 모달 ──────────────────────────────────────── -->
-<div id="disqualify-modal"
-     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:900;
-            align-items:center; justify-content:center;">
-  <div style="background:var(--bg-1); border-radius:var(--r-lg); padding:28px; width:420px;
-              max-width:90vw; box-shadow:0 8px 32px rgba(0,0,0,.2);">
-    <div style="font-size:16px; font-weight:900; color:#c0392b; margin-bottom:6px;">
-      <i class="fas fa-times-circle"></i> 불합격 처리
-    </div>
-    <div style="font-size:12px; color:var(--tx-3); margin-bottom:18px;">
-      현재 단계: <strong>{{ stage_map.get(applicant.stage, applicant.stage) }}</strong>
-      — 불합격 처리 후 되돌릴 수 없습니다.
-    </div>
+
+<!-- ── 불합격 처리 모달 ────────────────────────────────────────── -->
+<div id="disqualify-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;align-items:center;justify-content:center;">
+  <div style="background:var(--bg-1);border-radius:var(--r-lg);padding:28px;width:480px;max-width:92vw;box-shadow:0 8px 32px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto;">
+    <div style="font-size:16px;font-weight:900;color:#c0392b;margin-bottom:6px;"><i class="fas fa-times-circle"></i> 불합격 처리</div>
+    <div style="font-size:12px;color:var(--tx-3);margin-bottom:18px;">현재 단계: <strong>{{ stage_map.get(applicant.stage, applicant.stage) }}</strong></div>
     <form action="{{ url_for('recruit_disqualify', applicant_id=applicant.id) }}" method="POST">
       <div class="field">
         <label class="form-label">불합격 사유 코드 <span style="color:#e74c3c;">*</span></label>
         <select name="reason_code" class="input" required>
           <option value="">— 사유를 선택하세요 —</option>
-          {% for code, label in rejection_reason_codes.items() %}
-          <option value="{{ code }}">{{ label }}</option>
-          {% endfor %}
+          {% for code, label in rejection_reason_codes.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
         </select>
       </div>
       <div class="field">
-        <label class="form-label">추가 메모 (선택)</label>
-        <textarea name="note" class="input" rows="3"
-                  placeholder="면접관 의견, 특이사항 등 내부 메모"></textarea>
+        <label class="form-label">내부 메모 (선택)</label>
+        <textarea name="note" class="input" rows="2" placeholder="면접관 의견, 특이사항 등 내부용 메모"></textarea>
       </div>
-      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:6px;">
-        <button type="button"
-                onclick="document.getElementById('disqualify-modal').style.display='none'"
-                class="btn btn-ghost btn-sm">취소</button>
-        <button type="submit" class="btn btn-sm"
-                style="background:#c0392b; color:#fff; border:none;">
-          불합격 처리 확정
-        </button>
+
+      <!-- 이메일 발송 옵션 (기획서 P1) -->
+      <div style="border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:14px;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;margin-bottom:10px;">
+          <input type="checkbox" id="dq-send-email-cb" name="send_email" value="1" onchange="toggleDqEmailBody(this.checked)">
+          <span>불합격 안내 이메일 발송</span>
+          <span style="font-size:11px;color:var(--tx-3);font-weight:400;">— {{ applicant.email }}</span>
+        </label>
+        <div id="dq-email-body-wrap" style="display:none;">
+          <div style="font-size:11px;color:var(--tx-3);margin-bottom:6px;">이메일 본문 (수정 가능)</div>
+          <textarea name="email_body" id="dq-email-body" class="input" rows="8" style="font-size:12px;font-family:monospace;"></textarea>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button type="button" onclick="document.getElementById('disqualify-modal').style.display='none'" class="btn btn-ghost btn-sm">취소</button>
+        <button type="submit" class="btn btn-sm" style="background:#c0392b;color:#fff;border:none;">불합격 처리 확정</button>
       </div>
     </form>
   </div>
 </div>
 
-<!-- ── 오퍼 거절 모달 ─────────────────────────────────────────── -->
-<div id="offer-reject-modal"
-     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:900;
-            align-items:center; justify-content:center;">
-  <div style="background:var(--bg-1); border-radius:var(--r-lg); padding:28px; width:380px;
-              max-width:90vw; box-shadow:0 8px 32px rgba(0,0,0,.2);">
-    <div style="font-size:16px; font-weight:900; color:#c87700; margin-bottom:6px;">
-      오퍼 거절 처리
-    </div>
-    <div style="font-size:12px; color:var(--tx-3); margin-bottom:18px;">
-      후보자가 오퍼를 거절한 경우 기록합니다.
-    </div>
+<!-- ── 오퍼 거절 모달 ──────────────────────────────────────────── -->
+<div id="offer-reject-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;align-items:center;justify-content:center;">
+  <div style="background:var(--bg-1);border-radius:var(--r-lg);padding:28px;width:380px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+    <div style="font-size:16px;font-weight:900;color:#c87700;margin-bottom:6px;">오퍼 거절 처리</div>
+    <div style="font-size:12px;color:var(--tx-3);margin-bottom:18px;">후보자가 오퍼를 거절한 경우 기록합니다.</div>
     <form action="{{ url_for('recruit_offer_reject', applicant_id=applicant.id) }}" method="POST">
       <div class="field">
         <label class="form-label">거절 사유 (선택)</label>
-        <textarea name="note" class="input" rows="3"
-                  placeholder="연봉 협상 결렬, 타사 오퍼 수락 등"></textarea>
+        <textarea name="note" class="input" rows="3" placeholder="연봉 협상 결렬, 타사 오퍼 수락 등"></textarea>
       </div>
-      <div style="display:flex; gap:10px; justify-content:flex-end;">
-        <button type="button"
-                onclick="document.getElementById('offer-reject-modal').style.display='none'"
-                class="btn btn-ghost btn-sm">취소</button>
-        <button type="submit" class="btn btn-sm"
-                style="background:#c87700; color:#fff; border:none;">
-          오퍼 거절 기록
-        </button>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button type="button" onclick="document.getElementById('offer-reject-modal').style.display='none'" class="btn btn-ghost btn-sm">취소</button>
+        <button type="submit" class="btn btn-sm" style="background:#c87700;color:#fff;border:none;">오퍼 거절 기록</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── 이메일 작성 모달 ────────────────────────────────────────── -->
+<div id="email-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;align-items:center;justify-content:center;">
+  <div style="background:var(--bg-1);border-radius:var(--r-lg);padding:28px;width:560px;max-width:94vw;box-shadow:0 8px 32px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto;">
+    <div style="font-size:16px;font-weight:900;color:var(--tx-1);margin-bottom:16px;"><i class="fas fa-envelope"></i> 이메일 작성</div>
+    <form action="{{ url_for('recruit_email_logs', applicant_id=applicant.id) }}" method="get" id="email-preview-form">
+      <div class="field">
+        <label class="form-label" style="font-size:12px;">템플릿 선택</label>
+        <select class="input" id="email-tpl-select" onchange="loadEmailTemplate(this.value)">
+          <option value="">— 직접 작성 —</option>
+          {% for key, tpl in email_templates.items() %}
+          <option value="{{ key }}">{{ tpl.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+    <form action="{{ url_for('recruit_email_logs', applicant_id=applicant.id) }}" method="post" id="email-send-form">
+      <input type="hidden" name="_method" value="POST">
+      <div class="field">
+        <label class="form-label" style="font-size:12px;">수신자</label>
+        <input type="email" name="recipient" class="input" value="{{ applicant.email }}" readonly style="background:var(--bg-2);">
+      </div>
+      <div class="field">
+        <label class="form-label" style="font-size:12px;">제목</label>
+        <input type="text" name="subject" id="email-subject" class="input" placeholder="이메일 제목">
+      </div>
+      <div class="field">
+        <label class="form-label" style="font-size:12px;">본문</label>
+        <textarea name="body" id="email-body" class="input" rows="10" style="font-size:12px;font-family:monospace;" placeholder="이메일 내용을 입력하세요..."></textarea>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button type="button" onclick="document.getElementById('email-modal').style.display='none'" class="btn btn-ghost btn-sm">취소</button>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save"></i> 발송 기록 저장</button>
       </div>
     </form>
   </div>
@@ -802,109 +692,137 @@
 {% block scripts %}
 <script>
 (function () {
-  // ── 탭 전환 ────────────────────────────────────────────────
-  var hash = window.location.hash;
-  var activeTab = hash === '#interviews' ? 'interviews' : hash === '#log' ? 'log' : 'docs';
+  // ── 탭 전환 ──────────────────────────────────────────────────
+  var hash = window.location.hash.replace('#','') || 'docs';
+  var validTabs = ['docs','interviews','offers','emails','log'];
+  if (!validTabs.includes(hash)) hash = 'docs';
 
   function showTab(tid) {
-    document.querySelectorAll('.apd-tab-content').forEach(function (el) { el.classList.remove('on'); });
-    document.querySelectorAll('.apd-tab').forEach(function (b) { b.classList.remove('on'); });
-    var content = document.getElementById('apd-' + tid);
-    if (content) content.classList.add('on');
-    var btn = document.querySelector('.apd-tab[data-tab="' + tid + '"]');
-    if (btn) btn.classList.add('on');
-    history.replaceState(null, '', '#' + tid);
+    document.querySelectorAll('.apd-tab-content').forEach(function(el){ el.classList.remove('on'); });
+    document.querySelectorAll('.apd-tab').forEach(function(b){ b.classList.remove('on'); });
+    var c = document.getElementById('apd-'+tid);
+    if (c) c.classList.add('on');
+    var b = document.querySelector('.apd-tab[data-tab="'+tid+'"]');
+    if (b) b.classList.add('on');
+    history.replaceState(null,'','#'+tid);
   }
-
-  document.querySelectorAll('.apd-tab').forEach(function (b) {
-    b.addEventListener('click', function () { showTab(b.dataset.tab); });
+  document.querySelectorAll('.apd-tab').forEach(function(b){
+    b.addEventListener('click', function(){ showTab(b.dataset.tab); });
   });
+  showTab(hash);
 
-  showTab(activeTab);
-
-  // ── 단계 변경 rejection 표시 ──────────────────────────────
-  window.onStageChange = function (val) {
-    var block = document.getElementById('rejection-reason-block');
-    if (block) block.style.display = val === 'rejected' ? 'block' : 'none';
-  };
-
-  // 초기 상태 반영
-  var stageSelect = document.querySelector('select[name="stage"]');
-  if (stageSelect) onStageChange(stageSelect.value);
-
-  // ── 업로드 드로어 ─────────────────────────────────────────
-  var drawer = document.getElementById('upload-drawer');
-  if (drawer) {
-    // toggle() 방식이므로 추가 처리 불필요
-    // display:none → display:block
-    var btn = drawer.previousElementSibling;
+  // ── 업로드 드로어 ─────────────────────────────────────────────
+  var uploadBtn = document.getElementById('upload-toggle-btn');
+  if (uploadBtn) {
+    uploadBtn.addEventListener('click', function(){
+      var d = document.getElementById('upload-drawer');
+      if (!d) return;
+      d.style.display = d.style.display === 'none' || !d.style.display ? 'block' : 'none';
+    });
   }
 
-  // ── 서류 선택 & 뷰어 ─────────────────────────────────────
-  window.selectDoc = function (el) {
-    document.querySelectorAll('.apd-doc-item').forEach(function (i) { i.classList.remove('active'); });
+  // ── 서류 뷰어 ─────────────────────────────────────────────────
+  window.selectDoc = function(el) {
+    document.querySelectorAll('.apd-doc-item').forEach(function(i){ i.classList.remove('active'); });
     el.classList.add('active');
-
-    var url  = el.dataset.docUrl;
-    var name = el.dataset.docName;
-    var ext  = el.dataset.docExt;
-    var docId = el.dataset.docId;
-
+    var url = el.dataset.docUrl, name = el.dataset.docName, ext = el.dataset.docExt;
     var fn = document.getElementById('viewer-filename');
     if (fn) fn.textContent = name;
-
-    var dl = document.getElementById('viewer-download');
-    var op = document.getElementById('viewer-open');
+    var dl = document.getElementById('viewer-download'), op = document.getElementById('viewer-open');
     if (dl) dl.href = url;
     if (op) op.href = url;
-
     var df = document.getElementById('viewer-delete-form');
     if (df) df.action = url.replace('/file', '/delete');
-
-    var iframe = document.getElementById('doc-iframe');
-    var nopreview = document.getElementById('doc-nopreview');
-
+    var iframe = document.getElementById('doc-iframe'), nopreview = document.getElementById('doc-nopreview');
     if (ext === 'pdf') {
       if (!iframe) {
-        // 동적으로 iframe 생성
         var viewer = document.getElementById('doc-viewer');
-        if (nopreview) nopreview.style.display = 'none';
         var newIframe = document.createElement('iframe');
-        newIframe.id = 'doc-iframe';
-        newIframe.className = 'apd-viewer-iframe';
-        newIframe.style.flex = '1';
-        viewer.appendChild(newIframe);
-        iframe = newIframe;
+        newIframe.id = 'doc-iframe'; newIframe.className = 'apd-viewer-iframe'; newIframe.style.flex = '1';
+        viewer.appendChild(newIframe); iframe = newIframe;
       }
       iframe.src = url;
       if (iframe) iframe.style.display = 'block';
       if (nopreview) nopreview.style.display = 'none';
     } else {
       if (iframe) iframe.style.display = 'none';
-      if (nopreview) {
-        nopreview.style.display = 'flex';
-      } else {
-        var viewer = document.getElementById('doc-viewer');
-        var np = document.createElement('div');
-        np.id = 'doc-nopreview';
-        np.className = 'apd-viewer-nopreview';
-        np.innerHTML = '<i class="fas fa-file" style="font-size:36px; margin-bottom:12px; opacity:.3;"></i>' +
-                       '<div>이 파일은 미리보기를 지원하지 않습니다.</div>' +
-                       '<div style="font-size:11px; margin-top:4px;">다운로드하거나 새 탭에서 열어보세요.</div>';
-        viewer.appendChild(np);
+      if (nopreview) nopreview.style.display = 'flex';
+    }
+  };
+
+  // ── 불합격 이메일 본문 토글 ──────────────────────────────────
+  window.toggleDqEmailBody = function(checked) {
+    var wrap = document.getElementById('dq-email-body-wrap');
+    if (!wrap) return;
+    wrap.style.display = checked ? 'block' : 'none';
+    if (checked) {
+      var ta = document.getElementById('dq-email-body');
+      if (ta && !ta.value) {
+        ta.value = [
+          '{{ applicant.name }}님 안녕하세요.\n\n',
+          '{{ applicant.posting_title }} 포지션에 지원해 주셔서 진심으로 감사합니다.\n\n',
+          '신중하게 검토한 결과, 이번에는 함께하지 못하게 되었습니다.\n',
+          '귀한 시간을 내어 주신 데 깊이 감사드리며,\n',
+          '앞으로의 커리어에 좋은 일들이 가득하시길 바랍니다.\n\n',
+          '감사합니다.\n채용팀 드림'
+        ].join('');
       }
     }
   };
 
-  // 업로드 드로어 toggle
-  document.addEventListener('click', function(e) {
-    var btn = e.target.closest('[onclick*="upload-drawer"]');
-    if (!btn) return;
-    e.preventDefault();
-    var d = document.getElementById('upload-drawer');
-    if (!d) return;
-    d.style.display = d.style.display === 'none' || !d.style.display ? 'block' : 'none';
-  });
+  // ── 이메일 작성 모달 ──────────────────────────────────────────
+  window.openEmailModal = function(tplKey) {
+    document.getElementById('email-modal').style.display = 'flex';
+    if (tplKey) {
+      var sel = document.getElementById('email-tpl-select');
+      if (sel) { sel.value = tplKey; loadEmailTemplate(tplKey); }
+    }
+  };
+
+  window.loadEmailTemplate = function(key) {
+    var subject = document.getElementById('email-subject');
+    var body = document.getElementById('email-body');
+    if (!key) { if(subject) subject.value=''; if(body) body.value=''; return; }
+    fetch('/recruit/email-preview', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        type: key,
+        context: {
+          name: '{{ applicant.name }}',
+          posting_title: '{{ applicant.posting_title }}'
+        }
+      })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (subject) subject.value = d.subject || '';
+      if (body) body.value = d.body || '';
+    });
+  };
+
+  // 이메일 발송 폼 — 실제로는 email_logs endpoint에 POST (커스텀)
+  var emailSendForm = document.getElementById('email-send-form');
+  if (emailSendForm) {
+    emailSendForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var formData = new FormData(emailSendForm);
+      // 이메일 이력 저장 endpoint 호출
+      fetch('/recruit/applicants/{{ applicant.id }}/email-send', {
+        method: 'POST',
+        body: formData
+      })
+      .then(function(r){
+        if (r.ok) {
+          document.getElementById('email-modal').style.display = 'none';
+          window.location.reload();
+        } else {
+          alert('저장 실패');
+        }
+      })
+      .catch(function(){ alert('오류가 발생했습니다.'); });
+    });
+  }
 
 }());
 </script>

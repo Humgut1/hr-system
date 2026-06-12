@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}오퍼 레터 — {{ offer.applicant_name }}{% endblock %}
+
+{% block content %}
+<div style="max-width:760px;margin:0 auto;padding:24px 16px">
+
+  <!-- 액션 바 (인쇄 시 숨김) -->
+  <div class="no-print" style="display:flex;gap:12px;margin-bottom:20px;align-items:center">
+    <a href="{{ url_for('recruit_applicant_detail', applicant_id=offer.applicant_id) }}"
+       class="btn btn-ghost">&larr; 지원자 상세</a>
+    <button onclick="window.print()" class="btn btn-primary">인쇄 / PDF 저장</button>
+    {% if offer.status == 'draft' %}
+    <form method="post" action="{{ url_for('recruit_offer_send', offer_id=offer.id) }}"
+          style="margin:0">
+      <button class="btn btn-success" onclick="return confirm('오퍼 발송 처리하겠습니까?')">
+        발송 처리
+      </button>
+    </form>
+    {% endif %}
+    <span class="badge" style="background:{{ {'draft':'#6b7280','sent':'#3b82f6','accepted':'#10b981','rejected':'#ef4444','expired':'#9ca3af','negotiating':'#f59e0b'}[offer.status] }};color:#fff;padding:4px 10px;border-radius:12px">
+      {{ offer_status_label[offer.status] }}
+    </span>
+  </div>
+
+  <!-- 오퍼 레터 본문 -->
+  <div id="offer-paper" style="
+    background:#fff;border:1px solid #e5e7eb;border-radius:8px;
+    padding:64px 72px;font-family:'Noto Sans KR',sans-serif;
+    line-height:1.8;color:#111;box-shadow:0 2px 12px rgba(0,0,0,.08)
+  ">
+    <!-- 회사 헤더 -->
+    <div style="text-align:center;margin-bottom:48px;border-bottom:2px solid #111;padding-bottom:24px">
+      <div style="font-size:22px;font-weight:700;letter-spacing:2px">{{ company }}</div>
+      <div style="font-size:12px;color:#6b7280;margin-top:4px">Offer Letter</div>
+    </div>
+
+    <div style="margin-bottom:28px">
+      <div style="font-size:13px;color:#6b7280">수신</div>
+      <div style="font-size:18px;font-weight:600;margin-top:2px">{{ offer.applicant_name }} 님</div>
+      {% if offer.applicant_email %}
+      <div style="font-size:13px;color:#6b7280">{{ offer.applicant_email }}</div>
+      {% endif %}
+    </div>
+
+    <div style="margin-bottom:28px">
+      <div style="font-size:13px;color:#6b7280">지원 포지션</div>
+      <div style="font-size:16px;font-weight:600;margin-top:2px">{{ offer.posting_title }}</div>
+    </div>
+
+    <p style="margin-bottom:24px">
+      안녕하세요, {{ offer.applicant_name }}님.<br>
+      저희 {{ company }}에 관심을 가져주시고 면접에 참여해 주셔서 진심으로 감사드립니다.<br>
+      신중한 검토 끝에, 아래와 같은 조건으로 입사를 제안드리게 되어 매우 기쁩니다.
+    </p>
+
+    <!-- 조건 테이블 -->
+    <table style="width:100%;border-collapse:collapse;margin-bottom:32px;font-size:14px">
+      <tr style="background:#f9fafb">
+        <td style="padding:12px 16px;font-weight:600;border:1px solid #e5e7eb;width:35%">포지션</td>
+        <td style="padding:12px 16px;border:1px solid #e5e7eb">{{ offer.posting_title }}</td>
+      </tr>
+      {% if offer.salary %}
+      <tr>
+        <td style="padding:12px 16px;font-weight:600;border:1px solid #e5e7eb;background:#f9fafb">연봉 (세전)</td>
+        <td style="padding:12px 16px;border:1px solid #e5e7eb">{{ '{:,}'.format(offer.salary) }}원</td>
+      </tr>
+      {% endif %}
+      {% if offer.start_date %}
+      <tr style="background:#f9fafb">
+        <td style="padding:12px 16px;font-weight:600;border:1px solid #e5e7eb">입사 예정일</td>
+        <td style="padding:12px 16px;border:1px solid #e5e7eb">{{ offer.start_date }}</td>
+      </tr>
+      {% endif %}
+      {% if offer.expiry_date %}
+      <tr>
+        <td style="padding:12px 16px;font-weight:600;border:1px solid #e5e7eb;background:#f9fafb">오퍼 유효 기간</td>
+        <td style="padding:12px 16px;border:1px solid #e5e7eb">{{ offer.expiry_date }}까지</td>
+      </tr>
+      {% endif %}
+    </table>
+
+    {% if offer.body %}
+    <div style="white-space:pre-wrap;margin-bottom:32px;font-size:14px;color:#374151">{{ offer.body }}</div>
+    {% endif %}
+
+    <p style="font-size:14px;color:#374151;margin-bottom:48px">
+      본 오퍼에 동의하신다면, 유효 기간 이내에 회신 부탁드립니다.<br>
+      궁금한 사항은 언제든지 채용팀으로 문의해 주세요.
+    </p>
+
+    <!-- 서명란 -->
+    <div style="display:flex;justify-content:space-between;margin-top:48px">
+      <div style="text-align:center;min-width:180px">
+        <div style="border-top:1px solid #111;padding-top:8px;font-size:13px">회사 대표 서명</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px">{{ company }}</div>
+      </div>
+      <div style="text-align:center;min-width:180px">
+        <div style="border-top:1px solid #111;padding-top:8px;font-size:13px">지원자 서명</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px">{{ offer.applicant_name }}</div>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:48px;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:16px">
+      발행일: {{ offer.created_at[:10] if offer.created_at else '' }} &nbsp;|&nbsp;
+      담당자: {{ offer.created_by_name or '-' }} &nbsp;|&nbsp;
+      {{ company }}
+    </div>
+  </div>
+</div>
+
+<style>
+@media print {
+  .no-print { display:none !important; }
+  #offer-paper { border:none !important; box-shadow:none !important; padding:32px 48px !important; }
+  body { background:#fff !important; }
+  .sidebar, header { display:none !important; }
+  .main-content { margin:0 !important; padding:0 !important; }
+}
+</style>
+{% endblock %}

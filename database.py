@@ -1115,6 +1115,43 @@ def init_db(db_path: str = None):
             uploaded_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
 
+        # ── v0.64.0 오퍼 관리 + 이메일 이력 ─────────────────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS offers (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            applicant_id    INTEGER NOT NULL REFERENCES applicants(id) ON DELETE CASCADE,
+            posting_id      INTEGER NOT NULL REFERENCES job_postings(id),
+            status          TEXT NOT NULL DEFAULT 'draft'
+                            CHECK(status IN ('draft','sent','accepted','negotiating','rejected','expired')),
+            salary          INTEGER,
+            start_date      TEXT,
+            expiry_date     TEXT,
+            body            TEXT,
+            sent_at         TIMESTAMP,
+            responded_at    TIMESTAMP,
+            hired_employee_id INTEGER REFERENCES users(id),
+            created_by      INTEGER REFERENCES users(id),
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        c.execute('''CREATE TABLE IF NOT EXISTS recruit_emails (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            applicant_id INTEGER NOT NULL REFERENCES applicants(id) ON DELETE CASCADE,
+            email_type   TEXT NOT NULL
+                         CHECK(email_type IN ('interview_invite','pass','fail','offer','custom')),
+            recipient    TEXT NOT NULL,
+            subject      TEXT NOT NULL,
+            body         TEXT NOT NULL,
+            sent_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            sent_by      INTEGER REFERENCES users(id)
+        )''')
+
+        # applicants: hired_from_offer_id 컬럼 추가
+        ap_cols2 = {r[1] for r in c.execute('PRAGMA table_info(applicants)').fetchall()}
+        if 'hired_from_offer_id' not in ap_cols2:
+            c.execute('ALTER TABLE applicants ADD COLUMN hired_from_offer_id INTEGER REFERENCES offers(id)')
+        if 'hired_employee_id' not in ap_cols2:
+            c.execute('ALTER TABLE applicants ADD COLUMN hired_employee_id INTEGER REFERENCES users(id)')
+
         # ── v0.62.0 파이프라인 고도화 ────────────────────────────────────────
         # job_postings 에 recruiter_id / hiring_manager_id / coordinator_id 추가
         jp_cols2 = {r[1] for r in c.execute('PRAGMA table_info(job_postings)').fetchall()}

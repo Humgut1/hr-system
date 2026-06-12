@@ -1680,6 +1680,18 @@ def employee_new():
             )
             new_id = cur.lastrowid
             db.execute("UPDATE users SET emp_no = 'TC-' || printf('%05d', id) WHERE id=?", (new_id,))
+            # 지원자→직원 전환: applicant에 hired_employee_id 연결
+            from_applicant_id = request.form.get('from_applicant', type=int)
+            if from_applicant_id:
+                db.execute(
+                    'UPDATE applicants SET hired_employee_id=? WHERE id=?',
+                    (new_id, from_applicant_id)
+                )
+                db.execute(
+                    'UPDATE offers SET hired_employee_id=?, status="accepted", responded_at=CURRENT_TIMESTAMP '
+                    'WHERE applicant_id=? AND status IN ("sent","negotiating","draft")',
+                    (new_id, from_applicant_id)
+                )
             db.commit()
             # ── master.db 동기화: 이메일 매핑 + peak headcount ──
             tid = session.get('tenant_id', 1)
@@ -1691,9 +1703,27 @@ def employee_new():
             flash(f'직원 {name}(TC-{new_id:05d})이 추가되었습니다.', 'success')
             return redirect(url_for('employees'))
 
+    # 지원자→직원 전환 프리필 (기획서 P0: 오퍼 수락 시 /employees/new 프리필)
+    prefill = {}
+    from_applicant_id = request.args.get('from_applicant', type=int)
+    if from_applicant_id:
+        ap = get_db().execute(
+            'SELECT a.*, jp.department_id AS jp_dept FROM applicants a '
+            'JOIN job_postings jp ON a.posting_id = jp.id WHERE a.id=?', (from_applicant_id,)
+        ).fetchone()
+        if ap:
+            prefill = {
+                'name':          request.args.get('name', ap['name']),
+                'email':         request.args.get('email', ap['email'] or ''),
+                'phone':         request.args.get('phone', ap['phone'] or ''),
+                'department_id': request.args.get('dept', ap['jp_dept'] or ''),
+                'from_applicant': from_applicant_id,
+            }
+
     return render_template('employees/form.html',
                            mode='new', depts=depts, poses=poses, jfs=jfs,
                            managers=managers, error=error, emp=None,
+                           prefill=prefill,
                            active_page='employees')
 
 @app.route('/employees/<int:emp_id>/edit', methods=['GET', 'POST'])
@@ -5281,6 +5311,80 @@ REJECTION_REASON_CODES = {
     'WITHDREW':        '지원자 자진 철회',
 }
 
+OFFER_STATUS_LABEL = {
+    'draft':       '초안',
+    'sent':        '발송됨',
+    'accepted':    '수락',
+    'negotiating': '협상 중',
+    'rejected':    '거절',
+    'expired':     '만료',
+}
+
+# 이메일 템플릿 3종 (기획서 P1 — 인터뷰 안내/합격/불합격)
+EMAIL_TEMPLATES = {
+    'interview_invite': {
+        'label':   '면접 안내',
+        'subject': '[{company}] {name}님, 면접 일정을 안내드립니다',
+        'body': (
+            '{name}님 안녕하세요.\n\n'
+            '{company} 채용팀입니다.\n\n'
+            '{posting_title} 포지션에 지원해 주셔서 감사합니다.\n'
+            '서류 검토 결과, 면접에 초대하게 되었습니다.\n\n'
+            '■ 면접 일정\n'
+            '- 라운드: {round_type}\n'
+            '- 일시: {interview_date}\n'
+            '- 장소/방식: {interview_location}\n\n'
+            '궁금하신 사항은 언제든지 회신 주세요.\n\n'
+            '감사합니다.\n'
+            '{company} 채용팀 드림'
+        ),
+    },
+    'pass': {
+        'label':   '합격 안내',
+        'subject': '[{company}] {name}님, 최종 합격을 축하드립니다',
+        'body': (
+            '{name}님 안녕하세요.\n\n'
+            '{company} 채용팀입니다.\n\n'
+            '{posting_title} 포지션 최종 면접 결과,\n'
+            '합격하셨음을 알려드립니다. 축하드립니다! 🎉\n\n'
+            '오퍼 레터 및 입사 관련 안내는 별도로 발송해 드릴 예정입니다.\n\n'
+            '감사합니다.\n'
+            '{company} 채용팀 드림'
+        ),
+    },
+    'fail': {
+        'label':   '불합격 안내',
+        'subject': '[{company}] {name}님, 채용 결과를 안내드립니다',
+        'body': (
+            '{name}님 안녕하세요.\n\n'
+            '{company} 채용팀입니다.\n\n'
+            '{posting_title} 포지션에 지원해 주셔서 진심으로 감사합니다.\n\n'
+            '신중하게 검토한 결과, 이번에는 함께하지 못하게 되었습니다.\n'
+            '귀한 시간을 내어 주신 데 깊이 감사드리며,\n'
+            '앞으로의 커리어에 좋은 일들이 가득하시길 바랍니다.\n\n'
+            '감사합니다.\n'
+            '{company} 채용팀 드림'
+        ),
+    },
+    'offer': {
+        'label':   '오퍼 안내',
+        'subject': '[{company}] {name}님께 오퍼를 제안드립니다',
+        'body': (
+            '{name}님 안녕하세요.\n\n'
+            '{company} 채용팀입니다.\n\n'
+            '{posting_title} 포지션의 최종 합격을 다시 한번 축하드립니다.\n\n'
+            '아래와 같이 입사 조건을 제안드립니다:\n\n'
+            '■ 제안 조건\n'
+            '- 연봉: {salary}원\n'
+            '- 입사 예정일: {start_date}\n'
+            '- 오퍼 유효 기간: {expiry_date}까지\n\n'
+            '수락 또는 문의 사항은 본 메일로 회신 주시기 바랍니다.\n\n'
+            '감사합니다.\n'
+            '{company} 채용팀 드림'
+        ),
+    },
+}
+
 def log_recruit(applicant_id, event_type, meta=None, round_id=None):
     """채용 활동 로그 기록 헬퍼"""
     import json as _json
@@ -5894,21 +5998,45 @@ def recruit_stage_update(applicant_id):
     return jsonify({'ok': True, 'stage': new_stage, 'label': STAGE_MAP[new_stage]})
 
 
+def _save_recruit_email(db, applicant_id, email_type, recipient, subject, body):
+    """채용 이메일 발송 이력 저장 헬퍼"""
+    db.execute(
+        'INSERT INTO recruit_emails (applicant_id, email_type, recipient, subject, body, sent_by) '
+        'VALUES (?,?,?,?,?,?)',
+        (applicant_id, email_type, recipient, subject, body, session.get('user_id'))
+    )
+
+
+def _render_email_template(tpl_key, context):
+    """이메일 템플릿 렌더링 헬퍼"""
+    tpl = EMAIL_TEMPLATES.get(tpl_key, {})
+    company = os.environ.get('COMPANY_NAME', 'TalentCore')
+    ctx = {'company': company, **context}
+    subject = tpl.get('subject', '').format_map(ctx)
+    body    = tpl.get('body', '').format_map(ctx)
+    return subject, body
+
+
 @app.route('/recruit/applicants/<int:applicant_id>/disqualify', methods=['POST'])
 @recruiter_or_admin
 def recruit_disqualify(applicant_id):
-    """불합격 처리 — 어느 단계에서든, 사유 코드 기록"""
+    """불합격 처리 — 어느 단계에서든, 사유 코드 기록 + 이메일 발송 옵션"""
     db        = get_db()
-    applicant = db.execute('SELECT * FROM applicants WHERE id=?', (applicant_id,)).fetchone()
+    applicant = db.execute(
+        'SELECT a.*, jp.title AS posting_title FROM applicants a '
+        'JOIN job_postings jp ON a.posting_id = jp.id WHERE a.id=?', (applicant_id,)
+    ).fetchone()
     if not applicant:
         abort(404)
     if applicant['stage'] in TERMINAL_STAGES:
         flash('이미 처리 완료된 후보자입니다.', 'warning')
         return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
 
-    reason_code = request.form.get('reason_code', '').strip()
-    note        = request.form.get('note', '').strip() or None
-    from_stage  = applicant['stage']   # 어느 단계에서 불합격됐는지 기록
+    reason_code  = request.form.get('reason_code', '').strip()
+    note         = request.form.get('note', '').strip() or None
+    send_email   = request.form.get('send_email') == '1'
+    email_body   = request.form.get('email_body', '').strip()
+    from_stage   = applicant['stage']
 
     if not reason_code:
         flash('불합격 사유 코드를 선택해주세요.', 'warning')
@@ -5926,8 +6054,20 @@ def recruit_disqualify(applicant_id):
     )
     log_recruit(applicant_id, 'disqualified',
                 {'from_stage': from_stage, 'reason_code': reason_code, 'note': note})
+
+    if send_email and applicant['email']:
+        subject, body = _render_email_template('fail', {
+            'name': applicant['name'], 'posting_title': applicant['posting_title']
+        })
+        if email_body:
+            body = email_body
+        _save_recruit_email(db, applicant_id, 'fail', applicant['email'], subject, body)
+
     db.commit()
-    flash(f'{applicant["name"]} 님이 불합격 처리됐습니다.', 'info')
+    msg = f'{applicant["name"]} 님이 불합격 처리됐습니다.'
+    if send_email and applicant['email']:
+        msg += ' (이메일 발송 기록 저장됨)'
+    flash(msg, 'info')
     return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
 
 
@@ -5949,6 +6089,11 @@ def recruit_offer_reject(applicant_id):
         'INSERT INTO applicant_logs (applicant_id, stage, note, changed_by) VALUES (?,?,?,?)',
         (applicant_id, 'rejected', note or '후보자가 오퍼를 거절했습니다.', session['user_id'])
     )
+    # 오퍼 상태도 rejected로 동기화
+    db.execute(
+        "UPDATE offers SET status='rejected', responded_at=CURRENT_TIMESTAMP "
+        "WHERE applicant_id=? AND status IN ('sent','negotiating')", (applicant_id,)
+    )
     log_recruit(applicant_id, 'offer_rejected', {'note': note})
     db.commit()
     flash(f'{applicant["name"]} 님이 오퍼를 거절했습니다.', 'info')
@@ -5958,9 +6103,13 @@ def recruit_offer_reject(applicant_id):
 @app.route('/recruit/applicants/<int:applicant_id>/hire', methods=['POST'])
 @recruiter_or_admin
 def recruit_hire(applicant_id):
-    """최종 합격 처리 — offer 단계 후보자에 한해"""
+    """최종 합격 처리 — offer 단계 후보자에 한해 + 직원 전환 프리필 리다이렉트"""
     db        = get_db()
-    applicant = db.execute('SELECT * FROM applicants WHERE id=?', (applicant_id,)).fetchone()
+    applicant = db.execute(
+        'SELECT a.*, jp.title AS posting_title, jp.department_id '
+        'FROM applicants a JOIN job_postings jp ON a.posting_id = jp.id WHERE a.id=?',
+        (applicant_id,)
+    ).fetchone()
     if not applicant:
         abort(404)
     if applicant['stage'] != 'offer':
@@ -5972,10 +6121,190 @@ def recruit_hire(applicant_id):
         'INSERT INTO applicant_logs (applicant_id, stage, note, changed_by) VALUES (?,?,?,?)',
         (applicant_id, 'accepted', '최종 합격 처리', session['user_id'])
     )
+    # 오퍼 상태 동기화
+    db.execute(
+        "UPDATE offers SET status='accepted', responded_at=CURRENT_TIMESTAMP "
+        "WHERE applicant_id=? AND status IN ('sent','negotiating')", (applicant_id,)
+    )
     log_recruit(applicant_id, 'hired', {})
     db.commit()
-    flash(f'🎉 {applicant["name"]} 님 최종 합격 처리됐습니다!', 'success')
-    return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+    flash(f'🎉 {applicant["name"]} 님 최종 합격! 직원 등록을 완료해주세요.', 'success')
+    # 지원자 데이터 프리필해서 직원 신규 등록 폼으로 리다이렉트 (기획서 P0: 지원자→직원 전환)
+    from urllib.parse import urlencode
+    params = urlencode({
+        'from_applicant': applicant_id,
+        'name':  applicant['name'],
+        'email': applicant['email'] or '',
+        'phone': applicant['phone'] or '',
+        'dept':  applicant['department_id'] or '',
+    })
+    return redirect(url_for('employee_new') + '?' + params)
+
+
+# ── 오퍼 관리 ─────────────────────────────────────────────────────────────────
+
+@app.route('/recruit/applicants/<int:applicant_id>/offers', methods=['GET', 'POST'])
+@recruiter_or_admin
+def recruit_offers(applicant_id):
+    """오퍼 목록 + 생성 (offer 단계에서만 생성 가능)"""
+    db        = get_db()
+    applicant = db.execute(
+        'SELECT a.*, jp.title AS posting_title FROM applicants a '
+        'JOIN job_postings jp ON a.posting_id = jp.id WHERE a.id=?', (applicant_id,)
+    ).fetchone()
+    if not applicant:
+        abort(404)
+
+    if request.method == 'POST':
+        salary      = request.form.get('salary', '').replace(',', '') or None
+        start_date  = request.form.get('start_date', '') or None
+        expiry_date = request.form.get('expiry_date', '') or None
+        body        = request.form.get('body', '').strip() or None
+        action      = request.form.get('action', 'draft')
+
+        # 기본 오퍼 본문 자동생성
+        if not body:
+            _, body = _render_email_template('offer', {
+                'name': applicant['name'],
+                'posting_title': applicant['posting_title'],
+                'salary': f'{int(salary):,}' if salary else '협의',
+                'start_date': start_date or '협의',
+                'expiry_date': expiry_date or '협의',
+            })
+
+        status = 'sent' if action == 'send' else 'draft'
+        offer_id = db.execute(
+            'INSERT INTO offers (applicant_id, posting_id, status, salary, start_date, '
+            'expiry_date, body, sent_at, created_by) VALUES (?,?,?,?,?,?,?,?,?)',
+            (applicant_id, applicant['posting_id'], status, salary, start_date,
+             expiry_date, body,
+             'CURRENT_TIMESTAMP' if action == 'send' else None,
+             session['user_id'])
+        ).lastrowid
+
+        if action == 'send' and applicant['email']:
+            subject, email_body = _render_email_template('offer', {
+                'name': applicant['name'],
+                'posting_title': applicant['posting_title'],
+                'salary': f'{int(salary):,}' if salary else '협의',
+                'start_date': start_date or '협의',
+                'expiry_date': expiry_date or '협의',
+            })
+            _save_recruit_email(db, applicant_id, 'offer', applicant['email'], subject, email_body)
+            db.execute(
+                "UPDATE offers SET sent_at=CURRENT_TIMESTAMP WHERE id=?", (offer_id,)
+            )
+
+        log_recruit(applicant_id, 'offer_created', {'offer_id': offer_id, 'status': status})
+        db.commit()
+        flash('오퍼가 생성됐습니다.' + (' (이메일 발송 기록 저장됨)' if action == 'send' else ''), 'success')
+        return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+
+    offers = db.execute(
+        'SELECT o.*, u.name AS created_by_name FROM offers o '
+        'LEFT JOIN users u ON o.created_by = u.id '
+        'WHERE o.applicant_id=? ORDER BY o.created_at DESC', (applicant_id,)
+    ).fetchall()
+    return render_template('recruit/offers.html',
+                           applicant=applicant,
+                           offers=offers,
+                           offer_status_label=OFFER_STATUS_LABEL)
+
+
+@app.route('/recruit/offers/<int:offer_id>/letter')
+@recruiter_or_admin
+def recruit_offer_letter(offer_id):
+    """인쇄용 오퍼 레터 페이지"""
+    db    = get_db()
+    offer = db.execute(
+        'SELECT o.*, a.name AS applicant_name, a.email AS applicant_email, '
+        'jp.title AS posting_title, u.name AS created_by_name '
+        'FROM offers o JOIN applicants a ON o.applicant_id = a.id '
+        'JOIN job_postings jp ON o.posting_id = jp.id '
+        'LEFT JOIN users u ON o.created_by = u.id '
+        'WHERE o.id=?', (offer_id,)
+    ).fetchone()
+    if not offer:
+        abort(404)
+    company = os.environ.get('COMPANY_NAME', 'TalentCore')
+    return render_template('recruit/offer_letter.html', offer=offer, company=company,
+                           offer_status_label=OFFER_STATUS_LABEL)
+
+
+@app.route('/recruit/offers/<int:offer_id>/send', methods=['POST'])
+@recruiter_or_admin
+def recruit_offer_send(offer_id):
+    """오퍼 발송 처리"""
+    db    = get_db()
+    offer = db.execute(
+        'SELECT o.*, a.name AS applicant_name, a.email AS applicant_email, '
+        'jp.title AS posting_title FROM offers o '
+        'JOIN applicants a ON o.applicant_id = a.id '
+        'JOIN job_postings jp ON o.posting_id = jp.id WHERE o.id=?', (offer_id,)
+    ).fetchone()
+    if not offer:
+        abort(404)
+    db.execute(
+        "UPDATE offers SET status='sent', sent_at=CURRENT_TIMESTAMP WHERE id=?", (offer_id,)
+    )
+    if offer['applicant_email']:
+        subject, body = _render_email_template('offer', {
+            'name': offer['applicant_name'],
+            'posting_title': offer['posting_title'],
+            'salary': f'{int(offer["salary"]):,}' if offer['salary'] else '협의',
+            'start_date': offer['start_date'] or '협의',
+            'expiry_date': offer['expiry_date'] or '협의',
+        })
+        _save_recruit_email(db, offer['applicant_id'], 'offer',
+                            offer['applicant_email'], subject, body)
+    log_recruit(offer['applicant_id'], 'offer_sent', {'offer_id': offer_id})
+    db.commit()
+    flash('오퍼가 발송 처리됐습니다. (이메일 기록 저장)', 'success')
+    return redirect(url_for('recruit_applicant_detail', applicant_id=offer['applicant_id']))
+
+
+# ── 이메일 발송 이력 / 미리보기 ───────────────────────────────────────────────
+
+@app.route('/recruit/applicants/<int:applicant_id>/emails')
+@recruiter_or_admin
+def recruit_email_logs(applicant_id):
+    """발송 이메일 이력 JSON (상세 페이지 탭용 AJAX)"""
+    db   = get_db()
+    logs = db.execute(
+        'SELECT e.*, u.name AS sent_by_name FROM recruit_emails e '
+        'LEFT JOIN users u ON e.sent_by = u.id '
+        'WHERE e.applicant_id=? ORDER BY e.sent_at DESC', (applicant_id,)
+    ).fetchall()
+    return jsonify([dict(r) for r in logs])
+
+
+@app.route('/recruit/applicants/<int:applicant_id>/email-send', methods=['POST'])
+@recruiter_or_admin
+def recruit_email_send(applicant_id):
+    """이메일 작성 모달에서 커스텀 이메일 발송 이력 저장"""
+    db = get_db()
+    ap = db.execute('SELECT * FROM applicants WHERE id=?', (applicant_id,)).fetchone()
+    if not ap:
+        return jsonify({'error': 'not found'}), 404
+    recipient = request.form.get('recipient', ap['email'])
+    subject   = request.form.get('subject', '').strip()
+    body      = request.form.get('body', '').strip()
+    if not subject or not body:
+        return jsonify({'error': '제목과 본문을 입력하세요.'}), 400
+    _save_recruit_email(db, applicant_id, 'custom', recipient, subject, body)
+    log_recruit(applicant_id, 'email_sent', {'type': 'custom', 'subject': subject})
+    db.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/recruit/email-preview', methods=['POST'])
+@recruiter_or_admin
+def recruit_email_preview():
+    """이메일 템플릿 미리보기 JSON"""
+    tpl_key = request.json.get('type', 'fail')
+    context = request.json.get('context', {})
+    subject, body = _render_email_template(tpl_key, context)
+    return jsonify({'subject': subject, 'body': body})
 
 
 @app.route('/recruit/rounds/<int:round_id>/notes/add', methods=['POST'])
@@ -6165,6 +6494,20 @@ def recruit_applicant_detail(applicant_id):
         'WHERE d.applicant_id=? ORDER BY d.uploaded_at DESC', (applicant_id,)
     ).fetchall()
 
+    # 오퍼 목록
+    offers = db.execute(
+        'SELECT o.*, u.name AS created_by_name FROM offers o '
+        'LEFT JOIN users u ON o.created_by = u.id '
+        'WHERE o.applicant_id=? ORDER BY o.created_at DESC', (applicant_id,)
+    ).fetchall()
+
+    # 이메일 발송 이력
+    email_logs = db.execute(
+        'SELECT e.*, u.name AS sent_by_name FROM recruit_emails e '
+        'LEFT JOIN users u ON e.sent_by = u.id '
+        'WHERE e.applicant_id=? ORDER BY e.sent_at DESC', (applicant_id,)
+    ).fetchall()
+
     return render_template('recruit/applicant_detail.html',
                            applicant=applicant,
                            rounds_data=rounds_data,
@@ -6173,6 +6516,10 @@ def recruit_applicant_detail(applicant_id):
                            interviewers_all=interviewers_all,
                            documents=documents,
                            doc_type_label=DOC_TYPE_LABEL,
+                           offers=offers,
+                           email_logs=email_logs,
+                           offer_status_label=OFFER_STATUS_LABEL,
+                           email_templates=EMAIL_TEMPLATES,
                            stages=STAGES, stage_map=STAGE_MAP,
                            round_type_label=ROUND_TYPE_LABEL,
                            round_status_label=ROUND_STATUS_LABEL,
