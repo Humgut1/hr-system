@@ -219,8 +219,7 @@
         <div class="pipe-card"
              draggable="true"
              data-id="{{ a.id }}"
-             data-stage="{{ stage }}"
-             onclick="openPanel({{ a.id }})">
+             data-stage="{{ stage }}">
           <div class="pipe-card-qa">
             <a href="{{ url_for('recruit_applicant_detail', applicant_id=a.id) }}"
                onclick="event.stopPropagation()"
@@ -251,31 +250,42 @@
 (function () {
   const STAGE_LABELS  = {{ stage_map | tojson }};
   const STAGES_ORDER  = {{ stages | map(attribute=0) | list | tojson }};
-  let dragId = null, dragFromStage = null;
+  let dragId = null, dragFromStage = null, isDragging = false;
 
   /* ── 드래그앤드롭 ── */
   function initCard(card) {
-    card.addEventListener('dragstart', () => {
+    card.addEventListener('dragstart', e => {
+      isDragging    = true;
       dragId        = parseInt(card.dataset.id);
       dragFromStage = card.dataset.stage;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', dragId);
       setTimeout(() => card.classList.add('dragging'), 0);
     });
     card.addEventListener('dragend', () => {
       card.classList.remove('dragging');
       dragId = null; dragFromStage = null;
+      setTimeout(() => { isDragging = false; }, 100);
+    });
+    card.addEventListener('click', e => {
+      if (isDragging) { e.stopPropagation(); e.preventDefault(); return; }
+      openPanel(parseInt(card.dataset.id));
     });
   }
   document.querySelectorAll('.pipe-card').forEach(initCard);
 
   document.querySelectorAll('.pipe-col-body').forEach(body => {
     const stage = body.closest('.pipe-col').dataset.stage;
-    body.addEventListener('dragover',  e => { e.preventDefault(); body.classList.add('drag-over'); });
-    body.addEventListener('dragleave', ()  => body.classList.remove('drag-over'));
+    body.addEventListener('dragover',  e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; body.classList.add('drag-over'); });
+    body.addEventListener('dragleave', e => {
+      if (!body.contains(e.relatedTarget)) body.classList.remove('drag-over');
+    });
     body.addEventListener('drop', e => {
       e.preventDefault(); body.classList.remove('drag-over');
-      if (!dragId || dragFromStage === stage) return;
-      changeStage(dragId, stage, () => {
-        const card = document.querySelector(`.pipe-card[data-id="${dragId}"]`);
+      const id = parseInt(e.dataTransfer.getData('text/plain'));
+      if (!id || dragFromStage === stage) return;
+      changeStage(id, stage, () => {
+        const card = document.querySelector(`.pipe-card[data-id="${id}"]`);
         if (card) { card.dataset.stage = stage; body.appendChild(card); updateCounts(); }
       });
     });
@@ -289,11 +299,12 @@
     })
     .then(r => r.json())
     .then(d => {
-      if (!d.ok) return;
+      if (!d.ok) { showToast('오류: ' + (d.error || '단계 변경 실패')); return; }
       onSuccess && onSuccess();
       showToast('→ ' + d.label);
       if (window._panelId === applicantId) loadPanel(applicantId);
-    });
+    })
+    .catch(() => showToast('네트워크 오류'));
   }
 
   function updateCounts() {
