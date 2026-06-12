@@ -5219,6 +5219,46 @@ SOURCE_LABELS = {
     'other':    '기타',
 }
 
+ROUND_TYPE_LABEL = {
+    'hr':        'HR 인터뷰',
+    'technical': '기술 인터뷰',
+    'culture':   '컬처 핏',
+    'executive': '임원 면접',
+    'other':     '기타',
+}
+ROUND_STATUS_LABEL = {
+    'scheduled': '예정',
+    'completed': '완료',
+    'cancelled': '취소',
+    'no_show':   '노쇼',
+}
+RECOMMENDATION_LABEL = {'pass': '추천', 'hold': '보류', 'fail': '불가'}
+
+REJECTION_REASON_CODES = {
+    'SKILL_MISMATCH':  '직무 역량 미달',
+    'CULTURE_FIT':     '조직 문화 부적합',
+    'SALARY_MISMATCH': '연봉 미합의',
+    'COMMUNICATION':   '커뮤니케이션 이슈',
+    'ANOTHER_OFFER':   '타사 오퍼 수락',
+    'POSITION_CLOSED': '포지션 마감',
+    'OVERQUALIFIED':   '과도한 경력',
+    'NO_SHOW':         '면접 불참',
+    'WITHDREW':        '지원자 자진 철회',
+}
+
+def log_recruit(applicant_id, event_type, meta=None, round_id=None):
+    """채용 활동 로그 기록 헬퍼"""
+    import json as _json
+    db = get_db()
+    actor_id = session.get('user_id')
+    db.execute(
+        'INSERT INTO recruit_activity_logs '
+        '(event_type, actor_id, applicant_id, round_id, meta) VALUES (?,?,?,?,?)',
+        (event_type, actor_id, applicant_id, round_id,
+         _json.dumps(meta or {}, ensure_ascii=False))
+    )
+    db.commit()
+
 REQUISITION_STATUS_LABEL = {
     'draft':        '작성 중',
     'pending_dept': '부서장 승인 대기',
@@ -5786,25 +5826,299 @@ def recruit_applicant_detail(applicant_id):
     if request.method == 'POST':
         new_stage = request.form.get('stage', '')
         note      = request.form.get('note', '').strip() or None
+        reason_code = request.form.get('reason_code', '').strip() or None
         if new_stage in STAGE_MAP:
             db.execute('UPDATE applicants SET stage=? WHERE id=?', (new_stage, applicant_id))
             db.execute(
                 'INSERT INTO applicant_logs (applicant_id, stage, note, changed_by) VALUES (?, ?, ?, ?)',
                 (applicant_id, new_stage, note, session['user_id'])
             )
+            meta = {'stage': new_stage, 'note': note}
+            if reason_code:
+                meta['reason_code'] = reason_code
+            log_recruit(applicant_id, 'stage_changed', meta)
             db.commit()
         return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
 
-    logs = db.execute(
+    # 면접 라운드 + 인터뷰어 + 피드백
+    rounds = db.execute(
+        'SELECT r.*, u.name AS created_by_name '
+        'FROM interview_rounds r JOIN users u ON r.created_by = u.id '
+        'WHERE r.applicant_id=? ORDER BY r.round_no', (applicant_id,)
+    ).fetchall()
+
+    rounds_data = []
+    for r in rounds:
+        interviewers = db.execute(
+            'SELECT ii.*, u.name AS interviewer_name, u.email AS interviewer_email '
+            'FROM interview_interviewers ii JOIN users u ON ii.interviewer_id = u.id '
+            'WHERE ii.round_id=?', (r['id'],)
+        ).fetchall()
+        feedbacks = db.execute(
+            'SELECT f.*, u.name AS interviewer_name '
+            'FROM interview_feedback f JOIN users u ON f.interviewer_id = u.id '
+            'WHERE f.round_id=? ORDER BY f.submitted_at', (r['id'],)
+        ).fetchall()
+        # 인터뷰어 누적 면접 시간 (분)
+        for iv in interviewers:
+            total_min = db.execute(
+                'SELECT COALESCE(SUM(r2.actual_min), 0) '
+                'FROM interview_interviewers ii2 '
+                'JOIN interview_rounds r2 ON ii2.round_id = r2.id '
+                'WHERE ii2.interviewer_id=? AND r2.status="completed"',
+                (iv['interviewer_id'],)
+            ).fetchone()[0]
+            # sqlite Row는 immutable이므로 dict로 변환
+        feedbacks_list = [dict(f) for f in feedbacks]
+        interviewers_list = [dict(iv) for iv in interviewers]
+        # 피드백 제출한 인터뷰어 set
+        submitted_ids = {f['interviewer_id'] for f in feedbacks_list}
+        for iv in interviewers_list:
+            iv['feedback_submitted'] = iv['interviewer_id'] in submitted_ids
+        rounds_data.append({
+            'round': dict(r),
+            'interviewers': interviewers_list,
+            'feedbacks': feedbacks_list,
+        })
+
+    # 채용 전체 활동 로그
+    activity_logs = db.execute(
+        'SELECT l.*, u.name AS actor_name '
+        'FROM recruit_activity_logs l LEFT JOIN users u ON l.actor_id = u.id '
+        'WHERE l.applicant_id=? ORDER BY l.created_at DESC',
+        (applicant_id,)
+    ).fetchall()
+
+    # 단계 변경 로그 (기존)
+    stage_logs = db.execute(
         'SELECT l.*, u.name AS changed_by_name '
         'FROM applicant_logs l JOIN users u ON l.changed_by = u.id '
         'WHERE l.applicant_id=? ORDER BY l.created_at DESC',
         (applicant_id,)
     ).fetchall()
+
+    # 인터뷰어 후보 (admin/manager/recruiter)
+    interviewers_all = db.execute(
+        "SELECT id, name, email FROM users WHERE role IN ('admin','manager','recruiter') "
+        "AND role != 'guest' ORDER BY name"
+    ).fetchall()
+
     return render_template('recruit/applicant_detail.html',
-                           applicant=applicant, logs=logs,
+                           applicant=applicant,
+                           rounds_data=rounds_data,
+                           activity_logs=activity_logs,
+                           stage_logs=stage_logs,
+                           interviewers_all=interviewers_all,
                            stages=STAGES, stage_map=STAGE_MAP,
+                           round_type_label=ROUND_TYPE_LABEL,
+                           round_status_label=ROUND_STATUS_LABEL,
+                           recommendation_label=RECOMMENDATION_LABEL,
+                           rejection_reason_codes=REJECTION_REASON_CODES,
                            source_labels=SOURCE_LABELS,
+                           active_page='recruit')
+
+
+@app.route('/recruit/applicants/<int:applicant_id>/rounds/new', methods=['POST'])
+@recruiter_or_admin
+def recruit_round_new(applicant_id):
+    db = get_db()
+    applicant = db.execute('SELECT id FROM applicants WHERE id=?', (applicant_id,)).fetchone()
+    if not applicant:
+        abort(404)
+    round_no      = request.form.get('round_no', '1')
+    round_type    = request.form.get('round_type', 'technical')
+    scheduled_at  = request.form.get('scheduled_at', '').strip() or None
+    planned_min   = request.form.get('planned_min', '60')
+    location_type = request.form.get('location_type', 'video')
+    meet_link     = request.form.get('meet_link', '').strip() or None
+    try:
+        round_no    = int(round_no)
+        planned_min = int(planned_min)
+    except ValueError:
+        abort(400)
+    if round_type not in ROUND_TYPE_LABEL:
+        abort(400)
+    cur = db.execute(
+        'INSERT INTO interview_rounds '
+        '(applicant_id, round_no, round_type, scheduled_at, planned_min, '
+        ' location_type, meet_link, created_by) VALUES (?,?,?,?,?,?,?,?)',
+        (applicant_id, round_no, round_type, scheduled_at, planned_min,
+         location_type, meet_link, session['user_id'])
+    )
+    round_id = cur.lastrowid
+    db.commit()
+    log_recruit(applicant_id, 'round_created', {
+        'round_no': round_no, 'round_type': round_type,
+        'scheduled_at': scheduled_at, 'planned_min': planned_min
+    }, round_id=round_id)
+    flash(f'{round_no}차 면접 라운드가 생성되었습니다.', 'success')
+    return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id) + '#interviews')
+
+
+@app.route('/recruit/rounds/<int:round_id>/interviewers', methods=['POST'])
+@recruiter_or_admin
+def recruit_round_assign_interviewer(round_id):
+    db = get_db()
+    r = db.execute('SELECT * FROM interview_rounds WHERE id=?', (round_id,)).fetchone()
+    if not r:
+        abort(404)
+    interviewer_id = request.form.get('interviewer_id', type=int)
+    is_required    = 1 if request.form.get('is_required') else 0
+    if not interviewer_id:
+        abort(400)
+    try:
+        db.execute(
+            'INSERT INTO interview_interviewers '
+            '(round_id, interviewer_id, is_required, assigned_by) VALUES (?,?,?,?)',
+            (round_id, interviewer_id, is_required, session['user_id'])
+        )
+        db.commit()
+        iv = db.execute('SELECT name FROM users WHERE id=?', (interviewer_id,)).fetchone()
+        log_recruit(r['applicant_id'], 'interviewer_assigned',
+                    {'interviewer_id': interviewer_id,
+                     'interviewer_name': iv['name'] if iv else ''},
+                    round_id=round_id)
+        add_notification(
+            interviewer_id,
+            f'{r["round_no"]}차 면접 인터뷰어로 배정되었습니다.',
+            url_for('recruit_applicant_detail', applicant_id=r['applicant_id'])
+        )
+    except Exception:
+        flash('이미 배정된 인터뷰어입니다.', 'error')
+    return redirect(url_for('recruit_applicant_detail', applicant_id=r['applicant_id']) + '#interviews')
+
+
+@app.route('/recruit/rounds/<int:round_id>/interviewers/<int:interviewer_id>/remove', methods=['POST'])
+@recruiter_or_admin
+def recruit_round_remove_interviewer(round_id, interviewer_id):
+    db = get_db()
+    r = db.execute('SELECT * FROM interview_rounds WHERE id=?', (round_id,)).fetchone()
+    if not r:
+        abort(404)
+    db.execute('DELETE FROM interview_interviewers WHERE round_id=? AND interviewer_id=?',
+               (round_id, interviewer_id))
+    db.commit()
+    log_recruit(r['applicant_id'], 'interviewer_removed',
+                {'interviewer_id': interviewer_id}, round_id=round_id)
+    flash('인터뷰어가 제거되었습니다.', 'success')
+    return redirect(url_for('recruit_applicant_detail', applicant_id=r['applicant_id']) + '#interviews')
+
+
+@app.route('/recruit/rounds/<int:round_id>/complete', methods=['POST'])
+@recruiter_or_admin
+def recruit_round_complete(round_id):
+    db = get_db()
+    r = db.execute('SELECT * FROM interview_rounds WHERE id=?', (round_id,)).fetchone()
+    if not r:
+        abort(404)
+    actual_start = request.form.get('actual_start', '').strip() or None
+    actual_end   = request.form.get('actual_end', '').strip() or None
+    actual_min   = request.form.get('actual_min', type=int)
+    status       = request.form.get('status', 'completed')
+    if status not in ('completed', 'cancelled', 'no_show'):
+        status = 'completed'
+    db.execute(
+        'UPDATE interview_rounds SET status=?, actual_start_at=?, actual_end_at=?, '
+        'actual_min=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+        (status, actual_start, actual_end, actual_min, round_id)
+    )
+    db.commit()
+    log_recruit(r['applicant_id'], 'round_status_changed',
+                {'status': status, 'actual_min': actual_min}, round_id=round_id)
+    flash(f'면접 상태가 "{ROUND_STATUS_LABEL.get(status, status)}"으로 업데이트되었습니다.', 'success')
+    return redirect(url_for('recruit_applicant_detail', applicant_id=r['applicant_id']) + '#interviews')
+
+
+@app.route('/recruit/rounds/<int:round_id>/feedback', methods=['GET', 'POST'])
+@login_required
+def recruit_round_feedback(round_id):
+    db   = get_db()
+    uid  = session['user_id']
+    role = session.get('user_role', '')
+    r = db.execute(
+        'SELECT ir.*, a.name AS applicant_name, jp.title AS posting_title '
+        'FROM interview_rounds ir '
+        'JOIN applicants a ON ir.applicant_id = a.id '
+        'JOIN job_postings jp ON a.posting_id = jp.id '
+        'WHERE ir.id=?', (round_id,)
+    ).fetchone()
+    if not r:
+        abort(404)
+    # 배정된 인터뷰어 또는 admin/recruiter만 접근 가능
+    is_assigned = db.execute(
+        'SELECT id FROM interview_interviewers WHERE round_id=? AND interviewer_id=?',
+        (round_id, uid)
+    ).fetchone()
+    if not is_assigned and role not in ('admin', 'recruiter'):
+        flash('면접 피드백 권한이 없습니다.', 'error')
+        return redirect(url_for('dashboard'))
+
+    existing = db.execute(
+        'SELECT * FROM interview_feedback WHERE round_id=? AND interviewer_id=?',
+        (round_id, uid)
+    ).fetchone()
+
+    if request.method == 'POST':
+        recommendation = request.form.get('recommendation', '')
+        if recommendation not in ('pass', 'hold', 'fail'):
+            flash('추천 여부를 선택해주세요.', 'error')
+            return redirect(request.url)
+
+        def _int(key):
+            try:
+                v = int(request.form.get(key, 0))
+                return v if 1 <= v <= 5 else None
+            except (ValueError, TypeError):
+                return None
+
+        strengths  = request.form.get('strengths', '').strip() or None
+        concerns   = request.form.get('concerns', '').strip() or None
+        notes      = request.form.get('interview_notes', '').strip() or None
+        edit_reason = request.form.get('edit_reason', '').strip() or None
+
+        if existing:
+            db.execute(
+                'UPDATE interview_feedback SET recommendation=?, '
+                'score_technical=?, score_communication=?, score_culture_fit=?, '
+                'score_growth=?, score_overall=?, strengths=?, concerns=?, '
+                'interview_notes=?, is_edited=1, edit_reason=?, '
+                'updated_at=CURRENT_TIMESTAMP WHERE id=?',
+                (recommendation, _int('score_technical'), _int('score_communication'),
+                 _int('score_culture_fit'), _int('score_growth'), _int('score_overall'),
+                 strengths, concerns, notes, edit_reason, existing['id'])
+            )
+            event = 'feedback_edited'
+        else:
+            db.execute(
+                'INSERT INTO interview_feedback '
+                '(round_id, interviewer_id, recommendation, score_technical, '
+                ' score_communication, score_culture_fit, score_growth, score_overall, '
+                ' strengths, concerns, interview_notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                (round_id, uid, recommendation, _int('score_technical'),
+                 _int('score_communication'), _int('score_culture_fit'),
+                 _int('score_growth'), _int('score_overall'), strengths, concerns, notes)
+            )
+            event = 'feedback_submitted'
+
+        db.commit()
+        log_recruit(r['applicant_id'], event, {
+            'recommendation': recommendation,
+            'scores': {
+                'technical': _int('score_technical'),
+                'communication': _int('score_communication'),
+                'culture_fit': _int('score_culture_fit'),
+                'growth': _int('score_growth'),
+                'overall': _int('score_overall'),
+            },
+            'is_edited': bool(existing),
+            'edit_reason': edit_reason,
+        }, round_id=round_id)
+        flash('피드백이 저장되었습니다.', 'success')
+        return redirect(url_for('recruit_applicant_detail', applicant_id=r['applicant_id']) + '#interviews')
+
+    return render_template('recruit/feedback_form.html',
+                           round=r, existing=existing,
+                           recommendation_label=RECOMMENDATION_LABEL,
                            active_page='recruit')
 
 

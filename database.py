@@ -1024,6 +1024,68 @@ def init_db(db_path: str = None):
         if 'salary_mid' not in req_cols:
             c.execute('ALTER TABLE job_requisitions ADD COLUMN salary_mid INTEGER DEFAULT 0')
 
+        # ── v0.61.0 면접 관리 + 채용 컴플라이언스 로그 ─────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS interview_rounds (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            applicant_id     INTEGER NOT NULL REFERENCES applicants(id),
+            round_no         INTEGER NOT NULL DEFAULT 1,
+            round_type       TEXT NOT NULL DEFAULT 'technical'
+                             CHECK(round_type IN ('hr','technical','culture','executive','other')),
+            status           TEXT NOT NULL DEFAULT 'scheduled'
+                             CHECK(status IN ('scheduled','completed','cancelled','no_show')),
+            scheduled_at     TIMESTAMP,
+            actual_start_at  TIMESTAMP,
+            actual_end_at    TIMESTAMP,
+            planned_min      INTEGER NOT NULL DEFAULT 60,
+            actual_min       INTEGER,
+            location_type    TEXT NOT NULL DEFAULT 'video'
+                             CHECK(location_type IN ('video','in_person','phone')),
+            meet_link        TEXT,
+            created_by       INTEGER NOT NULL REFERENCES users(id),
+            created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        c.execute('''CREATE TABLE IF NOT EXISTS interview_interviewers (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            round_id        INTEGER NOT NULL REFERENCES interview_rounds(id),
+            interviewer_id  INTEGER NOT NULL REFERENCES users(id),
+            is_required     INTEGER NOT NULL DEFAULT 1,
+            assigned_by     INTEGER NOT NULL REFERENCES users(id),
+            assigned_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(round_id, interviewer_id)
+        )''')
+
+        c.execute('''CREATE TABLE IF NOT EXISTS interview_feedback (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            round_id            INTEGER NOT NULL REFERENCES interview_rounds(id),
+            interviewer_id      INTEGER NOT NULL REFERENCES users(id),
+            recommendation      TEXT NOT NULL CHECK(recommendation IN ('pass','hold','fail')),
+            score_technical     INTEGER CHECK(score_technical BETWEEN 1 AND 5),
+            score_communication INTEGER CHECK(score_communication BETWEEN 1 AND 5),
+            score_culture_fit   INTEGER CHECK(score_culture_fit BETWEEN 1 AND 5),
+            score_growth        INTEGER CHECK(score_growth BETWEEN 1 AND 5),
+            score_overall       INTEGER CHECK(score_overall BETWEEN 1 AND 5),
+            strengths           TEXT,
+            concerns            TEXT,
+            interview_notes     TEXT,
+            is_edited           INTEGER NOT NULL DEFAULT 0,
+            edit_reason         TEXT,
+            submitted_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(round_id, interviewer_id)
+        )''')
+
+        c.execute('''CREATE TABLE IF NOT EXISTS recruit_activity_logs (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type   TEXT NOT NULL,
+            actor_id     INTEGER REFERENCES users(id),
+            applicant_id INTEGER REFERENCES applicants(id),
+            round_id     INTEGER REFERENCES interview_rounds(id),
+            meta         TEXT DEFAULT '{}',
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
         # salary_grades 밴드 데이터 전면 업데이트 (v0.60 — 리서치 기반 시장 연봉)
         # Amazon Korea levels.fyi + 블라인드 데이터 기반 한국 테크 스타트업 기준
         # (만원 단위 → ×10000)

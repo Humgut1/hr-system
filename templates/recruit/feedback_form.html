@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+{% block title %}면접 피드백 — {{ round.applicant_name }}{% endblock %}
+{% block page_title %}면접 피드백 작성{% endblock %}
+
+{% block content %}
+<div style="max-width:640px;">
+
+  <div style="display:flex; gap:8px; margin-bottom:18px;">
+    <a href="{{ url_for('recruit_applicant_detail', applicant_id=round.applicant_id) }}#interviews"
+       class="btn btn-ghost btn-sm">
+      <i class="fas fa-arrow-left"></i> 지원자 상세로 돌아가기
+    </a>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body">
+      <div style="font-size:13px; color:var(--tx-3); margin-bottom:4px;">{{ round.posting_title }}</div>
+      <div style="font-size:18px; font-weight:900; color:var(--tx-1);">{{ round.applicant_name }}</div>
+      <div style="margin-top:8px; display:flex; gap:12px; font-size:13px; color:var(--tx-3);">
+        <span><i class="fas fa-layer-group"></i> {{ round.round_no }}차 면접</span>
+        {% if round.scheduled_at %}
+        <span><i class="fas fa-calendar"></i> {{ round.scheduled_at[:16] }}</span>
+        {% endif %}
+        <span><i class="fas fa-clock"></i> {{ round.planned_min }}분 예정</span>
+      </div>
+    </div>
+  </div>
+
+  {% if existing and existing.is_edited %}
+  <div class="alert alert-warning" style="margin-bottom:16px; font-size:13px;">
+    <i class="fas fa-exclamation-triangle"></i>
+    이 피드백은 최초 제출 후 수정된 이력이 있습니다. (컴플라이언스 기록 보존)
+  </div>
+  {% endif %}
+
+  <form method="POST">
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-head"><span class="card-title">종합 평가</span></div>
+      <div class="card-body">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:4px;">
+          {% for val, label in recommendation_label.items() %}
+          <label style="cursor:pointer; flex:1; min-width:120px;">
+            <input type="radio" name="recommendation" value="{{ val }}"
+                   {% if existing and existing.recommendation == val %}checked{% endif %}
+                   style="display:none;" class="rec-radio" id="rec-{{ val }}">
+            <div class="rec-btn" data-val="{{ val }}"
+                 style="padding:14px; border-radius:var(--r-sm); border:2px solid var(--border);
+                        text-align:center; font-weight:700; font-size:15px; cursor:pointer;
+                        {% if existing and existing.recommendation == val %}
+                          {% if val == 'pass' %}background:#e6f7ed; border-color:#27ae60; color:#27ae60;
+                          {% elif val == 'hold' %}background:#fff8e1; border-color:#f39c12; color:#c87700;
+                          {% else %}background:#fde8e8; border-color:#e74c3c; color:#e74c3c;{% endif %}
+                        {% endif %}">
+              {% if val == 'pass' %}✅ {{ label }}
+              {% elif val == 'hold' %}⏸ {{ label }}
+              {% else %}❌ {{ label }}{% endif %}
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-head"><span class="card-title">항목별 점수 (1~5점)</span></div>
+      <div class="card-body">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+          {% set score_fields = [
+            ('score_technical', '직무 역량'),
+            ('score_communication', '커뮤니케이션'),
+            ('score_culture_fit', '컬처 핏'),
+            ('score_growth', '성장 가능성'),
+            ('score_overall', '종합 점수'),
+          ] %}
+          {% for field, label in score_fields %}
+          <div>
+            <label class="form-label" style="font-size:12px;">{{ label }}</label>
+            <div style="display:flex; gap:4px;" class="star-group" data-field="{{ field }}">
+              {% for i in range(1, 6) %}
+              {% set cur_score = existing[field] if existing else 0 %}
+              <label style="cursor:pointer;">
+                <input type="radio" name="{{ field }}" value="{{ i }}"
+                       {% if existing and existing[field] == i %}checked{% endif %}
+                       style="display:none;">
+                <span class="star-btn" data-score="{{ i }}"
+                      style="font-size:22px; color:{% if existing and existing[field] and existing[field] >= i %}#f39c12{% else %}var(--border){% endif %}; cursor:pointer;">★</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-head"><span class="card-title">질적 피드백</span></div>
+      <div class="card-body">
+        <div class="field">
+          <label class="form-label">강점 (Strengths)</label>
+          <textarea name="strengths" class="input" rows="3"
+                    placeholder="지원자의 강점을 구체적으로 기술해주세요.">{{ existing.strengths if existing else '' }}</textarea>
+        </div>
+        <div class="field">
+          <label class="form-label">우려 사항 (Concerns)</label>
+          <textarea name="concerns" class="input" rows="3"
+                    placeholder="면접 중 발견된 우려 사항이나 추가 확인이 필요한 부분을 기술해주세요.">{{ existing.concerns if existing else '' }}</textarea>
+        </div>
+        <div class="field">
+          <label class="form-label">면접 메모 (비공개)</label>
+          <textarea name="interview_notes" class="input" rows="3"
+                    placeholder="면접 중 메모. 피드백 집계에 포함되지 않습니다.">{{ existing.interview_notes if existing else '' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    {% if existing %}
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-head"><span class="card-title">수정 사유 (컴플라이언스)</span></div>
+      <div class="card-body">
+        <div class="field">
+          <label class="form-label" style="color:var(--danger);">
+            <i class="fas fa-exclamation-circle"></i> 기존 피드백을 수정합니다. 사유를 반드시 입력하세요.
+          </label>
+          <textarea name="edit_reason" class="input" rows="2"
+                    placeholder="수정 사유를 입력하세요. (시스템에 수정 이력으로 영구 기록됩니다)"></textarea>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div style="display:flex; gap:10px;">
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-save"></i> 피드백 저장
+      </button>
+      <a href="{{ url_for('recruit_applicant_detail', applicant_id=round.applicant_id) }}#interviews"
+         class="btn btn-ghost">취소</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  // 추천 버튼
+  var recRadios = document.querySelectorAll('.rec-radio');
+  var recBtns   = document.querySelectorAll('.rec-btn');
+  var colorMap  = { pass: ['#e6f7ed','#27ae60','#27ae60'], hold: ['#fff8e1','#f39c12','#c87700'], fail: ['#fde8e8','#e74c3c','#e74c3c'] };
+
+  function updateRec() {
+    recRadios.forEach(function(r, i) {
+      var b = recBtns[i];
+      var val = b.dataset.val;
+      if (r.checked) {
+        b.style.background   = colorMap[val][0];
+        b.style.borderColor  = colorMap[val][1];
+        b.style.color        = colorMap[val][2];
+      } else {
+        b.style.background   = '';
+        b.style.borderColor  = 'var(--border)';
+        b.style.color        = 'var(--tx-2)';
+      }
+    });
+  }
+  recBtns.forEach(function(b, i) {
+    b.addEventListener('click', function() { recRadios[i].checked = true; updateRec(); });
+  });
+
+  // 별점
+  document.querySelectorAll('.star-group').forEach(function(group) {
+    var stars  = group.querySelectorAll('.star-btn');
+    var radios = group.querySelectorAll('input[type=radio]');
+    function updateStars(val) {
+      stars.forEach(function(s) {
+        s.style.color = parseInt(s.dataset.score) <= val ? '#f39c12' : 'var(--border)';
+      });
+    }
+    radios.forEach(function(r) {
+      if (r.checked) updateStars(parseInt(r.value));
+      r.addEventListener('change', function() { updateStars(parseInt(r.value)); });
+    });
+    stars.forEach(function(s, i) {
+      s.addEventListener('click', function() { radios[i].checked = true; updateStars(i + 1); });
+      s.addEventListener('mouseover', function() { updateStars(parseInt(s.dataset.score)); });
+      s.addEventListener('mouseout', function() {
+        var checked = group.querySelector('input:checked');
+        updateStars(checked ? parseInt(checked.value) : 0);
+      });
+    });
+  });
+}());
+</script>
+{% endblock %}
