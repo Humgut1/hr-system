@@ -2,119 +2,539 @@
 {% block title %}오퍼 레터 — {{ offer.applicant_name }}{% endblock %}
 
 {% block content %}
-<div style="max-width:760px;margin:0 auto;padding:24px 16px">
+<style>
+/* ── 툴바 (인쇄 시 숨김) ───────────────────────────── */
+.ol-toolbar{display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+.ol-status-badge{display:inline-block;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;color:#fff;
+  background:{{ {'draft':'#6b7280','sent':'#3b82f6','accepted':'#10b981','rejected':'#ef4444','expired':'#9ca3af','negotiating':'#f59e0b'}.get(offer.status,'#6b7280') }}}
+.ol-save-indicator{font-size:12px;color:var(--tx-3);margin-left:auto}
+.ol-save-indicator.saved{color:#27ae60}
+.ol-save-indicator.saving{color:#f39c12}
 
-  <!-- 액션 바 (인쇄 시 숨김) -->
-  <div class="no-print" style="display:flex;gap:12px;margin-bottom:20px;align-items:center">
-    <a href="{{ url_for('recruit_applicant_detail', applicant_id=offer.applicant_id) }}"
-       class="btn btn-ghost">&larr; 지원자 상세</a>
-    <button onclick="window.print()" class="btn btn-primary">인쇄 / PDF 저장</button>
-    {% if offer.status == 'draft' %}
-    <form method="post" action="{{ url_for('recruit_offer_send', offer_id=offer.id) }}"
-          style="margin:0">
-      <button class="btn btn-success" onclick="return confirm('오퍼 발송 처리하겠습니까?')">
-        발송 처리
-      </button>
-    </form>
-    {% endif %}
-    <span class="badge" style="background:{{ {'draft':'#6b7280','sent':'#3b82f6','accepted':'#10b981','rejected':'#ef4444','expired':'#9ca3af','negotiating':'#f59e0b'}[offer.status] }};color:#fff;padding:4px 10px;border-radius:12px">
-      {{ offer_status_label[offer.status] }}
-    </span>
+/* ── 레터 용지 ──────────────────────────────────────── */
+.ol-paper{max-width:720px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;color:#111;font-family:'Pretendard','Noto Sans KR',sans-serif}
+.ol-header{padding:2.5rem 3rem 2rem;border-bottom:1px solid #e5e7eb}
+.ol-logo-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem}
+.ol-logo{font-size:18px;font-weight:700;letter-spacing:-0.5px;color:#111}
+.ol-logo-sub{font-size:12px;color:#9ca3af;font-weight:400;margin-left:6px}
+.ol-issue-date{font-size:12px;color:#9ca3af}
+.ol-to-label{font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px}
+.ol-candidate-name{font-size:26px;font-weight:700;color:#111;margin-bottom:4px;line-height:1.2}
+.ol-candidate-email{font-size:13px;color:#6b7280}
+.ol-body{padding:2rem 3rem}
+.ol-section{margin-bottom:2rem}
+.ol-section-label{font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px}
+.ol-prose{font-size:14px;color:#374151;line-height:1.85}
+
+/* ── 포지션 카드 ─────────────────────────────────────── */
+.ol-position-card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:1.25rem 1.5rem;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ol-pos-label{font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px}
+.ol-pos-val{font-size:14px;font-weight:600;color:#111}
+.ol-level-badge{display:inline-flex;align-items:center;gap:5px;background:#dbeafe;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;color:#1e40af}
+
+/* ── TC 테이블 ───────────────────────────────────────── */
+.ol-tc-table{width:100%;border-collapse:collapse}
+.ol-tc-row{border-bottom:1px solid #f3f4f6}
+.ol-tc-row:last-child{border-bottom:none}
+.ol-tc-cell{padding:11px 0;vertical-align:top}
+.ol-tc-name{font-size:14px;color:#111;font-weight:500}
+.ol-tc-note{font-size:11px;color:#9ca3af;display:block;margin-top:2px;font-weight:400}
+.ol-tc-amount{text-align:right;font-size:15px;color:#111;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ol-tc-sub{font-size:12px;color:#6b7280;text-align:right}
+.ol-tc-total{background:#f0f9ff;border-radius:8px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.ol-tc-total-label{font-size:13px;font-weight:700;color:#1e40af}
+.ol-tc-total-val{font-size:20px;font-weight:700;color:#1e40af;font-variant-numeric:tabular-nums}
+
+/* ── 인라인 편집 ────────────────────────────────────── */
+[contenteditable]{outline:none;cursor:text;border-radius:4px;transition:background .12s}
+[contenteditable]:hover{background:rgba(59,130,246,.06)}
+[contenteditable]:focus{background:rgba(59,130,246,.1);box-shadow:0 0 0 2px rgba(59,130,246,.3)}
+.editable-hint{font-size:10px;color:#bbb;margin-left:4px;display:none}
+[contenteditable]:focus~.editable-hint{display:inline}
+
+/* ── RSU 베스팅 ─────────────────────────────────────── */
+.ol-vest-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.ol-vest-item{text-align:center}
+.ol-vest-bar-bg{background:#e5e7eb;border-radius:6px;height:52px;display:flex;align-items:flex-end;overflow:hidden;margin-bottom:6px}
+.ol-vest-bar-fill{width:100%;background:#3b82f6;border-radius:4px 4px 0 0}
+.ol-vest-yr{font-size:11px;color:#9ca3af;margin-bottom:4px}
+.ol-vest-amt{font-size:12px;font-weight:600;color:#111}
+.ol-vest-pct{font-size:11px;color:#6b7280}
+
+/* ── 밴드 슬라이더 ──────────────────────────────────── */
+.ol-band-wrap{display:flex;align-items:center;gap:12px;margin-top:10px;padding:10px 14px;background:#f0f9ff;border-radius:8px;border:1px solid #bfdbfe}
+.ol-band-label{font-size:11px;color:#1e40af;white-space:nowrap}
+.ol-band-track{flex:1;position:relative;height:6px;background:#dbeafe;border-radius:3px}
+.ol-band-fill{position:absolute;left:0;top:0;height:100%;background:#3b82f6;border-radius:3px;transition:width .2s}
+.ol-band-dot{position:absolute;top:50%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;background:#1e40af;box-shadow:0 0 0 2px #fff}
+.ol-band-nums{display:flex;justify-content:space-between;font-size:10px;color:#9ca3af;margin-top:4px}
+
+/* ── 주요 일정 ───────────────────────────────────────── */
+.ol-dates-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ol-date-item{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;display:flex;align-items:center;gap:10px}
+.ol-date-icon{width:30px;height:30px;border-radius:7px;background:#dbeafe;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;color:#1e40af}
+.ol-date-label{font-size:10px;color:#9ca3af;margin-bottom:2px}
+.ol-date-val{font-size:13px;font-weight:600;color:#111}
+
+/* ── 복리후생 ────────────────────────────────────────── */
+.ol-benefits-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ol-benefit-item{display:flex;align-items:center;gap:8px;font-size:13px;color:#374151}
+.ol-benefit-dot{width:5px;height:5px;border-radius:50%;background:#3b82f6;flex-shrink:0}
+
+/* ── 서명란 ─────────────────────────────────────────── */
+.ol-footer{padding:1.5rem 3rem 2.5rem;border-top:1px solid #e5e7eb}
+.ol-sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:3rem;margin-top:2rem}
+.ol-sig-blank{height:36px}
+.ol-sig-line{border-top:1px solid #d1d5db;padding-top:8px}
+.ol-sig-name{font-size:14px;font-weight:600;color:#111}
+.ol-sig-role{font-size:11px;color:#9ca3af;margin-top:3px}
+.ol-deadline{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;margin-top:1.5rem}
+.ol-deadline span{font-size:13px;color:#15803d}
+
+/* ── 인쇄 ────────────────────────────────────────────── */
+@media print{
+  .ol-toolbar,.ol-band-wrap,.no-print{display:none!important}
+  .ol-paper{border:none!important;border-radius:0!important;max-width:100%!important;box-shadow:none!important}
+  .sidebar,header,.main-content>:not(.ol-paper){display:none!important}
+  .main-content{margin:0!important;padding:0!important}
+  [contenteditable]{background:none!important;box-shadow:none!important}
+}
+</style>
+
+<!-- 툴바 -->
+<div class="ol-toolbar no-print">
+  <a href="{{ url_for('recruit_applicant_detail', applicant_id=offer.applicant_id) }}#offers"
+     class="btn btn-ghost btn-sm"><i class="fas fa-arrow-left"></i> 지원자 상세</a>
+  <span class="ol-status-badge">{{ offer_status_label.get(offer.status, offer.status) }}</span>
+  {% if offer.status == 'draft' %}
+  <form method="post" action="{{ url_for('recruit_offer_send', offer_id=offer.id) }}" style="margin:0">
+    <button class="btn btn-primary btn-sm" onclick="return confirm('오퍼 발송 처리하겠습니까?')">
+      <i class="fas fa-paper-plane"></i> 발송 처리
+    </button>
+  </form>
+  {% endif %}
+  <button onclick="window.print()" class="btn btn-ghost btn-sm"><i class="fas fa-print"></i> 인쇄 / PDF</button>
+  <span class="ol-save-indicator" id="save-indicator">클릭하여 직접 수정</span>
+</div>
+
+<!-- 오퍼 레터 본문 -->
+<div class="ol-paper" id="offer-paper">
+
+  <!-- 헤더 -->
+  <div class="ol-header">
+    <div class="ol-logo-row">
+      <div class="ol-logo">{{ company }}<span class="ol-logo-sub">Careers</span></div>
+      <div class="ol-issue-date">발행일 {{ offer.created_at[:10] if offer.created_at else '' }}</div>
+    </div>
+    <div class="ol-to-label">수신</div>
+    <div class="ol-candidate-name">{{ offer.applicant_name }} 님께</div>
+    <div class="ol-candidate-email">{{ offer.applicant_email or '' }}</div>
   </div>
 
-  <!-- 오퍼 레터 본문 -->
-  <div id="offer-paper" style="
-    background:#fff;border:1px solid #e5e7eb;border-radius:8px;
-    padding:64px 72px;font-family:'Noto Sans KR',sans-serif;
-    line-height:1.8;color:#111;box-shadow:0 2px 12px rgba(0,0,0,.08)
-  ">
-    <!-- 회사 헤더 -->
-    <div style="text-align:center;margin-bottom:48px;border-bottom:2px solid #111;padding-bottom:24px">
-      <div style="font-size:22px;font-weight:700;letter-spacing:2px">{{ company }}</div>
-      <div style="font-size:12px;color:#6b7280;margin-top:4px">Offer Letter</div>
+  <!-- 본문 -->
+  <div class="ol-body">
+
+    <!-- 인사말 -->
+    <div class="ol-section">
+      <div class="ol-prose">
+        안녕하세요, {{ offer.applicant_name }}님.<br><br>
+        긴 여정 끝에 <strong>{{ company }}</strong>에 합류해 주시길 진심으로 제안드립니다.
+        여러 차례의 면접을 통해 님의 기술적 깊이와 팀 문화와의 적합성을 확인했으며,
+        저희는 님이 팀에 큰 기여를 해주실 것을 확신합니다.
+        아래의 조건으로 입사를 제안드립니다.
+      </div>
     </div>
 
-    <div style="margin-bottom:28px">
-      <div style="font-size:13px;color:#6b7280">수신</div>
-      <div style="font-size:18px;font-weight:600;margin-top:2px">{{ offer.applicant_name }} 님</div>
-      {% if offer.applicant_email %}
-      <div style="font-size:13px;color:#6b7280">{{ offer.applicant_email }}</div>
-      {% endif %}
+    <!-- 포지션 -->
+    <div class="ol-section">
+      <div class="ol-section-label">포지션 정보</div>
+      <div class="ol-position-card">
+        <div>
+          <div class="ol-pos-label">직책</div>
+          <div class="ol-pos-val">{{ offer.posting_title }}</div>
+        </div>
+        <div>
+          <div class="ol-pos-label">레벨</div>
+          <div class="ol-pos-val">
+            {% if offer.job_level %}
+            <span class="ol-level-badge">
+              {{ offer.job_level }} · {{ 'IC' if offer.track == 'IC' else 'Manager' }} Track
+            </span>
+            {% else %}<span style="color:#9ca3af">미지정</span>{% endif %}
+          </div>
+        </div>
+        <div>
+          <div class="ol-pos-label">근무 형태</div>
+          <div class="ol-pos-val">정규직</div>
+        </div>
+        <div>
+          <div class="ol-pos-label">근무지</div>
+          <div class="ol-pos-val">
+            <span contenteditable="true" data-field="location" id="edit-location">{{ offer.location or '서울' }}</span>
+            {% if offer.wfh_days %}&nbsp;(주 {{ offer.wfh_days }}일 재택){% endif %}
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div style="margin-bottom:28px">
-      <div style="font-size:13px;color:#6b7280">지원 포지션</div>
-      <div style="font-size:16px;font-weight:600;margin-top:2px">{{ offer.posting_title }}</div>
+    <!-- TC 테이블 -->
+    <div class="ol-section">
+      <div class="ol-section-label">연봉 구성 (Total Compensation)</div>
+
+      <!-- 밴드 슬라이더 (no-print) -->
+      {% if band and band.min_salary and band.max_salary %}
+      <div class="ol-band-wrap no-print" id="band-bar-wrap">
+        <span class="ol-band-label">L{{ offer.job_level[1:] if offer.job_level else '?' }} 밴드</span>
+        <div style="flex:1">
+          <div class="ol-band-track" id="band-track">
+            <div class="ol-band-fill" id="band-fill"></div>
+            <div class="ol-band-dot" id="band-dot"></div>
+          </div>
+          <div class="ol-band-nums">
+            <span>{{ '{:,.0f}'.format(band.min_salary / 10000) }}만</span>
+            <span>Mid {{ '{:,.0f}'.format(band.mid_salary / 10000) }}만</span>
+            <span>{{ '{:,.0f}'.format(band.max_salary / 10000) }}만</span>
+          </div>
+        </div>
+        <span class="ol-band-label" id="band-pct-label" style="min-width:50px;text-align:right"></span>
+      </div>
+      {% endif %}
+
+      <table class="ol-tc-table" style="margin-top:14px">
+        <tr class="ol-tc-row">
+          <td class="ol-tc-cell" style="width:60%">
+            <div class="ol-tc-name">기본급</div>
+            <span class="ol-tc-note">연간 / 12개월 균등 지급</span>
+          </td>
+          <td class="ol-tc-cell ol-tc-amount">
+            <span id="display-salary">₩{{ '{:,}'.format(offer.salary) if offer.salary else '협의' }}</span>
+            <div class="ol-tc-sub">
+              <span id="display-monthly">(월 {{ '{:,.0f}'.format(offer.salary/12) if offer.salary else '—' }}원)</span>
+            </div>
+          </td>
+        </tr>
+        <tr class="ol-tc-row">
+          <td class="ol-tc-cell">
+            <div class="ol-tc-name">성과급</div>
+            <span class="ol-tc-note">반기 지급 · OKR 달성도 기반 · 최대
+              <span contenteditable="true" data-field="bonus_pct" id="edit-bonus-pct">{{ offer.bonus_pct or 20 }}</span>%
+            </span>
+          </td>
+          <td class="ol-tc-cell ol-tc-amount">
+            <span style="color:#6b7280">최대 <span id="display-bonus">₩{{ '{:,}'.format((offer.salary * (offer.bonus_pct or 20) // 100)) if offer.salary else '협의' }}</span></span>
+          </td>
+        </tr>
+        {% if offer.rsu_total and offer.rsu_total > 0 %}
+        <tr class="ol-tc-row">
+          <td class="ol-tc-cell">
+            <div class="ol-tc-name">RSU (주식보상)</div>
+            <span class="ol-tc-note">{{ offer.rsu_vest_years or 4 }}년 균등 베스팅 · 연간 환산</span>
+          </td>
+          <td class="ol-tc-cell ol-tc-amount">
+            <span style="color:#6b7280">₩{{ '{:,}'.format(offer.rsu_total // (offer.rsu_vest_years or 4)) }} / 년</span>
+          </td>
+        </tr>
+        {% endif %}
+        {% if offer.signing_bonus and offer.signing_bonus > 0 %}
+        <tr class="ol-tc-row">
+          <td class="ol-tc-cell">
+            <div class="ol-tc-name">사이닝 보너스</div>
+            <span class="ol-tc-note">입사 후 30일 내 일시 지급 · 1년 내 퇴직 시 반환</span>
+          </td>
+          <td class="ol-tc-cell ol-tc-amount">
+            <span style="color:#6b7280">₩{{ '{:,}'.format(offer.signing_bonus) }}</span>
+          </td>
+        </tr>
+        {% endif %}
+      </table>
+
+      <!-- TC 합계 -->
+      <div class="ol-tc-total">
+        <div class="ol-tc-total-label">연간 TC <span style="font-size:11px;font-weight:400;color:#3b82f6">(기본급 + 성과급 포함)</span></div>
+        <div class="ol-tc-total-val" id="display-tc">
+          {% if offer.salary %}
+          ₩{{ '{:,}'.format(offer.salary + (offer.salary * (offer.bonus_pct or 20) // 100)) }}
+          {% else %}협의{% endif %}
+        </div>
+      </div>
     </div>
 
-    <p style="margin-bottom:24px">
-      안녕하세요, {{ offer.applicant_name }}님.<br>
-      저희 {{ company }}에 관심을 가져주시고 면접에 참여해 주셔서 진심으로 감사드립니다.<br>
-      신중한 검토 끝에, 아래와 같은 조건으로 입사를 제안드리게 되어 매우 기쁩니다.
-    </p>
-
-    <!-- 조건 테이블 -->
-    <table style="width:100%;border-collapse:collapse;margin-bottom:32px;font-size:14px">
-      <tr style="background:#f9fafb">
-        <td style="padding:12px 16px;font-weight:600;border:1px solid #e5e7eb;width:35%">포지션</td>
-        <td style="padding:12px 16px;border:1px solid #e5e7eb">{{ offer.posting_title }}</td>
-      </tr>
-      {% if offer.salary %}
-      <tr>
-        <td style="padding:12px 16px;font-weight:600;border:1px solid #e5e7eb;background:#f9fafb">연봉 (세전)</td>
-        <td style="padding:12px 16px;border:1px solid #e5e7eb">{{ '{:,}'.format(offer.salary) }}원</td>
-      </tr>
-      {% endif %}
-      {% if offer.start_date %}
-      <tr style="background:#f9fafb">
-        <td style="padding:12px 16px;font-weight:600;border:1px solid #e5e7eb">입사 예정일</td>
-        <td style="padding:12px 16px;border:1px solid #e5e7eb">{{ offer.start_date }}</td>
-      </tr>
-      {% endif %}
-      {% if offer.expiry_date %}
-      <tr>
-        <td style="padding:12px 16px;font-weight:600;border:1px solid #e5e7eb;background:#f9fafb">오퍼 유효 기간</td>
-        <td style="padding:12px 16px;border:1px solid #e5e7eb">{{ offer.expiry_date }}까지</td>
-      </tr>
-      {% endif %}
-    </table>
-
-    {% if offer.body %}
-    <div style="white-space:pre-wrap;margin-bottom:32px;font-size:14px;color:#374151">{{ offer.body }}</div>
+    <!-- RSU 베스팅 -->
+    {% if offer.rsu_total and offer.rsu_total > 0 %}
+    <div class="ol-section">
+      <div class="ol-section-label">RSU 베스팅 스케줄 — 총 ₩{{ '{:,}'.format(offer.rsu_total) }}</div>
+      {% set vest_yrs = offer.rsu_vest_years or 4 %}
+      {% set per_yr = offer.rsu_total // vest_yrs %}
+      <div class="ol-vest-grid">
+        {% for i in range(vest_yrs) %}
+        <div class="ol-vest-item">
+          <div class="ol-vest-yr">{{ i + 1 }}년차</div>
+          <div class="ol-vest-bar-bg">
+            <div class="ol-vest-bar-fill" style="height:70%;opacity:{{ 0.4 + (i * 0.2) }}"></div>
+          </div>
+          <div class="ol-vest-amt">₩{{ '{:,}'.format(per_yr) }}</div>
+          <div class="ol-vest-pct">{{ 100 // vest_yrs }}%</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
     {% endif %}
 
-    <p style="font-size:14px;color:#374151;margin-bottom:48px">
-      본 오퍼에 동의하신다면, 유효 기간 이내에 회신 부탁드립니다.<br>
-      궁금한 사항은 언제든지 채용팀으로 문의해 주세요.
+    <!-- 주요 일정 -->
+    <div class="ol-section">
+      <div class="ol-section-label">주요 일정</div>
+      <div class="ol-dates-grid">
+        <div class="ol-date-item">
+          <div class="ol-date-icon"><i class="fas fa-calendar-check"></i></div>
+          <div>
+            <div class="ol-date-label">입사 예정일</div>
+            <div class="ol-date-val">
+              <span contenteditable="true" data-field="start_date" id="edit-start">{{ offer.start_date or '협의' }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="ol-date-item">
+          <div class="ol-date-icon" style="background:#fef3c7;color:#b45309"><i class="fas fa-clock"></i></div>
+          <div>
+            <div class="ol-date-label">응답 기한</div>
+            <div class="ol-date-val">
+              <span contenteditable="true" data-field="expiry_date" id="edit-expiry">{{ offer.expiry_date or '협의' }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="ol-date-item">
+          <div class="ol-date-icon" style="background:#f0fdf4;color:#15803d"><i class="fas fa-map-marker-alt"></i></div>
+          <div>
+            <div class="ol-date-label">근무지</div>
+            <div class="ol-date-val">{{ offer.location or '협의' }}</div>
+          </div>
+        </div>
+        <div class="ol-date-item">
+          <div class="ol-date-icon" style="background:#fdf4ff;color:#7e22ce"><i class="fas fa-shield-alt"></i></div>
+          <div>
+            <div class="ol-date-label">수습 기간</div>
+            <div class="ol-date-val">3개월</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 복리후생 -->
+    <div class="ol-section">
+      <div class="ol-section-label">복리후생</div>
+      <div class="ol-benefits-list">
+        <div class="ol-benefit-item"><div class="ol-benefit-dot"></div>연간 복지포인트 2,400,000원</div>
+        <div class="ol-benefit-item"><div class="ol-benefit-dot"></div>점심 식대 지원</div>
+        <div class="ol-benefit-item"><div class="ol-benefit-dot"></div>건강검진 (본인 + 가족)</div>
+        <div class="ol-benefit-item"><div class="ol-benefit-dot"></div>자기계발비 연 1,200,000원</div>
+        <div class="ol-benefit-item"><div class="ol-benefit-dot"></div>장비 구매 지원</div>
+        <div class="ol-benefit-item"><div class="ol-benefit-dot"></div>4대보험 / 퇴직금</div>
+      </div>
+    </div>
+
+  </div><!-- /ol-body -->
+
+  <!-- 서명 -->
+  <div class="ol-footer">
+    <div class="ol-section-label">서명</div>
+    <p class="ol-prose">
+      본 오퍼의 내용에 동의하시면, 아래에 서명하신 후 응답 기한 내에 채용팀으로 회신 부탁드립니다.
+      궁금하신 점은 언제든지 연락주세요.
     </p>
 
-    <!-- 서명란 -->
-    <div style="display:flex;justify-content:space-between;margin-top:48px">
-      <div style="text-align:center;min-width:180px">
-        <div style="border-top:1px solid #111;padding-top:8px;font-size:13px">회사 대표 서명</div>
-        <div style="font-size:12px;color:#6b7280;margin-top:4px">{{ company }}</div>
+    <div class="ol-sig-grid">
+      <div>
+        <div class="ol-sig-blank"></div>
+        <div class="ol-sig-line">
+          <div class="ol-sig-name">
+            <span contenteditable="true" data-field="company_signer" id="edit-signer">{{ offer.company_signer or company + ' 채용팀' }}</span>
+          </div>
+          <div class="ol-sig-role">
+            <span contenteditable="true" data-field="company_signer_title" id="edit-signer-title">{{ offer.company_signer_title or 'Chief People Officer' }}</span>
+            &nbsp;· {{ company }}
+          </div>
+        </div>
       </div>
-      <div style="text-align:center;min-width:180px">
-        <div style="border-top:1px solid #111;padding-top:8px;font-size:13px">지원자 서명</div>
-        <div style="font-size:12px;color:#6b7280;margin-top:4px">{{ offer.applicant_name }}</div>
+      <div>
+        <div class="ol-sig-blank"></div>
+        <div class="ol-sig-line">
+          <div class="ol-sig-name">{{ offer.applicant_name }}</div>
+          <div class="ol-sig-role">지원자 서명 · 날짜</div>
+        </div>
       </div>
     </div>
 
-    <div style="text-align:center;margin-top:48px;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:16px">
-      발행일: {{ offer.created_at[:10] if offer.created_at else '' }} &nbsp;|&nbsp;
-      담당자: {{ offer.created_by_name or '-' }} &nbsp;|&nbsp;
-      {{ company }}
+    {% if offer.expiry_date %}
+    <div class="ol-deadline">
+      <i class="fas fa-info-circle" style="color:#15803d;flex-shrink:0"></i>
+      <span>응답 기한 <strong>{{ offer.expiry_date }}</strong>까지 채용팀으로 회신 부탁드립니다.</span>
     </div>
+    {% endif %}
+  </div>
+
+</div><!-- /ol-paper -->
+
+<!-- 연봉 직접 수정 패널 (no-print) -->
+<div class="no-print" style="max-width:720px;margin:16px auto 0;background:var(--bg-1);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 24px;">
+  <div style="font-size:13px;font-weight:700;color:var(--tx-1);margin-bottom:14px;">연봉 구성 수정</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;">
+    <div>
+      <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">기본급 (원)</label>
+      <input type="number" id="input-salary" class="input" style="font-size:13px;"
+             value="{{ offer.salary or '' }}" placeholder="80000000" step="1000000">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">성과급 비율 (%)</label>
+      <input type="number" id="input-bonus-pct" class="input" style="font-size:13px;"
+             value="{{ offer.bonus_pct or 20 }}" min="0" max="100" step="5">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">RSU 총액 (원, 0=없음)</label>
+      <input type="number" id="input-rsu" class="input" style="font-size:13px;"
+             value="{{ offer.rsu_total or 0 }}" step="1000000">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">사이닝 보너스 (원)</label>
+      <input type="number" id="input-signing" class="input" style="font-size:13px;"
+             value="{{ offer.signing_bonus or 0 }}" step="1000000">
+    </div>
+  </div>
+  <div style="margin-top:12px;display:flex;align-items:center;gap:10px;">
+    <button id="apply-tc-btn" class="btn btn-primary btn-sm">
+      <i class="fas fa-check"></i> 적용 및 저장
+    </button>
+    <span style="font-size:12px;color:var(--tx-3);">수정 후 적용하면 레터에 즉시 반영됩니다.</span>
   </div>
 </div>
 
-<style>
-@media print {
-  .no-print { display:none !important; }
-  #offer-paper { border:none !important; box-shadow:none !important; padding:32px 48px !important; }
-  body { background:#fff !important; }
-  .sidebar, header { display:none !important; }
-  .main-content { margin:0 !important; padding:0 !important; }
-}
-</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  var OFFER_ID = {{ offer.id }};
+  var saveTimer = null;
+  var indicator = document.getElementById('save-indicator');
+
+  function fmt(n){ return n ? '₩' + Math.round(n).toLocaleString('ko-KR') : '협의'; }
+  function fmtMonthly(n){ return n ? '(월 ' + Math.round(n/12).toLocaleString('ko-KR') + '원)' : '—'; }
+
+  /* ── TC 실시간 재계산 ─────────────────────────────── */
+  function recalcTC(salary, bonusPct){
+    var s = document.getElementById('display-salary');
+    var m = document.getElementById('display-monthly');
+    var b = document.getElementById('display-bonus');
+    var t = document.getElementById('display-tc');
+    if(s) s.textContent = fmt(salary);
+    if(m) m.textContent = fmtMonthly(salary);
+    if(b) b.textContent = salary ? fmt(salary * bonusPct / 100) : '협의';
+    if(t) t.textContent = salary ? fmt(salary + salary * bonusPct / 100) : '협의';
+    updateBandBar(salary);
+  }
+
+  /* ── 밴드 슬라이더 ────────────────────────────────── */
+  {% if band and band.min_salary and band.max_salary %}
+  var BAND_MIN = {{ band.min_salary }};
+  var BAND_MID = {{ band.mid_salary or ((band.min_salary + band.max_salary) / 2) }};
+  var BAND_MAX = {{ band.max_salary }};
+
+  function updateBandBar(salary){
+    if(!salary){ return; }
+    var fill = document.getElementById('band-fill');
+    var dot  = document.getElementById('band-dot');
+    var lbl  = document.getElementById('band-pct-label');
+    var pct  = Math.min(100, Math.max(0, (salary - BAND_MIN) / (BAND_MAX - BAND_MIN) * 100));
+    if(fill) fill.style.width = pct + '%';
+    if(dot)  dot.style.left  = pct + '%';
+    if(lbl){
+      var cmp = Math.round(salary / BAND_MID * 100);
+      lbl.textContent = 'Compa ' + cmp + '%';
+      lbl.style.color = cmp < 90 ? '#dc2626' : cmp > 110 ? '#7c3aed' : '#1e40af';
+    }
+  }
+  {% else %}
+  function updateBandBar(){}
+  {% endif %}
+
+  /* ── 적용 버튼 ─────────────────────────────────────── */
+  var applyBtn = document.getElementById('apply-tc-btn');
+  if(applyBtn){
+    applyBtn.addEventListener('click', function(){
+      var salary   = parseInt(document.getElementById('input-salary').value) || null;
+      var bonusPct = parseInt(document.getElementById('input-bonus-pct').value) || 20;
+      var rsu      = parseInt(document.getElementById('input-rsu').value) || 0;
+      var signing  = parseInt(document.getElementById('input-signing').value) || 0;
+
+      recalcTC(salary, bonusPct);
+
+      saveToServer({
+        salary: salary,
+        bonus_pct: bonusPct,
+        rsu_total: rsu,
+        signing_bonus: signing
+      }, function(){
+        /* 저장 후 새로고침해서 RSU 베스팅 섹션 반영 */
+        window.location.reload();
+      });
+    });
+
+    /* 입력값 바뀔 때마다 실시간 레터 미리보기 */
+    ['input-salary','input-bonus-pct'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.addEventListener('input', function(){
+        var s = parseInt(document.getElementById('input-salary').value)||0;
+        var p = parseInt(document.getElementById('input-bonus-pct').value)||20;
+        recalcTC(s||null, p);
+      });
+    });
+  }
+
+  /* ── contenteditable 자동저장 ─────────────────────── */
+  document.querySelectorAll('[contenteditable][data-field]').forEach(function(el){
+    el.addEventListener('input', function(){
+      indicator.textContent = '수정 중...';
+      indicator.className = 'ol-save-indicator saving';
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(function(){
+        var payload = {};
+        payload[el.dataset.field] = el.textContent.trim();
+        saveToServer(payload);
+      }, 900);
+    });
+    el.addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){ e.preventDefault(); el.blur(); }
+    });
+  });
+
+  /* ── 서버 저장 ─────────────────────────────────────── */
+  function saveToServer(data, cb){
+    indicator.textContent = '저장 중...';
+    indicator.className = 'ol-save-indicator saving';
+    fetch('/recruit/offers/' + OFFER_ID + '/update', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.ok){
+        indicator.textContent = '저장됨';
+        indicator.className = 'ol-save-indicator saved';
+        setTimeout(function(){ indicator.textContent='클릭하여 직접 수정'; indicator.className='ol-save-indicator'; }, 2000);
+        if(cb) cb();
+      }
+    })
+    .catch(function(){
+      indicator.textContent = '저장 실패';
+      indicator.className = 'ol-save-indicator';
+    });
+  }
+
+  /* 초기 밴드 바 */
+  {% if offer.salary %}
+  updateBandBar({{ offer.salary }});
+  {% endif %}
+
+}());
+</script>
 {% endblock %}

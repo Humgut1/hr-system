@@ -1145,6 +1145,24 @@ def init_db(db_path: str = None):
             sent_by      INTEGER REFERENCES users(id)
         )''')
 
+        # offers: TC 컴포넌트 컬럼 추가 (v0.65)
+        of_cols = {r[1] for r in c.execute('PRAGMA table_info(offers)').fetchall()}
+        for col, ddl in [
+            ('bonus_pct',     'INTEGER DEFAULT 20'),
+            ('rsu_total',     'INTEGER DEFAULT 0'),
+            ('rsu_vest_years','INTEGER DEFAULT 4'),
+            ('signing_bonus', 'INTEGER DEFAULT 0'),
+            ('job_level',     'TEXT'),
+            ('track',         'TEXT'),
+            ('location',      'TEXT DEFAULT "서울 강남"'),
+            ('wfh_days',      'INTEGER DEFAULT 2'),
+            ('benefits_json', 'TEXT'),
+            ('company_signer','TEXT'),
+            ('company_signer_title', 'TEXT'),
+        ]:
+            if col not in of_cols:
+                c.execute(f'ALTER TABLE offers ADD COLUMN {col} {ddl}')
+
         # applicants: hired_from_offer_id 컬럼 추가
         ap_cols2 = {r[1] for r in c.execute('PRAGMA table_info(applicants)').fetchall()}
         if 'hired_from_offer_id' not in ap_cols2:

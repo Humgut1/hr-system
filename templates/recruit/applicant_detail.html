@@ -456,37 +456,105 @@
       <div style="padding:18px;">
         {% if applicant.stage not in ('disqualified','rejected') %}
         <div class="card" style="margin-bottom:16px;">
-          <div class="card-head"><span class="card-title">오퍼 생성</span></div>
+          <div class="card-head">
+            <span class="card-title">오퍼 생성</span>
+            <span style="font-size:11px;color:var(--tx-3);">채용 요청서 기반 밴드 자동 반영</span>
+          </div>
           <div class="card-body">
             <form action="{{ url_for('recruit_offers', applicant_id=applicant.id) }}" method="POST">
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
-                <div class="field" style="margin-bottom:0;">
-                  <label class="form-label" style="font-size:12px;">연봉 (원)</label>
-                  <input type="number" name="salary" class="input" placeholder="60000000">
+              <!-- 1행: 기본급 + 밴드 미리보기 -->
+              <div style="margin-bottom:14px;">
+                <label class="form-label" style="font-size:12px;">기본급 (원) <span style="color:var(--tx-3);font-weight:400">— 채용 요청서 레벨 기준 밴드 참고</span></label>
+                <input type="number" name="salary" id="of-salary" class="input" placeholder="80000000" step="1000000"
+                       {% if applicant.req_salary_mid %}value="{{ applicant.req_salary_mid }}"{% endif %}>
+                {% if applicant.salary_min and applicant.salary_max %}
+                <div style="margin-top:6px;padding:8px 12px;background:var(--bg-2);border-radius:var(--r-sm);font-size:12px;color:var(--tx-3);">
+                  공고 밴드: <strong>{{ '{:,}'.format(applicant.salary_min) }}</strong> ~
+                  <strong>{{ '{:,}'.format(applicant.salary_max) }}</strong>원
                 </div>
+                {% endif %}
+              </div>
+              <!-- 2행: 성과급% / RSU / 사이닝 -->
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px;">
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">성과급 최대 (%)</label>
+                  <input type="number" name="bonus_pct" class="input" value="20" min="0" max="100" step="5" placeholder="20">
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">RSU 총액 (원, 0=없음)</label>
+                  <input type="number" name="rsu_total" class="input" value="0" step="1000000" placeholder="0">
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">사이닝 보너스 (원)</label>
+                  <input type="number" name="signing_bonus" class="input" value="0" step="500000" placeholder="0">
+                </div>
+              </div>
+              <!-- 3행: 입사일 / 유효기간 / 재택 -->
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px;">
                 <div class="field" style="margin-bottom:0;">
                   <label class="form-label" style="font-size:12px;">입사 예정일</label>
                   <input type="date" name="start_date" class="input">
                 </div>
                 <div class="field" style="margin-bottom:0;">
-                  <label class="form-label" style="font-size:12px;">오퍼 유효 기간</label>
+                  <label class="form-label" style="font-size:12px;">오퍼 응답 기한</label>
                   <input type="date" name="expiry_date" class="input">
                 </div>
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">재택 일수/주</label>
+                  <select name="wfh_days" class="input">
+                    <option value="0">전일 출근</option>
+                    <option value="1">주 1일</option>
+                    <option value="2" selected>주 2일</option>
+                    <option value="3">주 3일</option>
+                    <option value="5">전일 재택</option>
+                  </select>
+                </div>
               </div>
-              <div class="field" style="margin-bottom:12px;">
-                <label class="form-label" style="font-size:12px;">추가 조건 (선택 — 비워두면 기본 문구 자동 생성)</label>
-                <textarea name="body" class="input" rows="3" placeholder="스톡옵션, 사이닝 보너스, 재택근무 조건 등..."></textarea>
+              <!-- 4행: 서명자 / 직함 -->
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">서명자 이름</label>
+                  <input type="text" name="company_signer" class="input" placeholder="이재원">
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">서명자 직함</label>
+                  <input type="text" name="company_signer_title" class="input" value="Chief People Officer">
+                </div>
+              </div>
+              <!-- TC 미리보기 -->
+              <div style="background:var(--bg-2);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:14px;font-size:13px;display:flex;gap:20px;flex-wrap:wrap;">
+                <span style="color:var(--tx-3);">예상 TC</span>
+                <span id="of-tc-preview" style="font-weight:700;color:var(--primary);">— 기본급 입력 시 자동 계산</span>
               </div>
               <div style="display:flex;gap:8px;">
-                <button type="submit" name="action" value="draft" class="btn btn-ghost btn-sm">초안 저장</button>
+                <button type="submit" name="action" value="draft" class="btn btn-ghost btn-sm">
+                  <i class="fas fa-save"></i> 초안 저장
+                </button>
                 <button type="submit" name="action" value="send" class="btn btn-primary btn-sm"
-                        onclick="return confirm('오퍼 발송 처리하겠습니까? 이메일 발송 기록이 저장됩니다.')">
+                        onclick="return confirm('오퍼 발송 처리하겠습니까?')">
                   <i class="fas fa-paper-plane"></i> 발송 처리
                 </button>
               </div>
             </form>
           </div>
         </div>
+        <script>
+        (function(){
+          var sal = document.getElementById('of-salary');
+          var prev = document.getElementById('of-tc-preview');
+          if(!sal||!prev) return;
+          function upd(){
+            var s = parseInt(sal.value)||0;
+            if(!s){prev.textContent='— 기본급 입력 시 자동 계산';return;}
+            var bp = parseInt(document.querySelector('[name=bonus_pct]')?.value)||20;
+            var tc = s + s*bp/100;
+            prev.textContent = '₩'+Math.round(tc).toLocaleString('ko-KR')+' (기본급+성과급 기준)';
+          }
+          sal.addEventListener('input',upd);
+          document.querySelector('[name=bonus_pct]')?.addEventListener('input',upd);
+          upd();
+        }());
+        </script>
         {% endif %}
 
         {% if offers %}

@@ -6146,88 +6146,157 @@ def recruit_hire(applicant_id):
 @app.route('/recruit/applicants/<int:applicant_id>/offers', methods=['GET', 'POST'])
 @recruiter_or_admin
 def recruit_offers(applicant_id):
-    """오퍼 목록 + 생성 (offer 단계에서만 생성 가능)"""
+    """오퍼 목록 + 생성"""
     db        = get_db()
     applicant = db.execute(
-        'SELECT a.*, jp.title AS posting_title FROM applicants a '
-        'JOIN job_postings jp ON a.posting_id = jp.id WHERE a.id=?', (applicant_id,)
+        'SELECT a.*, jp.title AS posting_title, jp.id AS jp_id, '
+        'jp.job_family_id, jp.salary_min, jp.salary_max, '
+        'jr.job_level, jr.track, jr.salary_mid AS req_salary_mid '
+        'FROM applicants a '
+        'JOIN job_postings jp ON a.posting_id = jp.id '
+        'LEFT JOIN job_requisitions jr ON jp.requisition_id = jr.id '
+        'WHERE a.id=?', (applicant_id,)
     ).fetchone()
     if not applicant:
         abort(404)
 
     if request.method == 'POST':
-        salary      = request.form.get('salary', '').replace(',', '') or None
-        start_date  = request.form.get('start_date', '') or None
-        expiry_date = request.form.get('expiry_date', '') or None
-        body        = request.form.get('body', '').strip() or None
-        action      = request.form.get('action', 'draft')
+        def _int(key):
+            v = request.form.get(key, '').replace(',', '').strip()
+            return int(v) if v else None
 
-        # 기본 오퍼 본문 자동생성
-        if not body:
-            _, body = _render_email_template('offer', {
-                'name': applicant['name'],
-                'posting_title': applicant['posting_title'],
-                'salary': f'{int(salary):,}' if salary else '협의',
-                'start_date': start_date or '협의',
-                'expiry_date': expiry_date or '협의',
-            })
+        salary       = _int('salary')
+        bonus_pct    = _int('bonus_pct') or 20
+        rsu_total    = _int('rsu_total') or 0
+        rsu_vest_yrs = _int('rsu_vest_years') or 4
+        signing      = _int('signing_bonus') or 0
+        start_date   = request.form.get('start_date') or None
+        expiry_date  = request.form.get('expiry_date') or None
+        location     = request.form.get('location', '서울 강남')
+        wfh_days     = _int('wfh_days') or 2
+        job_level    = request.form.get('job_level') or (applicant['job_level'] if applicant['job_level'] else None)
+        track        = request.form.get('track') or (applicant['track'] if applicant['track'] else 'IC')
+        signer       = request.form.get('company_signer', '')
+        signer_title = request.form.get('company_signer_title', 'Chief People Officer')
+        action       = request.form.get('action', 'draft')
+        status       = 'sent' if action == 'send' else 'draft'
 
-        status = 'sent' if action == 'send' else 'draft'
         offer_id = db.execute(
-            'INSERT INTO offers (applicant_id, posting_id, status, salary, start_date, '
-            'expiry_date, body, sent_at, created_by) VALUES (?,?,?,?,?,?,?,?,?)',
-            (applicant_id, applicant['posting_id'], status, salary, start_date,
-             expiry_date, body,
+            'INSERT INTO offers (applicant_id, posting_id, status, salary, bonus_pct, '
+            'rsu_total, rsu_vest_years, signing_bonus, start_date, expiry_date, '
+            'location, wfh_days, job_level, track, company_signer, company_signer_title, '
+            'sent_at, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            (applicant_id, applicant['posting_id'], status, salary, bonus_pct,
+             rsu_total, rsu_vest_yrs, signing, start_date, expiry_date,
+             location, wfh_days, job_level, track, signer, signer_title,
              'CURRENT_TIMESTAMP' if action == 'send' else None,
              session['user_id'])
         ).lastrowid
 
         if action == 'send' and applicant['email']:
-            subject, email_body = _render_email_template('offer', {
+            subject, body = _render_email_template('offer', {
                 'name': applicant['name'],
                 'posting_title': applicant['posting_title'],
-                'salary': f'{int(salary):,}' if salary else '협의',
+                'salary': f'{salary:,}' if salary else '협의',
                 'start_date': start_date or '협의',
                 'expiry_date': expiry_date or '협의',
             })
-            _save_recruit_email(db, applicant_id, 'offer', applicant['email'], subject, email_body)
-            db.execute(
-                "UPDATE offers SET sent_at=CURRENT_TIMESTAMP WHERE id=?", (offer_id,)
-            )
+            _save_recruit_email(db, applicant_id, 'offer', applicant['email'], subject, body)
+            db.execute("UPDATE offers SET sent_at=CURRENT_TIMESTAMP WHERE id=?", (offer_id,))
 
         log_recruit(applicant_id, 'offer_created', {'offer_id': offer_id, 'status': status})
         db.commit()
-        flash('오퍼가 생성됐습니다.' + (' (이메일 발송 기록 저장됨)' if action == 'send' else ''), 'success')
-        return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+        flash('오퍼가 생성됐습니다.' + (' (이메일 기록 저장)' if action == 'send' else ''), 'success')
+        return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id) + '#offers')
 
-    offers = db.execute(
-        'SELECT o.*, u.name AS created_by_name FROM offers o '
-        'LEFT JOIN users u ON o.created_by = u.id '
-        'WHERE o.applicant_id=? ORDER BY o.created_at DESC', (applicant_id,)
-    ).fetchall()
+    # 요청서 기반 연봉 밴드 조회 (프리필용)
+    band = None
+    if applicant['job_family_id'] and applicant['job_level']:
+        level_num = int(applicant['job_level'][1:]) if applicant['job_level'] and applicant['job_level'][1:].isdigit() else None
+        if level_num:
+            band = db.execute(
+                'SELECT sg.min_salary, sg.mid_salary, sg.max_salary, jf.name AS family_name '
+                'FROM salary_grades sg JOIN job_families jf ON sg.job_family_id = jf.id '
+                'WHERE sg.job_family_id=? AND sg.level=?', (applicant['job_family_id'], level_num)
+            ).fetchone()
+
     return render_template('recruit/offers.html',
-                           applicant=applicant,
-                           offers=offers,
+                           applicant=applicant, band=band,
                            offer_status_label=OFFER_STATUS_LABEL)
+
+
+@app.route('/recruit/offers/<int:offer_id>/update', methods=['POST'])
+@recruiter_or_admin
+def recruit_offer_update(offer_id):
+    """오퍼 레터 인라인 편집 저장 (AJAX)"""
+    db    = get_db()
+    offer = db.execute('SELECT * FROM offers WHERE id=?', (offer_id,)).fetchone()
+    if not offer:
+        return jsonify({'error': 'not found'}), 404
+
+    data  = request.get_json(silent=True) or {}
+
+    def _safe_int(v):
+        try:
+            return int(str(v).replace(',', '').strip()) if v is not None and str(v).strip() else None
+        except (ValueError, TypeError):
+            return None
+
+    fields = {}
+    for key in ('salary', 'bonus_pct', 'rsu_total', 'rsu_vest_years', 'signing_bonus', 'wfh_days'):
+        if key in data:
+            fields[key] = _safe_int(data[key])
+    for key in ('start_date', 'expiry_date', 'location', 'job_level', 'track',
+                'company_signer', 'company_signer_title', 'body'):
+        if key in data:
+            fields[key] = str(data[key]).strip() or None
+
+    if not fields:
+        return jsonify({'ok': True, 'msg': 'no changes'})
+
+    set_clause = ', '.join(f'{k}=?' for k in fields)
+    db.execute(f'UPDATE offers SET {set_clause} WHERE id=?', list(fields.values()) + [offer_id])
+    db.commit()
+    return jsonify({'ok': True})
 
 
 @app.route('/recruit/offers/<int:offer_id>/letter')
 @recruiter_or_admin
 def recruit_offer_letter(offer_id):
-    """인쇄용 오퍼 레터 페이지"""
+    """오퍼 레터 페이지 (인라인 편집 + 인쇄)"""
     db    = get_db()
     offer = db.execute(
         'SELECT o.*, a.name AS applicant_name, a.email AS applicant_email, '
-        'jp.title AS posting_title, u.name AS created_by_name '
-        'FROM offers o JOIN applicants a ON o.applicant_id = a.id '
+        'jp.title AS posting_title, u.name AS created_by_name, '
+        'jf.name AS job_family_name '
+        'FROM offers o '
+        'JOIN applicants a ON o.applicant_id = a.id '
         'JOIN job_postings jp ON o.posting_id = jp.id '
         'LEFT JOIN users u ON o.created_by = u.id '
+        'LEFT JOIN job_requisitions jr ON jp.requisition_id = jr.id '
+        'LEFT JOIN job_families jf ON jr.job_family_id = jf.id '
         'WHERE o.id=?', (offer_id,)
     ).fetchone()
     if not offer:
         abort(404)
+
+    # 연봉 밴드 (슬라이더용)
+    band = None
+    if offer['job_level'] and offer['job_level'][1:].isdigit():
+        level_num = int(offer['job_level'][1:])
+        band = db.execute(
+            'SELECT sg.min_salary, sg.mid_salary, sg.max_salary '
+            'FROM salary_grades sg '
+            'JOIN job_requisitions jr ON sg.job_family_id = jr.job_family_id '
+            'JOIN job_postings jp ON jr.id = jp.requisition_id '
+            'WHERE jp.id=? AND sg.level=? LIMIT 1',
+            (offer['posting_id'], level_num)
+        ).fetchone()
+
     company = os.environ.get('COMPANY_NAME', 'TalentCore')
-    return render_template('recruit/offer_letter.html', offer=offer, company=company,
+    return render_template('recruit/offer_letter.html',
+                           offer=offer, company=company,
+                           band=band,
                            offer_status_label=OFFER_STATUS_LABEL)
 
 
