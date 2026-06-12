@@ -6280,18 +6280,41 @@ def recruit_offer_letter(offer_id):
     if not offer:
         abort(404)
 
-    # 연봉 밴드 (슬라이더용)
+    # 연봉 밴드 (슬라이더용) — salary_grades는 position_id 기반
     band = None
-    if offer['job_level'] and offer['job_level'][1:].isdigit():
-        level_num = int(offer['job_level'][1:])
+    jl = offer['job_level'] or ''
+    # job_level이 없으면 요청서에서 가져오기
+    if not jl:
+        req = db.execute(
+            'SELECT jr.job_level, jr.job_family_id FROM job_postings jp '
+            'LEFT JOIN job_requisitions jr ON jp.requisition_id = jr.id '
+            'WHERE jp.id=?', (offer['posting_id'],)
+        ).fetchone()
+        if req:
+            jl = req['job_level'] or ''
+    level_part = jl[2:] if jl.startswith('CL') else (jl[1:] if jl else '')
+    if level_part.isdigit():
+        level_num = int(level_part)
         band = db.execute(
             'SELECT sg.min_salary, sg.mid_salary, sg.max_salary '
             'FROM salary_grades sg '
-            'JOIN job_requisitions jr ON sg.job_family_id = jr.job_family_id '
-            'JOIN job_postings jp ON jr.id = jp.requisition_id '
-            'WHERE jp.id=? AND sg.level=? LIMIT 1',
+            'JOIN positions p ON sg.position_id = p.id '
+            'JOIN job_postings jp ON sg.job_family_id = ('
+            '  SELECT jr2.job_family_id FROM job_requisitions jr2 WHERE jr2.id = jp.requisition_id'
+            ') '
+            'WHERE jp.id=? AND p.level=? LIMIT 1',
             (offer['posting_id'], level_num)
         ).fetchone()
+        # fallback: 요청서의 salary_min/mid/max 직접 사용
+        if not band:
+            req2 = db.execute(
+                'SELECT jr.salary_min, jr.salary_mid, jr.salary_max '
+                'FROM job_postings jp '
+                'JOIN job_requisitions jr ON jp.requisition_id = jr.id '
+                'WHERE jp.id=?', (offer['posting_id'],)
+            ).fetchone()
+            if req2 and req2['salary_mid']:
+                band = req2
 
     company = os.environ.get('COMPANY_NAME', 'TalentCore')
     return render_template('recruit/offer_letter.html',

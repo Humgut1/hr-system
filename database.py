@@ -1163,6 +1163,14 @@ def init_db(db_path: str = None):
             if col not in of_cols:
                 c.execute(f'ALTER TABLE offers ADD COLUMN {col} {ddl}')
 
+        # ── v0.65.0 채용 요청서↔공고 연동 ────────────────────────────────
+        jr_cols = {r[1] for r in c.execute('PRAGMA table_info(job_requisitions)').fetchall()}
+        if 'job_level' not in jr_cols:
+            c.execute('ALTER TABLE job_requisitions ADD COLUMN job_level TEXT')
+        jp_cols_v65 = {r[1] for r in c.execute('PRAGMA table_info(job_postings)').fetchall()}
+        if 'requisition_id' not in jp_cols_v65:
+            c.execute('ALTER TABLE job_postings ADD COLUMN requisition_id INTEGER REFERENCES job_requisitions(id)')
+
         # applicants: hired_from_offer_id 컬럼 추가
         ap_cols2 = {r[1] for r in c.execute('PRAGMA table_info(applicants)').fetchall()}
         if 'hired_from_offer_id' not in ap_cols2:
