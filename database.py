@@ -1086,6 +1086,18 @@ def init_db(db_path: str = None):
             created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
 
+        # ── v0.62.1 지원자 서류 첨부 ────────────────────────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS applicant_documents (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            applicant_id  INTEGER NOT NULL REFERENCES applicants(id) ON DELETE CASCADE,
+            doc_type      TEXT NOT NULL DEFAULT 'resume',
+            original_name TEXT NOT NULL,
+            stored_name   TEXT NOT NULL,
+            file_size     INTEGER DEFAULT 0,
+            uploaded_by   INTEGER REFERENCES users(id),
+            uploaded_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
         # ── v0.62.0 파이프라인 고도화 ────────────────────────────────────────
         # job_postings 에 recruiter_id / hiring_manager_id / coordinator_id 추가
         jp_cols2 = {r[1] for r in c.execute('PRAGMA table_info(job_postings)').fetchall()}

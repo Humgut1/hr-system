@@ -3,507 +3,770 @@
 {% block page_title %}지원자 상세{% endblock %}
 
 {% block content %}
-<div style="max-width:800px;">
+<style>
+/* ── 2패널 레이아웃 ─────────────────────────────────────────── */
+.apd-wrap {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  min-height: calc(100vh - 200px);
+  background: var(--bg-1);
+}
 
-  <!-- 브레드크럼 -->
-  <div style="display:flex; gap:8px; margin-bottom:18px; align-items:center;">
-    <a href="{{ url_for('recruit_posting_detail', posting_id=applicant.posting_id) }}"
-       class="btn btn-ghost btn-sm"><i class="fas fa-arrow-left"></i> 공고로</a>
-    <a href="{{ url_for('recruit_pipeline', posting=applicant.posting_id) }}"
-       class="btn btn-ghost btn-sm"><i class="fas fa-columns"></i> 파이프라인</a>
-  </div>
+/* ── 왼쪽 패널 ─────────────────────────────────────────────── */
+.apd-left {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-1);
+  overflow-y: auto;
+}
+.apd-profile { padding: 20px; border-bottom: 1px solid var(--border); }
+.apd-avatar {
+  width: 56px; height: 56px; border-radius: 50%; background: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 900; color: #fff; margin-bottom: 12px;
+}
+.apd-name { font-size: 18px; font-weight: 900; color: var(--tx-1); margin-bottom: 2px; }
+.apd-posting { font-size: 12px; color: var(--tx-3); margin-bottom: 10px; }
+.apd-stage-pill {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; background: var(--primary); color: #fff;
+}
 
-  <!-- 헤더 카드 -->
-  <div class="card" style="margin-bottom:14px;">
-    <div class="card-body">
-      <div style="display:flex; align-items:center; gap:14px; margin-bottom:14px;">
-        <div style="width:52px; height:52px; border-radius:50%; background:var(--primary);
-                    display:flex; align-items:center; justify-content:center;
-                    font-size:22px; font-weight:900; color:#fff; flex-shrink:0;">
-          {{ applicant.name[0] }}
-        </div>
-        <div style="flex:1;">
-          <div style="font-size:18px; font-weight:900; color:var(--tx-1);">{{ applicant.name }}</div>
-          <div style="font-size:13px; color:var(--tx-3);">{{ applicant.posting_title }}</div>
-        </div>
-        <div>
-          {% set stage = applicant.stage %}
-          <span class="badge
-            {% if stage == 'hired' %}badge-active
-            {% elif stage == 'rejected' %}badge-inactive
-            {% elif stage == 'offered' %}badge-info
-            {% else %}badge-pending{% endif %}"
-            style="font-size:13px; padding:6px 12px;">
-            {{ stage_map.get(stage, stage) }}
-          </span>
-        </div>
-      </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; font-size:13px;">
-        <div>
-          <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">이메일</div>
-          <div style="font-weight:600;">{{ applicant.email }}</div>
-        </div>
-        <div>
-          <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">연락처</div>
-          <div style="font-weight:600;">{{ applicant.phone or '—' }}</div>
-        </div>
-        <div>
-          <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">지원 경로</div>
-          <div style="font-weight:600;">{{ source_labels.get(applicant.source, applicant.source) }}</div>
-        </div>
-        <div>
-          <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">지원일</div>
-          <div style="font-weight:600;">{{ applicant.created_at[:10] }}</div>
-        </div>
-        {% if applicant.resume_note %}
-        <div style="grid-column:span 2;">
-          <div style="color:var(--tx-3); font-size:11px; margin-bottom:2px;">이력서 메모</div>
-          <div style="font-weight:600; white-space:pre-wrap;">{{ applicant.resume_note }}</div>
-        </div>
+.apd-info { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.apd-info-label { font-size: 10px; color: var(--tx-4); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+.apd-info-val { font-size: 13px; color: var(--tx-1); font-weight: 600; margin-bottom: 10px; }
+.apd-info-val:last-child { margin-bottom: 0; }
+.apd-info-val a { color: var(--primary); text-decoration: none; }
+
+.apd-pipeline { padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.apd-pipeline-title { font-size: 10px; color: var(--tx-4); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; }
+.apd-step { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+.apd-step-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.apd-step-done   { background: #27ae60; }
+.apd-step-active { background: var(--primary); box-shadow: 0 0 0 2px rgba(56,139,253,.25); }
+.apd-step-todo   { background: var(--border); }
+.apd-step-label-done   { color: var(--tx-3); }
+.apd-step-label-active { color: var(--tx-1); font-weight: 700; }
+.apd-step-label-todo   { color: var(--tx-4); }
+.apd-step-date { margin-left: auto; font-size: 10px; color: var(--tx-4); }
+
+.apd-actions { padding: 14px 20px; margin-top: auto; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+
+/* ── 오른쪽 패널 ────────────────────────────────────────────── */
+.apd-right { display: flex; flex-direction: column; background: var(--bg-1); }
+
+.apd-tabs {
+  display: flex; border-bottom: 1px solid var(--border);
+  background: var(--bg-2); flex-shrink: 0;
+}
+.apd-tab {
+  padding: 11px 20px; font-size: 13px; font-weight: 600; color: var(--tx-3);
+  border-bottom: 2px solid transparent; cursor: pointer; background: none; border-left: none;
+  border-right: none; border-top: none; margin-bottom: -1px;
+}
+.apd-tab.on { color: var(--primary); border-bottom-color: var(--primary); }
+.apd-tab-badge {
+  margin-left: 5px; font-size: 10px; background: var(--primary); color: #fff;
+  padding: 1px 5px; border-radius: 999px;
+}
+
+.apd-tab-content { flex: 1; overflow-y: auto; display: none; }
+.apd-tab-content.on { display: block; }
+
+/* ── 서류 탭 ────────────────────────────────────────────────── */
+.apd-doc-wrap {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  height: 100%;
+  min-height: 500px;
+}
+.apd-doc-list { border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--bg-1); }
+.apd-doc-list-head {
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 700; color: var(--tx-3);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.apd-doc-item {
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
+  transition: background .12s;
+}
+.apd-doc-item:hover { background: var(--bg-2); }
+.apd-doc-item.active { background: #e6f1fb; }
+.apd-doc-item.active .apd-doc-name { color: #0c447c; }
+.apd-doc-icon {
+  width: 32px; height: 38px; border-radius: 4px; border: 1px solid var(--border);
+  background: var(--bg-2); display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700; color: var(--tx-3); flex-shrink: 0;
+}
+.apd-doc-icon.pdf  { background: #fcebeb; border-color: #f7c1c1; color: #a32d2d; }
+.apd-doc-icon.docx { background: #e6f1fb; border-color: #b5d4f4; color: #185fa5; }
+.apd-doc-icon.hwp  { background: #eaf3de; border-color: #c5e3a0; color: #3b6d11; }
+.apd-doc-name { font-size: 13px; font-weight: 600; color: var(--tx-1); margin-bottom: 2px; word-break: break-all; }
+.apd-doc-meta { font-size: 11px; color: var(--tx-4); }
+
+.apd-doc-empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: var(--tx-4); font-size: 13px; padding: 40px; text-align: center;
+}
+
+.apd-doc-viewer { flex: 1; display: flex; flex-direction: column; background: var(--bg-2); }
+.apd-viewer-toolbar {
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0; background: var(--bg-1);
+}
+.apd-viewer-toolbar-name { font-size: 13px; font-weight: 600; color: var(--tx-1); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.apd-viewer-iframe { flex: 1; border: none; width: 100%; min-height: 0; }
+.apd-viewer-nopreview {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: var(--tx-4); font-size: 13px; text-align: center; padding: 40px;
+}
+
+.apd-upload-form {
+  padding: 12px 14px; border-top: 1px solid var(--border);
+  background: var(--bg-2);
+}
+
+/* ── 메모 뱃지 ──────────────────────────────────────────────── */
+.apd-note-box {
+  margin: 14px; padding: 12px 14px;
+  background: var(--bg-2); border-radius: var(--r-sm);
+  border-left: 3px solid var(--primary);
+  font-size: 12px; color: var(--tx-2); line-height: 1.6; white-space: pre-wrap;
+}
+.apd-note-label { font-size: 10px; font-weight: 700; color: var(--tx-3); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+
+/* ── 인터뷰 탭 ──────────────────────────────────────────────── */
+.apd-interviews-body { padding: 18px; }
+
+/* ── 공통 ────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .apd-wrap { grid-template-columns: 1fr; }
+  .apd-left { border-right: none; border-bottom: 1px solid var(--border); }
+  .apd-doc-wrap { grid-template-columns: 1fr; }
+  .apd-doc-list { border-right: none; border-bottom: 1px solid var(--border); max-height: 200px; overflow-y: auto; }
+}
+</style>
+
+<!-- 브레드크럼 -->
+<div style="display:flex; gap:8px; margin-bottom:14px; align-items:center;">
+  <a href="{{ url_for('recruit_pipeline', posting=applicant.posting_id) }}"
+     class="btn btn-ghost btn-sm"><i class="fas fa-arrow-left"></i> 파이프라인으로</a>
+</div>
+
+<div class="apd-wrap">
+
+  <!-- ── 왼쪽: 후보자 정보 ─────────────────────────────────── -->
+  <div class="apd-left">
+
+    <div class="apd-profile">
+      <div class="apd-avatar">{{ applicant.name[0] }}</div>
+      <div class="apd-name">{{ applicant.name }}</div>
+      <div class="apd-posting">{{ applicant.posting_title }}</div>
+      <span class="apd-stage-pill">{{ stage_map.get(applicant.stage, applicant.stage) }}</span>
+    </div>
+
+    <div class="apd-info">
+      <div class="apd-info-label">연락처</div>
+      <div class="apd-info-val"><a href="mailto:{{ applicant.email }}">{{ applicant.email }}</a></div>
+      {% if applicant.phone %}
+      <div class="apd-info-val"><a href="tel:{{ applicant.phone }}">{{ applicant.phone }}</a></div>
+      {% endif %}
+      <div class="apd-info-label" style="margin-top:10px;">지원 정보</div>
+      <div class="apd-info-val">{{ source_labels.get(applicant.source, applicant.source) }}</div>
+      <div class="apd-info-val">{{ applicant.created_at[:10] }} 지원</div>
+    </div>
+
+    <!-- 채용 진행 단계 -->
+    <div class="apd-pipeline">
+      <div class="apd-pipeline-title">채용 진행 단계</div>
+      {% set current_stage = applicant.stage %}
+      {% set stage_keys = stages | map(attribute=0) | list %}
+      {% set current_idx = stage_keys.index(current_stage) if current_stage in stage_keys else -1 %}
+      {% for s, lbl in stages %}
+      {% set idx = loop.index0 %}
+      <div class="apd-step">
+        <div class="apd-step-dot
+          {% if idx < current_idx %}apd-step-done
+          {% elif idx == current_idx %}apd-step-active
+          {% else %}apd-step-todo{% endif %}"></div>
+        <span class="
+          {% if idx < current_idx %}apd-step-label-done
+          {% elif idx == current_idx %}apd-step-label-active
+          {% else %}apd-step-label-todo{% endif %}">{{ lbl }}</span>
+        {% if idx == current_idx %}
+        <span class="apd-step-date">진행 중</span>
         {% endif %}
       </div>
+      {% endfor %}
     </div>
-  </div>
 
-  <!-- 탭 -->
-  <div style="display:flex; gap:0; margin-bottom:14px; border-bottom:2px solid var(--border);">
-    {% set tabs = [('info','기본 정보'),('interviews','면접'),('log','활동 로그')] %}
-    {% for tid, tlabel in tabs %}
-    <button class="tab-btn" data-tab="{{ tid }}"
-            style="padding:10px 20px; font-size:13px; font-weight:600; background:none; border:none;
-                   border-bottom:2px solid transparent; margin-bottom:-2px; cursor:pointer;
-                   color:var(--tx-3);">
-      {{ tlabel }}
-      {% if tid == 'interviews' and rounds_data %}
-      <span style="margin-left:4px; font-size:11px; background:var(--primary); color:#fff;
-                   padding:1px 6px; border-radius:999px;">{{ rounds_data|length }}</span>
-      {% endif %}
-    </button>
-    {% endfor %}
-  </div>
-
-  <!-- ── 탭: 기본 정보 ── -->
-  <div class="tab-content" id="tab-info">
-    <div class="card">
-      <div class="card-head"><span class="card-title">단계 변경</span></div>
-      <div class="card-body">
-        <form method="POST">
-          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
-            {% for s, label in stages %}
-            <label style="cursor:pointer;">
-              <input type="radio" name="stage" value="{{ s }}"
-                     {% if applicant.stage == s %}checked{% endif %}
-                     style="display:none;" class="stage-radio">
-              <span class="stage-label-btn" data-stage="{{ s }}"
-                    style="display:inline-block; padding:6px 14px; border-radius:20px;
-                           border:2px solid var(--border); font-size:12.5px; font-weight:600;
-                           cursor:pointer; transition:all .15s;
-                           {% if applicant.stage == s %}
-                           border-color:var(--primary); background:var(--primary); color:#fff;
-                           {% else %}color:var(--tx-2);{% endif %}">
-                {{ label }}
-              </span>
-            </label>
+    <!-- 단계 변경 -->
+    <div class="apd-actions">
+      <form method="POST">
+        <div style="margin-bottom:10px;">
+          <label class="form-label" style="font-size:11px;">단계 변경</label>
+          <select name="stage" class="input" style="font-size:12px;" onchange="onStageChange(this.value)">
+            {% for s, lbl in stages %}
+            <option value="{{ s }}" {% if applicant.stage == s %}selected{% endif %}>{{ lbl }}</option>
             {% endfor %}
-          </div>
-          <div id="rejection-reason-block" style="display:none; margin-bottom:12px;">
-            <label class="form-label" style="font-size:12px;">불합격 사유 코드 (컴플라이언스)</label>
-            <select name="reason_code" class="input">
-              <option value="">— 선택 —</option>
-              {% for code, label in rejection_reason_codes.items() %}
-              <option value="{{ code }}">{{ label }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="field">
-            <label class="form-label">메모 / 사유</label>
-            <textarea name="note" class="input" rows="2"
-                      placeholder="면접 결과, 특이사항 등"></textarea>
-          </div>
-          <button type="submit" class="btn btn-primary btn-sm">
-            <i class="fas fa-save"></i> 저장
-          </button>
-        </form>
-      </div>
+          </select>
+        </div>
+        <div id="rejection-reason-block" style="display:none; margin-bottom:10px;">
+          <label class="form-label" style="font-size:11px;">불합격 사유 코드 (컴플라이언스)</label>
+          <select name="reason_code" class="input" style="font-size:12px;">
+            <option value="">— 선택 —</option>
+            {% for code, label in rejection_reason_codes.items() %}
+            <option value="{{ code }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="form-label" style="font-size:11px;">메모</label>
+          <textarea name="note" class="input" rows="2" style="font-size:12px;"
+                    placeholder="면접 결과, 특이사항 등"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">
+          <i class="fas fa-save"></i> 저장
+        </button>
+      </form>
     </div>
+
   </div>
 
-  <!-- ── 탭: 면접 ── -->
-  <div class="tab-content" id="tab-interviews" style="display:none;">
+  <!-- ── 오른쪽: 서류 / 면접 / 로그 ─────────────────────────── -->
+  <div class="apd-right">
 
-    <!-- 라운드 추가 폼 -->
-    <div class="card" style="margin-bottom:14px;">
-      <div class="card-head">
-        <span class="card-title">면접 라운드 추가</span>
-      </div>
-      <div class="card-body">
-        <form action="{{ url_for('recruit_round_new', applicant_id=applicant.id) }}" method="POST">
-          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
-            <div class="field" style="margin-bottom:0;">
-              <label class="form-label" style="font-size:12px;">라운드 번호</label>
-              <select name="round_no" class="input">
-                {% for i in range(1, 6) %}
-                <option value="{{ i }}">{{ i }}차</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="field" style="margin-bottom:0;">
-              <label class="form-label" style="font-size:12px;">면접 유형</label>
-              <select name="round_type" class="input">
-                {% for val, label in round_type_label.items() %}
-                <option value="{{ val }}">{{ label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="field" style="margin-bottom:0;">
-              <label class="form-label" style="font-size:12px;">예정 시간 (분)</label>
-              <select name="planned_min" class="input">
-                <option value="30">30분</option>
-                <option value="45">45분</option>
-                <option value="60" selected>60분</option>
-                <option value="90">90분</option>
-                <option value="120">120분</option>
-              </select>
-            </div>
-            <div class="field" style="margin-bottom:0;">
-              <label class="form-label" style="font-size:12px;">예정 일시</label>
-              <input type="datetime-local" name="scheduled_at" class="input">
-            </div>
-            <div class="field" style="margin-bottom:0;">
-              <label class="form-label" style="font-size:12px;">진행 방식</label>
-              <select name="location_type" class="input">
-                <option value="video">화상</option>
-                <option value="in_person">대면</option>
-                <option value="phone">전화</option>
-              </select>
-            </div>
-            <div class="field" style="margin-bottom:0;">
-              <label class="form-label" style="font-size:12px;">미팅 링크 (선택)</label>
-              <input type="url" name="meet_link" class="input" placeholder="https://meet.google.com/...">
-            </div>
-          </div>
-          <div style="margin-top:12px;">
-            <button type="submit" class="btn btn-primary btn-sm">
-              <i class="fas fa-plus"></i> 라운드 생성
-            </button>
-          </div>
-        </form>
-      </div>
+    <div class="apd-tabs">
+      <button class="apd-tab on" data-tab="docs">
+        서류
+        {% if documents %}<span class="apd-tab-badge">{{ documents|length }}</span>{% endif %}
+      </button>
+      <button class="apd-tab" data-tab="interviews">
+        면접
+        {% if rounds_data %}<span class="apd-tab-badge">{{ rounds_data|length }}</span>{% endif %}
+      </button>
+      <button class="apd-tab" data-tab="log">활동 로그</button>
     </div>
 
-    {% if not rounds_data %}
-    <div style="text-align:center; padding:40px; color:var(--tx-3); font-size:14px;">
-      <i class="fas fa-video" style="font-size:32px; display:block; margin-bottom:12px; opacity:.3;"></i>
-      아직 면접 라운드가 없습니다.
-    </div>
-    {% endif %}
+    <!-- ── 서류 탭 ──────────────────────────────────────────── -->
+    <div class="apd-tab-content on" id="apd-docs">
+      <div class="apd-doc-wrap">
 
-    {% for rd in rounds_data %}
-    {% set r = rd.round %}
-    {% set interviewers = rd.interviewers %}
-    {% set feedbacks = rd.feedbacks %}
-    {% set pass_count = feedbacks | selectattr('recommendation','eq','pass') | list | length %}
-    {% set hold_count = feedbacks | selectattr('recommendation','eq','hold') | list | length %}
-    {% set fail_count = feedbacks | selectattr('recommendation','eq','fail') | list | length %}
-    {% set total_planned = interviewers | length * r.planned_min %}
+        <!-- 서류 목록 -->
+        <div class="apd-doc-list">
+          <div class="apd-doc-list-head">
+            <span>제출 서류 {{ documents|length }}건</span>
+            <button onclick="document.getElementById('upload-drawer').classList.toggle('open')"
+                    style="background:none; border:none; cursor:pointer; color:var(--primary); font-size:13px;"
+                    title="서류 추가"><i class="fas fa-plus"></i></button>
+          </div>
 
-    <div class="card" style="margin-bottom:14px;">
-      <!-- 라운드 헤더 -->
-      <div style="padding:14px 20px; background:var(--bg-2); border-bottom:1px solid var(--border);
-                  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <span style="font-size:15px; font-weight:900; color:var(--tx-1);">
-            {{ r.round_no }}차 — {{ round_type_label.get(r.round_type, r.round_type) }}
-          </span>
-          <span class="badge
-            {% if r.status == 'completed' %}badge-active
-            {% elif r.status == 'cancelled' or r.status == 'no_show' %}badge-inactive
-            {% else %}badge-pending{% endif %}"
-            style="font-size:11px;">
-            {{ round_status_label.get(r.status, r.status) }}
-          </span>
-        </div>
-        <div style="display:flex; gap:10px; font-size:12px; color:var(--tx-3); align-items:center;">
-          {% if r.scheduled_at %}
-          <span><i class="fas fa-calendar"></i> {{ r.scheduled_at[:16] }}</span>
-          {% endif %}
-          <span><i class="fas fa-clock"></i>
-            {% if r.actual_min %}{{ r.actual_min }}분 실제{% else %}{{ r.planned_min }}분 예정{% endif %}
-          </span>
-          {% if r.location_type == 'video' %}
-          <span><i class="fas fa-video"></i> 화상</span>
-          {% elif r.location_type == 'in_person' %}
-          <span><i class="fas fa-building"></i> 대면</span>
+          {% if documents %}
+          {% for doc in documents %}
+          {% set ext = doc.stored_name.rsplit('.', 1)[1] if '.' in doc.stored_name else '' %}
+          <div class="apd-doc-item {% if loop.first %}active{% endif %}"
+               data-doc-id="{{ doc.id }}"
+               data-doc-url="{{ url_for('recruit_doc_file', doc_id=doc.id) }}"
+               data-doc-name="{{ doc.original_name }}"
+               data-doc-ext="{{ ext }}"
+               onclick="selectDoc(this)">
+            <div class="apd-doc-icon {{ ext }}">{{ ext|upper }}</div>
+            <div style="min-width:0; flex:1;">
+              <div class="apd-doc-name">{{ doc_type_label.get(doc.doc_type, doc.doc_type) }}</div>
+              <div class="apd-doc-meta">{{ doc.original_name }}</div>
+              <div class="apd-doc-meta">{{ '%.1f'|format(doc.file_size / 1024) }} KB</div>
+            </div>
+          </div>
+          {% endfor %}
           {% else %}
-          <span><i class="fas fa-phone"></i> 전화</span>
+          <div class="apd-doc-empty">
+            <i class="fas fa-file-alt" style="font-size:28px; margin-bottom:10px; opacity:.3;"></i>
+            <div>제출된 서류가 없습니다.</div>
+            <div style="font-size:11px; margin-top:4px;">+ 버튼으로 추가하세요.</div>
+          </div>
+          {% endif %}
+
+          <!-- 업로드 드로어 -->
+          <div id="upload-drawer"
+               style="border-top:1px solid var(--border); background:var(--bg-2); display:none; padding:12px 14px;">
+            <form action="{{ url_for('recruit_doc_upload', applicant_id=applicant.id) }}"
+                  method="POST" enctype="multipart/form-data">
+              <div style="margin-bottom:8px;">
+                <label class="form-label" style="font-size:11px;">서류 종류</label>
+                <select name="doc_type" class="input" style="font-size:12px;">
+                  {% for k, v in doc_type_label.items() %}
+                  <option value="{{ k }}">{{ v }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div style="margin-bottom:8px;">
+                <label class="form-label" style="font-size:11px;">파일 (최대 20MB)</label>
+                <input type="file" name="file" class="input" style="font-size:12px;"
+                       accept=".pdf,.doc,.docx,.hwp,.pptx,.png,.jpg,.jpeg">
+              </div>
+              <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">업로드</button>
+            </form>
+          </div>
+
+          <!-- 리크루터 메모 -->
+          {% if applicant.resume_note %}
+          <div class="apd-note-box">
+            <div class="apd-note-label">리크루터 메모</div>
+            {{ applicant.resume_note }}
+          </div>
           {% endif %}
         </div>
-      </div>
 
-      <div class="card-body">
-
-        <!-- 인터뷰어 배정 -->
-        <div style="margin-bottom:14px;">
-          <div style="font-size:12px; font-weight:700; color:var(--tx-3); margin-bottom:8px; text-transform:uppercase; letter-spacing:.05em;">인터뷰어</div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-            {% for iv in interviewers %}
-            <div style="display:flex; align-items:center; gap:6px; padding:5px 10px;
-                        border-radius:20px; border:1px solid var(--border); font-size:13px; background:var(--bg-1);">
-              <div style="width:22px; height:22px; border-radius:50%; background:var(--primary);
-                          display:flex; align-items:center; justify-content:center;
-                          font-size:10px; font-weight:700; color:#fff; flex-shrink:0;">
-                {{ iv.interviewer_name[0] }}
-              </div>
-              <span>{{ iv.interviewer_name }}</span>
-              <span title="{% if iv.feedback_submitted %}피드백 제출 완료{% else %}피드백 미제출{% endif %}"
-                    style="width:8px; height:8px; border-radius:50%;
-                           background:{% if iv.feedback_submitted %}#27ae60{% else %}#e74c3c{% endif %};"></span>
-              {% if r.status != 'completed' %}
-              <form action="{{ url_for('recruit_round_remove_interviewer', round_id=r.id, interviewer_id=iv.interviewer_id) }}"
-                    method="POST" style="display:inline;">
-                <button type="submit" style="background:none; border:none; cursor:pointer; color:var(--tx-4); font-size:11px; padding:0 2px;"
-                        title="제거">×</button>
-              </form>
-              {% endif %}
-            </div>
-            {% endfor %}
-
-            {% if r.status != 'completed' %}
-            <form action="{{ url_for('recruit_round_assign_interviewer', round_id=r.id) }}" method="POST"
-                  style="display:flex; gap:6px; align-items:center;">
-              <select name="interviewer_id" class="input" style="font-size:12px; padding:5px 8px; height:auto;">
-                <option value="">인터뷰어 추가</option>
-                {% for iv in interviewers_all %}
-                <option value="{{ iv.id }}">{{ iv.name }}</option>
-                {% endfor %}
-              </select>
-              <button type="submit" class="btn btn-ghost btn-sm" style="white-space:nowrap;">
-                <i class="fas fa-plus"></i>
+        <!-- 문서 뷰어 -->
+        <div class="apd-doc-viewer" id="doc-viewer">
+          {% if documents %}
+          {% set first = documents[0] %}
+          {% set first_ext = first.stored_name.rsplit('.', 1)[1] if '.' in first.stored_name else '' %}
+          <div class="apd-viewer-toolbar">
+            <span class="apd-viewer-toolbar-name" id="viewer-filename">{{ first.original_name }}</span>
+            <a id="viewer-download" href="{{ url_for('recruit_doc_file', doc_id=first.id) }}"
+               class="btn btn-ghost btn-sm" download><i class="fas fa-download"></i></a>
+            <a id="viewer-open" href="{{ url_for('recruit_doc_file', doc_id=first.id) }}"
+               target="_blank" class="btn btn-ghost btn-sm"><i class="fas fa-external-link-alt"></i></a>
+            {% if session.get('role') in ('admin', 'recruiter') %}
+            <form id="viewer-delete-form"
+                  action="{{ url_for('recruit_doc_delete', doc_id=first.id) }}"
+                  method="POST" style="display:inline;"
+                  onsubmit="return confirm('이 서류를 삭제할까요?');">
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">
+                <i class="fas fa-trash"></i>
               </button>
             </form>
             {% endif %}
           </div>
-        </div>
-
-        <!-- 총 인터뷰 시간 요약 -->
-        {% if interviewers %}
-        <div style="font-size:12px; color:var(--tx-3); margin-bottom:14px;">
-          <i class="fas fa-hourglass-half"></i>
-          인터뷰어 {{ interviewers|length }}명 × {{ r.planned_min }}분 = 총 {{ interviewers|length * r.planned_min }}분 예정
-          {% if r.actual_min %}/ 실제 {{ interviewers|length * r.actual_min }}분{% endif %}
-        </div>
-        {% endif %}
-
-        <!-- 피드백 -->
-        {% if feedbacks %}
-        <div style="margin-bottom:12px;">
-          <div style="font-size:12px; font-weight:700; color:var(--tx-3); margin-bottom:8px; text-transform:uppercase; letter-spacing:.05em;">피드백</div>
-          {% for fb in feedbacks %}
-          <div style="padding:10px 0; border-top:1px solid var(--border); display:flex; gap:10px; align-items:flex-start;">
-            <div style="min-width:90px; font-size:13px; font-weight:700; color:var(--tx-1);">
-              {{ fb.interviewer_name }}
-              {% if fb.is_edited %}
-              <span title="피드백 수정됨 (컴플라이언스 기록 보존)"
-                    style="font-size:10px; color:var(--warning); margin-left:2px;">⚠ 수정됨</span>
-              {% endif %}
-            </div>
-            <div style="min-width:50px;">
-              <span style="font-size:11px; padding:3px 8px; border-radius:var(--r-sm); font-weight:700;
-                {% if fb.recommendation == 'pass' %}background:#e6f7ed; color:#27ae60;
-                {% elif fb.recommendation == 'hold' %}background:#fff8e1; color:#c87700;
-                {% else %}background:#fde8e8; color:#e74c3c;{% endif %}">
-                {{ recommendation_label.get(fb.recommendation, fb.recommendation) }}
-              </span>
-            </div>
-            <div style="flex:1; font-size:12px;">
-              <!-- 항목별 점수 -->
-              <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:6px;">
-                {% set score_labels = [('score_technical','기술'),('score_communication','소통'),('score_culture_fit','컬처'),('score_growth','성장'),('score_overall','종합')] %}
-                {% for fld, slbl in score_labels %}
-                {% if fb[fld] %}
-                <span style="font-size:11px; color:var(--tx-3);">
-                  {{ slbl }}
-                  <strong style="color:{% if fb[fld] >= 4 %}#27ae60{% elif fb[fld] >= 3 %}#f39c12{% else %}#e74c3c{% endif %};">
-                    {{ fb[fld] }}/5
-                  </strong>
-                </span>
-                {% endif %}
-                {% endfor %}
-              </div>
-              {% if fb.strengths %}<div style="color:var(--tx-2); margin-bottom:3px;"><b style="color:var(--tx-3);">강점:</b> {{ fb.strengths }}</div>{% endif %}
-              {% if fb.concerns %}<div style="color:var(--tx-2);"><b style="color:var(--tx-3);">우려:</b> {{ fb.concerns }}</div>{% endif %}
-            </div>
+          {% if first_ext == 'pdf' %}
+          <iframe id="doc-iframe" class="apd-viewer-iframe" style="flex:1;"
+                  src="{{ url_for('recruit_doc_file', doc_id=first.id) }}"></iframe>
+          {% else %}
+          <div class="apd-viewer-nopreview" id="doc-nopreview">
+            <i class="fas fa-file" style="font-size:36px; margin-bottom:12px; opacity:.3;"></i>
+            <div>이 파일은 미리보기를 지원하지 않습니다.</div>
+            <div style="font-size:11px; margin-top:4px;">다운로드하거나 새 탭에서 열어보세요.</div>
           </div>
-          {% endfor %}
-
-          <!-- 피드백 집계 -->
-          <div style="margin-top:10px; padding:10px 14px; background:var(--bg-2);
-                      border-radius:var(--r-sm); display:flex; gap:16px; font-size:13px; align-items:center; flex-wrap:wrap;">
-            <span style="color:#27ae60; font-weight:700;"><i class="fas fa-thumbs-up"></i> {{ pass_count }} 추천</span>
-            <span style="color:#c87700; font-weight:700;"><i class="fas fa-pause"></i> {{ hold_count }} 보류</span>
-            <span style="color:#e74c3c; font-weight:700;"><i class="fas fa-thumbs-down"></i> {{ fail_count }} 불가</span>
-            {% set avg_overall = [] %}
-            {% for fb in feedbacks %}{% if fb.score_overall %}{% set _ = avg_overall.append(fb.score_overall) %}{% endif %}{% endfor %}
-            {% if avg_overall %}
-            <span style="margin-left:auto; color:var(--tx-3);">
-              종합 평균 <strong style="color:var(--tx-1);">{{ '%.1f'|format(avg_overall|sum / avg_overall|length) }} / 5</strong>
-            </span>
-            {% endif %}
+          {% endif %}
+          {% else %}
+          <div class="apd-viewer-nopreview">
+            <i class="fas fa-file-alt" style="font-size:40px; margin-bottom:14px; opacity:.2;"></i>
+            <div style="font-size:14px; color:var(--tx-3);">왼쪽에서 서류를 선택하세요.</div>
           </div>
-        </div>
-        {% else %}
-        <div style="font-size:13px; color:var(--tx-4); padding:8px 0;">아직 제출된 피드백이 없습니다.</div>
-        {% endif %}
-
-        <!-- 액션 버튼 -->
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; padding-top:12px; border-top:1px solid var(--border);">
-          <a href="{{ url_for('recruit_round_feedback', round_id=r.id) }}"
-             class="btn btn-primary btn-sm">
-            <i class="fas fa-edit"></i> 내 피드백 작성
-          </a>
-          {% if r.status == 'scheduled' %}
-          <button type="button" class="btn btn-ghost btn-sm" data-complete="{{ r.id }}"
-                  onclick="document.getElementById('complete-form-{{ r.id }}').style.display='block'; this.style.display='none';">
-            <i class="fas fa-check"></i> 면접 완료 처리
-          </button>
           {% endif %}
-          {% if r.meet_link %}
-          <a href="{{ r.meet_link }}" target="_blank" class="btn btn-ghost btn-sm">
-            <i class="fas fa-video"></i> 미팅 링크
-          </a>
-          {% endif %}
-        </div>
-
-        <!-- 완료 처리 폼 (숨김) -->
-        <div id="complete-form-{{ r.id }}" style="display:none; margin-top:12px; padding:12px; background:var(--bg-2); border-radius:var(--r-sm);">
-          <form action="{{ url_for('recruit_round_complete', round_id=r.id) }}" method="POST">
-            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:10px;">
-              <div>
-                <label class="form-label" style="font-size:12px;">상태</label>
-                <select name="status" class="input">
-                  <option value="completed">완료</option>
-                  <option value="cancelled">취소</option>
-                  <option value="no_show">노쇼</option>
-                </select>
-              </div>
-              <div>
-                <label class="form-label" style="font-size:12px;">시작 시각</label>
-                <input type="datetime-local" name="actual_start" class="input">
-              </div>
-              <div>
-                <label class="form-label" style="font-size:12px;">종료 시각</label>
-                <input type="datetime-local" name="actual_end" class="input">
-              </div>
-            </div>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <label class="form-label" style="font-size:12px; white-space:nowrap; margin-bottom:0;">실제 소요(분)</label>
-              <input type="number" name="actual_min" class="input" value="{{ r.planned_min }}"
-                     style="width:80px; padding:5px 8px;">
-              <button type="submit" class="btn btn-primary btn-sm">저장</button>
-              <button type="button" class="btn btn-ghost btn-sm"
-                      onclick="document.getElementById('complete-form-{{ r.id }}').style.display='none';">취소</button>
-            </div>
-          </form>
         </div>
 
       </div>
     </div>
-    {% endfor %}
-  </div>
 
-  <!-- ── 탭: 활동 로그 ── -->
-  <div class="tab-content" id="tab-log" style="display:none;">
-    <div class="card">
-      <div class="card-head"><span class="card-title">채용 활동 전체 로그</span></div>
-      {% if activity_logs %}
-      <div style="padding:0 20px;">
-        {% for log in activity_logs %}
-        <div style="padding:12px 0; border-bottom:1px solid var(--border); display:flex; gap:12px;">
-          <div style="width:8px; height:8px; border-radius:50%; background:var(--primary);
-                      margin-top:6px; flex-shrink:0;"></div>
-          <div style="flex:1;">
-            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:3px;">
-              <span style="font-size:12px; font-weight:700; color:var(--tx-1);">{{ log.event_type }}</span>
-              {% if log.actor_name %}
-              <span style="font-size:12px; color:var(--tx-3);">· {{ log.actor_name }}</span>
-              {% endif %}
-              <span style="font-size:11px; color:var(--tx-4); margin-left:auto;">{{ log.created_at[:16] }}</span>
+    <!-- ── 면접 탭 ──────────────────────────────────────────── -->
+    <div class="apd-tab-content" id="apd-interviews">
+      <div class="apd-interviews-body">
+
+        <!-- 라운드 추가 폼 -->
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-head"><span class="card-title">면접 라운드 추가</span></div>
+          <div class="card-body">
+            <form action="{{ url_for('recruit_round_new', applicant_id=applicant.id) }}" method="POST">
+              <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">라운드 번호</label>
+                  <select name="round_no" class="input">
+                    {% for i in range(1, 6) %}
+                    <option value="{{ i }}">{{ i }}차</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">면접 유형</label>
+                  <select name="round_type" class="input">
+                    {% for val, label in round_type_label.items() %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">예정 시간 (분)</label>
+                  <select name="planned_min" class="input">
+                    <option value="30">30분</option>
+                    <option value="45">45분</option>
+                    <option value="60" selected>60분</option>
+                    <option value="90">90분</option>
+                    <option value="120">120분</option>
+                  </select>
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">예정 일시</label>
+                  <input type="datetime-local" name="scheduled_at" class="input">
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">진행 방식</label>
+                  <select name="location_type" class="input">
+                    <option value="video">화상</option>
+                    <option value="in_person">대면</option>
+                    <option value="phone">전화</option>
+                  </select>
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">미팅 링크 (선택)</label>
+                  <input type="url" name="meet_link" class="input" placeholder="https://meet.google.com/...">
+                </div>
+              </div>
+              <div style="margin-top:12px;">
+                <button type="submit" class="btn btn-primary btn-sm">
+                  <i class="fas fa-plus"></i> 라운드 생성
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {% if not rounds_data %}
+        <div style="text-align:center; padding:40px; color:var(--tx-3); font-size:14px;">
+          <i class="fas fa-video" style="font-size:32px; display:block; margin-bottom:12px; opacity:.3;"></i>
+          아직 면접 라운드가 없습니다.
+        </div>
+        {% endif %}
+
+        {% for rd in rounds_data %}
+        {% set r = rd.round %}
+        {% set interviewers = rd.interviewers %}
+        {% set feedbacks = rd.feedbacks %}
+        {% set pass_count = feedbacks | selectattr('recommendation','eq','pass') | list | length %}
+        {% set hold_count = feedbacks | selectattr('recommendation','eq','hold') | list | length %}
+        {% set fail_count = feedbacks | selectattr('recommendation','eq','fail') | list | length %}
+
+        <div class="card" style="margin-bottom:14px;">
+          <div style="padding:14px 20px; background:var(--bg-2); border-bottom:1px solid var(--border);
+                      display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="font-size:15px; font-weight:900; color:var(--tx-1);">
+                {{ r.round_no }}차 — {{ round_type_label.get(r.round_type, r.round_type) }}
+              </span>
+              <span class="badge
+                {% if r.status == 'completed' %}badge-active
+                {% elif r.status in ('cancelled', 'no_show') %}badge-inactive
+                {% else %}badge-pending{% endif %}"
+                style="font-size:11px;">
+                {{ round_status_label.get(r.status, r.status) }}
+              </span>
             </div>
-            {% if log.meta and log.meta != '{}' %}
-            <div style="font-size:12px; color:var(--tx-3); font-family:monospace; background:var(--bg-2);
-                        padding:4px 8px; border-radius:4px; word-break:break-all;">{{ log.meta }}</div>
+            <div style="display:flex; gap:10px; font-size:12px; color:var(--tx-3); align-items:center;">
+              {% if r.scheduled_at %}
+              <span><i class="fas fa-calendar"></i> {{ r.scheduled_at[:16] }}</span>
+              {% endif %}
+              <span><i class="fas fa-clock"></i>
+                {% if r.actual_min %}{{ r.actual_min }}분 실제{% else %}{{ r.planned_min }}분 예정{% endif %}
+              </span>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <!-- 인터뷰어 -->
+            <div style="margin-bottom:14px;">
+              <div style="font-size:12px; font-weight:700; color:var(--tx-3); margin-bottom:8px; text-transform:uppercase; letter-spacing:.05em;">인터뷰어</div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                {% for iv in interviewers %}
+                <div style="display:flex; align-items:center; gap:6px; padding:5px 10px;
+                            border-radius:20px; border:1px solid var(--border); font-size:13px; background:var(--bg-1);">
+                  <div style="width:22px; height:22px; border-radius:50%; background:var(--primary);
+                              display:flex; align-items:center; justify-content:center;
+                              font-size:10px; font-weight:700; color:#fff; flex-shrink:0;">
+                    {{ iv.interviewer_name[0] }}
+                  </div>
+                  <span>{{ iv.interviewer_name }}</span>
+                  <span title="{% if iv.feedback_submitted %}피드백 제출 완료{% else %}피드백 미제출{% endif %}"
+                        style="width:8px; height:8px; border-radius:50%;
+                               background:{% if iv.feedback_submitted %}#27ae60{% else %}#e74c3c{% endif %};"></span>
+                  {% if r.status != 'completed' %}
+                  <form action="{{ url_for('recruit_round_remove_interviewer', round_id=r.id, interviewer_id=iv.interviewer_id) }}"
+                        method="POST" style="display:inline;">
+                    <button type="submit" style="background:none; border:none; cursor:pointer; color:var(--tx-4); font-size:11px; padding:0 2px;" title="제거">×</button>
+                  </form>
+                  {% endif %}
+                </div>
+                {% endfor %}
+                {% if r.status != 'completed' %}
+                <form action="{{ url_for('recruit_round_assign_interviewer', round_id=r.id) }}" method="POST"
+                      style="display:flex; gap:6px; align-items:center;">
+                  <select name="interviewer_id" class="input" style="font-size:12px; padding:5px 8px; height:auto;">
+                    <option value="">인터뷰어 추가</option>
+                    {% for iv in interviewers_all %}
+                    <option value="{{ iv.id }}">{{ iv.name }}</option>
+                    {% endfor %}
+                  </select>
+                  <button type="submit" class="btn btn-ghost btn-sm"><i class="fas fa-plus"></i></button>
+                </form>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- 피드백 -->
+            {% if feedbacks %}
+            <div style="margin-bottom:12px;">
+              <div style="font-size:12px; font-weight:700; color:var(--tx-3); margin-bottom:8px; text-transform:uppercase; letter-spacing:.05em;">피드백</div>
+              {% for fb in feedbacks %}
+              <div style="padding:10px 0; border-top:1px solid var(--border); display:flex; gap:10px; align-items:flex-start;">
+                <div style="min-width:90px; font-size:13px; font-weight:700; color:var(--tx-1);">
+                  {{ fb.interviewer_name }}
+                  {% if fb.is_edited %}
+                  <span title="피드백 수정됨 (컴플라이언스 기록 보존)"
+                        style="font-size:10px; color:var(--warning); margin-left:2px;">⚠ 수정됨</span>
+                  {% endif %}
+                </div>
+                <div style="min-width:50px;">
+                  <span style="font-size:11px; padding:3px 8px; border-radius:var(--r-sm); font-weight:700;
+                    {% if fb.recommendation == 'pass' %}background:#e6f7ed; color:#27ae60;
+                    {% elif fb.recommendation == 'hold' %}background:#fff8e1; color:#c87700;
+                    {% else %}background:#fde8e8; color:#e74c3c;{% endif %}">
+                    {{ recommendation_label.get(fb.recommendation, fb.recommendation) }}
+                  </span>
+                </div>
+                <div style="flex:1; font-size:12px;">
+                  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:6px;">
+                    {% set score_labels = [('score_technical','기술'),('score_communication','소통'),('score_culture_fit','컬처'),('score_growth','성장'),('score_overall','종합')] %}
+                    {% for fld, slbl in score_labels %}
+                    {% if fb[fld] %}
+                    <span style="font-size:11px; color:var(--tx-3);">
+                      {{ slbl }}
+                      <strong style="color:{% if fb[fld] >= 4 %}#27ae60{% elif fb[fld] >= 3 %}#f39c12{% else %}#e74c3c{% endif %};">
+                        {{ fb[fld] }}/5
+                      </strong>
+                    </span>
+                    {% endif %}
+                    {% endfor %}
+                  </div>
+                  {% if fb.strengths %}<div style="color:var(--tx-2); margin-bottom:3px;"><b style="color:var(--tx-3);">강점:</b> {{ fb.strengths }}</div>{% endif %}
+                  {% if fb.concerns %}<div style="color:var(--tx-2);"><b style="color:var(--tx-3);">우려:</b> {{ fb.concerns }}</div>{% endif %}
+                </div>
+              </div>
+              {% endfor %}
+              <!-- 집계 -->
+              <div style="margin-top:10px; padding:10px 14px; background:var(--bg-2);
+                          border-radius:var(--r-sm); display:flex; gap:16px; font-size:13px; align-items:center; flex-wrap:wrap;">
+                <span style="color:#27ae60; font-weight:700;"><i class="fas fa-thumbs-up"></i> {{ pass_count }} 추천</span>
+                <span style="color:#c87700; font-weight:700;"><i class="fas fa-pause"></i> {{ hold_count }} 보류</span>
+                <span style="color:#e74c3c; font-weight:700;"><i class="fas fa-thumbs-down"></i> {{ fail_count }} 불가</span>
+                {% set avg_overall = [] %}
+                {% for fb in feedbacks %}{% if fb.score_overall %}{% set _ = avg_overall.append(fb.score_overall) %}{% endif %}{% endfor %}
+                {% if avg_overall %}
+                <span style="margin-left:auto; color:var(--tx-3);">
+                  종합 평균 <strong style="color:var(--tx-1);">{{ '%.1f'|format(avg_overall|sum / avg_overall|length) }} / 5</strong>
+                </span>
+                {% endif %}
+              </div>
+            </div>
+            {% else %}
+            <div style="font-size:13px; color:var(--tx-4); padding:8px 0;">아직 제출된 피드백이 없습니다.</div>
             {% endif %}
+
+            <!-- 액션 -->
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; padding-top:12px; border-top:1px solid var(--border);">
+              <a href="{{ url_for('recruit_round_feedback', round_id=r.id) }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-edit"></i> 내 피드백 작성
+              </a>
+              {% if r.status == 'scheduled' %}
+              <button type="button" class="btn btn-ghost btn-sm"
+                      onclick="document.getElementById('cf-{{ r.id }}').style.display='block'; this.style.display='none';">
+                <i class="fas fa-check"></i> 면접 완료 처리
+              </button>
+              {% endif %}
+              {% if r.meet_link %}
+              <a href="{{ r.meet_link }}" target="_blank" class="btn btn-ghost btn-sm">
+                <i class="fas fa-video"></i> 미팅 링크
+              </a>
+              {% endif %}
+            </div>
+
+            <!-- 완료 처리 폼 -->
+            <div id="cf-{{ r.id }}" style="display:none; margin-top:12px; padding:12px; background:var(--bg-2); border-radius:var(--r-sm);">
+              <form action="{{ url_for('recruit_round_complete', round_id=r.id) }}" method="POST">
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:10px;">
+                  <div>
+                    <label class="form-label" style="font-size:12px;">상태</label>
+                    <select name="status" class="input">
+                      <option value="completed">완료</option>
+                      <option value="cancelled">취소</option>
+                      <option value="no_show">노쇼</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="form-label" style="font-size:12px;">시작 시각</label>
+                    <input type="datetime-local" name="actual_start" class="input">
+                  </div>
+                  <div>
+                    <label class="form-label" style="font-size:12px;">종료 시각</label>
+                    <input type="datetime-local" name="actual_end" class="input">
+                  </div>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <label class="form-label" style="font-size:12px; white-space:nowrap; margin-bottom:0;">실제 소요(분)</label>
+                  <input type="number" name="actual_min" class="input" value="{{ r.planned_min }}" style="width:80px; padding:5px 8px;">
+                  <button type="submit" class="btn btn-primary btn-sm">저장</button>
+                  <button type="button" class="btn btn-ghost btn-sm"
+                          onclick="document.getElementById('cf-{{ r.id }}').style.display='none';">취소</button>
+                </div>
+              </form>
+            </div>
+
           </div>
         </div>
         {% endfor %}
-      </div>
-      {% else %}
-      <div class="card-body" style="text-align:center; color:var(--tx-3);">아직 기록이 없습니다.</div>
-      {% endif %}
-    </div>
-  </div>
 
+      </div>
+    </div>
+
+    <!-- ── 활동 로그 탭 ──────────────────────────────────────── -->
+    <div class="apd-tab-content" id="apd-log">
+      <div style="padding:18px;">
+        <div class="card">
+          <div class="card-head"><span class="card-title">채용 활동 전체 로그</span></div>
+          {% if activity_logs %}
+          <div style="padding:0 20px;">
+            {% for log in activity_logs %}
+            <div style="padding:12px 0; border-bottom:1px solid var(--border); display:flex; gap:12px;">
+              <div style="width:8px; height:8px; border-radius:50%; background:var(--primary); margin-top:6px; flex-shrink:0;"></div>
+              <div style="flex:1;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:3px;">
+                  <span style="font-size:12px; font-weight:700; color:var(--tx-1);">{{ log.event_type }}</span>
+                  {% if log.actor_name %}
+                  <span style="font-size:12px; color:var(--tx-3);">· {{ log.actor_name }}</span>
+                  {% endif %}
+                  <span style="font-size:11px; color:var(--tx-4); margin-left:auto;">{{ log.created_at[:16] }}</span>
+                </div>
+                {% if log.meta and log.meta != '{}' %}
+                <div style="font-size:12px; color:var(--tx-3); font-family:monospace; background:var(--bg-2);
+                            padding:4px 8px; border-radius:4px; word-break:break-all;">{{ log.meta }}</div>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="card-body" style="text-align:center; color:var(--tx-3);">아직 기록이 없습니다.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 (function () {
-  // 탭 전환
+  // ── 탭 전환 ────────────────────────────────────────────────
   var hash = window.location.hash;
-  var activeTab = 'info';
-  if (hash === '#interviews') activeTab = 'interviews';
-  else if (hash === '#log') activeTab = 'log';
+  var activeTab = hash === '#interviews' ? 'interviews' : hash === '#log' ? 'log' : 'docs';
 
   function showTab(tid) {
-    document.querySelectorAll('.tab-content').forEach(function(el) { el.style.display = 'none'; });
-    document.querySelectorAll('.tab-btn').forEach(function(b) {
-      b.style.borderBottomColor = 'transparent';
-      b.style.color = 'var(--tx-3)';
-    });
-    var content = document.getElementById('tab-' + tid);
-    if (content) content.style.display = 'block';
-    var btn = document.querySelector('.tab-btn[data-tab="' + tid + '"]');
-    if (btn) { btn.style.borderBottomColor = 'var(--primary)'; btn.style.color = 'var(--primary)'; }
+    document.querySelectorAll('.apd-tab-content').forEach(function (el) { el.classList.remove('on'); });
+    document.querySelectorAll('.apd-tab').forEach(function (b) { b.classList.remove('on'); });
+    var content = document.getElementById('apd-' + tid);
+    if (content) content.classList.add('on');
+    var btn = document.querySelector('.apd-tab[data-tab="' + tid + '"]');
+    if (btn) btn.classList.add('on');
+    history.replaceState(null, '', '#' + tid);
   }
 
-  document.querySelectorAll('.tab-btn').forEach(function(b) {
-    b.addEventListener('click', function() {
-      showTab(b.dataset.tab);
-      history.replaceState(null, '', '#' + b.dataset.tab);
-    });
+  document.querySelectorAll('.apd-tab').forEach(function (b) {
+    b.addEventListener('click', function () { showTab(b.dataset.tab); });
   });
 
   showTab(activeTab);
 
-  // 단계 라디오 버튼
-  var radios = document.querySelectorAll('.stage-radio');
-  var btns   = document.querySelectorAll('.stage-label-btn');
-  var rejBlock = document.getElementById('rejection-reason-block');
+  // ── 단계 변경 rejection 표시 ──────────────────────────────
+  window.onStageChange = function (val) {
+    var block = document.getElementById('rejection-reason-block');
+    if (block) block.style.display = val === 'rejected' ? 'block' : 'none';
+  };
 
-  function updateStage() {
-    var checked = null;
-    radios.forEach(function(r, i) {
-      var b = btns[i];
-      if (r.checked) {
-        checked = r.value;
-        b.style.borderColor = 'var(--primary)';
-        b.style.background  = 'var(--primary)';
-        b.style.color       = '#fff';
-      } else {
-        b.style.borderColor = 'var(--border)';
-        b.style.background  = '';
-        b.style.color       = 'var(--tx-2)';
-      }
-    });
-    if (rejBlock) rejBlock.style.display = checked === 'rejected' ? 'block' : 'none';
+  // 초기 상태 반영
+  var stageSelect = document.querySelector('select[name="stage"]');
+  if (stageSelect) onStageChange(stageSelect.value);
+
+  // ── 업로드 드로어 ─────────────────────────────────────────
+  var drawer = document.getElementById('upload-drawer');
+  if (drawer) {
+    // toggle() 방식이므로 추가 처리 불필요
+    // display:none → display:block
+    var btn = drawer.previousElementSibling;
   }
 
-  btns.forEach(function(b, i) {
-    b.addEventListener('click', function() { radios[i].checked = true; updateStage(); });
+  // ── 서류 선택 & 뷰어 ─────────────────────────────────────
+  window.selectDoc = function (el) {
+    document.querySelectorAll('.apd-doc-item').forEach(function (i) { i.classList.remove('active'); });
+    el.classList.add('active');
+
+    var url  = el.dataset.docUrl;
+    var name = el.dataset.docName;
+    var ext  = el.dataset.docExt;
+    var docId = el.dataset.docId;
+
+    var fn = document.getElementById('viewer-filename');
+    if (fn) fn.textContent = name;
+
+    var dl = document.getElementById('viewer-download');
+    var op = document.getElementById('viewer-open');
+    if (dl) dl.href = url;
+    if (op) op.href = url;
+
+    var df = document.getElementById('viewer-delete-form');
+    if (df) df.action = url.replace('/file', '/delete');
+
+    var iframe = document.getElementById('doc-iframe');
+    var nopreview = document.getElementById('doc-nopreview');
+
+    if (ext === 'pdf') {
+      if (!iframe) {
+        // 동적으로 iframe 생성
+        var viewer = document.getElementById('doc-viewer');
+        if (nopreview) nopreview.style.display = 'none';
+        var newIframe = document.createElement('iframe');
+        newIframe.id = 'doc-iframe';
+        newIframe.className = 'apd-viewer-iframe';
+        newIframe.style.flex = '1';
+        viewer.appendChild(newIframe);
+        iframe = newIframe;
+      }
+      iframe.src = url;
+      if (iframe) iframe.style.display = 'block';
+      if (nopreview) nopreview.style.display = 'none';
+    } else {
+      if (iframe) iframe.style.display = 'none';
+      if (nopreview) {
+        nopreview.style.display = 'flex';
+      } else {
+        var viewer = document.getElementById('doc-viewer');
+        var np = document.createElement('div');
+        np.id = 'doc-nopreview';
+        np.className = 'apd-viewer-nopreview';
+        np.innerHTML = '<i class="fas fa-file" style="font-size:36px; margin-bottom:12px; opacity:.3;"></i>' +
+                       '<div>이 파일은 미리보기를 지원하지 않습니다.</div>' +
+                       '<div style="font-size:11px; margin-top:4px;">다운로드하거나 새 탭에서 열어보세요.</div>';
+        viewer.appendChild(np);
+      }
+    }
+  };
+
+  // 업로드 드로어 toggle
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[onclick*="upload-drawer"]');
+    if (!btn) return;
+    e.preventDefault();
+    var d = document.getElementById('upload-drawer');
+    if (!d) return;
+    d.style.display = d.style.display === 'none' || !d.style.display ? 'block' : 'none';
   });
 
-  updateStage();
 }());
 </script>
 {% endblock %}

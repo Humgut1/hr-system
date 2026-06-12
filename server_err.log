@@ -1,0 +1,19 @@
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+127.0.0.1 - - [12/Jun/2026 14:46:49] "GET /recruit/pipeline HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 14:46:49] "GET /static/css/design-system.css HTTP/1.1" 304 -
+127.0.0.1 - - [12/Jun/2026 14:46:49] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [12/Jun/2026 14:46:49] "GET /static/js/main.js HTTP/1.1" 304 -
+127.0.0.1 - - [12/Jun/2026 14:46:56] "GET /recruit/pipeline HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 14:46:56] "GET /static/css/design-system.css HTTP/1.1" 304 -
+127.0.0.1 - - [12/Jun/2026 14:46:57] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [12/Jun/2026 14:46:57] "GET /static/js/main.js HTTP/1.1" 304 -
+127.0.0.1 - - [12/Jun/2026 14:51:40] "GET /recruit/applicants/2/panel HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 14:51:55] "GET /recruit/applicants/3/panel HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 14:51:58] "GET /recruit/applicants/2/panel HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 14:52:09] "GET /recruit/applicants/2/panel HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 14:53:21] "GET /recruit/applicants/1 HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jun/2026 14:53:21] "GET /static/css/design-system.css HTTP/1.1" 304 -
+127.0.0.1 - - [12/Jun/2026 14:53:21] "GET /static/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [12/Jun/2026 14:53:21] "GET /static/js/main.js HTTP/1.1" 304 -

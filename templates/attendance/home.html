@@ -234,7 +234,7 @@
     휴가{% if pending_leave > 0 %}<span class="att-tab-badge">{{ pending_leave }}</span>{% endif %}
   </button>
   <button class="att-tab-btn" data-tab="ot">
-    OT 신청{% if my_ot_requests and my_ot_requests|selectattr('status','eq','pending')|list|length > 0 %}<span class="att-tab-badge">{{ my_ot_requests|selectattr('status','eq','pending')|list|length }}</span>{% endif %}
+    연장근무{% if my_ot_requests and my_ot_requests|selectattr('status','eq','pending')|list|length > 0 %}<span class="att-tab-badge">{{ my_ot_requests|selectattr('status','eq','pending')|list|length }}</span>{% endif %}
   </button>
   <button class="att-tab-btn" data-tab="calendar">캘린더</button>
   {% if session.user_role in ('admin','manager') %}
@@ -436,38 +436,39 @@
 
 
 <!-- ════════════════════════════════════
-     TAB: OT 신청
+     TAB: 연장근무 신청
 ════════════════════════════════════ -->
 <div id="tab-ot" class="att-tab-content" style="display:none;">
 
   <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start;">
 
-    <!-- OT 신청 폼 -->
+    <!-- 연장근무 신청 폼 -->
     <div class="card">
-      <div class="card-head"><span class="card-title"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>OT 신청</span></div>
+      <div class="card-head"><span class="card-title"><i class="fas fa-plus-circle" style="margin-right:6px;"></i>연장근무 신청</span></div>
       <div class="card-body">
-        <form method="POST" action="{{ url_for('overtime_new') }}">
+        <form method="POST" action="{{ url_for('overtime_new') }}" id="ot-form">
           <div class="form-group" style="margin-bottom:10px;">
             <label class="form-label">신청 구분</label>
-            <select name="request_type" class="form-control" style="padding:6px 10px;">
-              <option value="pre">사전 승인</option>
-              <option value="post">사후 신고</option>
+            <select name="request_type" id="ot-req-type" class="form-control" style="padding:6px 10px;" onchange="updateOtConstraints()">
+              <option value="pre">사전 승인 (예정 연장근무)</option>
+              <option value="post">사후 신고 (완료된 연장근무)</option>
             </select>
           </div>
           <div class="form-group" style="margin-bottom:10px;">
             <label class="form-label">날짜</label>
-            <input type="date" name="date" class="form-control" value="{{ today.isoformat() }}" required style="padding:6px 10px;">
+            <input type="date" name="date" id="ot-date" class="form-control" value="{{ today.isoformat() }}" required style="padding:6px 10px;" onchange="updateOtConstraints()">
           </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
             <div class="form-group" style="margin:0;">
               <label class="form-label">시작 시간</label>
-              <input type="time" name="ot_start" class="form-control" value="18:00" required style="padding:6px 10px;">
+              <input type="time" name="ot_start" id="ot-start" class="form-control" value="18:00" required style="padding:6px 10px;">
             </div>
             <div class="form-group" style="margin:0;">
               <label class="form-label">종료 시간</label>
-              <input type="time" name="ot_end" class="form-control" value="21:00" required style="padding:6px 10px;">
+              <input type="time" name="ot_end" id="ot-end" class="form-control" value="21:00" required style="padding:6px 10px;">
             </div>
           </div>
+          <div id="ot-hint" style="font-size:12px; color:var(--tx-3); margin-bottom:10px; padding:6px 10px; background:var(--bg-2); border-radius:6px;"></div>
           <div class="form-group" style="margin-bottom:12px;">
             <label class="form-label">사유</label>
             <textarea name="reason" class="form-control" rows="2" placeholder="업무 내용을 간략히 입력해주세요." style="padding:6px 10px; resize:none;"></textarea>
@@ -479,9 +480,9 @@
       </div>
     </div>
 
-    <!-- 내 OT 신청 이력 -->
+    <!-- 내 연장근무 신청 이력 -->
     <div class="card">
-      <div class="card-head"><span class="card-title">내 OT 신청 내역</span></div>
+      <div class="card-head"><span class="card-title">내 연장근무 신청 내역</span></div>
       <div class="card-body" style="padding:0;">
         {% if my_ot_requests %}
         <table class="data-table" style="margin:0;">
@@ -517,11 +518,11 @@
 
   </div>
 
-  <!-- 매니저/Admin: OT 승인 대기 -->
+  <!-- 매니저/Admin: 연장근무 승인 대기 -->
   {% if session.user_role in ('admin','manager') and ot_pending_list %}
   <div class="card" style="margin-top:16px;">
     <div class="card-head">
-      <span class="card-title"><i class="fas fa-tasks" style="margin-right:6px;"></i>OT 승인 대기</span>
+      <span class="card-title"><i class="fas fa-tasks" style="margin-right:6px;"></i>연장근무 승인 대기</span>
       <span class="badge badge-warning">{{ ot_pending_list|length }}건</span>
     </div>
     <div class="card-body" style="padding:0;">
@@ -574,7 +575,7 @@
 </div><!-- /tab-ot -->
 
 
-<!-- OT 반려 모달 -->
+<!-- 연장근무 반려 모달 -->
 <div id="ot-reject-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
   <div style="background:var(--bg-1); border-radius:12px; padding:24px; width:360px; max-width:90vw;">
     <h3 style="margin:0 0 12px; font-size:16px;">OT 신청 반려</h3>
@@ -937,7 +938,54 @@ document.addEventListener('DOMContentLoaded', function(){
   switchTab('{{ active_tab }}' || 'home');
 });
 
-// ── OT 반려 모달 ─────────────────────────────────────
+// ── 연장근무 날짜/시간 제약 ──────────────────────────
+function updateOtConstraints() {
+  var type   = document.getElementById('ot-req-type').value;
+  var dateEl = document.getElementById('ot-date');
+  var startEl = document.getElementById('ot-start');
+  var endEl   = document.getElementById('ot-end');
+  var hint    = document.getElementById('ot-hint');
+
+  var now      = new Date();
+  var todayStr = now.toISOString().slice(0,10);
+  var curTime  = now.toTimeString().slice(0,5); // HH:MM
+
+  if (type === 'pre') {
+    // 사전 승인: 오늘 이후 날짜 or 오늘의 현재 시각 이후
+    dateEl.min = todayStr;
+    dateEl.max = '';
+    if (dateEl.value < todayStr) dateEl.value = todayStr;
+    // 오늘 선택 시 시작 시간 min = 현재 시각
+    if (dateEl.value === todayStr) {
+      startEl.min = curTime;
+      endEl.min   = curTime;
+    } else {
+      startEl.min = '';
+      endEl.min   = '';
+    }
+    hint.textContent = '사전 승인: 현재 시각 이후의 예정 연장근무를 신청합니다.';
+    hint.style.borderLeft = '3px solid var(--primary)';
+  } else {
+    // 사후 신고: 오늘 이전(오늘 포함) 날짜, 오늘이면 현재 시각 이전
+    dateEl.min = '';
+    dateEl.max = todayStr;
+    if (dateEl.value > todayStr) dateEl.value = todayStr;
+    if (dateEl.value === todayStr) {
+      startEl.max = curTime;
+      endEl.max   = curTime;
+    } else {
+      startEl.max = '';
+      endEl.max   = '';
+    }
+    startEl.min = '';
+    endEl.min   = '';
+    hint.textContent = '사후 신고: 이미 완료된 연장근무 시간을 신고합니다.';
+    hint.style.borderLeft = '3px solid #f59e0b';
+  }
+}
+document.addEventListener('DOMContentLoaded', function(){ updateOtConstraints(); });
+
+// ── 연장근무 반려 모달 ────────────────────────────────
 function showOtRejectModal(otId, userName) {
   document.getElementById('ot-reject-name').textContent = userName + '님의 OT 신청을 반려합니다.';
   document.getElementById('ot-reject-form').action = '/attendance/overtime/' + otId + '/reject';

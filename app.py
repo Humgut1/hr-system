@@ -32,6 +32,23 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('HR_SECRET_KEY', 'dev-only-change-in-prod')
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
+# ── 지원자 서류 업로드 설정 ────────────────────────────────────
+UPLOAD_FOLDER    = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'applicant_docs')
+ALLOWED_EXTS     = {'pdf', 'doc', 'docx', 'hwp', 'pptx', 'png', 'jpg', 'jpeg'}
+MAX_FILE_SIZE_MB = 20
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+DOC_TYPE_LABEL = {
+    'resume':       '이력서',
+    'cover_letter': '자기소개서',
+    'portfolio':    '포트폴리오',
+    'certificate':  '자격증',
+    'other':        '기타',
+}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTS
+
 # ── 토스페이먼츠 키 ─────────────────────────────────────────
 TOSS_CLIENT_KEY = os.environ.get(
     'TOSS_CLIENT_KEY', 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq'
@@ -5830,8 +5847,10 @@ def recruit_pipeline():
 
     return render_template('recruit/pipeline.html',
                            pipeline=pipeline, stages=STAGES,
+                           stage_map=STAGE_MAP,
                            stage_colors=STAGE_COLORS,
                            active_stages=ACTIVE_STAGES,
+                           source_labels=SOURCE_LABELS,
                            postings=postings,
                            posting_id=posting_id,
                            current_posting=current_posting,
@@ -6015,12 +6034,21 @@ def recruit_applicant_detail(applicant_id):
         "AND role != 'guest' ORDER BY name"
     ).fetchall()
 
+    # 제출 서류 목록
+    documents = db.execute(
+        'SELECT d.*, u.name AS uploader_name '
+        'FROM applicant_documents d LEFT JOIN users u ON d.uploaded_by = u.id '
+        'WHERE d.applicant_id=? ORDER BY d.uploaded_at DESC', (applicant_id,)
+    ).fetchall()
+
     return render_template('recruit/applicant_detail.html',
                            applicant=applicant,
                            rounds_data=rounds_data,
                            activity_logs=activity_logs,
                            stage_logs=stage_logs,
                            interviewers_all=interviewers_all,
+                           documents=documents,
+                           doc_type_label=DOC_TYPE_LABEL,
                            stages=STAGES, stage_map=STAGE_MAP,
                            round_type_label=ROUND_TYPE_LABEL,
                            round_status_label=ROUND_STATUS_LABEL,
@@ -6028,6 +6056,68 @@ def recruit_applicant_detail(applicant_id):
                            rejection_reason_codes=REJECTION_REASON_CODES,
                            source_labels=SOURCE_LABELS,
                            active_page='recruit')
+
+
+@app.route('/recruit/applicants/<int:applicant_id>/documents/upload', methods=['POST'])
+@recruiter_or_admin
+def recruit_doc_upload(applicant_id):
+    db = get_db()
+    f = request.files.get('file')
+    doc_type = request.form.get('doc_type', 'resume')
+    if not f or not f.filename:
+        flash('파일을 선택해주세요.', 'warning')
+        return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+    if not allowed_file(f.filename):
+        flash('허용되지 않는 파일 형식입니다.', 'danger')
+        return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+    content = f.read()
+    if len(content) > MAX_FILE_SIZE_MB * 1024 * 1024:
+        flash(f'파일 크기는 {MAX_FILE_SIZE_MB}MB 이하여야 합니다.', 'danger')
+        return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+    ext = f.filename.rsplit('.', 1)[1].lower()
+    stored_name = f'{uuid.uuid4().hex}.{ext}'
+    save_path = os.path.join(UPLOAD_FOLDER, stored_name)
+    with open(save_path, 'wb') as out:
+        out.write(content)
+    db.execute(
+        'INSERT INTO applicant_documents (applicant_id, doc_type, original_name, stored_name, file_size, uploaded_by) '
+        'VALUES (?, ?, ?, ?, ?, ?)',
+        (applicant_id, doc_type, f.filename, stored_name, len(content), session['user_id'])
+    )
+    log_recruit(applicant_id, 'document_uploaded', {'doc_type': doc_type, 'file': f.filename})
+    db.commit()
+    flash('서류가 업로드됐습니다.', 'success')
+    return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+
+
+@app.route('/recruit/documents/<int:doc_id>/file')
+@login_required
+def recruit_doc_file(doc_id):
+    db = get_db()
+    doc = db.execute('SELECT * FROM applicant_documents WHERE id=?', (doc_id,)).fetchone()
+    if not doc:
+        abort(404)
+    from flask import send_from_directory
+    return send_from_directory(UPLOAD_FOLDER, doc['stored_name'],
+                               download_name=doc['original_name'])
+
+
+@app.route('/recruit/documents/<int:doc_id>/delete', methods=['POST'])
+@recruiter_or_admin
+def recruit_doc_delete(doc_id):
+    db = get_db()
+    doc = db.execute('SELECT * FROM applicant_documents WHERE id=?', (doc_id,)).fetchone()
+    if not doc:
+        abort(404)
+    applicant_id = doc['applicant_id']
+    try:
+        os.remove(os.path.join(UPLOAD_FOLDER, doc['stored_name']))
+    except OSError:
+        pass
+    db.execute('DELETE FROM applicant_documents WHERE id=?', (doc_id,))
+    db.commit()
+    flash('서류가 삭제됐습니다.', 'info')
+    return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
 
 
 @app.route('/recruit/applicants/<int:applicant_id>/rounds/new', methods=['POST'])
