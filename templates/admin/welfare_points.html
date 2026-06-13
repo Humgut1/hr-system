@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% block title %}복지포인트 관리 — TalentCore{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+  <h1 class="page-title">복지포인트 관리</h1>
+  <div style="display:flex;gap:.75rem;">
+    <button onclick="document.getElementById('modal-annual').style.display='flex'" class="btn btn-secondary">
+      <i class="fas fa-cog"></i> 연간 기준액 설정
+    </button>
+    <button onclick="document.getElementById('modal-grant-one').style.display='flex'" class="btn btn-secondary">
+      <i class="fas fa-plus"></i> 개별 지급
+    </button>
+    <form method="POST" style="margin:0;" onsubmit="return confirm('전체 미지급 직원({{ not_granted|length }}명)에게 {{ '{:,}'.format(wp_annual) }}원을 일괄 지급합니다. 진행할까요?')">
+      <input type="hidden" name="action" value="grant_all">
+      <button type="submit" class="btn btn-primary" {% if not not_granted %}disabled{% endif %}>
+        <i class="fas fa-paper-plane"></i> {{ this_year }}년 전체 일괄 지급
+        {% if not_granted %}<span style="background:rgba(255,255,255,.3);border-radius:20px;padding:.1rem .5rem;font-size:.8rem;margin-left:.4rem;">{{ not_granted|length }}명 미지급</span>{% endif %}
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- 요약 -->
+<div class="stat-grid" style="margin-bottom:2rem;">
+  <div class="stat-card">
+    <div class="stat-ico ico-blue"><i class="fas fa-users"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ employees|length }}</div>
+      <div class="stat-lbl">전체 직원</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-ico ico-green"><i class="fas fa-check-circle"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ employees|length - not_granted|length }}</div>
+      <div class="stat-lbl">{{ this_year }}년 지급 완료</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-ico ico-orange"><i class="fas fa-clock"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ not_granted|length }}</div>
+      <div class="stat-lbl">미지급</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-ico ico-purple"><i class="fas fa-coins"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ '{:,}'.format(wp_annual) }}원</div>
+      <div class="stat-lbl">연간 기준액</div>
+    </div>
+  </div>
+</div>
+
+<!-- 직원별 복지포인트 현황 -->
+<div class="card" style="padding:1.5rem;">
+  <h3 class="section-title" style="margin-bottom:1.2rem;">직원별 복지포인트 현황</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:.88rem;">
+    <thead>
+      <tr style="border-bottom:2px solid var(--bd);color:var(--tx-3);">
+        <th style="text-align:left;padding:.5rem 0;font-weight:500;">직원</th>
+        <th style="text-align:left;padding:.5rem 0;font-weight:500;">부서</th>
+        <th style="text-align:right;padding:.5rem 0;font-weight:500;">{{ this_year }}년 지급액</th>
+        <th style="text-align:right;padding:.5rem 0;font-weight:500;">현재 잔액</th>
+        <th style="text-align:center;padding:.5rem 0;font-weight:500;">상태</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for emp in employees %}
+      <tr style="border-bottom:1px solid var(--bd);">
+        <td style="padding:.7rem 0;">
+          <div style="font-weight:600;color:var(--tx-1);">{{ emp.name }}</div>
+          <div style="font-size:.75rem;color:var(--tx-3);">{{ emp.emp_no or '—' }}</div>
+        </td>
+        <td style="padding:.7rem 0;color:var(--tx-2);">{{ emp.dept_name or '—' }}</td>
+        <td style="padding:.7rem 0;text-align:right;color:var(--tx-1);">
+          {% if emp.granted_this_year > 0 %}
+          {{ '{:,}'.format(emp.granted_this_year) }}원
+          {% else %}
+          <span style="color:var(--tx-3);">—</span>
+          {% endif %}
+        </td>
+        <td style="padding:.7rem 0;text-align:right;font-weight:700;
+                   color:{% if emp.balance > 0 %}var(--primary){% elif emp.balance < 0 %}#e74c3c{% else %}var(--tx-3){% endif %};">
+          {{ '{:,}'.format(emp.balance) }}원
+        </td>
+        <td style="padding:.7rem 0;text-align:center;">
+          {% if emp.granted_this_year > 0 %}
+          <span style="background:#eafaf1;color:#1e8449;padding:.2rem .7rem;border-radius:20px;font-size:.75rem;font-weight:600;">지급완료</span>
+          {% else %}
+          <span style="background:#fef9e7;color:#9a7d0a;padding:.2rem .7rem;border-radius:20px;font-size:.75rem;font-weight:600;">미지급</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- 연간 기준액 설정 모달 -->
+<div id="modal-annual" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;">
+  <div class="card" style="padding:2rem;width:400px;max-width:90vw;">
+    <h3 style="margin-bottom:1.2rem;font-size:1.1rem;">연간 복지포인트 기준액 설정</h3>
+    <form method="POST">
+      <input type="hidden" name="action" value="update_annual">
+      <div class="form-group">
+        <label class="form-label">연간 지급액 (원)</label>
+        <input type="number" name="welfare_point_annual" class="form-control"
+               value="{{ wp_annual }}" min="0" step="10000" required>
+        <div style="font-size:.78rem;color:var(--tx-3);margin-top:.4rem;">입사 시 및 연간 일괄 지급 시 기준이 됩니다.</div>
+      </div>
+      <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.5rem;">
+        <button type="button" onclick="document.getElementById('modal-annual').style.display='none'" class="btn btn-secondary">취소</button>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 개별 지급 모달 -->
+<div id="modal-grant-one" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;">
+  <div class="card" style="padding:2rem;width:440px;max-width:90vw;">
+    <h3 style="margin-bottom:1.2rem;font-size:1.1rem;">복지포인트 개별 지급</h3>
+    <form method="POST">
+      <input type="hidden" name="action" value="grant_one">
+      <div class="form-group">
+        <label class="form-label">직원</label>
+        <select name="user_id" class="form-control" required>
+          <option value="">선택하세요</option>
+          {% for emp in employees %}
+          <option value="{{ emp.id }}">{{ emp.name }} ({{ emp.dept_name or '미배정' }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">지급액 (원)</label>
+        <input type="number" name="amount" class="form-control" min="1000" step="1000" placeholder="100000" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">지급 사유</label>
+        <input type="text" name="reason" class="form-control" placeholder="예: 장기근속 포상, 생일 복지포인트">
+      </div>
+      <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.5rem;">
+        <button type="button" onclick="document.getElementById('modal-grant-one').style.display='none'" class="btn btn-secondary">취소</button>
+        <button type="submit" class="btn btn-primary">지급</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

@@ -507,6 +507,17 @@ def init_db(db_path: str = None):
                 created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS benefit_enrollment_events (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL REFERENCES users(id),
+                event_type  TEXT NOT NULL CHECK(event_type IN ('onboarding','annual','life_event')),
+                event_label TEXT NOT NULL,
+                status      TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','completed','skipped')),
+                due_date    TEXT,
+                completed_at TIMESTAMP,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS bonus_payments (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id         INTEGER NOT NULL REFERENCES users(id),
@@ -752,6 +763,7 @@ def init_db(db_path: str = None):
             ('bonus_d',  '0.0'),
             ('show_merit_to_employee', '1'),  # 직원에게 사전 공개 여부
             ('carry_over_max', '10'),           # 연차 이월 최대 일수
+            ('welfare_point_annual', '500000'), # 연간 복지포인트 기본 지급액
         ]:
             if col not in cc_cols:
                 c.execute(f'ALTER TABLE company_config ADD COLUMN {col} REAL DEFAULT {default}')

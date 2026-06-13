@@ -1692,6 +1692,17 @@ def employee_new():
                     'WHERE applicant_id=? AND status IN ("sent","negotiating","draft")',
                     (new_id, from_applicant_id)
                 )
+            # Enrollment Event 자동 생성
+            from datetime import date, timedelta
+            due = (date.today() + timedelta(days=30)).isoformat()
+            db.execute(
+                "INSERT INTO benefit_enrollment_events (user_id, event_type, event_label, due_date) VALUES (?,?,?,?)",
+                (new_id, 'onboarding', '입사 복리후생 선택', due)
+            )
+            add_notification(new_id, 'action', 'action',
+                '복리후생 등록 안내',
+                '입사를 축하합니다! 복리후생 항목을 확인하고 등록을 완료해 주세요.',
+                url_for('me_benefits'))
             db.commit()
             # ── master.db 동기화: 이메일 매핑 + peak headcount ──
             tid = session.get('tenant_id', 1)
@@ -5250,13 +5261,168 @@ def me_benefits():
         (uid,)
     ).fetchone()
 
+    # 복지포인트 잔액 계산 (ledger 합산)
+    wp_balance = db.execute(
+        "SELECT COALESCE(SUM(delta), 0) FROM welfare_point_ledger WHERE user_id=?", (uid,)
+    ).fetchone()[0]
+
+    # 연간 지급 한도 (company_config)
+    cfg = db.execute("SELECT welfare_point_annual FROM company_config LIMIT 1").fetchone()
+    wp_annual_limit = int(cfg['welfare_point_annual']) if cfg and cfg['welfare_point_annual'] else 500000
+
+    # 이번 연도 지급 총액 (잔액 상한 기준)
+    from datetime import date
+    this_year = date.today().year
+    wp_granted_this_year = db.execute(
+        "SELECT COALESCE(SUM(delta),0) FROM welfare_point_ledger "
+        "WHERE user_id=? AND delta>0 AND strftime('%Y', created_at)=?",
+        (uid, str(this_year))
+    ).fetchone()[0]
+
+    # 최근 복지포인트 이력 5건
+    wp_history = db.execute(
+        "SELECT * FROM welfare_point_ledger WHERE user_id=? ORDER BY created_at DESC LIMIT 5",
+        (uid,)
+    ).fetchall()
+
+    # 미완료 Enrollment Event
+    enrollment_event = db.execute(
+        "SELECT * FROM benefit_enrollment_events WHERE user_id=? AND status='pending' ORDER BY created_at DESC LIMIT 1",
+        (uid,)
+    ).fetchone()
+
     return render_template('me/benefits.html',
                            items=items,
                            total_monthly=total_monthly,
                            total_monthly_tax=total_monthly_tax,
                            user=user,
                            last_payslip=last_payslip,
+                           wp_balance=wp_balance,
+                           wp_annual_limit=wp_annual_limit,
+                           wp_granted_this_year=wp_granted_this_year,
+                           wp_history=wp_history,
+                           enrollment_event=enrollment_event,
                            active_page='me_benefits')
+
+
+@app.route('/me/benefits/enrollment/<int:eid>/complete', methods=['POST'])
+@login_required
+def enrollment_complete(eid):
+    db  = get_db()
+    uid = session['user_id']
+    ev  = db.execute(
+        "SELECT * FROM benefit_enrollment_events WHERE id=? AND user_id=?", (eid, uid)
+    ).fetchone()
+    if ev:
+        db.execute(
+            "UPDATE benefit_enrollment_events SET status='completed', completed_at=CURRENT_TIMESTAMP WHERE id=?",
+            (eid,)
+        )
+        db.commit()
+        flash('복리후생 등록이 완료되었습니다.', 'success')
+    return redirect(url_for('me_benefits'))
+
+
+@app.route('/admin/welfare-points', methods=['GET', 'POST'])
+@login_required
+def admin_welfare_points():
+    if session.get('user_role') != 'admin':
+        return redirect(url_for('dashboard'))
+    db = get_db()
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        if action == 'grant_all':
+            # 전 직원 일괄 연간 지급
+            from datetime import date
+            this_year = date.today().year
+            cfg = db.execute("SELECT welfare_point_annual FROM company_config LIMIT 1").fetchone()
+            amount = int(cfg['welfare_point_annual']) if cfg else 500000
+
+            employees = db.execute(
+                "SELECT id FROM users WHERE status='active' AND role != 'guest'"
+            ).fetchall()
+            count = 0
+            for emp in employees:
+                uid = emp['id']
+                # 올해 이미 연간 지급 받았는지 확인
+                already = db.execute(
+                    "SELECT id FROM welfare_point_ledger "
+                    "WHERE user_id=? AND reason LIKE '%연간%' AND strftime('%Y',created_at)=?",
+                    (uid, str(this_year))
+                ).fetchone()
+                if already:
+                    continue
+                current_balance = db.execute(
+                    "SELECT COALESCE(SUM(delta),0) FROM welfare_point_ledger WHERE user_id=?", (uid,)
+                ).fetchone()[0]
+                new_balance = current_balance + amount
+                db.execute(
+                    "INSERT INTO welfare_point_ledger (user_id, delta, reason, balance_after) VALUES (?,?,?,?)",
+                    (uid, amount, f'{this_year}년 연간 복지포인트 지급', new_balance)
+                )
+                add_notification(uid, 'info', 'action',
+                    f'{this_year}년 복지포인트 지급',
+                    f'{amount:,}원의 복지포인트가 지급되었습니다. 잔액: {new_balance:,}원',
+                    url_for('me_benefits'))
+                count += 1
+            db.commit()
+            flash(f'{count}명에게 복지포인트 {amount:,}원이 일괄 지급되었습니다.', 'success')
+
+        elif action == 'grant_one':
+            uid    = request.form.get('user_id', type=int)
+            amount = request.form.get('amount', type=int)
+            reason = request.form.get('reason', '').strip() or '수동 지급'
+            if uid and amount:
+                current = db.execute(
+                    "SELECT COALESCE(SUM(delta),0) FROM welfare_point_ledger WHERE user_id=?", (uid,)
+                ).fetchone()[0]
+                new_balance = current + amount
+                db.execute(
+                    "INSERT INTO welfare_point_ledger (user_id, delta, reason, balance_after) VALUES (?,?,?,?)",
+                    (uid, amount, reason, new_balance)
+                )
+                add_notification(uid, 'info', 'action',
+                    '복지포인트 지급',
+                    f'{amount:,}원의 복지포인트가 지급되었습니다. 잔액: {new_balance:,}원',
+                    url_for('me_benefits'))
+                db.commit()
+                flash(f'복지포인트 {amount:,}원 지급 완료.', 'success')
+
+        elif action == 'update_annual':
+            amount = request.form.get('welfare_point_annual', type=int)
+            if amount:
+                db.execute("UPDATE company_config SET welfare_point_annual=?", (amount,))
+                db.commit()
+                flash(f'연간 복지포인트 기준액이 {amount:,}원으로 변경되었습니다.', 'success')
+
+        return redirect(url_for('admin_welfare_points'))
+
+    from datetime import date
+    this_year = date.today().year
+    cfg = db.execute("SELECT welfare_point_annual FROM company_config LIMIT 1").fetchone()
+    wp_annual = int(cfg['welfare_point_annual']) if cfg else 500000
+
+    # 직원별 잔액 현황
+    employees = db.execute(
+        "SELECT u.id, u.name, u.emp_no, d.name AS dept_name, "
+        "  COALESCE((SELECT SUM(delta) FROM welfare_point_ledger WHERE user_id=u.id), 0) AS balance, "
+        "  COALESCE((SELECT SUM(delta) FROM welfare_point_ledger "
+        "            WHERE user_id=u.id AND delta>0 AND strftime('%Y',created_at)=?), 0) AS granted_this_year "
+        "FROM users u LEFT JOIN departments d ON u.department_id=d.id "
+        "WHERE u.status='active' AND u.role != 'guest' ORDER BY u.name",
+        (str(this_year),)
+    ).fetchall()
+
+    not_granted = [e for e in employees if e['granted_this_year'] == 0]
+
+    return render_template('admin/welfare_points.html',
+                           employees=employees,
+                           not_granted=not_granted,
+                           wp_annual=wp_annual,
+                           this_year=this_year,
+                           active_page='admin_welfare_points')
 
 
 @app.route('/profile', methods=['GET', 'POST'])
