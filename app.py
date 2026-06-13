@@ -5261,27 +5261,7 @@ def me_benefits():
         (uid,)
     ).fetchone()
 
-    # 미완료 Enrollment Event
-    enrollment_event = db.execute(
-        "SELECT * FROM benefit_enrollment_events WHERE user_id=? AND status='pending' ORDER BY created_at DESC LIMIT 1",
-        (uid,)
-    ).fetchone()
-
-    return render_template('me/benefits.html',
-                           items=items,
-                           total_monthly=total_monthly,
-                           total_monthly_tax=total_monthly_tax,
-                           user=user,
-                           last_payslip=last_payslip,
-                           enrollment_event=enrollment_event,
-                           active_page='me_benefits')
-
-
-@app.route('/me/welfare-points')
-@login_required
-def me_welfare_points():
-    db  = get_db()
-    uid = session['user_id']
+    # 복지포인트 데이터
     from datetime import date
     this_year = date.today().year
 
@@ -5303,19 +5283,25 @@ def me_welfare_points():
         (uid,)
     ).fetchall()
 
+    # 미완료 Enrollment Event
     enrollment_event = db.execute(
         "SELECT * FROM benefit_enrollment_events WHERE user_id=? AND status='pending' ORDER BY created_at DESC LIMIT 1",
         (uid,)
     ).fetchone()
 
-    return render_template('me/welfare_points.html',
+    return render_template('me/benefits.html',
+                           items=items,
+                           total_monthly=total_monthly,
+                           total_monthly_tax=total_monthly_tax,
+                           user=user,
+                           last_payslip=last_payslip,
                            wp_balance=wp_balance,
                            wp_annual_limit=wp_annual_limit,
                            wp_granted_this_year=wp_granted_this_year,
                            wp_history=wp_history,
                            enrollment_event=enrollment_event,
                            this_year=this_year,
-                           active_page='me_welfare_points')
+                           active_page='me_benefits')
 
 
 @app.route('/me/benefits/enrollment/<int:eid>/complete', methods=['POST'])

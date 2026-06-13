@@ -4,7 +4,6 @@
 {% block content %}
 <div class="page-header">
   <h1 class="page-title">내 복리후생</h1>
-  <p class="page-subtitle" style="color:var(--tx-3);font-size:.88rem;margin-top:.25rem;">매월 급여에 포함되는 복리후생 항목입니다.</p>
 </div>
 
 {% if enrollment_event %}
@@ -20,123 +19,134 @@
 </div>
 {% endif %}
 
-{% if items %}
-{% set monthly_items = items | selectattr('payment_type','equalto','monthly_fixed') | list %}
-{% set other_items   = items | rejectattr('payment_type','equalto','monthly_fixed') | list %}
-
-<!-- 요약 카드 -->
-<div class="stat-grid" style="margin-bottom:2rem;">
-  <div class="stat-card">
-    <div class="stat-ico ico-blue"><i class="fas fa-gift"></i></div>
-    <div class="stat-body">
-      <div class="stat-val">{{ '{:,}'.format(total_monthly) }}원</div>
-      <div class="stat-lbl">월 복리후생 합계</div>
-    </div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-ico ico-green"><i class="fas fa-leaf"></i></div>
-    <div class="stat-body">
-      <div class="stat-val" style="color:#27ae60;">{{ '{:,}'.format(total_monthly - total_monthly_tax) }}원</div>
-      <div class="stat-lbl">비과세 혜택</div>
-    </div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-ico ico-orange"><i class="fas fa-receipt"></i></div>
-    <div class="stat-body">
-      <div class="stat-val" style="color:#e67e22;">{{ '{:,}'.format(total_monthly_tax) }}원</div>
-      <div class="stat-lbl">과세 복리후생</div>
-    </div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-ico ico-purple"><i class="fas fa-list"></i></div>
-    <div class="stat-body">
-      <div class="stat-val">{{ items | length }}개</div>
-      <div class="stat-lbl">적용 항목 수</div>
-    </div>
-  </div>
+<!-- 탭 -->
+<div style="display:flex;gap:0;border-bottom:2px solid var(--bd);margin-bottom:1.5rem;">
+  <button id="tab-benefits" onclick="switchTab('benefits')"
+          style="padding:.7rem 1.5rem;border:none;background:none;font-size:.9rem;font-weight:600;cursor:pointer;border-bottom:2px solid var(--primary);margin-bottom:-2px;color:var(--primary);">
+    <i class="fas fa-gift" style="margin-right:.4rem;"></i>복리후생 항목
+  </button>
+  <button id="tab-points" onclick="switchTab('points')"
+          style="padding:.7rem 1.5rem;border:none;background:none;font-size:.9rem;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--tx-3);">
+    <i class="fas fa-coins" style="margin-right:.4rem;"></i>복지포인트
+  </button>
 </div>
 
-{% if monthly_items %}
-<div class="card" style="padding:1.5rem;margin-bottom:1.5rem;">
-  <h3 class="section-title" style="margin-bottom:1.2rem;">매월 급여에 포함되는 항목</h3>
-  <table style="width:100%;border-collapse:collapse;">
-    <thead>
-      <tr style="border-bottom:2px solid var(--bd);color:var(--tx-3);font-size:.8rem;">
-        <th style="text-align:left;padding:.5rem 0;font-weight:500;">항목</th>
-        <th style="text-align:left;padding:.5rem 0;font-weight:500;">설명</th>
-        <th style="text-align:center;padding:.5rem 0;font-weight:500;">구분</th>
-        <th style="text-align:right;padding:.5rem 0;font-weight:500;">월 금액</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for item in monthly_items %}
-      <tr style="border-bottom:1px solid var(--bd);">
-        <td style="padding:.85rem 0;">
-          <div style="display:flex;align-items:center;gap:.75rem;">
-            <div style="width:34px;height:34px;border-radius:10px;
-                        background:{% if item.tax_exempt %}#eafaf1{% else %}#fef9e7{% endif %};
-                        display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <i class="fas {{ item.icon }}" style="font-size:13px;color:{% if item.tax_exempt %}#27ae60{% else %}#e67e22{% endif %};"></i>
-            </div>
-            <span style="font-weight:600;font-size:.9rem;color:var(--tx-1);">{{ item.name }}</span>
-          </div>
-        </td>
-        <td style="padding:.85rem .75rem;font-size:.82rem;color:var(--tx-3);max-width:220px;">
-          {{ item.description }}
-          {% if item.conditions %}
-          <div style="color:#e67e22;margin-top:.2rem;"><i class="fas fa-info-circle"></i> {{ item.conditions }}</div>
-          {% endif %}
-        </td>
-        <td style="padding:.85rem 0;text-align:center;">
-          {% if item.tax_exempt %}
-          <span style="background:#eafaf1;color:#1e8449;padding:.2rem .7rem;border-radius:20px;font-size:.75rem;font-weight:600;">비과세</span>
-          {% else %}
-          <span style="background:#fef9e7;color:#9a7d0a;padding:.2rem .7rem;border-radius:20px;font-size:.75rem;font-weight:600;">과세</span>
-          {% endif %}
-        </td>
-        <td style="padding:.85rem 0;text-align:right;font-weight:700;font-size:.95rem;color:var(--tx-1);">
-          {{ '{:,}'.format(item.amount) }}원
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-    <tfoot>
-      <tr style="border-top:2px solid var(--bd);">
-        <td colspan="3" style="padding:.75rem 0;font-weight:600;color:var(--tx-2);font-size:.85rem;">월 합계</td>
-        <td style="padding:.75rem 0;text-align:right;font-weight:700;font-size:1rem;color:var(--primary);">{{ '{:,}'.format(total_monthly) }}원</td>
-      </tr>
-    </tfoot>
-  </table>
-</div>
-{% endif %}
+<!-- ── 탭 1: 복리후생 항목 ── -->
+<div id="pane-benefits">
+  {% if items %}
+  {% set monthly_items = items | selectattr('payment_type','equalto','monthly_fixed') | list %}
+  {% set other_items   = items | rejectattr('payment_type','equalto','monthly_fixed') | list %}
 
-{% if other_items %}
-<div class="card" style="padding:1.5rem;margin-bottom:1.5rem;">
-  <h3 class="section-title" style="margin-bottom:1.2rem;">기타 복리후생</h3>
-  <div style="display:flex;flex-direction:column;gap:.6rem;">
-    {% for item in other_items %}
-    <div style="display:flex;align-items:center;gap:1rem;padding:.75rem 1rem;background:var(--bg-2);border-radius:10px;">
-      <i class="fas {{ item.icon }}" style="color:var(--primary);font-size:15px;width:18px;flex-shrink:0;"></i>
-      <div style="flex:1;">
-        <div style="font-weight:600;font-size:.88rem;color:var(--tx-1);">{{ item.name }}</div>
-        <div style="font-size:.78rem;color:var(--tx-3);margin-top:.1rem;">{{ item.description }}</div>
+  <div class="stat-grid" style="margin-bottom:1.5rem;">
+    <div class="stat-card">
+      <div class="stat-ico ico-blue"><i class="fas fa-gift"></i></div>
+      <div class="stat-body">
+        <div class="stat-val">{{ '{:,}'.format(total_monthly) }}원</div>
+        <div class="stat-lbl">월 복리후생 합계</div>
       </div>
-      {% if item.amount %}
-      <div style="font-weight:700;color:var(--tx-1);font-size:.9rem;">{{ '{:,}'.format(item.amount) }}원</div>
-      {% endif %}
-      {% if item.tax_exempt %}
-      <span style="background:#eafaf1;color:#1e8449;padding:.15rem .6rem;border-radius:20px;font-size:.72rem;font-weight:600;flex-shrink:0;">비과세</span>
-      {% endif %}
     </div>
-    {% endfor %}
+    <div class="stat-card">
+      <div class="stat-ico ico-green"><i class="fas fa-leaf"></i></div>
+      <div class="stat-body">
+        <div class="stat-val" style="color:#27ae60;">{{ '{:,}'.format(total_monthly - total_monthly_tax) }}원</div>
+        <div class="stat-lbl">비과세 혜택</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-ico ico-orange"><i class="fas fa-receipt"></i></div>
+      <div class="stat-body">
+        <div class="stat-val" style="color:#e67e22;">{{ '{:,}'.format(total_monthly_tax) }}원</div>
+        <div class="stat-lbl">과세 복리후생</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-ico ico-purple"><i class="fas fa-list"></i></div>
+      <div class="stat-body">
+        <div class="stat-val">{{ items | length }}개</div>
+        <div class="stat-lbl">적용 항목 수</div>
+      </div>
+    </div>
   </div>
-</div>
-{% endif %}
 
-<!-- 안내 + 급여 바로가기 -->
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-  <div class="card" style="padding:1.25rem 1.5rem;background:#f8fbff;border:1px solid #d0e4fa;">
-    <div style="font-weight:600;color:var(--tx-1);margin-bottom:.6rem;font-size:.88rem;">
+  {% if monthly_items %}
+  <div class="card" style="padding:1.5rem;margin-bottom:1.5rem;">
+    <h3 class="section-title" style="margin-bottom:1.2rem;">매월 급여에 포함되는 항목</h3>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--bd);color:var(--tx-3);font-size:.8rem;">
+          <th style="text-align:left;padding:.5rem 0;font-weight:500;">항목</th>
+          <th style="text-align:left;padding:.5rem 0;font-weight:500;">설명</th>
+          <th style="text-align:center;padding:.5rem 0;font-weight:500;">구분</th>
+          <th style="text-align:right;padding:.5rem 0;font-weight:500;">월 금액</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in monthly_items %}
+        <tr style="border-bottom:1px solid var(--bd);">
+          <td style="padding:.85rem 0;">
+            <div style="display:flex;align-items:center;gap:.75rem;">
+              <div style="width:34px;height:34px;border-radius:10px;
+                          background:{% if item.tax_exempt %}#eafaf1{% else %}#fef9e7{% endif %};
+                          display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="fas {{ item.icon }}" style="font-size:13px;color:{% if item.tax_exempt %}#27ae60{% else %}#e67e22{% endif %};"></i>
+              </div>
+              <span style="font-weight:600;font-size:.9rem;color:var(--tx-1);">{{ item.name }}</span>
+            </div>
+          </td>
+          <td style="padding:.85rem .75rem;font-size:.82rem;color:var(--tx-3);max-width:220px;">
+            {{ item.description }}
+            {% if item.conditions %}
+            <div style="color:#e67e22;margin-top:.2rem;"><i class="fas fa-info-circle"></i> {{ item.conditions }}</div>
+            {% endif %}
+          </td>
+          <td style="padding:.85rem 0;text-align:center;">
+            {% if item.tax_exempt %}
+            <span style="background:#eafaf1;color:#1e8449;padding:.2rem .7rem;border-radius:20px;font-size:.75rem;font-weight:600;">비과세</span>
+            {% else %}
+            <span style="background:#fef9e7;color:#9a7d0a;padding:.2rem .7rem;border-radius:20px;font-size:.75rem;font-weight:600;">과세</span>
+            {% endif %}
+          </td>
+          <td style="padding:.85rem 0;text-align:right;font-weight:700;font-size:.95rem;color:var(--tx-1);">
+            {{ '{:,}'.format(item.amount) }}원
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr style="border-top:2px solid var(--bd);">
+          <td colspan="3" style="padding:.75rem 0;font-weight:600;color:var(--tx-2);font-size:.85rem;">월 합계</td>
+          <td style="padding:.75rem 0;text-align:right;font-weight:700;font-size:1rem;color:var(--primary);">{{ '{:,}'.format(total_monthly) }}원</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if other_items %}
+  <div class="card" style="padding:1.5rem;margin-bottom:1.5rem;">
+    <h3 class="section-title" style="margin-bottom:1.2rem;">기타 복리후생</h3>
+    <div style="display:flex;flex-direction:column;gap:.6rem;">
+      {% for item in other_items %}
+      <div style="display:flex;align-items:center;gap:1rem;padding:.75rem 1rem;background:var(--bg-2);border-radius:10px;">
+        <i class="fas {{ item.icon }}" style="color:var(--primary);font-size:15px;width:18px;flex-shrink:0;"></i>
+        <div style="flex:1;">
+          <div style="font-weight:600;font-size:.88rem;color:var(--tx-1);">{{ item.name }}</div>
+          <div style="font-size:.78rem;color:var(--tx-3);margin-top:.1rem;">{{ item.description }}</div>
+        </div>
+        {% if item.amount %}
+        <div style="font-weight:700;color:var(--tx-1);font-size:.9rem;">{{ '{:,}'.format(item.amount) }}원</div>
+        {% endif %}
+        {% if item.tax_exempt %}
+        <span style="background:#eafaf1;color:#1e8449;padding:.15rem .6rem;border-radius:20px;font-size:.72rem;font-weight:600;flex-shrink:0;">비과세</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card" style="padding:1.2rem 1.5rem;background:#f8fbff;border:1px solid #d0e4fa;">
+    <div style="font-weight:600;color:var(--tx-1);margin-bottom:.5rem;font-size:.88rem;">
       <i class="fas fa-lightbulb" style="color:var(--primary);margin-right:.4rem;"></i>비과세란?
     </div>
     <div style="font-size:.8rem;color:var(--tx-2);line-height:1.7;">
@@ -144,36 +154,128 @@
       식대·교통비 등 비과세 항목은 <strong>세금 없이 전액 수령</strong>되어 실질적인 연봉 상승 효과가 있습니다.
     </div>
   </div>
-  <div style="display:flex;flex-direction:column;gap:.75rem;">
-    <a href="{{ url_for('payroll_list') }}" class="card" style="padding:1.1rem 1.25rem;display:flex;align-items:center;gap:.75rem;text-decoration:none;flex:1;" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,.08)'" onmouseout="this.style.boxShadow=''">
-      <div style="width:36px;height:36px;border-radius:10px;background:#eef2ff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-        <i class="fas fa-file-invoice-dollar" style="color:var(--primary);font-size:15px;"></i>
+
+  {% else %}
+  <div class="card" style="padding:4rem;text-align:center;">
+    <i class="fas fa-gift" style="font-size:2.5rem;color:var(--tx-3);margin-bottom:1rem;display:block;"></i>
+    <div style="color:var(--tx-2);font-weight:600;margin-bottom:.5rem;">아직 복리후생 항목이 설정되지 않았습니다.</div>
+    <div style="color:var(--tx-3);font-size:.85rem;">HR 관리자가 설정 후 여기에 표시됩니다.</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── 탭 2: 복지포인트 ── -->
+<div id="pane-points" style="display:none;">
+  {% set wp_used = wp_granted_this_year - wp_balance if wp_granted_this_year > wp_balance else 0 %}
+  {% set wp_pct  = ((wp_balance / wp_annual_limit) * 100) | round(0) | int if wp_annual_limit > 0 else 0 %}
+
+  <div class="stat-grid" style="margin-bottom:1.5rem;">
+    <div class="stat-card">
+      <div class="stat-ico ico-blue"><i class="fas fa-coins"></i></div>
+      <div class="stat-body">
+        <div class="stat-val">{{ '{:,}'.format(wp_balance) }}원</div>
+        <div class="stat-lbl">현재 잔액</div>
       </div>
-      <div style="flex:1;">
-        <div style="font-weight:600;font-size:.85rem;color:var(--tx-1);">급여명세서 확인</div>
-        <div style="font-size:.76rem;color:var(--tx-3);">복리후생 항목이 반영된 내역</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-ico ico-green"><i class="fas fa-paper-plane"></i></div>
+      <div class="stat-body">
+        <div class="stat-val">{{ '{:,}'.format(wp_granted_this_year) }}원</div>
+        <div class="stat-lbl">{{ this_year }}년 지급 합계</div>
       </div>
-      <i class="fas fa-chevron-right" style="color:var(--tx-3);font-size:11px;"></i>
-    </a>
-    <a href="{{ url_for('me_welfare_points') }}" class="card" style="padding:1.1rem 1.25rem;display:flex;align-items:center;gap:.75rem;text-decoration:none;flex:1;" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,.08)'" onmouseout="this.style.boxShadow=''">
-      <div style="width:36px;height:36px;border-radius:10px;background:#fef3c7;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-        <i class="fas fa-coins" style="color:#d97706;font-size:15px;"></i>
+    </div>
+    <div class="stat-card">
+      <div class="stat-ico ico-orange"><i class="fas fa-shopping-bag"></i></div>
+      <div class="stat-body">
+        <div class="stat-val">{{ '{:,}'.format(wp_used) }}원</div>
+        <div class="stat-lbl">{{ this_year }}년 사용액</div>
       </div>
-      <div style="flex:1;">
-        <div style="font-weight:600;font-size:.85rem;color:var(--tx-1);">복지포인트 확인</div>
-        <div style="font-size:.76rem;color:var(--tx-3);">잔액 및 사용 내역</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-ico ico-purple"><i class="fas fa-calendar-alt"></i></div>
+      <div class="stat-body">
+        <div class="stat-val">{{ '{:,}'.format(wp_annual_limit) }}원</div>
+        <div class="stat-lbl">연간 지급 기준</div>
       </div>
-      <i class="fas fa-chevron-right" style="color:var(--tx-3);font-size:11px;"></i>
-    </a>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:300px 1fr;gap:1.5rem;align-items:start;">
+    <!-- 잔액 게이지 -->
+    <div class="card" style="padding:1.5rem;">
+      <h3 class="section-title" style="margin-bottom:1.2rem;">잔액 현황</h3>
+      <div style="position:relative;width:130px;height:130px;margin:0 auto 1.2rem;">
+        <svg viewBox="0 0 36 36" style="transform:rotate(-90deg);width:100%;height:100%;">
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--bg-2)" stroke-width="3.2"/>
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--primary)" stroke-width="3.2"
+                  stroke-dasharray="{{ [wp_pct, 100] | min }} {{ 100 - [wp_pct, 100] | min }}"
+                  stroke-linecap="round"/>
+        </svg>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+          <div style="font-size:1.5rem;font-weight:700;color:var(--primary);">{{ wp_pct }}%</div>
+          <div style="font-size:.7rem;color:var(--tx-3);">잔액</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:.82rem;padding:.45rem 0;border-top:1px solid var(--bd);">
+        <span style="color:var(--tx-3);">잔액</span>
+        <span style="font-weight:700;color:var(--primary);">{{ '{:,}'.format(wp_balance) }}원</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:.82rem;padding:.45rem 0;border-top:1px solid var(--bd);">
+        <span style="color:var(--tx-3);">사용액</span>
+        <span style="font-weight:600;color:#e67e22;">{{ '{:,}'.format(wp_used) }}원</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:.82rem;padding:.45rem 0;border-top:1px solid var(--bd);">
+        <span style="color:var(--tx-3);">연간 기준</span>
+        <span style="font-weight:600;color:var(--tx-2);">{{ '{:,}'.format(wp_annual_limit) }}원</span>
+      </div>
+    </div>
+
+    <!-- 이력 테이블 -->
+    <div class="card" style="padding:1.5rem;">
+      <h3 class="section-title" style="margin-bottom:1.2rem;">지급 및 사용 내역</h3>
+      {% if wp_history %}
+      <table style="width:100%;border-collapse:collapse;font-size:.88rem;">
+        <thead>
+          <tr style="border-bottom:2px solid var(--bd);color:var(--tx-3);font-size:.78rem;">
+            <th style="text-align:left;padding:.4rem 0;font-weight:500;">일시</th>
+            <th style="text-align:left;padding:.4rem 0;font-weight:500;">내용</th>
+            <th style="text-align:right;padding:.4rem 0;font-weight:500;">금액</th>
+            <th style="text-align:right;padding:.4rem 0;font-weight:500;">잔액</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in wp_history %}
+          <tr style="border-bottom:1px solid var(--bd);">
+            <td style="padding:.65rem 0;color:var(--tx-3);white-space:nowrap;font-size:.8rem;">{{ h.created_at[:10] if h.created_at else '—' }}</td>
+            <td style="padding:.65rem .75rem;color:var(--tx-2);">{{ h.reason or '—' }}</td>
+            <td style="padding:.65rem 0;text-align:right;font-weight:700;color:{% if h.delta > 0 %}#27ae60{% else %}#e74c3c{% endif %};">
+              {{ '+' if h.delta > 0 else '' }}{{ '{:,}'.format(h.delta) }}원
+            </td>
+            <td style="padding:.65rem 0;text-align:right;color:var(--tx-2);font-size:.83rem;">
+              {{ '{:,}'.format(h.balance_after) if h.balance_after is not none else '—' }}원
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div style="padding:3rem;text-align:center;">
+        <i class="fas fa-coins" style="font-size:2rem;color:var(--tx-3);margin-bottom:.75rem;display:block;"></i>
+        <div style="color:var(--tx-3);font-size:.88rem;">아직 지급 내역이 없습니다.</div>
+      </div>
+      {% endif %}
+    </div>
   </div>
 </div>
 
-{% else %}
-<div class="card" style="padding:4rem;text-align:center;">
-  <i class="fas fa-gift" style="font-size:2.5rem;color:var(--tx-3);margin-bottom:1rem;display:block;"></i>
-  <div style="color:var(--tx-2);font-weight:600;margin-bottom:.5rem;">아직 복리후생 항목이 설정되지 않았습니다.</div>
-  <div style="color:var(--tx-3);font-size:.85rem;">HR 관리자가 설정 후 여기에 표시됩니다.</div>
-</div>
-{% endif %}
-
+<script>
+function switchTab(tab) {
+  document.getElementById('pane-benefits').style.display = tab === 'benefits' ? '' : 'none';
+  document.getElementById('pane-points').style.display   = tab === 'points'   ? '' : 'none';
+  document.getElementById('tab-benefits').style.borderBottomColor = tab === 'benefits' ? 'var(--primary)' : 'transparent';
+  document.getElementById('tab-benefits').style.color = tab === 'benefits' ? 'var(--primary)' : 'var(--tx-3)';
+  document.getElementById('tab-points').style.borderBottomColor = tab === 'points' ? 'var(--primary)' : 'transparent';
+  document.getElementById('tab-points').style.color = tab === 'points' ? 'var(--primary)' : 'var(--tx-3)';
+}
+</script>
 {% endblock %}
