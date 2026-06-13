@@ -5769,6 +5769,107 @@ def requisition_hr_approve(req_id):
     return redirect(url_for('requisition_detail', req_id=req_id))
 
 
+@app.route('/recruit/dashboard')
+@recruiter_or_admin
+def recruit_dashboard():
+    db = get_db()
+
+    # ── 퍼널: 진행 중 단계별 인원수 ──────────────────────────────
+    stage_counts_raw = db.execute(
+        "SELECT stage, COUNT(*) AS cnt FROM applicants GROUP BY stage"
+    ).fetchall()
+    stage_cnt = {r['stage']: r['cnt'] for r in stage_counts_raw}
+
+    funnel = []
+    prev_cnt = None
+    for stage_key, stage_label in ACTIVE_STAGES:
+        cnt = stage_cnt.get(stage_key, 0)
+        conv = round(cnt / prev_cnt * 100, 1) if prev_cnt and prev_cnt > 0 else None
+        funnel.append({'key': stage_key, 'label': stage_label, 'count': cnt, 'conv': conv})
+        prev_cnt = cnt
+
+    # ── 합격/불합격 집계 ─────────────────────────────────────────
+    total       = sum(r['cnt'] for r in stage_counts_raw)
+    accepted    = stage_cnt.get('accepted', 0)
+    rejected    = stage_cnt.get('rejected', 0)
+    disqualified = stage_cnt.get('disqualified', 0)
+    in_progress = total - accepted - rejected - disqualified
+
+    # ── Time-to-Fill: 공고별 게시→합격 평균 소요일 ───────────────
+    ttf_rows = db.execute(
+        """
+        SELECT jp.title,
+               COUNT(a.id)                                          AS hired_cnt,
+               ROUND(AVG(
+                   (julianday(o.created_at) - julianday(jp.created_at))
+               ), 1)                                                AS avg_days
+        FROM job_postings jp
+        JOIN applicants a  ON a.posting_id = jp.id AND a.stage IN ('accepted','hired')
+        JOIN offers     o  ON o.applicant_id = a.id AND o.status IN ('accepted','sent')
+        GROUP BY jp.id
+        ORDER BY avg_days ASC
+        LIMIT 10
+        """
+    ).fetchall()
+
+    # ── 소스별 합격률 ─────────────────────────────────────────────
+    source_rows = db.execute(
+        """
+        SELECT source,
+               COUNT(*)                                                   AS total,
+               SUM(CASE WHEN stage IN ('accepted','hired') THEN 1 ELSE 0 END) AS hired
+        FROM applicants
+        GROUP BY source
+        ORDER BY total DESC
+        """
+    ).fetchall()
+    source_data = []
+    for r in source_rows:
+        rate = round(r['hired'] / r['total'] * 100, 1) if r['total'] > 0 else 0
+        source_data.append({
+            'source': SOURCE_LABELS.get(r['source'], r['source']),
+            'total':  r['total'],
+            'hired':  r['hired'],
+            'rate':   rate,
+        })
+
+    # ── 월별 신규 지원자 추이 (최근 6개월) ──────────────────────
+    monthly_rows = db.execute(
+        """
+        SELECT strftime('%Y-%m', created_at) AS ym, COUNT(*) AS cnt
+        FROM applicants
+        WHERE created_at >= date('now', '-6 months')
+        GROUP BY ym
+        ORDER BY ym
+        """
+    ).fetchall()
+    monthly = [{'ym': r['ym'], 'cnt': r['cnt']} for r in monthly_rows]
+
+    # ── 공고별 지원자 수 Top 5 ───────────────────────────────────
+    top_postings = db.execute(
+        """
+        SELECT jp.title, COUNT(a.id) AS cnt,
+               SUM(CASE WHEN a.stage='accepted' THEN 1 ELSE 0 END) AS hired
+        FROM job_postings jp
+        LEFT JOIN applicants a ON a.posting_id = jp.id
+        GROUP BY jp.id
+        ORDER BY cnt DESC
+        LIMIT 5
+        """
+    ).fetchall()
+
+    return render_template('recruit/dashboard.html',
+                           funnel=funnel,
+                           total=total, accepted=accepted,
+                           rejected=rejected, disqualified=disqualified,
+                           in_progress=in_progress,
+                           ttf_rows=ttf_rows,
+                           source_data=source_data,
+                           monthly=monthly,
+                           top_postings=top_postings,
+                           active_page='recruit_dashboard')
+
+
 @app.route('/recruit/postings')
 @recruiter_or_admin
 def recruit_postings():

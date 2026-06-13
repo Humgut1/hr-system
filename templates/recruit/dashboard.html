@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% block title %}채용 대시보드 — TalentCore{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">채용 대시보드</h1>
+</div>
+
+<!-- ── 상단 요약 카드 ─────────────────────────────────────── -->
+<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:2rem;">
+  <div class="stat-card">
+    <div class="stat-label">전체 지원자</div>
+    <div class="stat-value">{{ total }}</div>
+    <div class="stat-sub">누적</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">진행 중</div>
+    <div class="stat-value" style="color:var(--primary)">{{ in_progress }}</div>
+    <div class="stat-sub">현재 파이프라인</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">최종 합격</div>
+    <div class="stat-value" style="color:#27ae60">{{ accepted }}</div>
+    <div class="stat-sub">오퍼 수락 완료</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">전체 합격률</div>
+    <div class="stat-value" style="color:#e67e22">
+      {% if total > 0 %}{{ (accepted / total * 100) | round(1) }}%{% else %}—{% endif %}
+    </div>
+    <div class="stat-sub">합격 / 전체 지원</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+
+  <!-- ── 채용 퍼널 ──────────────────────────────────────────── -->
+  <div class="card" style="padding:1.5rem;">
+    <h3 class="section-title" style="margin-bottom:1.2rem;">채용 퍼널</h3>
+    <p style="font-size:.82rem;color:var(--tx-3);margin-bottom:1rem;">각 단계에 현재 머물러 있는 지원자 수와 이전 단계 대비 전환율입니다.</p>
+
+    {% set max_cnt = funnel | map(attribute='count') | max %}
+    {% for step in funnel %}
+    <div style="margin-bottom:.75rem;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
+        <span style="font-size:.85rem;color:var(--tx-1);font-weight:500;">{{ step.label }}</span>
+        <div style="display:flex;align-items:center;gap:.6rem;">
+          {% if step.conv is not none %}
+          <span style="font-size:.75rem;color:var(--tx-3);">↓ {{ step.conv }}%</span>
+          {% endif %}
+          <span style="font-size:.9rem;font-weight:700;color:var(--tx-1);">{{ step.count }}명</span>
+        </div>
+      </div>
+      <div style="height:8px;background:var(--bg-2);border-radius:4px;overflow:hidden;">
+        <div style="height:100%;background:var(--primary);border-radius:4px;width:{% if max_cnt > 0 %}{{ (step.count / max_cnt * 100) | round(0) }}%{% else %}0%{% endif %};transition:width .3s;"></div>
+      </div>
+    </div>
+    {% endfor %}
+
+    <!-- 터미널 단계 요약 -->
+    <div style="margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--bd);display:flex;gap:1.5rem;">
+      <div style="text-align:center;">
+        <div style="font-size:1.25rem;font-weight:700;color:#27ae60;">{{ accepted }}</div>
+        <div style="font-size:.75rem;color:var(--tx-3);">최종 합격</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:1.25rem;font-weight:700;color:#e74c3c;">{{ disqualified }}</div>
+        <div style="font-size:.75rem;color:var(--tx-3);">불합격</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:1.25rem;font-weight:700;color:#95a5a6;">{{ rejected }}</div>
+        <div style="font-size:.75rem;color:var(--tx-3);">오퍼 거절</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 소스별 합격률 ──────────────────────────────────────── -->
+  <div class="card" style="padding:1.5rem;">
+    <h3 class="section-title" style="margin-bottom:1.2rem;">지원 경로별 현황</h3>
+    <p style="font-size:.82rem;color:var(--tx-3);margin-bottom:1rem;">어떤 채용 경로에서 지원자가 가장 많이 오고, 합격률은 어떤지 한눈에 볼 수 있습니다.</p>
+
+    {% if source_data %}
+    <table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--bd);color:var(--tx-3);">
+          <th style="text-align:left;padding:.5rem 0;font-weight:500;">경로</th>
+          <th style="text-align:right;padding:.5rem 0;font-weight:500;">지원</th>
+          <th style="text-align:right;padding:.5rem 0;font-weight:500;">합격</th>
+          <th style="text-align:right;padding:.5rem 0;font-weight:500;">합격률</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in source_data %}
+        <tr style="border-bottom:1px solid var(--bd);">
+          <td style="padding:.55rem 0;color:var(--tx-1);font-weight:500;">{{ s.source }}</td>
+          <td style="text-align:right;padding:.55rem 0;color:var(--tx-2);">{{ s.total }}</td>
+          <td style="text-align:right;padding:.55rem 0;color:#27ae60;font-weight:600;">{{ s.hired }}</td>
+          <td style="text-align:right;padding:.55rem 0;">
+            <span style="background:{% if s.rate >= 10 %}#d5f5e3{% elif s.rate >= 5 %}#fef9e7{% else %}#fdf2f8{% endif %};
+                         color:{% if s.rate >= 10 %}#1e8449{% elif s.rate >= 5 %}#9a7d0a{% else %}#922b21{% endif %};
+                         padding:.2rem .5rem;border-radius:12px;font-size:.78rem;font-weight:600;">
+              {{ s.rate }}%
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="text-align:center;padding:2rem;color:var(--tx-3);">데이터가 없습니다.</div>
+    {% endif %}
+  </div>
+
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+
+  <!-- ── 월별 지원자 추이 ────────────────────────────────────── -->
+  <div class="card" style="padding:1.5rem;">
+    <h3 class="section-title" style="margin-bottom:1.2rem;">월별 지원자 추이 <span style="font-size:.78rem;color:var(--tx-3);font-weight:400;">(최근 6개월)</span></h3>
+    {% if monthly %}
+    {% set max_m = monthly | map(attribute='cnt') | max %}
+    <div style="display:flex;align-items:flex-end;gap:.5rem;height:120px;padding-top:.5rem;">
+      {% for m in monthly %}
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:.3rem;">
+        <span style="font-size:.75rem;color:var(--tx-2);font-weight:600;">{{ m.cnt }}</span>
+        <div style="width:100%;background:var(--primary);border-radius:4px 4px 0 0;
+                    height:{% if max_m > 0 %}{{ (m.cnt / max_m * 100) | int }}%{% else %}4px{% endif %};
+                    min-height:4px;"></div>
+        <span style="font-size:.7rem;color:var(--tx-3);">{{ m.ym[5:] }}월</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:2rem;color:var(--tx-3);">데이터가 없습니다.</div>
+    {% endif %}
+  </div>
+
+  <!-- ── Time-to-Fill ───────────────────────────────────────── -->
+  <div class="card" style="padding:1.5rem;">
+    <h3 class="section-title" style="margin-bottom:.4rem;">Time-to-Fill</h3>
+    <p style="font-size:.82rem;color:var(--tx-3);margin-bottom:1rem;">공고 게시일부터 오퍼 발송일까지 평균 소요 일수입니다. 숫자가 낮을수록 빠른 채용입니다.</p>
+
+    {% if ttf_rows %}
+    <table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--bd);color:var(--tx-3);">
+          <th style="text-align:left;padding:.5rem 0;font-weight:500;">공고</th>
+          <th style="text-align:right;padding:.5rem 0;font-weight:500;">합격</th>
+          <th style="text-align:right;padding:.5rem 0;font-weight:500;">평균 소요일</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in ttf_rows %}
+        <tr style="border-bottom:1px solid var(--bd);">
+          <td style="padding:.5rem 0;color:var(--tx-1);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.title }}</td>
+          <td style="text-align:right;padding:.5rem 0;color:var(--tx-2);">{{ r.hired_cnt }}명</td>
+          <td style="text-align:right;padding:.5rem 0;">
+            <span style="font-weight:700;color:{% if r.avg_days <= 30 %}#27ae60{% elif r.avg_days <= 60 %}#e67e22{% else %}#e74c3c{% endif %};">
+              {{ r.avg_days }}일
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="text-align:center;padding:2rem;color:var(--tx-3);">
+      아직 합격 처리된 지원자가 없어 집계할 수 없습니다.<br>
+      <span style="font-size:.82rem;">오퍼 수락 완료 후 데이터가 표시됩니다.</span>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- ── 공고별 지원자 Top 5 ─────────────────────────────────── -->
+<div class="card" style="padding:1.5rem;margin-bottom:1.5rem;">
+  <h3 class="section-title" style="margin-bottom:1.2rem;">공고별 지원자 현황 Top 5</h3>
+  {% if top_postings %}
+  {% set max_p = top_postings | map(attribute='cnt') | max %}
+  <div style="display:flex;flex-direction:column;gap:.7rem;">
+    {% for p in top_postings %}
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:.3rem;">
+        <span style="font-size:.85rem;color:var(--tx-1);font-weight:500;">{{ p.title }}</span>
+        <span style="font-size:.85rem;color:var(--tx-2);">{{ p.cnt }}명
+          {% if p.hired > 0 %}<span style="color:#27ae60;margin-left:.5rem;">✓ {{ p.hired }}명 합격</span>{% endif %}
+        </span>
+      </div>
+      <div style="height:8px;background:var(--bg-2);border-radius:4px;overflow:hidden;">
+        <div style="height:100%;background:var(--primary);border-radius:4px;
+                    width:{% if max_p > 0 %}{{ (p.cnt / max_p * 100) | int }}%{% else %}0%{% endif %};"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:2rem;color:var(--tx-3);">데이터가 없습니다.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

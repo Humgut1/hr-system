@@ -112,6 +112,9 @@
         <a href="{{ url_for('requisition_list') }}" class="nav-item{% if active_page == 'requisition' %} active{% endif %}" title="채용 요청서">
           <i class="fas fa-file-alt"></i><span>채용 요청서</span>
         </a>
+        <a href="{{ url_for('recruit_dashboard') }}" class="nav-item{% if active_page == 'recruit_dashboard' %} active{% endif %}" title="채용 대시보드">
+          <i class="fas fa-chart-bar"></i><span>채용 대시보드</span>
+        </a>
         <a href="{{ url_for('recruit_postings') }}" class="nav-item{% if active_page in ('recruit','recruit_pipeline','recruiter') %} active{% endif %}" title="채용 관리">
           <i class="fas fa-user-tie"></i><span>채용 관리</span>
         </a>
