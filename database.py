@@ -1407,6 +1407,66 @@ def init_db(db_path: str = None):
             ]
             c.executemany('INSERT OR IGNORE INTO holidays (date, name) VALUES (?, ?)', holidays_2026)
 
+        # ── v0.71 — 부양가족 + 생애사건 ──────────────────────────────────
+        # users 테이블 marital_status 컬럼 추가
+        user_cols = {r[1] for r in c.execute('PRAGMA table_info(users)').fetchall()}
+        if 'marital_status' not in user_cols:
+            c.execute("ALTER TABLE users ADD COLUMN marital_status TEXT NOT NULL DEFAULT 'single' "
+                      "CHECK(marital_status IN ('single','married','divorced','widowed'))")
+        if 'gender' not in user_cols:
+            c.execute("ALTER TABLE users ADD COLUMN gender TEXT CHECK(gender IN ('M','F','other'))")
+
+        # payslips 컬럼 추가 (세금계산 결과 저장용)
+        payslip_cols2 = {r[1] for r in c.execute('PRAGMA table_info(payslips)').fetchall()}
+        for col, dflt in [
+            ('income_deduction',         '0'),
+            ('earned_income',            '0'),
+            ('total_personal_deduction', '0'),
+            ('num_dependents',           '0'),
+            ('child_tax_credit_amount',  '0'),
+        ]:
+            if col not in payslip_cols2:
+                c.execute(f'ALTER TABLE payslips ADD COLUMN {col} INTEGER NOT NULL DEFAULT {dflt}')
+
+        # employee_dependents 테이블
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS employee_dependents (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                name           TEXT NOT NULL,
+                relation       TEXT NOT NULL
+                               CHECK(relation IN ('spouse','child','parent','grandparent','sibling')),
+                birth_date     DATE,
+                gender         TEXT CHECK(gender IN ('M','F','other')),
+                is_disabled    INTEGER NOT NULL DEFAULT 0,
+                annual_income  INTEGER NOT NULL DEFAULT 0,
+                is_cohabiting  INTEGER NOT NULL DEFAULT 1,
+                is_adopted     INTEGER NOT NULL DEFAULT 0,
+                birth_order    INTEGER,
+                note           TEXT,
+                created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # life_events 테이블
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS life_events (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                event_type     TEXT NOT NULL
+                               CHECK(event_type IN (
+                                   'marriage','divorce','birth','adoption',
+                                   'death_of_dependent','disability_onset',
+                                   'child_school_entry','child_age_out'
+                               )),
+                event_date     DATE NOT NULL,
+                description    TEXT,
+                created_by     INTEGER REFERENCES users(id),
+                created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
         conn.commit()
     finally:
         conn.close()

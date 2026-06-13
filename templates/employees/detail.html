@@ -260,6 +260,7 @@
   <button class="tab-btn" data-tab="perf">성과</button>
   <button class="tab-btn" data-tab="benefits">복리후생</button>
   {% endif %}
+  <button class="tab-btn" data-tab="family">가족·생애사건</button>
 </div>
 
 <div class="tab-panel active" id="tab-basic">
@@ -931,6 +932,209 @@
 {% endif %}{# can_see_sensitive #}
 </div>
 
+<!-- ══════════════════ 가족·생애사건 탭 ══════════════════ -->
+<div class="tab-panel" id="tab-family">
+
+  <!-- 부양가족 등록 현황 -->
+  <div class="section-card" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h3 style="font-weight:700;font-size:.95rem;">부양가족 ({{dependents|length}}명)</h3>
+      {% if session.user_role == 'admin' or session.user_id == emp.id %}
+      <button class="btn btn-sm btn-outline" onclick="togglePanel('dep-form')">+ 추가</button>
+      {% endif %}
+    </div>
+
+    <!-- 추가 폼 -->
+    <div id="dep-form" style="display:none;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;">
+      <form method="post" action="{{ url_for('dependent_add', emp_id=emp.id) }}">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;">
+          <div>
+            <label class="form-label">이름</label>
+            <input type="text" name="name" class="input" required placeholder="예: 홍길순">
+          </div>
+          <div>
+            <label class="form-label">관계</label>
+            <select name="relation" class="input" required>
+              <option value="">선택</option>
+              <option value="spouse">배우자</option>
+              <option value="child">자녀</option>
+              <option value="parent">부모</option>
+              <option value="grandparent">조부모</option>
+              <option value="sibling">형제자매</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">생년월일</label>
+            <input type="date" name="birth_date" class="input">
+          </div>
+          <div>
+            <label class="form-label">성별</label>
+            <select name="gender" class="input">
+              <option value="">선택</option>
+              <option value="M">남</option>
+              <option value="F">여</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">연간 소득금액 (원)</label>
+            <input type="number" name="annual_income" class="input" min="0" step="10000" placeholder="0">
+          </div>
+          <div>
+            <label class="form-label">자녀 출생 순위</label>
+            <input type="number" name="birth_order" class="input" min="1" max="10" placeholder="예: 1 (첫째)">
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;">
+            <input type="checkbox" name="is_disabled" value="1"> 장애인
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;">
+            <input type="checkbox" name="is_cohabiting" value="1" checked> 동거
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;">
+            <input type="checkbox" name="is_adopted" value="1"> 입양
+          </label>
+        </div>
+        <div style="margin-top:10px;">
+          <label class="form-label">메모</label>
+          <input type="text" name="note" class="input" placeholder="예: 유학 중, 장기요양 등">
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+          <button type="button" class="btn btn-ghost" onclick="togglePanel('dep-form')">취소</button>
+          <button type="submit" class="btn btn-primary">저장</button>
+        </div>
+      </form>
+    </div>
+
+    {% if dependents %}
+    <table class="table">
+      <thead><tr>
+        <th>이름</th><th>관계</th><th>생년월일</th><th>연 소득금액</th>
+        <th>장애</th><th>동거</th><th>입양</th><th>비고</th>
+        {% if session.user_role == 'admin' or session.user_id == emp.id %}<th></th>{% endif %}
+      </tr></thead>
+      <tbody>
+      {% for dep in dependents %}
+      <tr>
+        <td><strong>{{ dep.name }}</strong></td>
+        <td>{{ relation_label.get(dep.relation, dep.relation) }}</td>
+        <td>{{ dep.birth_date or '-' }}</td>
+        <td>{{ '{:,}'.format(dep.annual_income or 0) }}원</td>
+        <td>{% if dep.is_disabled %}<span class="badge badge-blue">Y</span>{% else %}-{% endif %}</td>
+        <td>{% if dep.is_cohabiting %}Y{% else %}N{% endif %}</td>
+        <td>{% if dep.is_adopted %}<span class="badge badge-blue">Y</span>{% else %}-{% endif %}</td>
+        <td style="font-size:.8rem;color:#64748b;">{{ dep.note or '' }}{% if dep.birth_order %} ({{ dep.birth_order }}째){% endif %}</td>
+        {% if session.user_role == 'admin' or session.user_id == emp.id %}
+        <td>
+          <form method="post" action="{{ url_for('dependent_delete', emp_id=emp.id, dep_id=dep.id) }}"
+                onsubmit="return confirm('삭제할까요?')">
+            <button type="submit" class="btn btn-sm" style="color:#ef4444;background:none;border:none;cursor:pointer;padding:2px 8px;">삭제</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="text-align:center;color:#94a3b8;padding:24px 0;font-size:.875rem;">등록된 부양가족이 없습니다.</p>
+    {% endif %}
+  </div>
+
+  <!-- 소득세 공제 요약 (최근 급여명세서 기준) -->
+  {% if can_see_sensitive and payslips %}
+  {% set last_ps = payslips[0] %}
+  <div class="section-card" style="margin-bottom:20px;">
+    <h3 style="font-weight:700;font-size:.95rem;margin-bottom:14px;">최근 급여 세금 공제 요약 ({{ last_ps.year }}년 {{ last_ps.month }}월)</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+      <div style="background:#f0f9ff;border-radius:10px;padding:14px;">
+        <div style="font-size:.75rem;color:#0369a1;font-weight:600;margin-bottom:4px;">기본공제 인원</div>
+        <div style="font-size:1.2rem;font-weight:800;">{{ last_ps.num_dependents if last_ps.num_dependents else '-' }}명</div>
+      </div>
+      <div style="background:#f0fdf4;border-radius:10px;padding:14px;">
+        <div style="font-size:.75rem;color:#15803d;font-weight:600;margin-bottom:4px;">근로소득공제 (§47)</div>
+        <div style="font-size:1.1rem;font-weight:800;">{{ '{:,}'.format(last_ps.income_deduction or 0) }}원</div>
+      </div>
+      <div style="background:#fefce8;border-radius:10px;padding:14px;">
+        <div style="font-size:.75rem;color:#a16207;font-weight:600;margin-bottom:4px;">인적공제 합계 (§50/§51)</div>
+        <div style="font-size:1.1rem;font-weight:800;">{{ '{:,}'.format(last_ps.total_personal_deduction or 0) }}원</div>
+      </div>
+      <div style="background:#fdf4ff;border-radius:10px;padding:14px;">
+        <div style="font-size:.75rem;color:#7e22ce;font-weight:600;margin-bottom:4px;">자녀세액공제 (§59의2)</div>
+        <div style="font-size:1.1rem;font-weight:800;">{{ '{:,}'.format(last_ps.child_tax_credit_amount or 0) }}원</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 생애사건 이력 -->
+  <div class="section-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h3 style="font-weight:700;font-size:.95rem;">생애사건 이력 ({{life_events|length}}건)</h3>
+      {% if session.user_role == 'admin' or session.user_id == emp.id %}
+      <button class="btn btn-sm btn-outline" onclick="togglePanel('le-form')">+ 기록</button>
+      {% endif %}
+    </div>
+
+    <div id="le-form" style="display:none;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;">
+      <form method="post" action="{{ url_for('life_event_add', emp_id=emp.id) }}">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+          <div>
+            <label class="form-label">사건 유형</label>
+            <select name="event_type" class="input" required>
+              <option value="">선택</option>
+              <option value="marriage">혼인</option>
+              <option value="divorce">이혼</option>
+              <option value="birth">출산</option>
+              <option value="adoption">입양</option>
+              <option value="death_of_dependent">부양가족 사망</option>
+              <option value="disability_onset">장애 발생</option>
+              <option value="child_school_entry">자녀 취학 (만 8세)</option>
+              <option value="child_age_out">자녀 공제 제외 (만 20세)</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">발생일</label>
+            <input type="date" name="event_date" class="input" required value="{{ today }}">
+          </div>
+          <div style="grid-column:span 2;">
+            <label class="form-label">메모</label>
+            <input type="text" name="description" class="input" placeholder="예: 배우자 산재 장애 3급 인정">
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+          <button type="button" class="btn btn-ghost" onclick="togglePanel('le-form')">취소</button>
+          <button type="submit" class="btn btn-primary">저장</button>
+        </div>
+      </form>
+    </div>
+
+    {% if life_events %}
+    <div>
+      {% for ev in life_events %}
+      <div style="display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);">
+        <div style="width:36px;height:36px;border-radius:50%;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">
+          {% if ev.event_type == 'marriage' %}💍
+          {% elif ev.event_type == 'birth' or ev.event_type == 'adoption' %}👶
+          {% elif ev.event_type == 'divorce' or ev.event_type == 'death_of_dependent' %}📋
+          {% elif ev.event_type == 'disability_onset' %}♿
+          {% else %}📅{% endif %}
+        </div>
+        <div style="flex:1;">
+          <div style="font-weight:600;font-size:.9rem;">{{ life_event_label.get(ev.event_type, ev.event_type) }}</div>
+          <div style="font-size:.8rem;color:#64748b;margin-top:2px;">{{ ev.event_date }}{% if ev.created_by_name %} · 기록: {{ ev.created_by_name }}{% endif %}</div>
+          {% if ev.description %}<div style="font-size:.82rem;color:#475569;margin-top:4px;">{{ ev.description }}</div>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="text-align:center;color:#94a3b8;padding:24px 0;font-size:.875rem;">기록된 생애사건이 없습니다.</p>
+    {% endif %}
+  </div>
+
+</div>
+
 {% if session.user_role == 'admin' and emp.status == 'active' %}
 <div class="overlay" id="actionModal" style="display:none;" onclick="if(event.target===this)closeActionModal()">
   <div class="modal" style="width:min(640px, 92vw);">
@@ -1070,6 +1274,11 @@
     if (targetBtn) targetBtn.click();
   }
 })();
+
+function togglePanel(id) {
+  var el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
 
 function openActionModal() {
   var modal = document.getElementById('actionModal');

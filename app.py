@@ -1265,6 +1265,30 @@ def employee_detail(emp_id):
             'ovr_note':       ovr['note']    if ovr else '',
         })
 
+    # 부양가족 + 생애사건
+    dependents  = db.execute(
+        'SELECT * FROM employee_dependents WHERE user_id=? ORDER BY relation, birth_date',
+        (emp_id,)
+    ).fetchall()
+    life_events = db.execute(
+        'SELECT le.*, u.name created_by_name '
+        'FROM life_events le '
+        'LEFT JOIN users u ON le.created_by = u.id '
+        'WHERE le.user_id=? ORDER BY le.event_date DESC',
+        (emp_id,)
+    ).fetchall()
+
+    RELATION_LABEL = {
+        'spouse': '배우자', 'child': '자녀', 'parent': '부모',
+        'grandparent': '조부모', 'sibling': '형제자매',
+    }
+    LIFE_EVENT_LABEL = {
+        'marriage': '혼인', 'divorce': '이혼', 'birth': '출산',
+        'adoption': '입양', 'death_of_dependent': '부양가족 사망',
+        'disability_onset': '장애 발생', 'child_school_entry': '자녀 취학',
+        'child_age_out': '자녀 공제 제외',
+    }
+
     return render_template('employees/detail.html',
                            emp=emp, payslips=payslips, leaves=leaves,
                            goals=goals, cycle=cycle,
@@ -1283,7 +1307,84 @@ def employee_detail(emp_id):
                            today=date.today().isoformat(),
                            leave_labels=LEAVE_LABELS,
                            can_see_sensitive=can_see_sensitive,
+                           dependents=dependents,
+                           life_events=life_events,
+                           relation_label=RELATION_LABEL,
+                           life_event_label=LIFE_EVENT_LABEL,
                            active_page='employees')
+
+
+@app.route('/employees/<int:emp_id>/dependents/add', methods=['POST'])
+@login_required
+def dependent_add(emp_id):
+    """부양가족 추가 (본인·admin·직속 매니저만)."""
+    role = session['user_role']
+    uid  = session['user_id']
+    db   = get_db()
+    if role != 'admin' and uid != emp_id:
+        abort(403)
+    name       = request.form.get('name', '').strip()
+    relation   = request.form.get('relation')
+    birth_date = request.form.get('birth_date') or None
+    gender     = request.form.get('gender') or None
+    is_disabled  = 1 if request.form.get('is_disabled') else 0
+    annual_income = int(request.form.get('annual_income', 0) or 0)
+    is_cohabiting = 1 if request.form.get('is_cohabiting') else 0
+    is_adopted    = 1 if request.form.get('is_adopted') else 0
+    birth_order   = request.form.get('birth_order') or None
+    note          = request.form.get('note', '').strip() or None
+    if not name or not relation:
+        flash('이름과 관계는 필수입니다.', 'error')
+        return redirect(url_for('employee_detail', emp_id=emp_id))
+    db.execute(
+        'INSERT INTO employee_dependents '
+        '(user_id, name, relation, birth_date, gender, is_disabled, annual_income, '
+        'is_cohabiting, is_adopted, birth_order, note) '
+        'VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+        (emp_id, name, relation, birth_date, gender, is_disabled, annual_income,
+         is_cohabiting, is_adopted, birth_order, note)
+    )
+    db.commit()
+    flash('부양가족이 추가되었습니다.', 'success')
+    return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-family')
+
+
+@app.route('/employees/<int:emp_id>/dependents/<int:dep_id>/delete', methods=['POST'])
+@login_required
+def dependent_delete(emp_id, dep_id):
+    role = session['user_role']
+    uid  = session['user_id']
+    db   = get_db()
+    if role != 'admin' and uid != emp_id:
+        abort(403)
+    db.execute('DELETE FROM employee_dependents WHERE id=? AND user_id=?', (dep_id, emp_id))
+    db.commit()
+    flash('부양가족이 삭제되었습니다.', 'success')
+    return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-family')
+
+
+@app.route('/employees/<int:emp_id>/life-events/add', methods=['POST'])
+@login_required
+def life_event_add(emp_id):
+    role = session['user_role']
+    uid  = session['user_id']
+    db   = get_db()
+    if role != 'admin' and uid != emp_id:
+        abort(403)
+    event_type  = request.form.get('event_type')
+    event_date  = request.form.get('event_date')
+    description = request.form.get('description', '').strip() or None
+    if not event_type or not event_date:
+        flash('사건 유형과 날짜는 필수입니다.', 'error')
+        return redirect(url_for('employee_detail', emp_id=emp_id))
+    db.execute(
+        'INSERT INTO life_events (user_id, event_type, event_date, description, created_by) '
+        'VALUES (?,?,?,?,?)',
+        (emp_id, event_type, event_date, description, uid)
+    )
+    db.commit()
+    flash('생애사건이 기록되었습니다.', 'success')
+    return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-family')
 
 
 @app.route('/employees/<int:emp_id>/benefits', methods=['POST'])
@@ -4163,12 +4264,23 @@ def admin_payroll():
                                 'monthly_limit': meta.get('monthly_limit'),
                             })
 
+                    # 부양가족 조회 (소득세 정확 계산용)
+                    dependents = db.execute(
+                        'SELECT * FROM employee_dependents WHERE user_id=?', (e['id'],)
+                    ).fetchall()
+                    emp_info = db.execute(
+                        'SELECT gender, marital_status FROM users WHERE id=?', (e['id'],)
+                    ).fetchone()
+                    is_female = emp_info and emp_info['gender'] == 'F'
+
                     result = calc_payslip(
                         e['base_salary'],
                         e['meal_allowance'],
                         e['transport_allowance'],
                         overtime_pay=total_ot_pay,
                         extra_benefits=extra_benefits,
+                        dependents=dependents,
+                        is_female=is_female,
                     )
                     bonus_pay = result.get('benefits_gross', 0)
 
@@ -4177,8 +4289,10 @@ def admin_payroll():
                         '(user_id, year, month, base_salary, meal_allowance, transport_allowance, '
                         'overtime_pay, bonus_pay, national_pension, health_insurance, long_term_care, '
                         'employment_insurance, income_tax, local_income_tax, '
-                        'gross_pay, total_deduction, net_pay, benefits_json) '
-                        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                        'gross_pay, total_deduction, net_pay, benefits_json, '
+                        'income_deduction, earned_income, total_personal_deduction, '
+                        'num_dependents, child_tax_credit_amount) '
+                        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                         (e['id'], year, month,
                          result['base_salary'], result['meal_allowance'],
                          result['transport_allowance'], result['overtime_pay'], bonus_pay,
@@ -4186,7 +4300,10 @@ def admin_payroll():
                          result['long_term_care'], result['employment_insurance'],
                          result['income_tax'], result['local_income_tax'],
                          result['gross_pay'], result['total_deduction'], result['net_pay'],
-                         _json.dumps(result.get('benefits_breakdown', []), ensure_ascii=False))
+                         _json.dumps(result.get('benefits_breakdown', []), ensure_ascii=False),
+                         result['income_deduction'], result['earned_income'],
+                         result['total_personal_deduction'], result['num_dependents'],
+                         result['child_tax_credit_amount'])
                     )
                     # 급여 확정 인앱 알림 발송
                     add_notification(
@@ -9087,7 +9204,7 @@ def export_hub():
 def export_employees():
     db   = get_db()
     rows = db.execute(
-        "SELECT u.emp_no, u.name, u.email, "
+        "SELECT u.id, u.emp_no, u.name, u.email, "
         "       d.name dept, p.name pos, jf.name jf, "
         "       u.employment_type, u.role, u.status, "
         "       u.hire_date, u.birth_date, u.phone, "
@@ -9096,7 +9213,8 @@ def export_employees():
         "       es.base_salary, "
         "       ROUND((JULIANDAY('now') - JULIANDAY(u.hire_date)) / 365.25, 1) years_of_service, "
         "       cr.final_grade last_grade, "
-        "       es.updated_at last_salary_change "
+        "       es.updated_at last_salary_change, "
+        "       u.marital_status, u.gender "
         "FROM users u "
         "LEFT JOIN departments d      ON u.department_id = d.id "
         "LEFT JOIN positions   p      ON u.position_id   = p.id "
@@ -9111,6 +9229,18 @@ def export_employees():
         "WHERE u.role != 'guest' ORDER BY d.name, u.name"
     ).fetchall()
 
+    # 부양가족 집계
+    dep_summary = {}
+    for d in db.execute(
+        "SELECT user_id, relation, COUNT(*) cnt FROM employee_dependents GROUP BY user_id, relation"
+    ).fetchall():
+        uid = d['user_id']
+        if uid not in dep_summary:
+            dep_summary[uid] = {'spouse': 0, 'child': 0, 'parent': 0, 'other': 0, 'total': 0}
+        rel = d['relation'] if d['relation'] in ('spouse', 'child', 'parent') else 'other'
+        dep_summary[uid][rel] += d['cnt']
+        dep_summary[uid]['total'] += d['cnt']
+
     wb, ws = make_wb("직원 명단")
     headers = [
         '사번', '이름', '이메일', '부서', '직위', '직군',
@@ -9118,17 +9248,21 @@ def export_employees():
         '입사일', '생년월일', '연락처',
         '퇴사일', '퇴사사유',
         '직속상관', '기본급(월)', '근속연수(년)',
-        '최근성과등급', '최근급여변경일'
+        '최근성과등급', '최근급여변경일',
+        '혼인상태', '성별', '부양가족 합계', '배우자', '자녀', '부모'
     ]
     write_header(ws, headers)
 
     EMP_TYPE_KO = {'full_time':'정규직','part_time':'시간제','contract':'계약직','intern':'인턴'}
     STATUS_KO   = {'active':'재직','inactive':'휴직','resigned':'퇴직'}
     ROLE_KO     = {'admin':'관리자','manager':'매니저','employee':'직원','recruiter':'채용담당'}
-    am = {i: 'center' for i in range(1, 20)}
+    MARITAL_KO  = {'single':'미혼','married':'기혼','divorced':'이혼','widowed':'사별'}
+    GENDER_KO   = {'M':'남','F':'여','other':'기타'}
+    am = {i: 'center' for i in range(1, 26)}
     am.update({2:'left', 3:'left', 4:'left', 5:'left', 6:'left', 13:'left', 15:'left'})
 
     for i, r in enumerate(rows, 2):
+        ds = dep_summary.get(r['id'] if 'id' in r.keys() else 0, {})
         write_row(ws, i, [
             r['emp_no'] or f"TC-{r['name']}",
             r['name'], r['email'],
@@ -9143,6 +9277,9 @@ def export_employees():
             r['years_of_service'] or '',
             r['last_grade'] or '',
             (r['last_salary_change'] or '')[:10],
+            MARITAL_KO.get(r['marital_status'] if 'marital_status' in r.keys() else '', ''),
+            GENDER_KO.get(r['gender'] if 'gender' in r.keys() else '', ''),
+            ds.get('total', 0), ds.get('spouse', 0), ds.get('child', 0), ds.get('parent', 0),
         ], align_map=am)
 
     apply_number_format(ws, 16, 2, len(rows) + 1, KRW_FORMAT)

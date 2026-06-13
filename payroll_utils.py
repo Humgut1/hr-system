@@ -8,11 +8,14 @@
   - 근로기준법 제48조  : 임금명세서 필수 기재사항
   - 최저임금법         : 2026년 시간급 최저임금
   - 소득세법 §12       : 비과세 소득 (식대 20만원, 교통비 20만원, 육아수당 10만원 등)
+  - 소득세법 §47       : 근로소득공제 (총급여 구간별 공제율)
+  - 소득세법 §50       : 기본공제 (본인 + 부양가족 1인당 150만원)
+  - 소득세법 §51       : 추가공제 (경로우대 100만원, 장애인 200만원, 한부모 100만원, 부녀자 50만원)
+  - 소득세법 §59의2    : 자녀세액공제 (만 8세 이상 자녀, 출산·입양공제)
   - 국민연금법         : 근로자 부담 4.5%
   - 국민건강보험법     : 근로자 부담 3.545%
   - 노인장기요양보험법 : 건강보험료의 12.95% (2026년)
   - 고용보험법         : 근로자 부담 0.9% (실업급여)
-  - 소득세법           : 근로소득세 누진세율 + 지방소득세 10%
 """
 
 import calendar as _cal
@@ -162,6 +165,194 @@ def calc_annual_leave(hire_date_str: str) -> float:
     return float(min(15 + extra, 25))
 
 
+# ══ 소득세 정확 계산 (§47 / §50 / §51 / §59의2) ══════════════════════
+
+def calc_earned_income_deduction(annual_gross: int) -> int:
+    """
+    근로소득공제 (소득세법 §47).
+    총급여액 구간별 공제율 적용, 한도 2,000만원.
+    """
+    if annual_gross <= 5_000_000:
+        d = int(annual_gross * 0.70)
+    elif annual_gross <= 15_000_000:
+        d = 3_500_000 + int((annual_gross - 5_000_000) * 0.40)
+    elif annual_gross <= 45_000_000:
+        d = 7_500_000 + int((annual_gross - 15_000_000) * 0.15)
+    elif annual_gross <= 100_000_000:
+        d = 12_000_000 + int((annual_gross - 45_000_000) * 0.05)
+    else:
+        d = 14_750_000
+    return min(d, 20_000_000)
+
+
+def calc_personal_deductions(dependents: list,
+                              is_female: bool = False,
+                              annual_gross: int = 0) -> dict:
+    """
+    인적공제 계산 (소득세법 §50 기본공제 / §51 추가공제 / §59의2 자녀세액공제).
+
+    Args:
+        dependents   : employee_dependents 행 리스트 (dict or sqlite3.Row)
+                       필드: relation, birth_date, is_disabled, annual_income,
+                             is_cohabiting, is_adopted, birth_order
+        is_female    : 직원이 여성인지 (부녀자공제 판정)
+        annual_gross : 직원 연간 총급여 (부녀자공제 소득 요건 3천만원 이하)
+
+    Returns dict:
+        basic_deduction          : 기본공제 합계 (본인 포함)
+        senior_extra             : 경로우대 추가공제
+        disabled_extra           : 장애인 추가공제
+        single_parent_extra      : 한부모공제
+        widow_extra              : 부녀자공제
+        total_personal_deduction : 전체 인적공제 합계
+        num_dependents           : 기본공제 인원 (본인 포함)
+        child_tax_credit         : 자녀세액공제 (세액에서 직접 차감)
+        birth_credit             : 출산·입양공제 (당해연도)
+        children_under_8         : 만 8세 미만 자녀 수 (육아수당 자동 적용 판정용)
+    """
+    from datetime import date
+    today = date.today()
+
+    def age_of(birth_date_str):
+        if not birth_date_str:
+            return None
+        try:
+            bd = date.fromisoformat(str(birth_date_str)[:10])
+            return today.year - bd.year - (
+                1 if (today.month, today.day) < (bd.month, bd.day) else 0
+            )
+        except (ValueError, TypeError):
+            return None
+
+    basic_deduction  = 1_500_000   # 본인 기본공제
+    senior_extra     = 0
+    disabled_extra   = 0
+    has_spouse       = False
+    has_child        = False       # 기본공제 대상 직계비속
+
+    qualified_count  = 1           # 기본공제 인원 (본인)
+    children_tax_credit_list = []  # 만 8세 이상 기본공제 대상 자녀
+    children_under_8 = 0           # 만 8세 미만 자녀 (육아수당용)
+    birth_credit     = 0
+
+    for dep in (dependents or []):
+        rel        = dep['relation'] if hasattr(dep, '__getitem__') else getattr(dep, 'relation', '')
+        bd_str     = dep['birth_date'] if hasattr(dep, '__getitem__') else getattr(dep, 'birth_date', None)
+        disabled   = bool(dep['is_disabled'] if hasattr(dep, '__getitem__') else getattr(dep, 'is_disabled', 0))
+        dep_income = int(dep['annual_income'] if hasattr(dep, '__getitem__') else getattr(dep, 'annual_income', 0) or 0)
+        cohabit    = bool(dep['is_cohabiting'] if hasattr(dep, '__getitem__') else getattr(dep, 'is_cohabiting', 1))
+        is_adopted = bool(dep['is_adopted'] if hasattr(dep, '__getitem__') else getattr(dep, 'is_adopted', 0))
+        birth_ord  = int(dep['birth_order'] if hasattr(dep, '__getitem__') else getattr(dep, 'birth_order', 1) or 1)
+
+        age = age_of(bd_str)
+
+        # ── 소득 요건: 연간 소득금액 100만원 이하 (§50)
+        income_ok = dep_income <= 1_000_000
+
+        # ── 나이 요건 (장애인이면 전면 면제)
+        if rel == 'spouse':
+            age_ok   = True
+            cohabit  = True  # 배우자는 동거요건 없음
+            has_spouse = True
+        elif rel in ('parent', 'grandparent'):
+            age_ok = disabled or (age is not None and age >= 60)
+        elif rel == 'child':
+            age_ok = disabled or (age is not None and age <= 20)
+        elif rel == 'sibling':
+            age_ok = disabled or (age is not None and (age <= 20 or age >= 60))
+        else:
+            age_ok = False
+
+        # ── 동거 요건 (형제자매·직계존속만 적용)
+        cohabit_ok = cohabit if rel in ('parent', 'grandparent', 'sibling') else True
+
+        if age_ok and income_ok and cohabit_ok:
+            basic_deduction += 1_500_000
+            qualified_count += 1
+
+            # 경로우대 (만 70세 이상)
+            if age is not None and age >= 70:
+                senior_extra += 1_000_000
+
+            # 장애인 추가공제
+            if disabled:
+                disabled_extra += 2_000_000
+
+            # 자녀 관련
+            if rel == 'child':
+                has_child = True
+                if age is not None:
+                    if age >= 8:
+                        children_tax_credit_list.append(dep)
+                    else:
+                        children_under_8 += 1
+                # 출산·입양공제 (당해연도 출산/입양 여부는 birth_order로 판단)
+                if is_adopted or (bd_str and str(bd_str)[:4] == str(today.year)):
+                    if birth_ord == 1:
+                        birth_credit += 300_000
+                    elif birth_ord == 2:
+                        birth_credit += 500_000
+                    else:
+                        birth_credit += 700_000
+
+    # ── 한부모 vs 부녀자 (중복 불가, 한부모 우선)
+    single_parent_extra = 0
+    widow_extra         = 0
+    if not has_spouse and has_child:
+        single_parent_extra = 1_000_000
+    elif is_female and annual_gross <= 30_000_000:
+        if has_spouse or has_child:
+            widow_extra = 500_000
+
+    total_personal_deduction = (
+        basic_deduction + senior_extra + disabled_extra
+        + single_parent_extra + widow_extra
+    )
+
+    # ── 자녀세액공제 (§59의2, 만 8세 이상 기본공제 대상 자녀)
+    n = len(children_tax_credit_list)
+    if n == 0:
+        child_tax_credit = 0
+    elif n == 1:
+        child_tax_credit = 150_000
+    elif n == 2:
+        child_tax_credit = 300_000
+    else:
+        child_tax_credit = 300_000 + (n - 2) * 300_000
+
+    return {
+        'basic_deduction':          basic_deduction,
+        'senior_extra':             senior_extra,
+        'disabled_extra':           disabled_extra,
+        'single_parent_extra':      single_parent_extra,
+        'widow_extra':              widow_extra,
+        'total_personal_deduction': total_personal_deduction,
+        'num_dependents':           qualified_count,
+        'child_tax_credit':         child_tax_credit,
+        'birth_credit':             birth_credit,
+        'children_under_8':         children_under_8,
+        'children_tax_credit_count': n,
+    }
+
+
+def _calc_annual_tax(taxable_base: int) -> int:
+    """과세표준 → 산출세액 (소득세법 §55 누진세율)"""
+    if taxable_base <= 14_000_000:
+        return int(taxable_base * 0.06)
+    elif taxable_base <= 50_000_000:
+        return int(taxable_base * 0.15) - 1_260_000
+    elif taxable_base <= 88_000_000:
+        return int(taxable_base * 0.24) - 5_760_000
+    elif taxable_base <= 150_000_000:
+        return int(taxable_base * 0.35) - 15_440_000
+    elif taxable_base <= 300_000_000:
+        return int(taxable_base * 0.38) - 19_940_000
+    elif taxable_base <= 500_000_000:
+        return int(taxable_base * 0.40) - 25_940_000
+    else:
+        return int(taxable_base * 0.42) - 35_940_000
+
+
 # ── 4대보험 + 소득세 계산 ─────────────────────────────────
 def calc_payslip(
     base_salary: int,
@@ -169,6 +360,8 @@ def calc_payslip(
     transport_allowance: int = 0,
     overtime_pay: int = 0,
     extra_benefits: list = None,
+    dependents: list = None,
+    is_female: bool = False,
 ) -> dict:
     """
     월 급여에서 공제액을 계산해 명세서 dict 반환.
@@ -184,26 +377,27 @@ def calc_payslip(
       - 장기요양보험    : 건강보험료 × 12.95 %
       - 고용보험        : 0.9 %
 
-    소득세: 연간 과세표준 기준 누진세율 → 월 환산
+    소득세: §47 근로소득공제 → §50/§51 인적공제 → §55 누진세율 → §59의2 자녀세액공제
     지방소득세: 소득세 × 10 %
 
     Args:
         extra_benefits: [{'key': str, 'name': str, 'amount': int,
                           'tax_exempt': bool, 'monthly_limit': int|None}]
-                        BENEFIT_CATALOG 항목을 그대로 전달.
+        dependents    : employee_dependents 쿼리 결과 (list of Row/dict)
+        is_female     : 부녀자공제 판정용
     """
     # ── 비과세 처리 (식대·교통비)
-    TAX_FREE_MEAL      = 200_000   # 소득세법 시행령 §12①3
-    TAX_FREE_TRANSPORT = 200_000   # 소득세법 시행령 §12①1
+    TAX_FREE_MEAL      = 200_000
+    TAX_FREE_TRANSPORT = 200_000
 
     nontax_meal      = min(meal_allowance, TAX_FREE_MEAL)
     nontax_transport = min(transport_allowance, TAX_FREE_TRANSPORT)
 
     # ── extra_benefits 처리
     extra_benefits = extra_benefits or []
-    benefits_gross     = 0   # 추가 지급 합계 (gross_pay에 포함)
-    benefits_nontax    = 0   # 비과세 합계
-    benefits_breakdown = []  # 명세서 표시용
+    benefits_gross     = 0
+    benefits_nontax    = 0
+    benefits_breakdown = []
 
     for b in extra_benefits:
         amount = int(b.get('amount', 0))
@@ -231,7 +425,7 @@ def calc_payslip(
             'taxable_part': taxable_part,
         })
 
-    # 과세소득 = 기본급 + 연장수당 + 한도초과 수당 + 과세 복리후생
+    # ── 과세소득 (총급여)
     taxable_monthly = (
         base_salary
         + overtime_pay
@@ -239,32 +433,27 @@ def calc_payslip(
         + max(0, transport_allowance - nontax_transport)
         + (benefits_gross - benefits_nontax)
     )
+    annual_gross = taxable_monthly * 12
 
     # ── 4대보험
     national_pension     = round(taxable_monthly * 0.045)
     health_insurance     = round(taxable_monthly * 0.03545)
-    long_term_care       = round(health_insurance * 0.1295)   # 12.95 %
+    long_term_care       = round(health_insurance * 0.1295)
     employment_insurance = round(taxable_monthly * 0.009)
 
-    # ── 소득세 (근로소득 간이세액표 기준 누진세율)
-    annual_taxable = taxable_monthly * 12
-    if annual_taxable <= 14_000_000:
-        annual_tax = annual_taxable * 0.06
-    elif annual_taxable <= 50_000_000:
-        annual_tax = annual_taxable * 0.15 - 1_260_000
-    elif annual_taxable <= 88_000_000:
-        annual_tax = annual_taxable * 0.24 - 5_760_000
-    elif annual_taxable <= 150_000_000:
-        annual_tax = annual_taxable * 0.35 - 15_440_000
-    elif annual_taxable <= 300_000_000:
-        annual_tax = annual_taxable * 0.38 - 19_940_000
-    elif annual_taxable <= 500_000_000:
-        annual_tax = annual_taxable * 0.40 - 25_940_000
-    else:
-        annual_tax = annual_taxable * 0.42 - 35_940_000
+    # ── 소득세 (§47 → §50/§51 → §55 → §59의2)
+    income_deduction     = calc_earned_income_deduction(annual_gross)
+    earned_income        = annual_gross - income_deduction  # 근로소득금액
+
+    dep_result           = calc_personal_deductions(dependents, is_female, annual_gross)
+    total_personal_ded   = dep_result['total_personal_deduction']
+    child_tax_credit     = dep_result['child_tax_credit'] + dep_result['birth_credit']
+
+    taxable_base = max(0, earned_income - total_personal_ded)
+    annual_tax   = max(0, _calc_annual_tax(taxable_base) - child_tax_credit)
 
     income_tax       = max(0, round(annual_tax / 12))
-    local_income_tax = round(income_tax * 0.10)   # 지방소득세 10 %
+    local_income_tax = round(income_tax * 0.10)
 
     # ── 집계
     gross_pay = (
@@ -278,25 +467,32 @@ def calc_payslip(
     net_pay = gross_pay - total_deduction
 
     return {
-        'base_salary':           base_salary,
-        'meal_allowance':        meal_allowance,
-        'transport_allowance':   transport_allowance,
-        'overtime_pay':          overtime_pay,
-        'nontax_meal':           nontax_meal,
-        'nontax_transport':      nontax_transport,
-        'benefits_gross':        benefits_gross,
-        'benefits_nontax':       benefits_nontax,
-        'benefits_breakdown':    benefits_breakdown,
-        'taxable_monthly':       taxable_monthly,
-        'national_pension':      national_pension,
-        'health_insurance':      health_insurance,
-        'long_term_care':        long_term_care,
-        'employment_insurance':  employment_insurance,
-        'income_tax':            income_tax,
-        'local_income_tax':      local_income_tax,
-        'total_deduction':       total_deduction,
-        'gross_pay':             gross_pay,
-        'net_pay':               net_pay,
+        'base_salary':              base_salary,
+        'meal_allowance':           meal_allowance,
+        'transport_allowance':      transport_allowance,
+        'overtime_pay':             overtime_pay,
+        'nontax_meal':              nontax_meal,
+        'nontax_transport':         nontax_transport,
+        'benefits_gross':           benefits_gross,
+        'benefits_nontax':          benefits_nontax,
+        'benefits_breakdown':       benefits_breakdown,
+        'taxable_monthly':          taxable_monthly,
+        'annual_gross':             annual_gross,
+        'income_deduction':         income_deduction,
+        'earned_income':            earned_income,
+        'total_personal_deduction': total_personal_ded,
+        'num_dependents':           dep_result['num_dependents'],
+        'child_tax_credit_amount':  child_tax_credit,
+        'children_under_8':         dep_result['children_under_8'],
+        'national_pension':         national_pension,
+        'health_insurance':         health_insurance,
+        'long_term_care':           long_term_care,
+        'employment_insurance':     employment_insurance,
+        'income_tax':               income_tax,
+        'local_income_tax':         local_income_tax,
+        'total_deduction':          total_deduction,
+        'gross_pay':                gross_pay,
+        'net_pay':                  net_pay,
     }
 
 

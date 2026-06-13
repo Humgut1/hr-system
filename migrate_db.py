@@ -1200,6 +1200,9 @@ def run():
     # ── 트랜잭셔널 시드 데이터 ───────────────────────────────────
     _seed_transactional(c, inserted_ids, admin_id if admin_row else inserted_ids[0])
 
+    # ── 부양가족 + 생애사건 시드 ─────────────────────────────────
+    _seed_family(c, inserted_ids)
+
     conn.commit()
     c.execute('PRAGMA foreign_keys = ON')
     conn.close()
@@ -1217,6 +1220,123 @@ def run():
     print(f"   직군: {len(jf_list)}개")
     print(f"   연봉 기준: {sum(1 for s in SALARY_TABLE.values() for v in s if v>0)}개 등급")
     print(f"\n  로그인: admin@company.com / changeme!")
+
+
+def _seed_family(c, all_uids: list):
+    """
+    직원별 랜덤 부양가족 + 생애사건 시드.
+    - 기혼 직원 60%, 미혼 40%
+    - 기혼자 중 자녀 1~3명 70%
+    - 부모 동거 25%
+    - 생애사건(혼인/출산/입양 등) 기혼자 대상 생성
+    """
+    rng = random.Random(2024)
+    today = date.today()
+
+    # 기존 데이터 있으면 스킵
+    if c.execute('SELECT COUNT(*) FROM employee_dependents').fetchone()[0] > 0:
+        return
+
+    FIRST_NAMES_M = ['민준','서준','도윤','예준','시우','하준','주원','지후','준서','준우']
+    FIRST_NAMES_F = ['서연','서윤','지우','서현','하은','하윤','민서','지유','윤서','지민']
+    SURNAMES_LIST = ['김','이','박','최','정','강','조','윤','장','임']
+
+    life_event_rows = []
+    dep_rows = []
+
+    # 직원별 성별 정보 조회 (없으면 랜덤 배정)
+    emp_rows = list(c.execute('SELECT id, hire_date, birth_date, gender FROM users WHERE id IN (%s)' %
+                               ','.join('?' * len(all_uids)), all_uids))
+
+    for emp in emp_rows:
+        uid = emp[0]
+        hire_date_str = emp[1]
+        bd_str = emp[2]
+        gender = emp[3]
+
+        # hire_date 기반 재직 기간 (부양가족 현실성)
+        try:
+            hd = date.fromisoformat(hire_date_str) if hire_date_str else today - timedelta(days=365)
+        except (ValueError, TypeError):
+            hd = today - timedelta(days=365)
+
+        # 연령 추정
+        try:
+            bd = date.fromisoformat(bd_str) if bd_str else None
+            age = (today - bd).days // 365 if bd else 30
+        except (ValueError, TypeError):
+            age = 30
+
+        # 25세 미만은 대부분 미혼
+        married_prob = 0.65 if age >= 30 else (0.20 if age < 27 else 0.40)
+        is_married = rng.random() < married_prob
+
+        # marital_status 업데이트
+        marital = 'married' if is_married else 'single'
+        # 이혼·사별 소수 반영
+        if is_married and rng.random() < 0.05:
+            marital = 'divorced' if rng.random() < 0.7 else 'widowed'
+            is_married = False  # 공제 계산 위해 배우자 추가 안 함
+        if gender is None:
+            gender = 'M' if rng.random() < 0.55 else 'F'
+        c.execute('UPDATE users SET marital_status=?, gender=? WHERE id=?', (marital, gender, uid))
+
+        if not is_married:
+            continue
+
+        # ── 배우자 추가
+        spouse_fn = rng.choice(FIRST_NAMES_F if gender == 'M' else FIRST_NAMES_M)
+        spouse_sn = rng.choice(SURNAMES_LIST)
+        spouse_age = age + rng.randint(-5, 5)
+        spouse_bd = (today - timedelta(days=spouse_age * 365 + rng.randint(-180, 180))).isoformat()
+        # 배우자 소득: 30%는 100만원 초과 (공제불가)
+        spouse_income = rng.choice([0, 0, 0, 0, 0, 500000, 1200000, 2000000])
+
+        dep_rows.append((uid, f'{spouse_sn}{spouse_fn}', 'spouse', spouse_bd, 'F' if gender == 'M' else 'M',
+                         0, spouse_income, 1, 0, None, None))
+
+        # 생애사건: 혼인
+        marriage_date = (hd - timedelta(days=rng.randint(0, 1000))).isoformat()
+        life_event_rows.append((uid, 'marriage', marriage_date, None, None))
+
+        # ── 자녀
+        has_child = rng.random() < (0.70 if age >= 32 else 0.40)
+        num_children = rng.choice([1, 1, 2, 2, 3]) if has_child else 0
+
+        for order in range(1, num_children + 1):
+            child_age = max(0, age - 28 - rng.randint(-3, 3) - (order - 1) * 2)
+            child_age = min(child_age, 25)
+            child_bd = (today - timedelta(days=child_age * 365 + rng.randint(0, 180))).isoformat()
+            child_fn = rng.choice(FIRST_NAMES_M + FIRST_NAMES_F)
+            child_income = 0  # 미성년 소득 없음
+            child_disabled = 1 if rng.random() < 0.03 else 0
+            dep_rows.append((uid, f'{rng.choice(SURNAMES_LIST)}{child_fn}', 'child', child_bd, None,
+                             child_disabled, child_income, 1, 0, order, None))
+            # 출산 생애사건
+            life_event_rows.append((uid, 'birth', child_bd, f'{order}째 출산', None))
+
+        # ── 부모 동거 (25%)
+        if rng.random() < 0.25 and age >= 35:
+            parent_age = age + rng.randint(25, 35)
+            parent_bd = (today - timedelta(days=parent_age * 365)).isoformat()
+            pname = rng.choice(SURNAMES_LIST) + rng.choice(FIRST_NAMES_M)
+            dep_rows.append((uid, pname, 'parent', parent_bd, 'M',
+                             0, 0, 1, 0, None, '부친 동거'))
+
+    # 일괄 INSERT
+    c.executemany(
+        'INSERT INTO employee_dependents '
+        '(user_id, name, relation, birth_date, gender, is_disabled, annual_income, '
+        'is_cohabiting, is_adopted, birth_order, note) '
+        'VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+        dep_rows
+    )
+    c.executemany(
+        'INSERT INTO life_events (user_id, event_type, event_date, description, created_by) '
+        'VALUES (?,?,?,?,?)',
+        life_event_rows
+    )
+    print(f"   부양가족: {len(dep_rows)}건, 생애사건: {len(life_event_rows)}건 시드 완료")
 
 
 if __name__ == '__main__':
