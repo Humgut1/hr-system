@@ -5261,30 +5261,6 @@ def me_benefits():
         (uid,)
     ).fetchone()
 
-    # 복지포인트 잔액 계산 (ledger 합산)
-    wp_balance = db.execute(
-        "SELECT COALESCE(SUM(delta), 0) FROM welfare_point_ledger WHERE user_id=?", (uid,)
-    ).fetchone()[0]
-
-    # 연간 지급 한도 (company_config)
-    cfg = db.execute("SELECT welfare_point_annual FROM company_config LIMIT 1").fetchone()
-    wp_annual_limit = int(cfg['welfare_point_annual']) if cfg and cfg['welfare_point_annual'] else 500000
-
-    # 이번 연도 지급 총액 (잔액 상한 기준)
-    from datetime import date
-    this_year = date.today().year
-    wp_granted_this_year = db.execute(
-        "SELECT COALESCE(SUM(delta),0) FROM welfare_point_ledger "
-        "WHERE user_id=? AND delta>0 AND strftime('%Y', created_at)=?",
-        (uid, str(this_year))
-    ).fetchone()[0]
-
-    # 최근 복지포인트 이력 5건
-    wp_history = db.execute(
-        "SELECT * FROM welfare_point_ledger WHERE user_id=? ORDER BY created_at DESC LIMIT 5",
-        (uid,)
-    ).fetchall()
-
     # 미완료 Enrollment Event
     enrollment_event = db.execute(
         "SELECT * FROM benefit_enrollment_events WHERE user_id=? AND status='pending' ORDER BY created_at DESC LIMIT 1",
@@ -5297,12 +5273,49 @@ def me_benefits():
                            total_monthly_tax=total_monthly_tax,
                            user=user,
                            last_payslip=last_payslip,
+                           enrollment_event=enrollment_event,
+                           active_page='me_benefits')
+
+
+@app.route('/me/welfare-points')
+@login_required
+def me_welfare_points():
+    db  = get_db()
+    uid = session['user_id']
+    from datetime import date
+    this_year = date.today().year
+
+    wp_balance = db.execute(
+        "SELECT COALESCE(SUM(delta), 0) FROM welfare_point_ledger WHERE user_id=?", (uid,)
+    ).fetchone()[0]
+
+    cfg_row = db.execute("SELECT welfare_point_annual FROM company_config LIMIT 1").fetchone()
+    wp_annual_limit = int(cfg_row['welfare_point_annual']) if cfg_row and cfg_row['welfare_point_annual'] else 500000
+
+    wp_granted_this_year = db.execute(
+        "SELECT COALESCE(SUM(delta),0) FROM welfare_point_ledger "
+        "WHERE user_id=? AND delta>0 AND strftime('%Y', created_at)=?",
+        (uid, str(this_year))
+    ).fetchone()[0]
+
+    wp_history = db.execute(
+        "SELECT * FROM welfare_point_ledger WHERE user_id=? ORDER BY created_at DESC LIMIT 20",
+        (uid,)
+    ).fetchall()
+
+    enrollment_event = db.execute(
+        "SELECT * FROM benefit_enrollment_events WHERE user_id=? AND status='pending' ORDER BY created_at DESC LIMIT 1",
+        (uid,)
+    ).fetchone()
+
+    return render_template('me/welfare_points.html',
                            wp_balance=wp_balance,
                            wp_annual_limit=wp_annual_limit,
                            wp_granted_this_year=wp_granted_this_year,
                            wp_history=wp_history,
                            enrollment_event=enrollment_event,
-                           active_page='me_benefits')
+                           this_year=this_year,
+                           active_page='me_welfare_points')
 
 
 @app.route('/me/benefits/enrollment/<int:eid>/complete', methods=['POST'])
