@@ -47,6 +47,9 @@
         <a href="{{ url_for('performance') }}" class="nav-item{% if active_page in ('performance','peer') %} active{% endif %}" title="성과">
           <i class="fas fa-chart-line"></i><span>성과</span>
         </a>
+        <a href="{{ url_for('me_benefits') }}" class="nav-item{% if active_page == 'me_benefits' %} active{% endif %}" title="복리후생">
+          <i class="fas fa-gift"></i><span>복리후생</span>
+        </a>
         <a href="{{ url_for('dashboard') }}" class="nav-item{% if active_page == 'home' %} active{% endif %}" title="홈">
           <i class="fas fa-home"></i><span>홈</span>
         </a>
@@ -109,15 +112,25 @@
           <i class="fas fa-file-invoice-dollar"></i><span>보상 검토 (ACR)</span>
         </a>
         {% endif %}
-        <a href="{{ url_for('requisition_list') }}" class="nav-item{% if active_page == 'requisition' %} active{% endif %}" title="채용 요청서">
-          <i class="fas fa-file-alt"></i><span>채용 요청서</span>
-        </a>
-        <a href="{{ url_for('recruit_dashboard') }}" class="nav-item{% if active_page == 'recruit_dashboard' %} active{% endif %}" title="채용 대시보드">
-          <i class="fas fa-chart-bar"></i><span>채용 대시보드</span>
-        </a>
-        <a href="{{ url_for('recruit_postings') }}" class="nav-item{% if active_page in ('recruit','recruit_pipeline','recruiter') %} active{% endif %}" title="채용 관리">
-          <i class="fas fa-user-tie"></i><span>채용 관리</span>
-        </a>
+        <!-- 채용 접이식 서브그룹 -->
+        {% set recruit_active = active_page in ('requisition','recruit_dashboard','recruit','recruit_pipeline','recruiter') %}
+        <button class="nav-subgroup-btn{% if recruit_active %} open active-group{% endif %}"
+                onclick="toggleSubgroup(this,'sg-recruit')" title="채용">
+          <i class="fas fa-user-tie sg-icon"></i>
+          <span class="sg-label">채용</span>
+          <i class="fas fa-chevron-down sg-arrow"></i>
+        </button>
+        <div class="nav-subgroup-body{% if recruit_active %} open{% endif %}" id="sg-recruit">
+          <a href="{{ url_for('recruit_dashboard') }}" class="nav-item{% if active_page == 'recruit_dashboard' %} active{% endif %}" title="채용 대시보드">
+            <i class="fas fa-chart-bar"></i><span>대시보드</span>
+          </a>
+          <a href="{{ url_for('recruit_postings') }}" class="nav-item{% if active_page in ('recruit','recruit_pipeline','recruiter') %} active{% endif %}" title="채용 관리">
+            <i class="fas fa-briefcase"></i><span>공고 · 파이프라인</span>
+          </a>
+          <a href="{{ url_for('requisition_list') }}" class="nav-item{% if active_page == 'requisition' %} active{% endif %}" title="채용 요청서">
+            <i class="fas fa-file-alt"></i><span>채용 요청서</span>
+          </a>
+        </div>
         {% if session.user_role == 'admin' %}
         <a href="{{ url_for('people_analytics') }}" class="nav-item{% if active_page == 'analytics' %} active{% endif %}" title="분석·보고서">
           <i class="fas fa-chart-pie"></i><span>분석·보고서</span>
@@ -301,6 +314,15 @@ document.addEventListener('click', function(e) {
     setCollapsed(!sidebar.classList.contains('collapsed'));
   });
 }());
+
+// ── 채용 서브그룹 토글 ──────────────────────────
+function toggleSubgroup(btn, bodyId) {
+  var body = document.getElementById(bodyId);
+  if (!body) return;
+  var isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  btn.classList.toggle('open', !isOpen);
+}
 
 // ── 글로벌 검색 ────────────────────────────────
 (function() {

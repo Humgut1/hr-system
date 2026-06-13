@@ -229,6 +229,58 @@ input, select, textarea { font-family: var(--font); }
 .nav-item i { width: 16px; font-size: 14px; flex-shrink: 0; color: #6b7a8c; }
 .nav-item:hover i { color: #151c23; }
 
+/* ── 사이드바 접이식 서브그룹 ─────────────────────── */
+.nav-subgroup-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  color: #4a5568;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background .15s, color .15s;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+.nav-subgroup-btn:hover { background: #edf4fe; color: #151c23; }
+.nav-subgroup-btn:hover i { color: #151c23; }
+.nav-subgroup-btn i.sg-icon { width: 16px; font-size: 14px; flex-shrink: 0; color: #6b7a8c; }
+.nav-subgroup-btn .sg-label { flex: 1; }
+.nav-subgroup-btn .sg-arrow {
+  font-size: 10px;
+  color: #6b7a8c;
+  transition: transform .2s;
+}
+.nav-subgroup-btn.open .sg-arrow { transform: rotate(180deg); }
+.nav-subgroup-btn.active-group { color: #151c23; font-weight: 600; }
+.nav-subgroup-btn.active-group i.sg-icon { color: #2b5bff; }
+
+.nav-subgroup-body {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height .25s ease;
+}
+.nav-subgroup-body.open { max-height: 200px; }
+.nav-subgroup-body .nav-item {
+  padding-left: 36px;
+  font-size: 13px;
+}
+
+/* collapsed 사이드바에서 서브그룹 버튼 */
+.sidebar.collapsed .nav-subgroup-btn {
+  justify-content: center;
+  padding: 10px 0;
+  gap: 0;
+  border-radius: 10px;
+}
+.sidebar.collapsed .nav-subgroup-btn .sg-label,
+.sidebar.collapsed .nav-subgroup-btn .sg-arrow { display: none; }
+.sidebar.collapsed .nav-subgroup-body { max-height: 0 !important; }
+
 .sidebar-footer {
   padding: 10px;
   flex-shrink: 0;

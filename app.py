@@ -5188,6 +5188,77 @@ def performance_cycle_activate(cycle_id):
 
 
 # ── Profile ─────────────────────────────────────────────────
+@app.route('/me/benefits')
+@login_required
+def me_benefits():
+    db  = get_db()
+    uid = session['user_id']
+
+    # 회사가 활성화한 복리후생 항목
+    configs = db.execute(
+        "SELECT * FROM benefit_configs WHERE enabled=1 ORDER BY key"
+    ).fetchall()
+
+    # 개인 오버라이드 (금액 조정)
+    overrides = {
+        r['benefit_key']: r['amount']
+        for r in db.execute(
+            "SELECT * FROM employee_benefit_overrides WHERE user_id=?", (uid,)
+        ).fetchall()
+    }
+
+    # 항목별 금액 계산
+    items = []
+    total_monthly     = 0
+    total_monthly_tax = 0
+    for cfg in configs:
+        key  = cfg['key']
+        meta = BENEFIT_CATALOG.get(key, {})
+        if not meta:
+            continue
+        amount = overrides.get(key, cfg['amount'] or meta.get('default_amount', 0))
+        is_tax_exempt = meta.get('tax_exempt', False)
+        items.append({
+            'key':        key,
+            'name':       meta['name'],
+            'icon':       meta.get('icon', 'fa-gift'),
+            'amount':     amount,
+            'tax_exempt': is_tax_exempt,
+            'monthly_limit': meta.get('monthly_limit'),
+            'legal_basis': meta.get('legal_basis', ''),
+            'description': meta.get('description', ''),
+            'conditions':  meta.get('conditions'),
+            'payment_type': meta.get('payment_type', 'monthly_fixed'),
+        })
+        if meta.get('payment_type') == 'monthly_fixed':
+            total_monthly += amount
+            if not is_tax_exempt:
+                total_monthly_tax += amount
+
+    # 직원 기본 정보 (급여 조회)
+    user = db.execute(
+        'SELECT u.*, d.name AS dept_name, p.name AS pos_name '
+        'FROM users u '
+        'LEFT JOIN departments d ON u.department_id=d.id '
+        'LEFT JOIN positions   p ON u.position_id=p.id '
+        'WHERE u.id=?', (uid,)
+    ).fetchone()
+
+    # 최근 급여명세서에서 실제 지급된 복리후생 확인
+    last_payslip = db.execute(
+        "SELECT * FROM payslips WHERE user_id=? ORDER BY year DESC, month DESC LIMIT 1",
+        (uid,)
+    ).fetchone()
+
+    return render_template('me/benefits.html',
+                           items=items,
+                           total_monthly=total_monthly,
+                           total_monthly_tax=total_monthly_tax,
+                           user=user,
+                           last_payslip=last_payslip,
+                           active_page='me_benefits')
+
+
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
