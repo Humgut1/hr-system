@@ -6485,8 +6485,12 @@ def recruit_applicant_panel(applicant_id):
 def recruit_applicant_detail(applicant_id):
     db        = get_db()
     applicant = db.execute(
-        'SELECT a.*, jp.title AS posting_title, jp.id AS posting_id '
-        'FROM applicants a JOIN job_postings jp ON a.posting_id = jp.id '
+        'SELECT a.*, jp.title AS posting_title, jp.id AS posting_id, '
+        'jp.salary_min, jp.salary_max, '
+        'jr.job_level, jr.track, jr.salary_mid AS req_salary_mid, jr.job_family_id '
+        'FROM applicants a '
+        'JOIN job_postings jp ON a.posting_id = jp.id '
+        'LEFT JOIN job_requisitions jr ON jp.requisition_id = jr.id '
         'WHERE a.id=?', (applicant_id,)
     ).fetchone()
     if not applicant:
