@@ -3,6 +3,24 @@
 {% block page_title %}복리후생 · 비과세 설정{% endblock %}
 
 {% block content %}
+<div class="page-header">
+  <h1 class="page-title">복리후생 관리</h1>
+</div>
+
+<!-- 탭 -->
+<div style="display:flex;gap:0;border-bottom:2px solid var(--bd);margin-bottom:1.5rem;">
+  <button id="tab-settings" onclick="switchBenefitTab('settings')"
+          style="padding:.7rem 1.5rem;border:none;background:none;font-size:.9rem;font-weight:600;cursor:pointer;border-bottom:2px solid var(--primary);margin-bottom:-2px;color:var(--primary);">
+    <i class="fas fa-cog" style="margin-right:.4rem;"></i>항목 설정
+  </button>
+  <button id="tab-analytics" onclick="switchBenefitTab('analytics')"
+          style="padding:.7rem 1.5rem;border:none;background:none;font-size:.9rem;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--tx-3);">
+    <i class="fas fa-chart-bar" style="margin-right:.4rem;"></i>비용 분석
+  </button>
+</div>
+
+<!-- ── 설정 탭 ── -->
+<div id="pane-settings">
 <div style="max-width:960px;margin:0 auto;">
 
   <!-- 안내 배너 -->
@@ -387,5 +405,140 @@ function toggleBenefit(key) {
     }
   }
 }
+
+function switchBenefitTab(tab) {
+  document.getElementById('pane-settings').style.display  = tab === 'settings'  ? '' : 'none';
+  document.getElementById('pane-analytics').style.display = tab === 'analytics' ? '' : 'none';
+  document.getElementById('tab-settings').style.borderBottomColor  = tab === 'settings'  ? 'var(--primary)' : 'transparent';
+  document.getElementById('tab-settings').style.color  = tab === 'settings'  ? 'var(--primary)' : 'var(--tx-3)';
+  document.getElementById('tab-analytics').style.borderBottomColor = tab === 'analytics' ? 'var(--primary)' : 'transparent';
+  document.getElementById('tab-analytics').style.color = tab === 'analytics' ? 'var(--primary)' : 'var(--tx-3)';
+}
 </script>
+
+</div><!-- /pane-settings -->
+
+<!-- ── 분석 탭 ── -->
+<div id="pane-analytics" style="display:none;">
+
+  <!-- 요약 카드 -->
+  <div class="stat-grid" style="margin-bottom:1.5rem;">
+    <div class="stat-card">
+      <div class="stat-ico ico-blue"><i class="fas fa-users"></i></div>
+      <div class="stat-body">
+        <div class="stat-val">{{ total_emp }}명</div>
+        <div class="stat-lbl">적용 직원 수</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-ico ico-green"><i class="fas fa-won-sign"></i></div>
+      <div class="stat-body">
+        <div class="stat-val">{{ '{:,}'.format(total_monthly_cost) }}원</div>
+        <div class="stat-lbl">월 총 복리후생 비용</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-ico ico-orange"><i class="fas fa-leaf"></i></div>
+      <div class="stat-body">
+        <div class="stat-val" style="color:#27ae60;">{{ '{:,}'.format(tax_saving) }}원</div>
+        <div class="stat-lbl">월 세금 절감 효과 (추정)</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-ico ico-purple"><i class="fas fa-user-tag"></i></div>
+      <div class="stat-body">
+        <div class="stat-val">{{ '{:,}'.format(per_person_monthly) }}원</div>
+        <div class="stat-lbl">1인당 월 평균</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+
+    <!-- 항목별 비용 -->
+    <div class="card" style="padding:1.5rem;">
+      <h3 class="section-title" style="margin-bottom:1.2rem;">항목별 월 비용</h3>
+      {% if benefit_cost_items %}
+      {% set max_cost = benefit_cost_items | map(attribute='total') | max %}
+      <div style="display:flex;flex-direction:column;gap:.75rem;">
+        {% for item in benefit_cost_items | sort(attribute='total', reverse=True) %}
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
+            <div style="display:flex;align-items:center;gap:.5rem;">
+              <i class="fas {{ item.icon }}" style="color:{% if item.tax_exempt %}#27ae60{% else %}#e67e22{% endif %};font-size:12px;width:14px;"></i>
+              <span style="font-size:.83rem;font-weight:600;color:var(--tx-1);">{{ item.name }}</span>
+              {% if item.tax_exempt %}
+              <span style="background:#eafaf1;color:#1e8449;padding:.1rem .45rem;border-radius:10px;font-size:.68rem;font-weight:600;">비과세</span>
+              {% endif %}
+            </div>
+            <span style="font-size:.82rem;font-weight:700;color:var(--tx-1);">{{ '{:,}'.format(item.total) }}원</span>
+          </div>
+          <div style="height:6px;background:var(--bg-2);border-radius:3px;overflow:hidden;">
+            <div style="height:100%;width:{{ (item.total / max_cost * 100) | round(0) | int }}%;background:{% if item.tax_exempt %}#27ae60{% else %}var(--primary){% endif %};border-radius:3px;"></div>
+          </div>
+          <div style="font-size:.72rem;color:var(--tx-3);margin-top:.15rem;">1인 {{ '{:,}'.format(item.per_person) }}원 × {{ total_emp }}명</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:2rem;color:var(--tx-3);font-size:.85rem;">활성화된 항목이 없습니다.</div>
+      {% endif %}
+    </div>
+
+    <!-- 부서별 비용 -->
+    <div class="card" style="padding:1.5rem;">
+      <h3 class="section-title" style="margin-bottom:1.2rem;">부서별 복리후생 비용</h3>
+      {% if dept_analysis %}
+      {% set max_dept = dept_analysis | map(attribute='total') | max %}
+      <div style="display:flex;flex-direction:column;gap:.75rem;">
+        {% for d in dept_analysis %}
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
+            <span style="font-size:.83rem;font-weight:600;color:var(--tx-1);">{{ d.dept }}</span>
+            <div style="text-align:right;">
+              <span style="font-size:.82rem;font-weight:700;color:var(--tx-1);">{{ '{:,}'.format(d.total) }}원</span>
+              <span style="font-size:.72rem;color:var(--tx-3);margin-left:.4rem;">{{ d.cnt }}명</span>
+            </div>
+          </div>
+          <div style="height:6px;background:var(--bg-2);border-radius:3px;overflow:hidden;">
+            <div style="height:100%;width:{{ (d.total / max_dept * 100) | round(0) | int }}%;background:var(--primary);border-radius:3px;"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:2rem;color:var(--tx-3);font-size:.85rem;">부서 데이터가 없습니다.</div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- 복지포인트 현황 -->
+  <div class="card" style="padding:1.5rem;">
+    <h3 class="section-title" style="margin-bottom:1.2rem;">{{ this_year }}년 복지포인트 현황</h3>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-bottom:1.2rem;">
+      <div style="text-align:center;padding:1rem;background:var(--bg-2);border-radius:12px;">
+        <div style="font-size:1.4rem;font-weight:700;color:#27ae60;">{{ '{:,}'.format(wp_total_granted) }}원</div>
+        <div style="font-size:.78rem;color:var(--tx-3);margin-top:.3rem;">총 지급액</div>
+      </div>
+      <div style="text-align:center;padding:1rem;background:var(--bg-2);border-radius:12px;">
+        <div style="font-size:1.4rem;font-weight:700;color:#e67e22;">{{ '{:,}'.format(wp_used) }}원</div>
+        <div style="font-size:.78rem;color:var(--tx-3);margin-top:.3rem;">총 사용액</div>
+      </div>
+      <div style="text-align:center;padding:1rem;background:var(--bg-2);border-radius:12px;">
+        <div style="font-size:1.4rem;font-weight:700;color:var(--primary);">{{ '{:,}'.format(wp_total_balance) }}원</div>
+        <div style="font-size:.78rem;color:var(--tx-3);margin-top:.3rem;">총 잔액</div>
+      </div>
+    </div>
+    <div style="background:var(--bg-2);border-radius:8px;overflow:hidden;height:10px;">
+      <div style="height:100%;width:{{ [wp_usage_pct, 100] | min }}%;background:#e67e22;border-radius:8px;transition:width .3s;"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:.5rem;font-size:.78rem;color:var(--tx-3);">
+      <span>사용률 {{ wp_usage_pct }}%</span>
+      <span>잔액 {{ 100 - wp_usage_pct }}%</span>
+    </div>
+  </div>
+
+</div><!-- /pane-analytics -->
+
 {% endblock %}

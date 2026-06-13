@@ -10084,9 +10084,85 @@ def admin_benefits():
             'note':            cfg.get('note', ''),
         })
 
+    # ── 분석 데이터 ──────────────────────────────────────────────
+    from datetime import date
+    this_year = date.today().year
+
+    # 활성 직원 수
+    total_emp = db.execute(
+        "SELECT COUNT(*) FROM users WHERE role NOT IN ('admin','recruiter','guest') AND (termination_date IS NULL OR termination_date='')"
+    ).fetchone()[0] or 1
+
+    # 활성화된 monthly_fixed 항목별 비용 집계
+    benefit_cost_items = []
+    total_monthly_cost = 0
+    total_nontax_cost  = 0
+    for key, meta in sorted(BENEFIT_CATALOG.items(), key=lambda x: x[1].get('sort', 99)):
+        if meta.get('payment_type') != 'monthly_fixed':
+            continue
+        cfg = configs.get(key, {})
+        if not cfg.get('enabled'):
+            continue
+        amount     = cfg.get('amount') or meta.get('default_amount', 0)
+        monthly    = amount * total_emp
+        is_exempt  = meta.get('tax_exempt', False)
+        benefit_cost_items.append({
+            'name':       meta['name'],
+            'icon':       meta.get('icon', 'fa-circle'),
+            'tax_exempt': is_exempt,
+            'per_person': amount,
+            'total':      monthly,
+        })
+        total_monthly_cost += monthly
+        if is_exempt:
+            total_nontax_cost += monthly
+
+    # 비과세 절감 효과 (소득세+주민세 약 33% 가정)
+    tax_saving = int(total_nontax_cost * 0.33)
+
+    # 부서별 인원 + 1인당 월 복리후생 비용
+    dept_rows = db.execute("""
+        SELECT d.name AS dept_name, COUNT(u.id) AS cnt
+        FROM users u
+        JOIN departments d ON u.department_id = d.id
+        WHERE u.role NOT IN ('admin','recruiter','guest')
+          AND (u.termination_date IS NULL OR u.termination_date='')
+        GROUP BY d.id
+        ORDER BY cnt DESC
+        LIMIT 10
+    """).fetchall()
+    per_person_monthly = total_monthly_cost // total_emp if total_emp else 0
+    dept_analysis = [
+        {'dept': r['dept_name'], 'cnt': r['cnt'], 'total': r['cnt'] * per_person_monthly}
+        for r in dept_rows
+    ]
+
+    # 복지포인트 현황
+    wp_total_granted = db.execute(
+        "SELECT COALESCE(SUM(delta),0) FROM welfare_point_ledger WHERE delta>0 AND strftime('%Y',created_at)=?",
+        (str(this_year),)
+    ).fetchone()[0]
+    wp_total_balance = db.execute(
+        "SELECT COALESCE(SUM(delta),0) FROM welfare_point_ledger"
+    ).fetchone()[0]
+    wp_used = wp_total_granted - wp_total_balance if wp_total_granted > wp_total_balance else 0
+    wp_usage_pct = int(wp_used / wp_total_granted * 100) if wp_total_granted > 0 else 0
+
     return render_template('admin/benefits.html',
                            sections=sections,
                            payment_type_labels=PAYMENT_TYPE_LABELS,
+                           total_emp=total_emp,
+                           benefit_cost_items=benefit_cost_items,
+                           total_monthly_cost=total_monthly_cost,
+                           total_nontax_cost=total_nontax_cost,
+                           tax_saving=tax_saving,
+                           dept_analysis=dept_analysis,
+                           per_person_monthly=per_person_monthly,
+                           wp_total_granted=wp_total_granted,
+                           wp_total_balance=wp_total_balance,
+                           wp_used=wp_used,
+                           wp_usage_pct=wp_usage_pct,
+                           this_year=this_year,
                            active_page='benefits')
 
 
