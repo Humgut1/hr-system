@@ -1513,7 +1513,52 @@ REPORT_SOURCES = [
             {'key': 'perf_grade',    'label': '성과등급',     'sql': 'cr.final_grade',           'agg': False, 'needs': ['perf_join']},
             {'key': 'self_avg',      'label': '자기평가평균', 'sql': 'ROUND(cr.self_avg,2)',      'agg': False, 'needs': ['perf_join']},
             {'key': 'mgr_avg',       'label': '매니저평가',   'sql': 'ROUND(cr.mgr_avg,2)',       'agg': False, 'needs': ['perf_join']},
+            {'key': 'peer_avg',      'label': '다면평가평균', 'sql': 'ROUND(cr.peer_avg,2)',      'agg': False, 'needs': ['perf_join']},
             {'key': 'goal_progress', 'label': '목표진행률',   'sql': 'ROUND(AVG(pg.progress),1)', 'agg': True,  'needs': ['goal_join']},
+        ]
+    },
+    {
+        'key': 'talent', 'label': 'Talent 평가',
+        'icon': 'fa-id-card', 'color': '#ede9fe', 'icon_color': '#5b21b6',
+        'fields': [
+            {'key': 'potential_score',  'label': '잠재력',       'sql': 'cr.potential_score',  'agg': False, 'needs': ['perf_join']},
+            {'key': 'retention_risk',   'label': '이탈위험',     'sql': 'cr.retention_risk',   'agg': False, 'needs': ['perf_join']},
+            {'key': 'loss_impact',      'label': '이탈임팩트',   'sql': 'cr.loss_impact',      'agg': False, 'needs': ['perf_join']},
+            {'key': 'achievable_level', 'label': '달성가능레벨', 'sql': 'cr.achievable_level', 'agg': False, 'needs': ['perf_join']},
+            {'key': 'downgrade_reason', 'label': '하향조정사유', 'sql': 'cr.downgrade_reason', 'agg': False, 'needs': ['perf_join']},
+        ]
+    },
+    {
+        'key': 'salary_hist', 'label': '급여 변경이력',
+        'icon': 'fa-history', 'color': '#dcfce7', 'icon_color': '#15803d',
+        'fields': [
+            {'key': 'sal_change_count', 'label': '급여변경횟수', 'sql': 'COALESCE(sh_agg.change_count,0)', 'agg': False, 'needs': ['sal_hist_join']},
+            {'key': 'sal_last_change',  'label': '최근변경일',   'sql': 'sh_agg.last_change_at',          'agg': False, 'needs': ['sal_hist_join']},
+            {'key': 'sal_total_raise',  'label': '누적인상액',   'sql': 'COALESCE(sh_agg.total_raise,0)',  'agg': False, 'needs': ['sal_hist_join']},
+        ]
+    },
+    {
+        'key': 'peer_review', 'label': '다면평가',
+        'icon': 'fa-comments', 'color': '#fce7f3', 'icon_color': '#be185d',
+        'fields': [
+            {'key': 'peer_score_avg', 'label': '다면평가 평균점수', 'sql': 'COALESCE(pr_agg.peer_score_avg,0)', 'agg': False, 'needs': ['peer_review_join']},
+            {'key': 'peer_count',     'label': '피어리뷰 수신건수', 'sql': 'COALESCE(pr_agg.peer_count,0)',     'agg': False, 'needs': ['peer_review_join']},
+        ]
+    },
+    {
+        'key': 'welfare', 'label': '복지포인트',
+        'icon': 'fa-gift', 'color': '#ffedd5', 'icon_color': '#c2410c',
+        'fields': [
+            {'key': 'welfare_balance',     'label': '복지포인트 잔액',   'sql': 'COALESCE(wp_agg.balance,0)',       'agg': False, 'needs': ['welfare_join']},
+            {'key': 'welfare_total_grant', 'label': '누적 지급 포인트', 'sql': 'COALESCE(wp_agg.total_granted,0)', 'agg': False, 'needs': ['welfare_join']},
+        ]
+    },
+    {
+        'key': 'skills', 'label': '스킬 & 자격증',
+        'icon': 'fa-certificate', 'color': '#dbeafe', 'icon_color': '#1d4ed8',
+        'fields': [
+            {'key': 'skill_count', 'label': '보유 스킬 수',  'sql': 'COALESCE(sk_agg.skill_count,0)', 'agg': False, 'needs': ['skill_join']},
+            {'key': 'cert_count',  'label': '보유 자격증 수', 'sql': 'COALESCE(ec_agg.cert_count,0)',  'agg': False, 'needs': ['cert_join']},
         ]
     },
 ]
@@ -1571,12 +1616,42 @@ def build_report_query(field_keys, filters, limit=200):
         joins.append(f'LEFT JOIN leave_requests lr ON lr.user_id = u.id{date_cond}')
     if 'perf_join' in needs:
         joins.append(
-            'LEFT JOIN (SELECT user_id, final_grade, self_avg, mgr_avg '
+            'LEFT JOIN (SELECT user_id, final_grade, self_avg, peer_avg, mgr_avg, '
+            'potential_score, retention_risk, loss_impact, achievable_level, downgrade_reason '
             'FROM calibration_results WHERE id IN '
             '(SELECT MAX(id) FROM calibration_results GROUP BY user_id)) cr ON cr.user_id = u.id'
         )
     if 'goal_join' in needs:
         joins.append('LEFT JOIN performance_goals pg ON pg.user_id = u.id')
+    if 'sal_hist_join' in needs:
+        joins.append(
+            'LEFT JOIN (SELECT user_id, COUNT(*) change_count, MAX(changed_at) last_change_at, '
+            'SUM(new_base_salary - old_base_salary) total_raise '
+            'FROM salary_history GROUP BY user_id) sh_agg ON sh_agg.user_id = u.id'
+        )
+    if 'peer_review_join' in needs:
+        joins.append(
+            'LEFT JOIN (SELECT reviewee_id, ROUND(AVG(score),2) peer_score_avg, COUNT(*) peer_count '
+            'FROM peer_reviews GROUP BY reviewee_id) pr_agg ON pr_agg.reviewee_id = u.id'
+        )
+    if 'welfare_join' in needs:
+        joins.append(
+            'LEFT JOIN (SELECT user_id, '
+            'SUM(CASE WHEN delta > 0 THEN delta ELSE 0 END) total_granted, '
+            '(SELECT wl2.balance_after FROM welfare_point_ledger wl2 '
+            ' WHERE wl2.user_id = wpl.user_id ORDER BY wl2.created_at DESC LIMIT 1) balance '
+            'FROM welfare_point_ledger wpl GROUP BY user_id) wp_agg ON wp_agg.user_id = u.id'
+        )
+    if 'skill_join' in needs:
+        joins.append(
+            'LEFT JOIN (SELECT user_id, COUNT(*) skill_count '
+            'FROM employee_skills GROUP BY user_id) sk_agg ON sk_agg.user_id = u.id'
+        )
+    if 'cert_join' in needs:
+        joins.append(
+            'LEFT JOIN (SELECT user_id, COUNT(*) cert_count '
+            'FROM employee_certs GROUP BY user_id) ec_agg ON ec_agg.user_id = u.id'
+        )
 
     # WHERE 절
     where_parts = ["u.status = 'active'"]
