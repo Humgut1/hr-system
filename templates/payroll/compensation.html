@@ -1,0 +1,667 @@
+{% extends 'base.html' %}
+{% block title %}보상 관리{% endblock %}
+{% block page_title %}보상 관리{% endblock %}
+
+{% block head %}
+<style>
+/* ── 탭 ── */
+.cp-tabs { display:flex; gap:2px; border-bottom:1px solid var(--line); margin-bottom:24px; }
+.cp-tab {
+  padding:10px 20px; font-size:13px; font-weight:700; color:var(--tx-3);
+  border:none; background:none; cursor:pointer; border-bottom:2px solid transparent;
+  margin-bottom:-1px; font-family:inherit; white-space:nowrap; transition:color .15s, border-color .15s;
+}
+.cp-tab:hover { color:var(--tx-1); }
+.cp-tab.active { color:var(--primary); border-bottom-color:var(--primary); }
+
+/* ── 요약 KPI 바 ── */
+.kpi-bar { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px; }
+@media(max-width:700px){ .kpi-bar { grid-template-columns:repeat(2,1fr); } }
+.kpi-card { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:16px 18px; }
+.kpi-label { font-size:11px; font-weight:700; color:var(--tx-3); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+.kpi-val { font-size:22px; font-weight:800; color:var(--tx-1); }
+.kpi-sub { font-size:11px; color:var(--tx-3); margin-top:3px; }
+
+/* ── 급여 운영 탭 ── */
+.gen-bar { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:20px; padding:16px 20px; background:var(--primary-soft); border-radius:var(--r); }
+.gen-bar .field { display:flex; flex-direction:column; gap:4px; }
+.gen-bar label { font-size:11px; font-weight:700; color:var(--primary-tx); }
+.gen-bar select { padding:8px 10px; border:1px solid var(--line); border-radius:var(--r-sm); font-size:13px; font-family:inherit; background:var(--surface); }
+.gen-bar button { padding:9px 20px; }
+
+/* ── 밴드 매트릭스 ── */
+.band-table { width:100%; border-collapse:collapse; font-size:12px; }
+.band-table th { padding:8px 10px; background:var(--surface-3); border:1px solid var(--line); text-align:center; font-size:11px; white-space:nowrap; }
+.band-table th:first-child { text-align:left; min-width:80px; }
+.band-table td { border:1px solid var(--line); padding:0; cursor:pointer; }
+.band-table td:first-child { padding:8px 12px; font-weight:700; background:var(--surface-3); cursor:default; white-space:nowrap; }
+.band-cell { padding:4px 6px; }
+.band-min { background:var(--info-bg); color:var(--info); font-size:10px; border-radius:2px; padding:1px 4px; text-align:right; }
+.band-mid { background:var(--green-bg); color:var(--green); font-size:11px; border-radius:2px; padding:1px 4px; text-align:right; font-weight:800; }
+.band-max { background:var(--orange-bg); color:var(--orange); font-size:10px; border-radius:2px; padding:1px 4px; text-align:right; }
+.band-empty { padding:10px; text-align:center; color:var(--line); font-size:10px; }
+
+/* ── Compa-Ratio 배지 ── */
+.cr-low  { background:var(--orange-bg); color:var(--orange); }
+.cr-ok   { background:var(--green-bg);  color:var(--green);  }
+.cr-high { background:var(--info-bg);   color:var(--info);   }
+
+/* ── Merit Matrix ── */
+.mm-table { border-collapse:collapse; font-size:13px; }
+.mm-table th { padding:8px 14px; background:var(--surface-3); border:1px solid var(--line); font-size:11px; text-align:center; white-space:nowrap; }
+.mm-table td { border:1px solid var(--line); padding:6px 10px; text-align:center; }
+.mm-table input[type=number] { width:64px; padding:4px 6px; border:1px solid var(--line); border-radius:4px; font-size:12px; text-align:center; font-family:inherit; }
+
+/* ── ACR 사이클 카드 ── */
+.acr-card { border:1px solid var(--line); border-radius:var(--r); padding:14px 18px; margin-bottom:10px; display:flex; align-items:center; gap:14px; }
+.acr-card:hover { background:var(--hover); }
+.acr-status { font-size:11px; font-weight:700; padding:3px 10px; border-radius:99px; white-space:nowrap; }
+.acr-draft  { background:var(--surface-3); color:var(--tx-3); }
+.acr-open   { background:var(--green-bg); color:var(--green); }
+.acr-closed { background:var(--line); color:var(--tx-3); }
+
+/* ── 모달 ── */
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; align-items:center; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal-box { background:var(--surface); border-radius:var(--r-lg); padding:28px; width:400px; max-width:94vw; }
+.modal-title { font-size:16px; font-weight:800; color:var(--tx-1); margin-bottom:18px; }
+.modal-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+    <div class="alert alert-{{ cat }}" style="margin-bottom:16px;">{{ msg }}</div>
+  {% endfor %}
+{% endwith %}
+
+<!-- ── KPI 바 ── -->
+<div class="kpi-bar">
+  <div class="kpi-card">
+    <div class="kpi-label">재직 인원</div>
+    <div class="kpi-val">{{ active_count }}명</div>
+    <div class="kpi-sub">활성 직원</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">이달 급여</div>
+    <div class="kpi-val" style="color:{% if this_month_done >= active_count %}var(--green){% else %}var(--orange){% endif %};">
+      {{ this_month_done }}/{{ active_count }}
+    </div>
+    <div class="kpi-sub">{{ today_year }}년 {{ today_month }}월 생성 현황</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">진행 중 ACR</div>
+    <div class="kpi-val" style="color:{% if active_acr %}var(--primary){% else %}var(--tx-3){% endif %};">
+      {% if active_acr %}{{ active_acr.name[:10] }}{% else %}없음{% endif %}
+    </div>
+    <div class="kpi-sub">연간 보상 검토</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Compa 이상치</div>
+    <div class="kpi-val" style="color:{% if compa_outliers > 0 %}var(--red){% else %}var(--green){% endif %};">
+      {{ compa_outliers }}명
+    </div>
+    <div class="kpi-sub">밴드 80% 미만 또는 120% 초과</div>
+  </div>
+</div>
+
+<!-- ── 탭 네비 ── -->
+<div class="cp-tabs">
+  <button class="cp-tab {% if active_tab == 'ops' %}active{% endif %}" onclick="switchCpTab('ops',this)">급여 운영</button>
+  <button class="cp-tab {% if active_tab == 'structure' %}active{% endif %}" onclick="switchCpTab('structure',this)">급여 구조</button>
+  <button class="cp-tab {% if active_tab == 'acr' %}active{% endif %}" onclick="switchCpTab('acr',this)">보상 검토 (ACR)</button>
+  <button class="cp-tab {% if active_tab == 'analysis' %}active{% endif %}" onclick="switchCpTab('analysis',this)">보상 분석</button>
+</div>
+
+
+<!-- ════════════════════════════════
+     TAB 1: 급여 운영
+════════════════════════════════ -->
+<div id="cp-ops" class="cp-pane" {% if active_tab != 'ops' %}style="display:none"{% endif %}>
+
+  <!-- 월 급여 생성 바 -->
+  <form method="POST" action="{{ url_for('compensation') }}">
+    <input type="hidden" name="action" value="generate">
+    <input type="hidden" name="_tab" value="ops">
+    <div class="gen-bar">
+      <div class="field">
+        <label>연도</label>
+        <select name="year">
+          {% for y in range(today_year - 1, today_year + 2) %}
+          <option value="{{ y }}" {% if y == today_year %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>월</label>
+        <select name="month">
+          {% for m in range(1, 13) %}
+          <option value="{{ m }}" {% if m == today_month %}selected{% endif %}>{{ m }}월</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-play"></i> 급여 생성
+      </button>
+      <span style="font-size:12px; color:var(--primary-tx); align-self:center;">
+        이미 생성된 직원은 건너뜁니다 · 근태 수당·복리후생 자동 포함
+      </span>
+    </div>
+  </form>
+
+  <!-- 직원별 급여 테이블 -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">직원별 급여 현황</span>
+      <a href="{{ url_for('export_employees') }}" class="btn btn-ghost btn-sm">
+        <i class="fas fa-file-excel" style="color:#217346;"></i> Excel
+      </a>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>이름</th>
+            <th>부서</th>
+            <th>직급</th>
+            <th>기본급</th>
+            <th>식대</th>
+            <th>교통비</th>
+            <th>Compa-Ratio</th>
+            <th>액션</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for emp in emps %}
+          <tr>
+            <td>
+              <div class="u-cell">
+                <div class="avatar-xs">{{ emp.name[0] }}</div>
+                <span class="u-name">{{ emp.name }}</span>
+              </div>
+            </td>
+            <td style="color:var(--tx-3);">{{ emp.dept_name or '—' }}</td>
+            <td style="color:var(--tx-3);">{{ emp.pos_name or '—' }}</td>
+            <td style="font-variant-numeric:tabular-nums;">{{ '{:,}'.format(emp.base_salary) }}원</td>
+            <td style="color:var(--tx-3); font-variant-numeric:tabular-nums;">{{ '{:,}'.format(emp.meal_allowance) }}원</td>
+            <td style="color:var(--tx-3); font-variant-numeric:tabular-nums;">{{ '{:,}'.format(emp.transport_allowance) }}원</td>
+            <td>
+              {% if emp.compa_ratio %}
+              {% set cr = emp.compa_ratio %}
+              <span class="badge {% if cr < 0.9 %}cr-low{% elif cr > 1.1 %}cr-high{% else %}cr-ok{% endif %}">
+                {{ '%.2f'|format(cr) }}
+              </span>
+              {% else %}<span style="color:var(--tx-3);">—</span>{% endif %}
+            </td>
+            <td>
+              <button class="btn btn-ghost btn-sm"
+                onclick="openSalaryModal({{ emp.id }},'{{ emp.name }}',{{ emp.base_salary }},{{ emp.meal_allowance }},{{ emp.transport_allowance }})">
+                <i class="fas fa-pencil-alt"></i>
+              </button>
+              <a href="{{ url_for('payroll_employee', user_id=emp.id) }}" class="btn btn-ghost btn-sm" title="명세서 보기">
+                <i class="fas fa-file-alt"></i>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════
+     TAB 2: 급여 구조
+════════════════════════════════ -->
+<div id="cp-structure" class="cp-pane" {% if active_tab != 'structure' %}style="display:none"{% endif %}>
+
+  <!-- 범례 -->
+  <div style="display:flex; gap:16px; align-items:center; margin-bottom:16px; font-size:12px; color:var(--tx-2);">
+    <span><span style="display:inline-block;width:10px;height:10px;background:var(--info-bg);border-radius:2px;margin-right:4px;"></span>Min</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:var(--green-bg);border-radius:2px;margin-right:4px;"></span>Mid (기준점)</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:var(--orange-bg);border-radius:2px;margin-right:4px;"></span>Max</span>
+    <span style="margin-left:auto; color:var(--tx-3);">셀 클릭 → 수정</span>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-head"><span class="card-title">직급 × 직군 급여 밴드</span></div>
+    <div style="overflow-x:auto; padding:0 0 4px;">
+      <table class="band-table">
+        <thead>
+          <tr>
+            <th>직급</th>
+            {% for jf in job_families %}
+            <th>{{ jf.name }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for pos in positions %}
+          <tr>
+            <td>{{ pos.name }}</td>
+            {% for jf in job_families %}
+            {% set sg = band_matrix.get((pos.id, jf.id)) %}
+            <td onclick="openBandModal({{ sg.id if sg else 0 }},'{{ pos.name }}','{{ jf.name }}',{{ sg.min_salary if sg else 0 }},{{ sg.mid_salary if sg else 0 }},{{ sg.max_salary if sg else 0 }})"
+                title="{{ pos.name }} × {{ jf.name }} 수정">
+              {% if sg and sg.mid_salary %}
+              <div class="band-cell">
+                <div class="band-min">{{ '{:,.0f}'.format(sg.min_salary / 10000) }}만</div>
+                <div class="band-mid">{{ '{:,.0f}'.format(sg.mid_salary / 10000) }}만</div>
+                <div class="band-max">{{ '{:,.0f}'.format(sg.max_salary / 10000) }}만</div>
+              </div>
+              {% else %}
+              <div class="band-empty">—</div>
+              {% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Compa-Ratio 현황 -->
+  <div class="card">
+    <div class="card-head"><span class="card-title">Compa-Ratio 현황</span>
+      <span style="font-size:12px; color:var(--tx-3);">월급×12 ÷ Mid | 정상 0.9~1.1</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>이름</th><th>부서</th><th>직급</th>
+            <th>기본급 (연)</th><th>Mid</th><th>Compa-Ratio</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for emp in emps %}
+          <tr>
+            <td>{{ emp.name }}</td>
+            <td style="color:var(--tx-3);">{{ emp.dept_name or '—' }}</td>
+            <td style="color:var(--tx-3);">{{ emp.pos_name or '—' }}</td>
+            <td style="font-variant-numeric:tabular-nums;">{{ '{:,}'.format(emp.base_salary * 12) }}원</td>
+            <td style="color:var(--tx-3); font-variant-numeric:tabular-nums;">
+              {{ '{:,}'.format(emp.mid_salary) if emp.mid_salary else '—' }}원
+            </td>
+            <td>
+              {% if emp.compa_ratio %}
+              {% set cr = emp.compa_ratio %}
+              <span class="badge {% if cr < 0.9 %}cr-low{% elif cr > 1.1 %}cr-high{% else %}cr-ok{% endif %}">
+                {{ '%.2f'|format(cr) }}
+                {% if cr < 0.9 %}↓ 하단{% elif cr > 1.1 %}↑ 상단{% else %}정상{% endif %}
+              </span>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════
+     TAB 3: 보상 검토 (ACR)
+════════════════════════════════ -->
+<div id="cp-acr" class="cp-pane" {% if active_tab != 'acr' %}style="display:none"{% endif %}>
+
+  <div style="display:grid; grid-template-columns:1fr 340px; gap:20px;">
+
+    <!-- 좌: ACR 사이클 -->
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-head">
+          <span class="card-title">ACR 사이클</span>
+          <button class="btn btn-primary btn-sm" onclick="document.getElementById('new-acr-modal').classList.add('open')">
+            <i class="fas fa-plus"></i> 새 주기
+          </button>
+        </div>
+        <div style="padding:0 0 8px;">
+          {% if cycles %}
+          {% for c in cycles %}
+          <div class="acr-card">
+            <div style="flex:1;">
+              <div style="font-weight:700; font-size:14px; color:var(--tx-1);">{{ c.name }}</div>
+              <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">
+                {{ c.review_year }}년 · 생성자 {{ c.creator_name or '—' }}
+                {% if c.effective_date %} · 적용일 {{ c.effective_date }}{% endif %}
+              </div>
+            </div>
+            <span class="acr-status acr-{{ c.status }}">
+              {% if c.status == 'draft' %}초안
+              {% elif c.status == 'open' %}진행 중
+              {% else %}마감{% endif %}
+            </span>
+            <div style="display:flex; gap:6px;">
+              {% if c.status == 'draft' %}
+              <form method="POST" action="{{ url_for('acr_open', cycle_id=c.id) }}" style="margin:0;">
+                <button type="submit" class="btn btn-primary btn-sm">오픈</button>
+              </form>
+              {% elif c.status == 'open' %}
+              <a href="{{ url_for('acr_detail', cycle_id=c.id) }}" class="btn btn-ghost btn-sm">입력/검토</a>
+              <form method="POST" action="{{ url_for('acr_close', cycle_id=c.id) }}" style="margin:0;">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--tx-3);">마감</button>
+              </form>
+              {% else %}
+              <a href="{{ url_for('acr_detail', cycle_id=c.id) }}" class="btn btn-ghost btn-sm">보기</a>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+          {% else %}
+          <div style="padding:32px; text-align:center; color:var(--tx-3);">
+            <i class="fas fa-calendar-check" style="font-size:24px; opacity:.3; display:block; margin-bottom:8px;"></i>
+            ACR 주기가 없습니다. 새 주기를 만들어보세요.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- 우: Merit Matrix -->
+    <div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">Merit Matrix</span></div>
+        <div style="padding:16px;">
+          <p style="font-size:12px; color:var(--tx-3); margin-bottom:14px; line-height:1.6;">
+            성과 등급 × Compa-Ratio 구간에 따른 인상률 가이드.<br>
+            ACR 입력 시 자동 제안됩니다.
+          </p>
+          <form method="POST" action="{{ url_for('compensation') }}">
+            <input type="hidden" name="action" value="update_matrix">
+            <input type="hidden" name="_tab" value="acr">
+            <table class="mm-table" style="margin-bottom:12px;">
+              <thead>
+                <tr>
+                  <th>등급</th>
+                  <th>하단<br><span style="font-weight:400; font-size:10px;">&lt;90%</span></th>
+                  <th>정상<br><span style="font-weight:400; font-size:10px;">90~110%</span></th>
+                  <th>상단<br><span style="font-weight:400; font-size:10px;">&gt;110%</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for grade in ['S','A','B','C','D'] %}
+                <tr>
+                  <td style="font-weight:800; background:var(--surface-3);">{{ grade }}</td>
+                  {% for band in ['below','at','above'] %}
+                  <td>
+                    <input type="number" name="pct_{{ grade }}_{{ band }}"
+                           value="{{ matrix.get((grade, band), 0) }}"
+                           step="0.1" min="-10" max="30">%
+                  </td>
+                  {% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">저장</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════
+     TAB 4: 보상 분석
+════════════════════════════════ -->
+<div id="cp-analysis" class="cp-pane" {% if active_tab != 'analysis' %}style="display:none"{% endif %}>
+
+  <div style="display:grid; grid-template-columns:1fr 360px; gap:20px;">
+
+    <!-- 좌: Compa-Ratio 분포 -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">Compa-Ratio 분포</span></div>
+      <div style="padding:16px;">
+        {% set below = emps | selectattr('compa_ratio') | selectattr('compa_ratio', 'lt', 0.9) | list %}
+        {% set normal = emps | selectattr('compa_ratio') | selectattr('compa_ratio', 'ge', 0.9) | list %}
+        {% set above_list = normal | selectattr('compa_ratio', 'gt', 1.1) | list %}
+        {% set normal_list = normal | rejectattr('compa_ratio', 'gt', 1.1) | list %}
+        {% set no_band = emps | rejectattr('compa_ratio') | list %}
+
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px;">
+          <div style="text-align:center; padding:14px; background:var(--orange-bg); border-radius:var(--r);">
+            <div style="font-size:26px; font-weight:900; color:var(--orange);">{{ below|length }}</div>
+            <div style="font-size:11px; color:var(--orange); font-weight:700;">하단 (＜90%)</div>
+          </div>
+          <div style="text-align:center; padding:14px; background:var(--green-bg); border-radius:var(--r);">
+            <div style="font-size:26px; font-weight:900; color:var(--green);">{{ normal_list|length }}</div>
+            <div style="font-size:11px; color:var(--green); font-weight:700;">정상 (90~110%)</div>
+          </div>
+          <div style="text-align:center; padding:14px; background:var(--info-bg); border-radius:var(--r);">
+            <div style="font-size:26px; font-weight:900; color:var(--info);">{{ above_list|length }}</div>
+            <div style="font-size:11px; color:var(--info); font-weight:700;">상단 (＞110%)</div>
+          </div>
+        </div>
+
+        {% if below %}
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px; font-weight:700; color:var(--orange); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px;">
+            ⚠ 하단 직원 — 인상 검토 필요
+          </div>
+          {% for emp in below %}
+          <div style="display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--line);">
+            <div class="avatar-xs">{{ emp.name[0] }}</div>
+            <div style="flex:1;">
+              <div style="font-size:13px; font-weight:600;">{{ emp.name }}</div>
+              <div style="font-size:11px; color:var(--tx-3);">{{ emp.pos_name or '—' }} · {{ emp.dept_name or '—' }}</div>
+            </div>
+            <span class="badge cr-low">{{ '%.2f'|format(emp.compa_ratio) }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 우: 일괄 인상 시뮬레이터 -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">일괄 인상 시뮬레이터</span></div>
+      <div style="padding:16px;">
+        <form method="POST" action="{{ url_for('compensation') }}" id="raise-form">
+          <input type="hidden" name="action" value="bulk_raise">
+          <input type="hidden" name="_tab" value="analysis">
+
+          <!-- 모드 선택 -->
+          <div style="display:flex; gap:8px; margin-bottom:16px;">
+            <label style="flex:1; cursor:pointer;">
+              <input type="radio" name="mode" value="flat" checked onchange="toggleMode(this.value)">
+              <div class="dur-btn active" id="mode-flat" style="margin-top:6px; text-align:center; font-size:12px;">
+                <div style="font-weight:800;">일괄 인상</div>
+                <div style="font-size:10px; color:var(--tx-3); margin-top:2px;">동일 % 적용</div>
+              </div>
+            </label>
+            <label style="flex:1; cursor:pointer;">
+              <input type="radio" name="mode" value="merit" onchange="toggleMode(this.value)">
+              <div class="dur-btn" id="mode-merit" style="margin-top:6px; text-align:center; font-size:12px;">
+                <div style="font-weight:800;">Merit 인상</div>
+                <div style="font-size:10px; color:var(--tx-3); margin-top:2px;">성과 등급 기반</div>
+              </div>
+            </label>
+          </div>
+
+          <!-- 일괄: 인상률 -->
+          <div id="flat-input" style="margin-bottom:12px;">
+            <label class="form-label">인상률 (%)</label>
+            <input type="number" name="pct" class="input" placeholder="예: 3" step="0.1" min="0" max="100">
+          </div>
+
+          <!-- Merit: 등급별 인상률 미리보기 -->
+          <div id="merit-info" style="display:none; margin-bottom:12px; padding:12px; background:var(--surface-3); border-radius:var(--r-sm);">
+            <div style="font-size:11px; font-weight:700; color:var(--tx-3); margin-bottom:8px;">Merit Matrix 기반 자동 적용</div>
+            {% for g, pct in [('S', cfg.merit_s or 0.08), ('A', cfg.merit_a or 0.05), ('B', cfg.merit_b or 0.03), ('C', cfg.merit_c or 0.0), ('D', cfg.merit_d or -0.01)] %}
+            <div style="display:flex; justify-content:space-between; font-size:12px; padding:3px 0;">
+              <span style="font-weight:700;">{{ g }} 등급</span>
+              <span style="color:var(--primary);">{{ '+%.1f'|format(pct|float * 100) }}%</span>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div style="margin-bottom:12px;">
+            <label class="form-label">대상 부서 (선택 안 하면 전체)</label>
+            <select name="dept_id" class="input">
+              <option value="">전체 직원</option>
+              {% for d in departments %}
+              <option value="{{ d.id }}">{{ d.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="margin-bottom:16px;">
+            <label class="form-label">사유 (선택)</label>
+            <input type="text" name="reason" class="input" placeholder="예: 2026 연간 인상">
+          </div>
+
+          <!-- 예상 인원 미리보기 -->
+          <div style="font-size:12px; color:var(--tx-3); margin-bottom:14px; padding:10px; background:var(--surface-3); border-radius:var(--r-sm);">
+            <i class="fas fa-info-circle"></i>
+            인상 후 개별 급여는 salary_history에 기록됩니다. 되돌리기 불가.
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width:100%;"
+            onclick="return confirm('일괄 인상을 적용하시겠습니까? 되돌리기 불가합니다.')">
+            <i class="fas fa-arrow-up"></i> 인상 적용
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ── 급여 수정 모달 ── -->
+<div class="modal-overlay" id="salary-modal">
+  <div class="modal-box">
+    <div class="modal-title">급여 수정 — <span id="sm-name"></span></div>
+    <form method="POST" action="{{ url_for('compensation') }}">
+      <input type="hidden" name="action" value="update_salary">
+      <input type="hidden" name="_tab" value="ops">
+      <input type="hidden" name="user_id" id="sm-uid">
+      <div class="field" style="margin-bottom:12px;">
+        <label>기본급 (연봉, 원)</label>
+        <input type="number" name="base_salary" id="sm-base" class="input" step="1000000">
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>식대 (월, 원)</label>
+        <input type="number" name="meal_allowance" id="sm-meal" class="input">
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>교통비 (월, 원)</label>
+        <input type="number" name="transport_allowance" id="sm-trans" class="input">
+      </div>
+      <div class="field" style="margin-bottom:4px;">
+        <label>변경 사유</label>
+        <input type="text" name="reason" class="input" placeholder="예: 2026 연간 인상">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('salary-modal').classList.remove('open')">취소</button>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── 밴드 수정 모달 ── -->
+<div class="modal-overlay" id="band-modal">
+  <div class="modal-box">
+    <div class="modal-title" id="bm-title">밴드 수정</div>
+    <form method="POST" action="{{ url_for('compensation') }}">
+      <input type="hidden" name="action" value="update_band">
+      <input type="hidden" name="_tab" value="structure">
+      <input type="hidden" name="sg_id" id="bm-id">
+      <div class="field" style="margin-bottom:10px;">
+        <label>Min (하한, 원)</label>
+        <input type="number" name="min_salary" id="bm-min" class="input" step="1000000">
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Mid (기준점, 원)</label>
+        <input type="number" name="mid_salary" id="bm-mid" class="input" step="1000000">
+      </div>
+      <div class="field" style="margin-bottom:4px;">
+        <label>Max (상한, 원)</label>
+        <input type="number" name="max_salary" id="bm-max" class="input" step="1000000">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('band-modal').classList.remove('open')">취소</button>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── 새 ACR 주기 모달 ── -->
+<div class="modal-overlay" id="new-acr-modal">
+  <div class="modal-box">
+    <div class="modal-title">새 ACR 주기 생성</div>
+    <form method="POST" action="{{ url_for('acr_new') }}">
+      <div class="field" style="margin-bottom:12px;">
+        <label>주기 이름</label>
+        <input type="text" name="name" class="input" placeholder="예: 2026 연간 보상 검토" required>
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>검토 연도</label>
+        <input type="number" name="review_year" class="input" value="{{ today_year }}">
+      </div>
+      <div class="field" style="margin-bottom:4px;">
+        <label>인상 적용일 (선택)</label>
+        <input type="date" name="effective_date" class="input">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('new-acr-modal').classList.remove('open')">취소</button>
+        <button type="submit" class="btn btn-primary">생성</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchCpTab(tab, btn) {
+  document.querySelectorAll('.cp-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.cp-pane').forEach(p => p.style.display = 'none');
+  btn.classList.add('active');
+  document.getElementById('cp-' + tab).style.display = '';
+  history.replaceState(null, '', '?tab=' + tab);
+}
+
+function openSalaryModal(id, name, base, meal, trans) {
+  document.getElementById('sm-uid').value  = id;
+  document.getElementById('sm-name').textContent = name;
+  document.getElementById('sm-base').value = base;
+  document.getElementById('sm-meal').value = meal;
+  document.getElementById('sm-trans').value = trans;
+  document.getElementById('salary-modal').classList.add('open');
+}
+
+function openBandModal(sgId, posName, jfName, min, mid, max) {
+  document.getElementById('bm-id').value  = sgId;
+  document.getElementById('bm-title').textContent = `${posName} × ${jfName} 밴드 수정`;
+  document.getElementById('bm-min').value = min;
+  document.getElementById('bm-mid').value = mid;
+  document.getElementById('bm-max').value = max;
+  document.getElementById('band-modal').classList.add('open');
+}
+
+function toggleMode(mode) {
+  const isFlat = mode === 'flat';
+  document.getElementById('flat-input').style.display = isFlat ? '' : 'none';
+  document.getElementById('merit-info').style.display = isFlat ? 'none' : '';
+  document.getElementById('mode-flat').classList.toggle('active', isFlat);
+  document.getElementById('mode-merit').classList.toggle('active', !isFlat);
+}
+
+// 모달 배경 클릭으로 닫기
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+</script>
+{% endblock %}

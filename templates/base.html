@@ -97,14 +97,8 @@
       <div class="nav-section-body">
         <div class="nav-category-btn" style="cursor:default;"><span>관리자</span></div>
         {% if session.user_role == 'admin' %}
-        <a href="{{ url_for('admin_payroll') }}" class="nav-item{% if active_page in ('admin_payroll','bulk_raise','bonus_pay','benefit_claims') %} active{% endif %}" title="급여 관리">
-          <i class="fas fa-coins"></i><span>급여 관리</span>
-        </a>
-        <a href="{{ url_for('salary_bands') }}" class="nav-item{% if active_page == 'salary_bands' %} active{% endif %}" title="급여 밴드">
-          <i class="fas fa-sliders-h"></i><span>급여 밴드</span>
-        </a>
-        <a href="{{ url_for('acr_list') }}" class="nav-item{% if active_page == 'acr' %} active{% endif %}" title="ACR">
-          <i class="fas fa-file-invoice-dollar"></i><span>보상 검토 (ACR)</span>
+        <a href="{{ url_for('compensation') }}" class="nav-item{% if active_page in ('compensation','admin_payroll','salary_bands','acr','bulk_raise','bonus_pay') %} active{% endif %}" title="보상 관리">
+          <i class="fas fa-coins"></i><span>보상 관리</span>
         </a>
         <a href="{{ url_for('admin_welfare_points') }}" class="nav-item{% if active_page == 'admin_welfare_points' %} active{% endif %}" title="복지포인트">
           <i class="fas fa-coins"></i><span>복지포인트</span>

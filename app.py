@@ -4049,6 +4049,293 @@ def payroll_bulk_raise():
                            active_page='admin_payroll')
 
 
+# ── v0.73: 보상 관리 통합 허브 ───────────────────────────────────────────────
+@app.route('/compensation', methods=['GET', 'POST'])
+@admin_required
+def compensation():
+    from payroll_utils import calc_compa_ratio, compa_band as _compa_band, calc_payslip, calc_extra_pay, check_min_wage
+    import calendar as cal_mod, json as _json, datetime
+    db  = get_db()
+    cfg = get_company_config()
+
+    if request.method == 'POST':
+        action = request.form.get('action', '')
+        _tab   = request.form.get('_tab', 'ops')
+
+        if action == 'update_salary':
+            uid    = int(request.form.get('user_id'))
+            base   = int(request.form.get('base_salary', 0))
+            meal   = int(request.form.get('meal_allowance', 0))
+            trans  = int(request.form.get('transport_allowance', 0))
+            reason = request.form.get('reason', '').strip()
+            mw  = check_min_wage(base)
+            old = db.execute('SELECT * FROM employee_salary WHERE user_id=?', (uid,)).fetchone()
+            if old:
+                db.execute(
+                    'INSERT INTO salary_history '
+                    '(user_id, changed_by, old_base_salary, new_base_salary, '
+                    'old_meal, new_meal, old_transport, new_transport, reason) '
+                    'VALUES (?,?,?,?,?,?,?,?,?)',
+                    (uid, session['user_id'],
+                     old['base_salary'], base,
+                     old['meal_allowance'], meal,
+                     old['transport_allowance'], trans,
+                     reason or None)
+                )
+            db.execute(
+                'INSERT INTO employee_salary (user_id, base_salary, meal_allowance, transport_allowance) '
+                'VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET '
+                'base_salary=excluded.base_salary, meal_allowance=excluded.meal_allowance, '
+                'transport_allowance=excluded.transport_allowance, updated_at=CURRENT_TIMESTAMP',
+                (uid, base, meal, trans)
+            )
+            db.commit()
+            flash('급여가 저장되었습니다.' if mw['ok'] else
+                  f'급여 저장 완료 — ⚠️ 최저임금 미달 (부족 {fmt_krw(mw["shortage"])}원)',
+                  'success' if mw['ok'] else 'warning')
+
+        elif action == 'generate':
+            year  = int(request.form.get('year', datetime.date.today().year))
+            month = int(request.form.get('month', datetime.date.today().month))
+            if not (1 <= month <= 12):
+                flash('올바른 월을 입력해주세요.', 'danger')
+            else:
+                first_day = f"{year}-{month:02d}-01"
+                last_day  = f"{year}-{month:02d}-{cal_mod.monthrange(year, month)[1]}"
+                holiday_dates = {h['date'] for h in db.execute(
+                    'SELECT date FROM public_holidays WHERE date BETWEEN ? AND ?', (first_day, last_day)
+                ).fetchall()}
+                benefit_cfgs = {r['key']: dict(r) for r in db.execute(
+                    "SELECT * FROM benefit_configs WHERE enabled=1 AND payment_type='monthly_fixed'"
+                ).fetchall()}
+                emps_sal = db.execute(
+                    "SELECT u.id, s.base_salary, s.meal_allowance, s.transport_allowance "
+                    "FROM users u JOIN employee_salary s ON u.id=s.user_id WHERE u.status='active'"
+                ).fetchall()
+                count = 0
+                for e in emps_sal:
+                    if db.execute('SELECT 1 FROM payslips WHERE user_id=? AND year=? AND month=?',
+                                  (e['id'], year, month)).fetchone():
+                        continue
+                    checkins = db.execute(
+                        'SELECT * FROM checkins WHERE user_id=? AND date BETWEEN ? AND ?',
+                        (e['id'], first_day, last_day)
+                    ).fetchall()
+                    total_ot_pay = sum(
+                        calc_extra_pay(c['overtime_min'] or 0, c['night_min'] or 0,
+                                       c['holiday_min'] or 0, e['base_salary'])
+                        for c in checkins
+                    )
+                    extra_benefits = {}
+                    for key, bcfg in benefit_cfgs.items():
+                        extra_benefits[key] = (bcfg['amount'] if bcfg['amount_type'] == 'fixed'
+                                               else int(e['base_salary'] * bcfg['amount'] / 100))
+                    emp_d     = db.execute('SELECT birth_date, gender FROM users WHERE id=?', (e['id'],)).fetchone()
+                    is_female = (emp_d['gender'] == 'female') if emp_d and emp_d['gender'] else False
+                    dep_rows  = db.execute(
+                        "SELECT age_type FROM dependents WHERE user_id=? AND status='active'", (e['id'],)
+                    ).fetchall()
+                    dependents = [{'age_type': d['age_type']} for d in dep_rows]
+                    result = calc_payslip(
+                        base_salary=e['base_salary'], meal_allowance=e['meal_allowance'],
+                        transport_allowance=e['transport_allowance'],
+                        year=year, month=month, overtime_pay=total_ot_pay,
+                        extra_benefits=extra_benefits, dependents=dependents, is_female=is_female
+                    )
+                    bonus_pay = result.get('benefits_gross', 0)
+                    db.execute(
+                        'INSERT INTO payslips '
+                        '(user_id, year, month, base_salary, meal_allowance, transport_allowance, '
+                        'overtime_pay, bonus_pay, national_pension, health_insurance, long_term_care, '
+                        'employment_insurance, income_tax, local_income_tax, '
+                        'gross_pay, total_deduction, net_pay, benefits_json, '
+                        'income_deduction, earned_income, total_personal_deduction, '
+                        'num_dependents, child_tax_credit_amount) '
+                        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                        (e['id'], year, month,
+                         result['base_salary'], result['meal_allowance'], result['transport_allowance'],
+                         result['overtime_pay'], bonus_pay,
+                         result['national_pension'], result['health_insurance'],
+                         result['long_term_care'], result['employment_insurance'],
+                         result['income_tax'], result['local_income_tax'],
+                         result['gross_pay'], result['total_deduction'], result['net_pay'],
+                         _json.dumps(result.get('benefits_breakdown', []), ensure_ascii=False),
+                         result['income_deduction'], result['earned_income'],
+                         result['total_personal_deduction'], result['num_dependents'],
+                         result['child_tax_credit_amount'])
+                    )
+                    add_notification(e['id'], 'info', 'payroll',
+                        f'{year}년 {month}월 급여명세서가 확정되었습니다',
+                        f'실수령액 {fmt_krw(result["net_pay"])}원',
+                        link=f'/payroll/{year}/{month}')
+                    count += 1
+                db.commit()
+                flash(f'{year}년 {month}월 급여 {count}건 생성 완료', 'success')
+
+        elif action == 'update_band':
+            sg_id      = int(request.form.get('sg_id', 0))
+            min_salary = int(request.form.get('min_salary') or 0)
+            mid_salary = int(request.form.get('mid_salary') or 0)
+            max_salary = int(request.form.get('max_salary') or 0)
+            if sg_id:
+                db.execute('UPDATE salary_grades SET min_salary=?, mid_salary=?, max_salary=? WHERE id=?',
+                           (min_salary, mid_salary, max_salary, sg_id))
+                db.commit()
+                flash('밴드가 저장되었습니다.', 'success')
+            _tab = 'structure'
+
+        elif action == 'update_matrix':
+            for grade in ['S', 'A', 'B', 'C', 'D']:
+                for band in ['below', 'at', 'above']:
+                    val = float(request.form.get(f'pct_{grade}_{band}', 0))
+                    db.execute(
+                        'INSERT INTO merit_matrix (performance_grade, compa_band, increase_pct) '
+                        'VALUES (?,?,?) ON CONFLICT(performance_grade, compa_band) '
+                        'DO UPDATE SET increase_pct=excluded.increase_pct',
+                        (grade, band, val)
+                    )
+            db.commit()
+            flash('Merit Matrix가 저장되었습니다.', 'success')
+            _tab = 'acr'
+
+        elif action == 'bulk_raise':
+            mode    = request.form.get('mode', 'flat')
+            pct     = float(request.form.get('pct', 0))
+            dept_id = request.form.get('dept_id') or None
+            reason  = request.form.get('reason', '').strip()
+            changer = session['user_id']
+            MERIT_PCT = {g: float(cfg.get(f'merit_{g.lower()}', 0)) * 100
+                         for g in ['S', 'A', 'B', 'C', 'D']}
+            latest_grades = {}
+            for r in db.execute(
+                "SELECT cr.user_id, cr.final_grade FROM calibration_results cr "
+                "JOIN performance_cycles pc ON cr.cycle_id=pc.id "
+                "WHERE cr.final_grade IS NOT NULL ORDER BY pc.start_date DESC"
+            ).fetchall():
+                if r['user_id'] not in latest_grades:
+                    latest_grades[r['user_id']] = r['final_grade']
+            query  = ("SELECT u.id, s.base_salary FROM users u "
+                      "JOIN employee_salary s ON u.id=s.user_id WHERE u.status='active'")
+            params = []
+            if dept_id:
+                query += " AND u.department_id=?"
+                params.append(int(dept_id))
+            count = 0
+            for e in db.execute(query, params).fetchall():
+                emp_pct = (MERIT_PCT.get(latest_grades.get(e['id']), 0)
+                           if mode == 'merit' else pct)
+                if emp_pct == 0:
+                    continue
+                new_base = int(e['base_salary'] * (1 + emp_pct / 100))
+                db.execute(
+                    'INSERT INTO salary_history (user_id, changed_by, old_base_salary, new_base_salary, reason) '
+                    'VALUES (?,?,?,?,?)',
+                    (e['id'], changer, e['base_salary'], new_base,
+                     reason or f'{"Merit" if mode == "merit" else "일괄"} 인상 {emp_pct:+.1f}%')
+                )
+                db.execute('UPDATE employee_salary SET base_salary=? WHERE user_id=?', (new_base, e['id']))
+                count += 1
+            db.commit()
+            flash(f'인상 완료 — {count}명 적용', 'success')
+            _tab = 'analysis'
+
+        return redirect(url_for('compensation', tab=_tab))
+
+    # ── GET ──────────────────────────────────────────────────────────────────
+    today       = datetime.date.today()
+    today_year  = today.year
+    today_month = today.month
+    _tab        = request.args.get('tab', 'ops')
+
+    active_count = db.execute(
+        "SELECT COUNT(*) FROM users WHERE status='active' AND role NOT IN ('admin','guest')"
+    ).fetchone()[0]
+    this_month_done = db.execute(
+        'SELECT COUNT(DISTINCT user_id) FROM payslips WHERE year=? AND month=?',
+        (today_year, today_month)
+    ).fetchone()[0]
+    active_acr = db.execute(
+        "SELECT * FROM compensation_review_cycles WHERE status='open' ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+
+    raw_emps = db.execute(
+        'SELECT u.id, u.name, d.name dept_name, p.name pos_name, '
+        'COALESCE(s.base_salary,0) base_salary, '
+        'COALESCE(s.meal_allowance,0) meal_allowance, '
+        'COALESCE(s.transport_allowance,0) transport_allowance, '
+        'sg.mid_salary '
+        'FROM users u '
+        'LEFT JOIN departments d ON u.department_id=d.id '
+        'LEFT JOIN positions p ON u.position_id=p.id '
+        'LEFT JOIN employee_salary s ON u.id=s.user_id '
+        'LEFT JOIN salary_grades sg ON sg.position_id=u.position_id AND sg.job_family_id=u.job_family_id '
+        "WHERE u.status='active' AND u.role NOT IN ('admin','guest') ORDER BY d.name, u.name"
+    ).fetchall()
+    emps = []
+    for e in raw_emps:
+        ratio = calc_compa_ratio(e['base_salary'], e['mid_salary'])
+        emps.append({**dict(e), 'compa_ratio': ratio, 'compa_band': _compa_band(ratio)})
+
+    total_salary_spend = sum(e['base_salary'] for e in emps)
+    compa_outliers = sum(1 for e in emps
+                         if e['compa_ratio'] and (e['compa_ratio'] < 0.8 or e['compa_ratio'] > 1.2))
+
+    positions    = db.execute('SELECT id, name, level FROM positions ORDER BY level').fetchall()
+    job_families = db.execute('SELECT id, name FROM job_families ORDER BY id').fetchall()
+    band_rows    = db.execute(
+        'SELECT sg.*, p.name pos_name, jf.name jf_name '
+        'FROM salary_grades sg '
+        'JOIN positions p ON sg.position_id=p.id '
+        'JOIN job_families jf ON sg.job_family_id=jf.id'
+    ).fetchall()
+    band_matrix = {(r['position_id'], r['job_family_id']): r for r in band_rows}
+
+    matrix_rows = db.execute(
+        'SELECT * FROM merit_matrix ORDER BY performance_grade, compa_band'
+    ).fetchall()
+    matrix = {(r['performance_grade'], r['compa_band']): r['increase_pct'] for r in matrix_rows}
+
+    cycles = db.execute(
+        'SELECT c.*, u.name creator_name FROM compensation_review_cycles c '
+        'LEFT JOIN users u ON c.created_by=u.id ORDER BY c.id DESC'
+    ).fetchall()
+
+    departments = db.execute('SELECT id, name FROM departments ORDER BY name').fetchall()
+
+    return render_template('payroll/compensation.html',
+        active_count=active_count,
+        this_month_done=this_month_done,
+        active_acr=active_acr,
+        compa_outliers=compa_outliers,
+        total_salary_spend=total_salary_spend,
+        emps=emps,
+        today_year=today_year,
+        today_month=today_month,
+        positions=positions,
+        job_families=job_families,
+        band_matrix=band_matrix,
+        matrix=matrix,
+        cycles=cycles,
+        departments=departments,
+        cfg=cfg,
+        fmt_krw=fmt_krw,
+        active_tab=_tab,
+        active_page='compensation'
+    )
+
+
+# ── 기존 라우트 → /compensation 리디렉트 ──────────────────────────────────────
+@app.route('/admin/payroll-legacy')
+@admin_required
+def admin_payroll_redirect():
+    return redirect(url_for('compensation', tab='ops'))
+
+@app.route('/admin/salary-bands-legacy')
+@admin_required
+def salary_bands_redirect():
+    return redirect(url_for('compensation', tab='structure'))
+
+
 # ── v0.51: Salary Band 관리 ──────────────────────────────────────────────────
 @app.route('/admin/salary-bands', methods=['GET', 'POST'])
 @admin_required
