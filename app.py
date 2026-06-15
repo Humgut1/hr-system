@@ -4340,7 +4340,14 @@ def compensation():
                    FROM calibration_results cr
                    JOIN performance_cycles pc ON cr.cycle_id = pc.id
                    WHERE cr.user_id = u.id AND cr.final_grade IS NOT NULL
-                   ORDER BY pc.start_date DESC LIMIT 1) perf_grade
+                   ORDER BY pc.start_date DESC LIMIT 1) perf_grade,
+                  (SELECT cr.downgrade_reason
+                   FROM calibration_results cr
+                   JOIN performance_cycles pc ON cr.cycle_id = pc.id
+                   WHERE cr.user_id = u.id AND cr.final_grade IS NOT NULL
+                   ORDER BY pc.start_date DESC LIMIT 1) downgrade_reason,
+                  (SELECT COUNT(*) FROM succession_plans sp
+                   WHERE sp.candidate_id = u.id) is_key_talent
            FROM users u
            LEFT JOIN departments d ON u.department_id = d.id
            LEFT JOIN positions   p ON u.position_id   = p.id
