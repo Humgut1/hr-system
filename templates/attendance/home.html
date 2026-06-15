@@ -345,8 +345,8 @@
             <div>총 {{ total_leave }}일</div><div>사용 {{ used_leave }}일</div>
           </div>
         </div>
-        <div style="height:7px; background:#e2e8f0; border-radius:99px; overflow:hidden; margin-bottom:5px;">
-          <div style="height:100%; width:{{ pct|int }}%; background:linear-gradient(90deg,#1e40af,#0891b2); border-radius:99px;"></div>
+        <div style="height:7px; background:var(--surface-3); border-radius:99px; overflow:hidden; margin-bottom:5px;">
+          <div style="height:100%; width:{{ pct|int }}%; background:linear-gradient(90deg,var(--primary),var(--primary-light)); border-radius:99px;"></div>
         </div>
         <div style="font-size:11px; color:var(--tx-3);">사용 {{ '%.0f'|format(pct) }}% · 잔여 {{ '%.0f'|format(100-pct) }}%</div>
         <div style="margin-top:12px; display:flex; gap:8px;">
@@ -406,9 +406,9 @@
           <div style="font-size:22px; font-weight:800; color:var(--tx-1);">{{ val }}{{ unit }}</div>
           <div style="font-size:11px; color:var(--tx-3); margin-bottom:4px;">{{ label }}</div>
           {% if diff > 0 %}
-          <span style="font-size:11px; color:#16a34a; font-weight:600;">▲ +{{ diff }}{{ unit }}</span>
+          <span style="font-size:11px; color:var(--green); font-weight:600;">▲ +{{ diff }}{{ unit }}</span>
           {% elif diff < 0 %}
-          <span style="font-size:11px; color:#dc2626; font-weight:600;">▼ {{ diff }}{{ unit }}</span>
+          <span style="font-size:11px; color:var(--red); font-weight:600;">▼ {{ diff }}{{ unit }}</span>
           {% else %}
           <span style="font-size:11px; color:var(--tx-3);">— 동일</span>
           {% endif %}
@@ -421,8 +421,8 @@
 
   <!-- 11시간 휴식 미준수 경고 -->
   {% if min_rest_violations %}
-  <div class="info-banner" style="margin-top:12px; background:#fef9c3; border-color:#ca8a04; color:#713f12;">
-    <i class="fas fa-moon" style="color:#ca8a04;"></i>
+  <div class="info-banner" style="margin-top:12px; background:var(--orange-bg); border-color:var(--orange); color:var(--orange);">
+    <i class="fas fa-moon"></i>
     <strong>최소 휴식 미준수 {{ min_rest_violations|length }}건</strong> — 퇴근 후 11시간 이상 휴식 필요 (근로기준법 §59의2)
     <ul style="margin:6px 0 0 16px; font-size:12px;">
       {% for v in min_rest_violations %}
@@ -493,7 +493,7 @@
             <td style="font-size:12px;">{{ o.date }}</td>
             <td style="font-size:12px;">{{ o.ot_start }}~{{ o.ot_end }}</td>
             <td style="font-size:12px;">{{ o.ot_minutes }}분</td>
-            <td><span style="font-size:11px; padding:2px 6px; border-radius:4px; background:#f1f5f9; color:var(--tx-2);">{{ '사전' if o.request_type == 'pre' else '사후' }}</span></td>
+            <td><span style="font-size:11px; padding:2px 6px; border-radius:4px; background:var(--surface-3); color:var(--tx-2);">{{ '사전' if o.request_type == 'pre' else '사후' }}</span></td>
             <td>
               {% if o.status == 'approved' %}
               <span class="badge badge-success" style="font-size:11px;">승인</span>
@@ -663,8 +663,8 @@
 
       <!-- HR 필요 -->
       <div class="lt-group">
-        <div class="lt-group-label" style="color:#7c3aed;">
-          <i class="fas fa-user-shield" style="color:#7c3aed;"></i> HR 승인 필요
+        <div class="lt-group-label" style="color:var(--purple);">
+          <i class="fas fa-user-shield"></i> HR 승인 필요
         </div>
         <div class="lt-cards">
           {% for key in ['maternity','miscarriage','parental','parental_reduction','paternity'] %}
@@ -895,7 +895,7 @@
           </form>
           <form method="POST" action="{{ url_for('attendance_reject', req_id=r.id) }}" style="margin:0;">
             <input type="hidden" name="reason" value="">
-            <button type="submit" class="btn btn-ghost btn-sm" style="padding:5px 12px; font-size:12px; color:#ef4444;"
+            <button type="submit" class="btn btn-ghost btn-sm" style="padding:5px 12px; font-size:12px; color:var(--red);"
                     onclick="return confirm('반려하시겠습니까?')">반려</button>
           </form>
           {% else %}
