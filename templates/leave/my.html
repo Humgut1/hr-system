@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}My Leave{% endblock %}
 {% block page_title %}Attendance{% endblock %}
 
@@ -86,7 +86,7 @@
             {% if r.status == 'pending' %}
             <form method="POST" action="{{ url_for('leave_cancel', req_id=r.id) }}">
               <button type="submit" class="btn btn-sm"
-                      style="background:#fef2f2; color:var(--red); border:1px solid #fecaca;"
+                      style="background:var(--red-bg); color:var(--red); border:1px solid var(--red-bg);"
                       onclick="return confirm('Cancel this request?')">
                 Cancel
               </button>

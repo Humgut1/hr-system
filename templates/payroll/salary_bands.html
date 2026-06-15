@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}급여 밴드 & Merit Matrix{% endblock %}
 {% block content %}
 <div class="page-header">
@@ -38,8 +38,8 @@
         <p style="margin:4px 0 0; font-size:12px; color:var(--text-muted);">셀 클릭 → Min / Mid / Max 편집. Mid = Compa-Ratio 기준점.</p>
       </div>
       <div style="display:flex; gap:8px; align-items:center; font-size:12px;">
-        <span style="display:flex; align-items:center; gap:4px;"><span style="width:12px;height:12px;background:#dbeafe;display:inline-block;border-radius:2px;"></span> Min</span>
-        <span style="display:flex; align-items:center; gap:4px;"><span style="width:12px;height:12px;background:#dcfce7;display:inline-block;border-radius:2px;"></span> Mid</span>
+        <span style="display:flex; align-items:center; gap:4px;"><span style="width:12px;height:12px;background:var(--info-bg);display:inline-block;border-radius:2px;"></span> Min</span>
+        <span style="display:flex; align-items:center; gap:4px;"><span style="width:12px;height:12px;background:var(--green-bg);display:inline-block;border-radius:2px;"></span> Mid</span>
         <span style="display:flex; align-items:center; gap:4px;"><span style="width:12px;height:12px;background:#fef9c3;display:inline-block;border-radius:2px;"></span> Max</span>
       </div>
     </div>
@@ -67,8 +67,8 @@
                 title="{{ pos.name }} × {{ jf.name }} 편집">
               {% if sg and sg.mid_salary %}
               <div style="padding:4px 6px;">
-                <div style="background:#dbeafe; padding:1px 4px; border-radius:2px; text-align:right; font-size:11px; color:#1e40af;">{{ '{:,.0f}'.format(sg.min_salary / 10000) }}만</div>
-                <div style="background:#dcfce7; padding:1px 4px; border-radius:2px; text-align:right; font-size:11px; color:#166534; font-weight:700;">{{ '{:,.0f}'.format(sg.mid_salary / 10000) }}만</div>
+                <div style="background:var(--info-bg); padding:1px 4px; border-radius:2px; text-align:right; font-size:11px; color:var(--info);">{{ '{:,.0f}'.format(sg.min_salary / 10000) }}만</div>
+                <div style="background:var(--green-bg); padding:1px 4px; border-radius:2px; text-align:right; font-size:11px; color:var(--green); font-weight:700;">{{ '{:,.0f}'.format(sg.mid_salary / 10000) }}만</div>
                 <div style="background:#fef9c3; padding:1px 4px; border-radius:2px; text-align:right; font-size:11px; color:#854d0e;">{{ '{:,.0f}'.format(sg.max_salary / 10000) }}만</div>
               </div>
               {% else %}
@@ -108,7 +108,7 @@
             {% for grade, label in [('S','S 탁월'),('A','A 우수'),('B','B 보통'),('C','C 미흡'),('D','D 부진')] %}
             <tr>
               <td>
-                <span class="badge" style="background:{% if grade in ['S','A'] %}#dcfce7;color:#166534{% elif grade=='B' %}#fef3c7;color:#92400e{% else %}#fee2e2;color:#991b1b{% endif %};">
+                <span class="badge" style="background:{% if grade in ['S','A'] %}var(--green-bg);color:var(--green){% elif grade=='B' %}var(--orange-bg);color:var(--orange){% else %}var(--red-bg);color:var(--red){% endif %};">
                   {{ label }}
                 </span>
               </td>
@@ -155,26 +155,26 @@
             <td>{{ e.pos_name or '-' }}</td>
             <td>{{ e.jf_name or '-' }}</td>
             <td>{{ '{:,}'.format(e.base_salary) }}원</td>
-            <td style="color:#1e40af;">{{ '{:,}'.format(e.min_salary) if e.min_salary else '-' }}</td>
-            <td style="color:#166534; font-weight:700;">{{ '{:,}'.format(e.mid_salary) if e.mid_salary else '-' }}</td>
+            <td style="color:var(--info);">{{ '{:,}'.format(e.min_salary) if e.min_salary else '-' }}</td>
+            <td style="color:var(--green); font-weight:700;">{{ '{:,}'.format(e.mid_salary) if e.mid_salary else '-' }}</td>
             <td style="color:#854d0e;">{{ '{:,}'.format(e.max_salary) if e.max_salary else '-' }}</td>
             <td>
               {% if e.compa_ratio is not none %}
                 {% set r = e.compa_ratio %}
                 {% if r < 0.9 %}
-                  <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:700;">{{ r }} ↓ 하단</span>
+                  <span style="background:var(--orange-bg);color:var(--orange);padding:2px 8px;border-radius:12px;font-size:12px;font-weight:700;">{{ r }} ↓ 하단</span>
                 {% elif r > 1.1 %}
-                  <span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:700;">{{ r }} ↑ 상단</span>
+                  <span style="background:var(--info-bg);color:var(--info);padding:2px 8px;border-radius:12px;font-size:12px;font-weight:700;">{{ r }} ↑ 상단</span>
                 {% else %}
-                  <span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:700;">{{ r }} ✓</span>
+                  <span style="background:var(--green-bg);color:var(--green);padding:2px 8px;border-radius:12px;font-size:12px;font-weight:700;">{{ r }} ✓</span>
                 {% endif %}
               {% else %}
-                <span style="color:#9ca3af;font-size:12px;">밴드 미설정</span>
+                <span style="color:var(--tx-3);font-size:12px;">밴드 미설정</span>
               {% endif %}
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="9" style="text-align:center;padding:40px;color:#9ca3af;">데이터가 없습니다.</td></tr>
+          <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--tx-3);">데이터가 없습니다.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -191,17 +191,17 @@
       <input type="hidden" name="sg_id" id="modalSgId">
       <div style="display:grid; gap:12px;">
         <div>
-          <label style="font-size:12px; color:#6b7280; font-weight:600;">MIN (하한)</label>
+          <label style="font-size:12px; color:var(--tx-3); font-weight:600;">MIN (하한)</label>
           <input type="number" name="min_salary" id="modalMin" class="form-control"
                  placeholder="예) 34000000" step="1000000">
         </div>
         <div>
-          <label style="font-size:12px; color:#166534; font-weight:600;">MID (기준점 · Compa-Ratio 분모)</label>
+          <label style="font-size:12px; color:var(--green); font-weight:600;">MID (기준점 · Compa-Ratio 분모)</label>
           <input type="number" name="mid_salary" id="modalMid" class="form-control"
                  placeholder="예) 40000000" step="1000000">
         </div>
         <div>
-          <label style="font-size:12px; color:#92400e; font-weight:600;">MAX (상한)</label>
+          <label style="font-size:12px; color:var(--orange); font-weight:600;">MAX (상한)</label>
           <input type="number" name="max_salary" id="modalMax" class="form-control"
                  placeholder="예) 46000000" step="1000000">
         </div>

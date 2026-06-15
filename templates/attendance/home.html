@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}근태{% endblock %}
 {% block page_title %}근태{% endblock %}
 
@@ -536,7 +536,7 @@
           <td style="font-size:12px;">{{ o.date }}</td>
           <td style="font-size:12px;">{{ o.ot_start }}~{{ o.ot_end }} ({{ o.ot_minutes }}분)</td>
           <td style="font-size:12px; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ o.reason or '-' }}</td>
-          <td><span style="font-size:11px; padding:2px 6px; border-radius:4px; background:#f1f5f9;">{{ '사전' if o.request_type == 'pre' else '사후' }}</span></td>
+          <td><span style="font-size:11px; padding:2px 6px; border-radius:4px; background:var(--surface-3);">{{ '사전' if o.request_type == 'pre' else '사후' }}</span></td>
           <td>
             <div style="display:flex; gap:4px;">
               <form method="POST" action="{{ url_for('overtime_approve', ot_id=o.id) }}" style="margin:0;">
@@ -757,10 +757,10 @@
         <a href="{{ url_for('attendance_home', tab='calendar', month=next_month) }}" class="btn btn-ghost btn-sm" style="padding:6px 10px;"><i class="fas fa-chevron-right"></i></a>
         <a href="{{ url_for('attendance_home', tab='calendar') }}" class="btn btn-ghost btn-sm">오늘</a>
         <div class="cal-legend">
-          <div class="leg-item"><div class="leg-dot" style="background:#dbeafe;"></div> 내 휴가</div>
-          <div class="leg-item"><div class="leg-dot" style="background:#f3e8ff;"></div> 팀원</div>
-          <div class="leg-item"><div class="leg-dot" style="background:#ffedd5;"></div> 공휴일</div>
-          <div class="leg-item"><span style="font-size:9px;">●</span><span style="color:#22c55e;">출근</span></div>
+          <div class="leg-item"><div class="leg-dot" style="background:var(--info-bg);"></div> 내 휴가</div>
+          <div class="leg-item"><div class="leg-dot" style="background:var(--purple-bg);"></div> 팀원</div>
+          <div class="leg-item"><div class="leg-dot" style="background:var(--orange-bg);"></div> 공휴일</div>
+          <div class="leg-item"><span style="font-size:9px;">●</span><span style="color:var(--green);">출근</span></div>
         </div>
       </div>
 
@@ -785,7 +785,7 @@
 
       <div style="display:flex; gap:14px; margin-top:10px; font-size:11px; color:var(--tx-3);">
         <span><span class="worked-dot" style="display:inline-block;"></span> 출근 기록 있음</span>
-        <span style="display:inline-block; width:9px; height:9px; background:#ffedd5; border-radius:2px;"></span> 공휴일
+        <span style="display:inline-block; width:9px; height:9px; background:var(--orange-bg); border-radius:2px;"></span> 공휴일
       </div>
     </div>
 
@@ -801,7 +801,7 @@
           {% if today_absent %}
           {% for a in today_absent %}
           <div class="absent-item">
-            <div class="absent-avatar {% if a.is_mine %}style="background:#dbeafe; color:#1e40af;"{% else %}style="background:#f3e8ff; color:#7c3aed;"{% endif %}">
+            <div class="absent-avatar {% if a.is_mine %}style="background:var(--info-bg); color:var(--info);"{% else %}style="background:var(--purple-bg); color:var(--purple);"{% endif %}">
               {{ a.name[0] }}
             </div>
             <div>
@@ -812,7 +812,7 @@
           {% endfor %}
           {% else %}
           <div style="text-align:center; color:var(--tx-3); font-size:12px; padding:12px 0;">
-            <i class="fas fa-check-circle" style="color:#22c55e; display:block; font-size:20px; margin-bottom:6px;"></i>
+            <i class="fas fa-check-circle" style="color:var(--green); display:block; font-size:20px; margin-bottom:6px;"></i>
             오늘 부재 중인 팀원 없음
           </div>
           {% endif %}
@@ -827,7 +827,7 @@
           {% if upcoming_absent %}
           {% for a in upcoming_absent[:6] %}
           <div class="absent-item">
-            <div class="absent-avatar" style="background:{% if a.is_mine %}#dbeafe; color:#1e40af{% else %}#f3e8ff; color:#7c3aed{% endif %};">
+            <div class="absent-avatar" style="background:{% if a.is_mine %}var(--info-bg); color:var(--info){% else %}var(--purple-bg); color:var(--purple){% endif %};">
               {{ a.name[0] }}
             </div>
             <div>
@@ -908,7 +908,7 @@
   </div>
   {% else %}
   <div style="text-align:center; padding:48px 0; color:var(--tx-3);">
-    <i class="fas fa-check-circle" style="font-size:36px; color:#22c55e; display:block; margin-bottom:12px;"></i>
+    <i class="fas fa-check-circle" style="font-size:36px; color:var(--green); display:block; margin-bottom:12px;"></i>
     처리할 근태 신청이 없습니다.
   </div>
   {% endif %}
@@ -1037,7 +1037,7 @@ function selectLeaveType(type) {
   // 병가 안내 추가
   var sickNote = '';
   if (type === 'sick' && meta.approval_hr_threshold) {
-    sickNote = '<div style="margin-top:6px; font-size:11px; padding:6px 10px; background:#fff7ed; border-radius:6px; color:#92400e;">'
+    sickNote = '<div style="margin-top:6px; font-size:11px; padding:6px 10px; background:var(--orange-bg); border-radius:6px; color:var(--orange);">'
       + '⚠ ' + meta.approval_hr_threshold + '일 이하: 매니저만 / '
       + (meta.approval_hr_threshold+1) + '일 이상: 매니저→HR 추가 승인 + 진단서 필요</div>';
   }
@@ -1073,7 +1073,7 @@ function selectLeaveType(type) {
   // 서류 안내
   var docsHtml = '';
   if (meta.requires_docs && meta.docs_note) {
-    docsHtml = '<div style="margin-top:6px; font-size:11px; color:#92400e; background:#fff7ed; padding:8px 10px; border-radius:6px; line-height:1.6;">'
+    docsHtml = '<div style="margin-top:6px; font-size:11px; color:var(--orange); background:var(--orange-bg); padding:8px 10px; border-radius:6px; line-height:1.6;">'
       + '<i class="fas fa-file-alt"></i> <strong>서류 필요</strong><br>' + meta.docs_note + '</div>';
   }
 
@@ -1121,7 +1121,7 @@ function selectLeaveType(type) {
         <input type="date" name="start_date" id="sd" class="form-input" required
                onchange="autoEndDate(this,${meta.fixed_days})"></div>
       <div><label class="form-label">종료일 (자동)</label>
-        <input type="date" name="end_date" id="ed" class="form-input" readonly style="background:#f8fafc;"></div>`;
+        <input type="date" name="end_date" id="ed" class="form-input" readonly style="background:var(--surface-3);"></div>`;
   } else {
     dateFieldsHtml = `
       <div><label class="form-label">시작일</label>

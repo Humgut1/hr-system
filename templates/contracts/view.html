@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}계약서 보기{% endblock %}
 {% block page_title %}계약서{% endblock %}
 
@@ -63,11 +63,11 @@
     {% endif %}
 
     {% if contract.status == 'rejected' and contract.reject_reason %}
-    <div style="margin-top:24px; padding:14px 18px; background:#fef2f2; border:1px solid #fecaca; border-radius:var(--r);">
+    <div style="margin-top:24px; padding:14px 18px; background:var(--red-bg); border:1px solid var(--red-bg); border-radius:var(--r);">
       <div style="font-size:13px; font-weight:600; color:var(--red); margin-bottom:4px;">
         <i class="fas fa-times-circle" style="margin-right:6px;"></i>거절 사유
       </div>
-      <div style="font-size:13px; color:#b91c1c;">{{ contract.reject_reason }}</div>
+      <div style="font-size:13px; color:var(--red);">{{ contract.reject_reason }}</div>
     </div>
     {% endif %}
 

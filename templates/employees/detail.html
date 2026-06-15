@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}{{ emp.name }} Employee Profile{% endblock %}
 {% block page_title %}Employees{% endblock %}
 
@@ -216,18 +216,18 @@
     </div>
     <div class="prof-sub">{{ emp.dept_name or '미지정 부서' }} · {{ emp.pos_name or '미지정 직급' }}</div>
     <div class="prof-meta">
-      {% if emp.role == 'admin' %}<span class="prof-tag" style="background:#eff6ff; color:#1e40af;">Admin</span>
-      {% elif emp.role == 'manager' %}<span class="prof-tag" style="background:#f0fdf4; color:#15803d;">Manager</span>
+      {% if emp.role == 'admin' %}<span class="prof-tag" style="background:var(--info-bg); color:var(--info);">Admin</span>
+      {% elif emp.role == 'manager' %}<span class="prof-tag" style="background:var(--green-bg); color:var(--green);">Manager</span>
       {% elif emp.role == 'recruiter' %}<span class="prof-tag" style="background:#fefce8; color:#854d0e;">Recruiter</span>
       {% else %}<span class="prof-tag">Employee</span>{% endif %}
 
-      {% if emp.employment_type == 'contract' %}<span class="prof-tag" style="background:#fff7ed; color:#c2410c;">계약직</span>
+      {% if emp.employment_type == 'contract' %}<span class="prof-tag" style="background:var(--orange-bg); color:var(--orange);">계약직</span>
       {% elif emp.employment_type == 'intern' %}<span class="prof-tag" style="background:#fdf4ff; color:#7e22ce;">인턴</span>
-      {% elif emp.employment_type == 'part_time' %}<span class="prof-tag" style="background:#fef3c7; color:#92400e;">시간제</span>
-      {% else %}<span class="prof-tag" style="background:#f0fdf4; color:#15803d;">정규직</span>{% endif %}
+      {% elif emp.employment_type == 'part_time' %}<span class="prof-tag" style="background:var(--orange-bg); color:var(--orange);">시간제</span>
+      {% else %}<span class="prof-tag" style="background:var(--green-bg); color:var(--green);">정규직</span>{% endif %}
 
       {% if emp.status == 'resigned' %}
-      <span class="prof-tag" style="background:#fef2f2; color:#b91c1c;">퇴직</span>
+      <span class="prof-tag" style="background:var(--red-bg); color:var(--red);">퇴직</span>
       {% endif %}
     </div>
   </div>
@@ -237,7 +237,7 @@
       <i class="fas fa-pencil-alt"></i> 정보 수정
     </a>
     <a href="{{ url_for('termination_request_new', emp_id=emp.id) }}" class="btn btn-sm"
-       style="background:#fef2f2; color:#b91c1c; border:1px solid #fecaca;">
+       style="background:var(--red-bg); color:var(--red); border:1px solid var(--red-bg);">
       <i class="fas fa-user-minus"></i> 퇴직 처리
     </a>
   </div>
@@ -288,9 +288,9 @@
       <div class="info-row">
         <div class="lbl">상태</div>
         <div class="val">
-          {% if emp.status == 'active' %}<span style="color:#15803d; font-weight:700;">재직 중</span>
-          {% elif emp.status == 'resigned' %}<span style="color:#b91c1c; font-weight:700;">퇴직</span>
-          {% else %}<span style="color:#92400e; font-weight:700;">비활성</span>{% endif %}
+          {% if emp.status == 'active' %}<span style="color:var(--green); font-weight:700;">재직 중</span>
+          {% elif emp.status == 'resigned' %}<span style="color:var(--red); font-weight:700;">퇴직</span>
+          {% else %}<span style="color:var(--orange); font-weight:700;">비활성</span>{% endif %}
         </div>
       </div>
       <div class="info-row"><div class="lbl">계정 생성일</div><div class="val">{{ (emp.created_at or '')[:10] or '—' }}</div></div>
@@ -363,7 +363,7 @@
     {% if actions %}
     <table style="width:100%; border-collapse:collapse; font-size:13px;">
       <thead>
-        <tr style="background:#f8fafc;">
+        <tr style="background:var(--surface-3);">
           <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">발령일</th>
           <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">유형</th>
           <th style="padding:10px 16px; text-align:left; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border);">변경 내용</th>
@@ -422,7 +422,7 @@
     <div class="section-head" style="margin-top:0; border-top:1px solid var(--border);">퇴직금 처리 이력</div>
     <div class="info-grid">
       <div class="info-row"><div class="lbl">처리일</div><div class="val">{{ severance.processed_at[:10] }}</div></div>
-      <div class="info-row"><div class="lbl">퇴직금</div><div class="val" style="color:#1e3a8a; font-weight:800;">{{ "{:,}원".format(severance.severance_amount) }}</div></div>
+      <div class="info-row"><div class="lbl">퇴직금</div><div class="val" style="color:var(--info); font-weight:800;">{{ "{:,}원".format(severance.severance_amount) }}</div></div>
       {% if severance.note %}
       <div class="info-row"><div class="lbl">메모</div><div class="val">{{ severance.note }}</div></div>
       {% endif %}
@@ -445,16 +445,16 @@
       {% for s in skills %}
       {% set lc = {'beginner':'#64748b','intermediate':'#2563eb','advanced':'#7c3aed','expert':'#b45309'} %}
       <span style="display:inline-flex; align-items:center; gap:6px;
-                   background:{{ lc.get(s.level,'#64748b') }}15;
-                   color:{{ lc.get(s.level,'#64748b') }};
-                   border:1px solid {{ lc.get(s.level,'#64748b') }}30;
+                   background:{{ lc.get(s.level,'var(--tx-3)') }}15;
+                   color:{{ lc.get(s.level,'var(--tx-3)') }};
+                   border:1px solid {{ lc.get(s.level,'var(--tx-3)') }}30;
                    border-radius:20px; padding:4px 12px; font-size:13px; font-weight:600;">
         {{ s.skill_name }}
         <span style="font-size:10px; opacity:.7;">{{ skill_levels.get(s.level, s.level) }}</span>
         {% if can_edit_skills %}
         <form method="POST" action="{{ url_for('skill_delete', emp_id=emp.id, skill_id=s.id) }}" style="margin:0;">
           <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;line-height:1;
-                                       color:{{ lc.get(s.level,'#64748b') }}; opacity:.6;" title="삭제">×</button>
+                                       color:{{ lc.get(s.level,'var(--tx-3)') }}; opacity:.6;" title="삭제">×</button>
         </form>
         {% endif %}
       </span>
@@ -497,24 +497,24 @@
           {% for c in certs %}
           {% set is_expiring = c.expiry_date and (c.expiry_date <= today) %}
           {% set days_left = none %}
-          <tr {% if is_expiring %}style="background:#fef2f2;"{% endif %}>
+          <tr {% if is_expiring %}style="background:var(--red-bg);"{% endif %}>
             <td style="font-weight:600;">
               {{ c.cert_name }}
               {% if c.expiry_date and c.expiry_date <= today %}
-              <span class="badge" style="background:#fee2e2;color:#b91c1c;margin-left:4px;">만료</span>
+              <span class="badge" style="background:var(--red-bg);color:var(--red);margin-left:4px;">만료</span>
               {% elif c.expiry_date and c.expiry_date <= (today[:7] ~ '-' ~ (today[8:10]|int + 30)|string).lstrip() %}
               <span class="badge badge-pending" style="margin-left:4px;">만료임박</span>
               {% endif %}
             </td>
             <td style="color:var(--tx-3);">{{ c.issued_by or '—' }}</td>
             <td style="color:var(--tx-3);">{{ c.issued_date or '—' }}</td>
-            <td style="color:{% if is_expiring %}#b91c1c{% else %}var(--tx-3){% endif %};">
+            <td style="color:{% if is_expiring %}var(--red){% else %}var(--tx-3){% endif %};">
               {{ c.expiry_date or '—' }}
             </td>
             {% if can_edit_skills %}
             <td>
               <form method="POST" action="{{ url_for('cert_delete', emp_id=emp.id, cert_id=c.id) }}">
-                <button type="submit" class="btn btn-ghost btn-sm" style="color:#b91c1c;">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--red);">
                   <i class="fas fa-trash-alt"></i>
                 </button>
               </form>
@@ -581,12 +581,12 @@
       {% set mid_pct = (bmid - bmin) / (bmax - bmin) * 100 %}
       <div style="position:relative; height:12px; background:#e5e7eb; border-radius:6px; margin:8px 0;">
         <!-- Mid 마커 -->
-        <div style="position:absolute; left:{{ mid_pct }}%; top:-4px; bottom:-4px; width:2px; background:#6b7280;"></div>
+        <div style="position:absolute; left:{{ mid_pct }}%; top:-4px; bottom:-4px; width:2px; background:var(--tx-3);"></div>
         <!-- 현재 위치 -->
         <div style="position:absolute; left:0; width:{{ pct }}%; height:100%; border-radius:6px;
-                    background:{% if ratio and ratio < 0.9 %}#f59e0b{% elif ratio and ratio > 1.1 %}#3b82f6{% else %}#22c55e{% endif %};"></div>
+                    background:{% if ratio and ratio < 0.9 %}var(--orange){% elif ratio and ratio > 1.1 %}#3b82f6{% else %}var(--green){% endif %};"></div>
         <div style="position:absolute; left:{{ pct }}%; top:50%; transform:translate(-50%,-50%);
-                    width:16px; height:16px; background:white; border:3px solid #1e3a8a;
+                    width:16px; height:16px; background:white; border:3px solid var(--info);
                     border-radius:50%; box-shadow:0 1px 3px rgba(0,0,0,.3);"></div>
       </div>
       {% endif %}
@@ -594,7 +594,7 @@
         현재 기본급 <strong>{{ "{:,}원".format(base) }}</strong> &nbsp;|&nbsp;
         Compa-Ratio
         {% if ratio %}
-          <strong style="color:{% if ratio < 0.9 %}#b45309{% elif ratio > 1.1 %}#1d4ed8{% else %}#15803d{% endif %};">
+          <strong style="color:{% if ratio < 0.9 %}var(--orange){% elif ratio > 1.1 %}var(--info){% else %}var(--green){% endif %};">
             {{ ratio }}
           </strong>
           <span style="font-size:11px; color:var(--text-muted);">
@@ -622,7 +622,7 @@
       <div class="pay-amounts">
         <span>기본급 <strong>{{ "{:,}원".format(p.base_salary) }}</strong></span>
         <span>총지급 <strong>{{ "{:,}원".format(p.gross_pay) }}</strong></span>
-        <span>실수령 <strong style="color:#1e3a8a;">{{ "{:,}원".format(p.net_pay) }}</strong></span>
+        <span>실수령 <strong style="color:var(--info);">{{ "{:,}원".format(p.net_pay) }}</strong></span>
       </div>
       <a href="{{ url_for('payroll_detail', year=p.year, month=p.month) }}" class="btn btn-ghost btn-sm" style="margin-left:12px;">
         <i class="fas fa-file-alt"></i>
@@ -655,7 +655,7 @@
         <!-- 타임라인 도트 -->
         <div style="display:flex; flex-direction:column; align-items:center; padding-top:3px;">
           <div style="width:10px; height:10px; border-radius:50%;
-                      background:{% if h.new_base_salary > h.old_base_salary %}#16a34a{% elif h.new_base_salary < h.old_base_salary %}#dc2626{% else %}#1d4ed8{% endif %};
+                      background:{% if h.new_base_salary > h.old_base_salary %}var(--green){% elif h.new_base_salary < h.old_base_salary %}var(--red){% else %}var(--info){% endif %};
                       flex-shrink:0;"></div>
         </div>
         <!-- 내용 -->
@@ -666,9 +666,9 @@
                 {% if h.new_base_salary != h.old_base_salary %}
                   기본급
                   {% if h.new_base_salary > h.old_base_salary %}
-                    <span style="color:#16a34a;">인상</span>
+                    <span style="color:var(--green);">인상</span>
                   {% else %}
-                    <span style="color:#dc2626;">삭감</span>
+                    <span style="color:var(--red);">삭감</span>
                   {% endif %}
                 {% endif %}
                 {% if h.new_meal != h.old_meal or h.new_transport != h.old_transport %}
@@ -678,7 +678,7 @@
               {% if h.new_base_salary != h.old_base_salary %}
               <div style="font-size:12px; color:var(--text-muted);">
                 기본급 {{ "{:,}".format(h.old_base_salary) }} →
-                <strong style="color:{% if h.new_base_salary > h.old_base_salary %}#16a34a{% else %}#dc2626{% endif %};">
+                <strong style="color:{% if h.new_base_salary > h.old_base_salary %}var(--green){% else %}var(--red){% endif %};">
                   {{ "{:,}원".format(h.new_base_salary) }}
                 </strong>
                 <span style="margin-left:6px; font-size:11px;">
@@ -697,7 +697,7 @@
               </div>
               {% endif %}
               {% if h.reason %}
-              <div style="font-size:11px; color:#64748b; margin-top:4px;">
+              <div style="font-size:11px; color:var(--tx-3); margin-top:4px;">
                 <i class="fas fa-comment-alt" style="margin-right:4px;"></i>{{ h.reason }}
               </div>
               {% endif %}
@@ -781,7 +781,7 @@
     <div class="goal-row">
       <div style="display:flex; justify-content:space-between; align-items:flex-start;">
         <div class="goal-title">{{ g.title }}</div>
-        <span style="font-size:12px; font-weight:600; padding:2px 8px; border-radius:20px; background:#eff6ff; color:#1e40af;">{{ g.category or 'KPI' }}</span>
+        <span style="font-size:12px; font-weight:600; padding:2px 8px; border-radius:20px; background:var(--info-bg); color:var(--info);">{{ g.category or 'KPI' }}</span>
       </div>
       <div style="font-size:12.5px; color:var(--text-muted); margin-top:2px;">
         가중치 {{ g.weight }}%{% if g.self_score %} · 자기평가 {{ g.self_score }}점{% endif %}
@@ -812,7 +812,7 @@
   <form method="POST" action="{{ url_for('employee_benefits_save', emp_id=emp.id) }}">
 
     <!-- 안내 -->
-    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:.82rem;color:#0369a1;line-height:1.6;">
+    <div style="background:var(--info-bg);border:1px solid var(--info-bg);border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:.82rem;color:#0369a1;line-height:1.6;">
       <i class="fas fa-info-circle" style="margin-right:6px;"></i>
       전사 기본 설정을 기반으로 이 직원에게만 다르게 적용할 항목을 설정하세요.
       <strong>오버라이드 ON</strong>이면 아래 금액·활성화 여부가 우선 적용됩니다.
@@ -833,11 +833,11 @@
       {% endif %}
 
       {% set is_ovr = row.has_override %}
-      <div style="border:1px solid {% if is_ovr %}#bfdbfe{% else %}#f1f5f9{% endif %};border-radius:12px;padding:16px;margin-bottom:8px;background:{% if is_ovr %}#f0f7ff{% else %}#fafafa{% endif %};" id="brow_{{ row.key }}">
+      <div style="border:1px solid {% if is_ovr %}#bfdbfe{% else %}var(--surface-3){% endif %};border-radius:12px;padding:16px;margin-bottom:8px;background:{% if is_ovr %}#f0f7ff{% else %}#fafafa{% endif %};" id="brow_{{ row.key }}">
         <div style="display:flex;align-items:flex-start;gap:12px;">
 
           <!-- 아이콘 -->
-          <div style="width:36px;height:36px;background:{% if is_ovr %}#3b82f6{% else %}#e2e8f0{% endif %};border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <div style="width:36px;height:36px;background:{% if is_ovr %}#3b82f6{% else %}var(--surface-3){% endif %};border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
             <i class="fas {{ row.icon }}" style="color:{% if is_ovr %}#fff{% else %}#94a3b8{% endif %};font-size:13px;"></i>
           </div>
 
@@ -845,9 +845,9 @@
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px;">
               <strong style="font-size:.88rem;">{{ row.name }}</strong>
               {% if row.tax_exempt and row.monthly_limit %}
-              <span style="background:#dcfce7;color:#166534;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">비과세 {{ '{:,}'.format(row.monthly_limit) }}원 한도</span>
+              <span style="background:var(--green-bg);color:var(--green);font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">비과세 {{ '{:,}'.format(row.monthly_limit) }}원 한도</span>
               {% else %}
-              <span style="background:#fef3c7;color:#92400e;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">과세</span>
+              <span style="background:var(--orange-bg);color:var(--orange);font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">과세</span>
               {% endif %}
             </div>
             <div style="font-size:.75rem;color:#94a3b8;">
@@ -861,7 +861,7 @@
           <!-- 오버라이드 토글 -->
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;" onclick="toggleOverride('{{ row.key }}')">
-              <span style="font-size:.75rem;color:#64748b;">오버라이드</span>
+              <span style="font-size:.75rem;color:var(--tx-3);">오버라이드</span>
               <div style="position:relative;width:40px;height:21px;">
                 <input type="checkbox" name="override_{{ row.key }}" id="ovr_{{ row.key }}" value="1"
                        {% if is_ovr %}checked{% endif %}
@@ -874,7 +874,7 @@
         </div>
 
         <!-- 오버라이드 상세 설정 (토글 ON일 때 표시) -->
-        <div id="odetail_{{ row.key }}" style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;{% if not is_ovr %}display:none{% endif %}">
+        <div id="odetail_{{ row.key }}" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--surface-3);{% if not is_ovr %}display:none{% endif %}">
           <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
 
             <!-- 비활성화 체크박스 -->
@@ -882,7 +882,7 @@
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.8rem;color:#374151;">
                 <input type="checkbox" name="disabled_{{ row.key }}" value="1"
                        {% if is_ovr and not row.ovr_enabled %}checked{% endif %}
-                       style="width:15px;height:15px;accent-color:#ef4444;">
+                       style="width:15px;height:15px;accent-color:var(--red);">
                 이 직원은 제외 (비활성화)
               </label>
               <div style="font-size:.7rem;color:#94a3b8;margin-top:2px;">체크하면 급여 생성 시 이 항목 미포함</div>
@@ -891,7 +891,7 @@
             <!-- 금액 오버라이드 -->
             {% if row.payment_type == 'monthly_fixed' %}
             <div>
-              <label style="font-size:.72rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">개인 지급액 (원)</label>
+              <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">개인 지급액 (원)</label>
               <div style="display:flex;align-items:center;gap:6px;">
                 <input type="number" name="amount_{{ row.key }}"
                        value="{{ row.ovr_amount if row.ovr_amount is not none else row.company_amount }}"
@@ -905,7 +905,7 @@
 
             <!-- 메모 -->
             <div style="flex:1;min-width:140px;">
-              <label style="font-size:.72rem;color:#64748b;font-weight:600;display:block;margin-bottom:4px;">사유 / 메모</label>
+              <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">사유 / 메모</label>
               <input type="text" name="note_{{ row.key }}" value="{{ row.ovr_note or '' }}"
                      placeholder="예: 임원 패키지, 자녀 없음"
                      style="width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.78rem;">
@@ -945,7 +945,7 @@
     </div>
 
     <!-- 추가 폼 -->
-    <div id="dep-form" style="display:none;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;">
+    <div id="dep-form" style="display:none;background:var(--surface-3);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;">
       <form method="post" action="{{ url_for('dependent_add', emp_id=emp.id) }}">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;">
           <div>
@@ -1023,12 +1023,12 @@
         <td>{% if dep.is_disabled %}<span class="badge badge-blue">Y</span>{% else %}-{% endif %}</td>
         <td>{% if dep.is_cohabiting %}Y{% else %}N{% endif %}</td>
         <td>{% if dep.is_adopted %}<span class="badge badge-blue">Y</span>{% else %}-{% endif %}</td>
-        <td style="font-size:.8rem;color:#64748b;">{{ dep.note or '' }}{% if dep.birth_order %} ({{ dep.birth_order }}째){% endif %}</td>
+        <td style="font-size:.8rem;color:var(--tx-3);">{{ dep.note or '' }}{% if dep.birth_order %} ({{ dep.birth_order }}째){% endif %}</td>
         {% if session.user_role == 'admin' or session.user_id == emp.id %}
         <td>
           <form method="post" action="{{ url_for('dependent_delete', emp_id=emp.id, dep_id=dep.id) }}"
                 onsubmit="return confirm('삭제할까요?')">
-            <button type="submit" class="btn btn-sm" style="color:#ef4444;background:none;border:none;cursor:pointer;padding:2px 8px;">삭제</button>
+            <button type="submit" class="btn btn-sm" style="color:var(--red);background:none;border:none;cursor:pointer;padding:2px 8px;">삭제</button>
           </form>
         </td>
         {% endif %}
@@ -1047,12 +1047,12 @@
   <div class="section-card" style="margin-bottom:20px;">
     <h3 style="font-weight:700;font-size:.95rem;margin-bottom:14px;">최근 급여 세금 공제 요약 ({{ last_ps.year }}년 {{ last_ps.month }}월)</h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
-      <div style="background:#f0f9ff;border-radius:10px;padding:14px;">
+      <div style="background:var(--info-bg);border-radius:10px;padding:14px;">
         <div style="font-size:.75rem;color:#0369a1;font-weight:600;margin-bottom:4px;">기본공제 인원</div>
         <div style="font-size:1.2rem;font-weight:800;">{{ last_ps.num_dependents if last_ps.num_dependents else '-' }}명</div>
       </div>
-      <div style="background:#f0fdf4;border-radius:10px;padding:14px;">
-        <div style="font-size:.75rem;color:#15803d;font-weight:600;margin-bottom:4px;">근로소득공제 (§47)</div>
+      <div style="background:var(--green-bg);border-radius:10px;padding:14px;">
+        <div style="font-size:.75rem;color:var(--green);font-weight:600;margin-bottom:4px;">근로소득공제 (§47)</div>
         <div style="font-size:1.1rem;font-weight:800;">{{ '{:,}'.format(last_ps.income_deduction or 0) }}원</div>
       </div>
       <div style="background:#fefce8;border-radius:10px;padding:14px;">
@@ -1076,7 +1076,7 @@
       {% endif %}
     </div>
 
-    <div id="le-form" style="display:none;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;">
+    <div id="le-form" style="display:none;background:var(--surface-3);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;">
       <form method="post" action="{{ url_for('life_event_add', emp_id=emp.id) }}">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
           <div>
@@ -1113,7 +1113,7 @@
     <div>
       {% for ev in life_events %}
       <div style="display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);">
-        <div style="width:36px;height:36px;border-radius:50%;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">
+        <div style="width:36px;height:36px;border-radius:50%;background:var(--info-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">
           {% if ev.event_type == 'marriage' %}💍
           {% elif ev.event_type == 'birth' or ev.event_type == 'adoption' %}👶
           {% elif ev.event_type == 'divorce' or ev.event_type == 'death_of_dependent' %}📋
@@ -1122,7 +1122,7 @@
         </div>
         <div style="flex:1;">
           <div style="font-weight:600;font-size:.9rem;">{{ life_event_label.get(ev.event_type, ev.event_type) }}</div>
-          <div style="font-size:.8rem;color:#64748b;margin-top:2px;">{{ ev.event_date }}{% if ev.created_by_name %} · 기록: {{ ev.created_by_name }}{% endif %}</div>
+          <div style="font-size:.8rem;color:var(--tx-3);margin-top:2px;">{{ ev.event_date }}{% if ev.created_by_name %} · 기록: {{ ev.created_by_name }}{% endif %}</div>
           {% if ev.description %}<div style="font-size:.82rem;color:#475569;margin-top:4px;">{{ ev.description }}</div>{% endif %}
         </div>
       </div>

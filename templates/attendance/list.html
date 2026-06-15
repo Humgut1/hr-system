@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}Leave Approvals{% endblock %}
 {% block page_title %}Leave Approvals{% endblock %}
 
@@ -103,7 +103,7 @@
               {% if (status == 'pending' and session.user_role == 'manager') or (session.user_role == 'admin') %}
               <form method="POST" action="{{ url_for('attendance_approve', req_id=r.id) }}">
                 <button type="submit" class="btn btn-sm"
-                        style="background:#f0fdf4; color:var(--green); border:1px solid #bbf7d0;">
+                        style="background:var(--green-bg); color:var(--green); border:1px solid var(--green);">
                   <i class="fas fa-check"></i> {{ 'Review' if status == 'pending' else 'Approve' }}
                 </button>
               </form>
@@ -113,7 +113,7 @@
                        style="width:100px; padding:4px 8px; font-size:12px;"
                        placeholder="Reason">
                 <button type="submit" class="btn btn-sm"
-                        style="background:#fef2f2; color:var(--red); border:1px solid #fecaca;">
+                        style="background:var(--red-bg); color:var(--red); border:1px solid var(--red-bg);">
                   <i class="fas fa-times"></i> Reject
                 </button>
               </form>

@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}직원 목록{% endblock %}
 {% block page_title %}직원 목록{% endblock %}
 
@@ -118,9 +118,9 @@
           <td>
             {% if emp.perf_grade %}
               {% set gc = {'S':'#7c3aed','A':'#1d4ed8','B':'#047857','C':'#b45309','D':'#dc2626'} %}
-              <span class="badge" style="background:{{ gc.get(emp.perf_grade,'#6b7280') }}20;
-                                         color:{{ gc.get(emp.perf_grade,'#6b7280') }};
-                                         border:1px solid {{ gc.get(emp.perf_grade,'#6b7280') }}40;">
+              <span class="badge" style="background:{{ gc.get(emp.perf_grade,'var(--tx-3)') }}20;
+                                         color:{{ gc.get(emp.perf_grade,'var(--tx-3)') }};
+                                         border:1px solid {{ gc.get(emp.perf_grade,'var(--tx-3)') }}40;">
                 {{ emp.perf_grade }}
               </span>
             {% else %}—{% endif %}

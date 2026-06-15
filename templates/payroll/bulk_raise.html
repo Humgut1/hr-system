@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}일괄 급여 인상{% endblock %}
 {% block page_title %}Payroll{% endblock %}
 
@@ -6,9 +6,9 @@
 
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% for cat, msg in messages %}
-  <div style="background:{% if cat=='error' %}#fef2f2{% else %}#f0fdf4{% endif %};
-              border:1px solid {% if cat=='error' %}#fecaca{% else %}#bbf7d0{% endif %};
-              color:{% if cat=='error' %}#991b1b{% else %}#166534{% endif %};
+  <div style="background:{% if cat=='error' %}var(--red-bg){% else %}var(--green-bg){% endif %};
+              border:1px solid {% if cat=='error' %}var(--red-bg){% else %}var(--green){% endif %};
+              color:{% if cat=='error' %}var(--red){% else %}var(--green){% endif %};
               padding:12px 16px; border-radius:var(--r-sm); margin-bottom:16px;
               display:flex; align-items:center; gap:8px; font-weight:600;">
     <i class="fas fa-{% if cat=='error' %}exclamation-circle{% else %}check-circle{% endif %}"></i>
@@ -31,12 +31,12 @@
 <div style="display:flex; gap:0; margin-bottom:20px; border:1px solid var(--border); border-radius:8px; overflow:hidden; width:fit-content;">
   <button id="tab-flat" onclick="setMode('flat')"
           style="padding:10px 24px; font-size:13px; font-weight:700; border:none; cursor:pointer;
-                 background:#1e293b; color:#fff; transition:all .15s;">
+                 background:var(--tx-1); color:#fff; transition:all .15s;">
     📈 일괄 인상
   </button>
   <button id="tab-merit" onclick="setMode('merit')"
           style="padding:10px 24px; font-size:13px; font-weight:700; border:none; cursor:pointer;
-                 background:#f1f5f9; color:var(--tx-2); transition:all .15s;">
+                 background:var(--surface-3); color:var(--tx-2); transition:all .15s;">
     🏆 Merit 인상 (등급 기반)
   </button>
 </div>
@@ -114,19 +114,19 @@
   </div>
   <div class="card" style="margin:0; text-align:center;">
     <div class="card-body" style="padding:14px;">
-      <div id="sumTotalBefore" style="font-size:18px; font-weight:900; color:#64748b;">—</div>
+      <div id="sumTotalBefore" style="font-size:18px; font-weight:900; color:var(--tx-3);">—</div>
       <div style="font-size:12px; color:var(--tx-3); margin-top:4px;">현재 월 인건비</div>
     </div>
   </div>
   <div class="card" style="margin:0; text-align:center;">
     <div class="card-body" style="padding:14px;">
-      <div id="sumIncrease" style="font-size:18px; font-weight:900; color:#16a34a;">—</div>
+      <div id="sumIncrease" style="font-size:18px; font-weight:900; color:var(--green);">—</div>
       <div style="font-size:12px; color:var(--tx-3); margin-top:4px;">월 증가액</div>
     </div>
   </div>
   <div class="card" style="margin:0; text-align:center;">
     <div class="card-body" style="padding:14px;">
-      <div id="sumAnnual" style="font-size:18px; font-weight:900; color:#dc2626;">—</div>
+      <div id="sumAnnual" style="font-size:18px; font-weight:900; color:var(--red);">—</div>
       <div style="font-size:12px; color:var(--tx-3); margin-top:4px;">연간 추가 인건비</div>
     </div>
   </div>
@@ -168,7 +168,7 @@
             {% set gc = {'S':'#166534','A':'#1e40af','B':'#15803d','C':'#92400e','D':'#dc2626'} %}
             {% set gb = {'S':'#dcfce7','A':'#dbeafe','B':'#f0fdf4','C':'#fef3c7','D':'#fee2e2'} %}
             <span style="display:inline-block; width:26px; height:26px; border-radius:50%;
-                         background:{{ gb.get(g,'#f1f5f9') }}; color:{{ gc.get(g,'#94a3b8') }};
+                         background:{{ gb.get(g,'var(--surface-3)') }}; color:{{ gc.get(g,'#94a3b8') }};
                          font-size:12px; font-weight:900; line-height:26px; text-align:center;">{{ g }}</span>
             {% else %}
             <span style="font-size:11px; color:#94a3b8;">미평가</span>
@@ -177,8 +177,8 @@
           <td style="text-align:right; font-weight:700;">
             {{ '{:,}'.format(e.base_salary) }}₩
           </td>
-          <td style="text-align:right; font-weight:800; color:#166534;" class="col-new">—</td>
-          <td style="text-align:right; color:#16a34a; font-weight:700;" class="col-diff">—</td>
+          <td style="text-align:right; font-weight:800; color:var(--green);" class="col-new">—</td>
+          <td style="text-align:right; color:var(--green); font-weight:700;" class="col-diff">—</td>
           <td style="text-align:right;" class="col-pct">—</td>
         </tr>
         {% endfor %}

@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}{{ 'Add Employee' if mode == 'new' else 'Edit Employee' }}{% endblock %}
 {% block page_title %}Employees{% endblock %}
 
@@ -18,7 +18,7 @@
     <div class="card-head">
       <span class="card-title">{{ 'Add New Employee' if mode == 'new' else 'Edit Employee' }}</span>
       {% if emp and emp.emp_no %}
-      <span class="badge" style="font-size:12px; background:#f1f5f9; color:#64748b; padding:4px 10px; border-radius:6px; font-weight:700;">
+      <span class="badge" style="font-size:12px; background:var(--surface-3); color:var(--tx-3); padding:4px 10px; border-radius:6px; font-weight:700;">
         {{ emp.emp_no }}
       </span>
       {% endif %}

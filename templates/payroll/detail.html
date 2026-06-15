@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}{{ year }}/{{ '%02d'|format(month) }} Payslip{% endblock %}
 {% block page_title %}Payslips{% endblock %}
 
@@ -27,7 +27,7 @@
      box-shadow:var(--sh-md); border:1px solid var(--border); overflow:hidden;">
 
   <!-- Header -->
-  <div style="background:linear-gradient(135deg,#0f2544,#1e40af); color:#fff; padding:28px 32px;">
+  <div style="background:linear-gradient(135deg,#0f2544,var(--info)); color:#fff; padding:28px 32px;">
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
       <div>
         <div style="font-size:11px; opacity:.7; letter-spacing:1px; text-transform:uppercase; margin-bottom:6px;">
@@ -45,7 +45,7 @@
   </div>
 
   <!-- Employee info -->
-  <div style="padding:22px 32px; border-bottom:1px solid var(--border); background:#f8fafc;">
+  <div style="padding:22px 32px; border-bottom:1px solid var(--border); background:var(--surface-3);">
     <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
       {% for label, value in [('Name', slip.name), ('Department', slip.dept_name or '—'), ('Position', slip.pos_name or '—'), ('Hire Date', slip.hire_date or '—'), ('Email', slip.email), ('Pay Date', year|string + '-' + '%02d'|format(month) + '-25')] %}
       <div>
@@ -72,7 +72,7 @@
         ] %}
         {% if amount > 0 %}
         <div style="display:flex; justify-content:space-between; align-items:center;
-                    padding:8px 0; border-bottom:1px solid #f1f5f9;">
+                    padding:8px 0; border-bottom:1px solid var(--surface-3);">
           <div>
             <span style="font-size:13.5px; color:var(--tx-1);">{{ label }}</span>
             {% if note %}
@@ -106,7 +106,7 @@
             ('Local Income Tax', slip.local_income_tax, 'Income tax × 10%')
         ] %}
         <div style="display:flex; justify-content:space-between; align-items:center;
-                    padding:8px 0; border-bottom:1px solid #f1f5f9;">
+                    padding:8px 0; border-bottom:1px solid var(--surface-3);">
           <div>
             <span style="font-size:13.5px; color:var(--tx-1);">{{ label }}</span>
             <span style="font-size:10.5px; color:var(--tx-3); margin-left:6px;">{{ law }}</span>
@@ -126,7 +126,7 @@
 
     <!-- Net pay -->
     <div style="margin-top:20px; padding:20px 24px;
-                background:linear-gradient(135deg,#eff6ff,#dbeafe);
+                background:linear-gradient(135deg,var(--info-bg),var(--info-bg));
                 border-radius:var(--r); border:1.5px solid #bfdbfe;
                 display:flex; justify-content:space-between; align-items:center;">
       <div>
@@ -143,7 +143,7 @@
     </div>
   </div>
 
-  <div style="padding:14px 32px; background:#f8fafc; border-top:1px solid var(--border);
+  <div style="padding:14px 32px; background:var(--surface-3); border-top:1px solid var(--border);
               font-size:11px; color:var(--tx-3); text-align:center;">
     This document is issued in accordance with applicable labor law. | TalentCore HR System
   </div>

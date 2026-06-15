@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}퇴직 처리 — {{ emp.name }}{% endblock %}
 {% block page_title %}Employees{% endblock %}
 
@@ -146,7 +146,7 @@
       </div>
       <div class="ob-sub">{{ emp.dept_name or '—' }} · {{ emp.pos_name or '—' }}</div>
     </div>
-    <span style="margin-left:auto; padding:5px 12px; background:#fef2f2; color:#b91c1c;
+    <span style="margin-left:auto; padding:5px 12px; background:var(--red-bg); color:var(--red);
                  border-radius:20px; font-size:12px; font-weight:800;">퇴직 처리</span>
   </div>
 
@@ -189,7 +189,7 @@
                               {% elif key == 'dismissal' %}fa-user-slash
                               {% elif key == 'contract' %}fa-file-contract
                               {% else %}fa-user-clock{% endif %}"
-                   style="font-size:18px; color:#1e3a8a;"></i>
+                   style="font-size:18px; color:var(--info);"></i>
                 <span class="type-label">{{ label }}</span>
               </label>
               {% endfor %}
@@ -198,7 +198,7 @@
 
           <!-- 최종 근무일 -->
           <div class="field" style="margin-bottom:20px;">
-            <label class="form-label">최종 근무일 <span style="color:#dc2626;">*</span></label>
+            <label class="form-label">최종 근무일 <span style="color:var(--red);">*</span></label>
             <input type="date" name="term_date" id="termDate" class="input"
                    value="{{ today }}" required style="max-width:220px;">
             <div style="font-size:12px; color:var(--text-muted); margin-top:5px;">
@@ -339,8 +339,8 @@
       </div>
 
       <!-- 최종 확인 박스 -->
-      <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:var(--r);
-                  padding:14px 18px; margin-bottom:20px; font-size:13.5px; color:#b91c1c; font-weight:600;">
+      <div style="background:var(--red-bg); border:1px solid var(--red-bg); border-radius:var(--r);
+                  padding:14px 18px; margin-bottom:20px; font-size:13.5px; color:var(--red); font-weight:600;">
         <i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>
         <strong>{{ emp.name }}</strong> 직원의 퇴직 처리를 진행합니다. 이 작업은 되돌릴 수 없습니다.
       </div>
@@ -350,7 +350,7 @@
           <i class="fas fa-arrow-left"></i> 이전
         </button>
         <button type="submit" class="btn btn-primary"
-                style="background:#dc2626; border-color:#dc2626;"
+                style="background:var(--red); border-color:var(--red);"
                 onclick="this.disabled=true; this.innerText='처리 중...'; this.form.submit();">
           <i class="fas fa-check"></i> 퇴직 처리 완료
         </button>

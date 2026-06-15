@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}{{ applicant.name }} — 지원자 상세{% endblock %}
 {% block page_title %}지원자 상세{% endblock %}
 
@@ -566,7 +566,7 @@
                 {% if offer.salary %}연봉 {{ '{:,}'.format(offer.salary) }}원{% else %}연봉 협의{% endif %}
               </span>
               <span style="font-size:11px;padding:3px 10px;border-radius:999px;font-weight:700;color:#fff;
-                background:{{ {'draft':'#6b7280','sent':'#3b82f6','accepted':'#10b981','rejected':'#ef4444','expired':'#9ca3af','negotiating':'#f59e0b'}.get(offer.status,'#6b7280') }}">
+                background:{{ {'draft':'var(--tx-3)','sent':'#3b82f6','accepted':'#10b981','rejected':'var(--red)','expired':'var(--tx-3)','negotiating':'var(--orange)'}.get(offer.status,'var(--tx-3)') }}">
                 {{ offer_status_label.get(offer.status, offer.status) }}
               </span>
             </div>

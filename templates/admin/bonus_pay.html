@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}상여·성과급 지급 관리 — TalentCore{% endblock %}
 {% block page_title %}상여·성과급 지급 관리{% endblock %}
 
@@ -8,13 +8,13 @@
   <!-- 지급 폼 -->
   <div class="card" style="padding:28px;margin-bottom:24px;">
     <h3 style="font-size:.95rem;font-weight:700;margin:0 0 6px;">새 상여 지급</h3>
-    <p style="font-size:.8rem;color:#64748b;margin:0 0 20px;">유형을 선택하면 직원별 예상 금액이 아래 미리보기에 표시됩니다. 확인 후 지급 실행하세요.</p>
+    <p style="font-size:.8rem;color:var(--tx-3);margin:0 0 20px;">유형을 선택하면 직원별 예상 금액이 아래 미리보기에 표시됩니다. 확인 후 지급 실행하세요.</p>
 
     <form method="POST" id="bonusForm" onsubmit="return confirmPay()">
       <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;">
 
         <div>
-          <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:5px;">상여 유형 <span style="color:#ef4444;">*</span></label>
+          <label style="font-size:.75rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:5px;">상여 유형 <span style="color:var(--red);">*</span></label>
           <select name="bonus_type" id="bonusType" required onchange="loadPreview(this.value)"
                   style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;background:#fff;min-width:200px;">
             <option value="">선택하세요</option>
@@ -29,21 +29,21 @@
         </div>
 
         <div>
-          <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:5px;">지급일 <span style="color:#ef4444;">*</span></label>
+          <label style="font-size:.75rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:5px;">지급일 <span style="color:var(--red);">*</span></label>
           <input type="date" name="pay_date" id="payDate" required
                  style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
         </div>
 
         <!-- CI 달성률 (company_pct일 때만) -->
         <div id="achievementBlock" style="display:none;">
-          <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:5px;">회사 달성률 (%)</label>
+          <label style="font-size:.75rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:5px;">회사 달성률 (%)</label>
           <input type="number" name="achievement_pct" id="achievementPct" min="0" max="200" value="100"
                  oninput="refreshCIAmounts()"
                  style="width:100px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
         </div>
 
         <div style="flex:1;min-width:160px;">
-          <label style="font-size:.75rem;color:#64748b;font-weight:600;display:block;margin-bottom:5px;">메모</label>
+          <label style="font-size:.75rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:5px;">메모</label>
           <input type="text" name="note" placeholder="예: 2026년 설 상여"
                  style="width:100%;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
         </div>
@@ -54,7 +54,7 @@
       </div>
 
       <!-- 계산 방식 안내 -->
-      <div id="calcHint" style="margin-top:12px;padding:10px 14px;background:#f8fafc;border-radius:8px;font-size:.78rem;color:#475569;display:none;line-height:1.6;"></div>
+      <div id="calcHint" style="margin-top:12px;padding:10px 14px;background:var(--surface-3);border-radius:8px;font-size:.78rem;color:#475569;display:none;line-height:1.6;"></div>
     </form>
   </div>
 
@@ -70,12 +70,12 @@
     <div class="card" style="padding:0;overflow:hidden;">
       <table style="width:100%;border-collapse:collapse;">
         <thead>
-          <tr style="background:#f8fafc;">
-            <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">직원</th>
-            <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">부서</th>
-            <th style="padding:11px 16px;text-align:right;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">기본급</th>
-            <th id="gradeColHeader" style="padding:11px 16px;text-align:center;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;display:none;">성과등급</th>
-            <th style="padding:11px 16px;text-align:right;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">예상 지급액</th>
+          <tr style="background:var(--surface-3);">
+            <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">직원</th>
+            <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">부서</th>
+            <th style="padding:11px 16px;text-align:right;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">기본급</th>
+            <th id="gradeColHeader" style="padding:11px 16px;text-align:center;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);display:none;">성과등급</th>
+            <th style="padding:11px 16px;text-align:right;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">예상 지급액</th>
           </tr>
         </thead>
         <tbody id="previewBody"></tbody>
@@ -86,10 +86,10 @@
   <!-- 상여 항목 설명 -->
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:28px;">
     {% for item in bonus_items %}
-    <div style="background:{% if item.key in active_configs %}#f0f7ff{% else %}#f8fafc{% endif %};border:1px solid {% if item.key in active_configs %}#bfdbfe{% else %}#e2e8f0{% endif %};border-radius:10px;padding:12px 16px;min-width:160px;flex:1;">
+    <div style="background:{% if item.key in active_configs %}#f0f7ff{% else %}var(--surface-3){% endif %};border:1px solid {% if item.key in active_configs %}#bfdbfe{% else %}var(--surface-3){% endif %};border-radius:10px;padding:12px 16px;min-width:160px;flex:1;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
         <i class="fas {{ item.icon }}" style="color:{% if item.key in active_configs %}#3b82f6{% else %}#94a3b8{% endif %};font-size:12px;"></i>
-        <strong style="font-size:.82rem;color:{% if item.key in active_configs %}#1e40af{% else %}#94a3b8{% endif %};">{{ item.name }}</strong>
+        <strong style="font-size:.82rem;color:{% if item.key in active_configs %}var(--info){% else %}#94a3b8{% endif %};">{{ item.name }}</strong>
       </div>
       <div style="font-size:.7rem;color:#94a3b8;">
         {% if item.calc_type == 'pct_of_base' %}기본급 × {{ active_configs[item.key]['pct'] if item.key in active_configs and active_configs[item.key]['pct'] else item.default_pct }}%
@@ -98,7 +98,7 @@
         {% else %}고정금액{% endif %}
       </div>
       {% if item.key not in active_configs %}
-      <div style="font-size:.68rem;color:#f59e0b;margin-top:3px;"><i class="fas fa-exclamation-circle"></i> 비활성</div>
+      <div style="font-size:.68rem;color:var(--orange);margin-top:3px;"><i class="fas fa-exclamation-circle"></i> 비활성</div>
       {% endif %}
     </div>
     {% endfor %}
@@ -111,12 +111,12 @@
   <div class="card" style="padding:0;overflow:hidden;">
     <table style="width:100%;border-collapse:collapse;">
       <thead>
-        <tr style="background:#f8fafc;">
-          <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">직원</th>
-          <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">상여 유형</th>
-          <th style="padding:11px 16px;text-align:right;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">지급액</th>
-          <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">지급일</th>
-          <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">메모</th>
+        <tr style="background:var(--surface-3);">
+          <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">직원</th>
+          <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">상여 유형</th>
+          <th style="padding:11px 16px;text-align:right;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">지급액</th>
+          <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">지급일</th>
+          <th style="padding:11px 16px;text-align:left;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">메모</th>
         </tr>
       </thead>
       <tbody>
@@ -125,19 +125,19 @@
         {% if h.pay_date != ns.cur_date or h.bonus_type != ns.cur_type %}
         {% set ns.cur_date = h.pay_date %}
         {% set ns.cur_type = h.bonus_type %}
-        <tr style="background:#f8fafc;">
-          <td colspan="5" style="padding:8px 16px;font-size:.75rem;font-weight:700;color:#475569;border-top:2px solid #e2e8f0;">
+        <tr style="background:var(--surface-3);">
+          <td colspan="5" style="padding:8px 16px;font-size:.75rem;font-weight:700;color:#475569;border-top:2px solid var(--surface-3);">
             {{ benefit_names.get(h.bonus_type, h.bonus_type) }} — {{ h.pay_date }}
             {% if h.note %}<span style="font-weight:400;color:#94a3b8;margin-left:8px;">{{ h.note }}</span>{% endif %}
           </td>
         </tr>
         {% endif %}
-        <tr style="border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <tr style="border-bottom:1px solid var(--surface-3);" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
           <td style="padding:10px 16px 10px 24px;font-size:.85rem;">{{ h.emp_name }}</td>
-          <td style="padding:10px 16px;font-size:.82rem;color:#64748b;">{{ benefit_names.get(h.bonus_type, h.bonus_type) }}</td>
+          <td style="padding:10px 16px;font-size:.82rem;color:var(--tx-3);">{{ benefit_names.get(h.bonus_type, h.bonus_type) }}</td>
           <td style="padding:10px 16px;text-align:right;font-size:.88rem;font-weight:600;color:#111827;">₩{{ '{:,}'.format(h.amount) }}</td>
           <td style="padding:10px 16px;font-size:.82rem;color:#94a3b8;">{{ h.pay_date }}</td>
-          <td style="padding:10px 16px;font-size:.78rem;color:#64748b;">{{ h.note or '' }}</td>
+          <td style="padding:10px 16px;font-size:.78rem;color:var(--tx-3);">{{ h.note or '' }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -151,7 +151,7 @@
   {% endif %}
 
   <div style="margin-top:20px;">
-    <a href="{{ url_for('admin_benefits') }}" style="color:#64748b;font-size:.83rem;text-decoration:none;">
+    <a href="{{ url_for('admin_benefits') }}" style="color:var(--tx-3);font-size:.83rem;text-decoration:none;">
       <i class="fas fa-arrow-left"></i> 복리후생 설정으로 돌아가기
     </a>
   </div>
@@ -269,13 +269,13 @@ function renderPreview(key, calc) {
       : '';
 
     tbody.innerHTML += `
-      <tr style="border-bottom:1px solid #f1f5f9;">
+      <tr style="border-bottom:1px solid var(--surface-3);">
         <td style="padding:9px 16px;">
           <span style="font-size:.85rem;font-weight:500;">${emp.name}</span>
           ${emp.emp_no ? `<span style="font-size:.72rem;color:#94a3b8;margin-left:6px;">${emp.emp_no}</span>` : ''}
         </td>
-        <td style="padding:9px 16px;font-size:.8rem;color:#64748b;">${emp.dept_name || '-'}</td>
-        <td style="padding:9px 16px;text-align:right;font-size:.82rem;color:#64748b;">₩${emp.base_salary.toLocaleString()}</td>
+        <td style="padding:9px 16px;font-size:.8rem;color:var(--tx-3);">${emp.dept_name || '-'}</td>
+        <td style="padding:9px 16px;text-align:right;font-size:.82rem;color:var(--tx-3);">₩${emp.base_salary.toLocaleString()}</td>
         ${gradeCell}
         <td style="padding:9px 16px;text-align:right;font-size:.88rem;font-weight:600;color:#111827;">₩${amount.toLocaleString()}</td>
       </tr>`;

@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}분석·보고서{% endblock %}
 {% block page_title %}분석·보고서{% endblock %}
 
@@ -190,7 +190,7 @@
       {% set bar_h = (row.cnt / (max_t if max_t > 0 else 1) * 80)|int %}
       <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;">
         <span style="font-size:10px; font-weight:700; color:var(--orange);">{{ row.cnt }}</span>
-        <div style="width:100%; height:{{ bar_h }}px; min-height:4px; background:linear-gradient(180deg,#ea580c,#fb923c); border-radius:4px 4px 0 0;"></div>
+        <div style="width:100%; height:{{ bar_h }}px; min-height:4px; background:linear-gradient(180deg,var(--orange),#fb923c); border-radius:4px 4px 0 0;"></div>
         <span style="font-size:9px; color:var(--tx-3); writing-mode:initial;">{{ row.ym[5:] }}</span>
       </div>
       {% endfor %}
@@ -219,9 +219,9 @@
       </div>
       <div style="height:7px; border-radius:99px; background:var(--bg); overflow:hidden;">
         <div style="height:100%; border-radius:99px; background:
-          {% if row.pct >= 80 %}linear-gradient(90deg,#16a34a,#4ade80)
+          {% if row.pct >= 80 %}linear-gradient(90deg,var(--green),#4ade80)
           {% elif row.pct >= 50 %}linear-gradient(90deg,var(--primary),var(--primary-light))
-          {% else %}linear-gradient(90deg,#ea580c,#fb923c){% endif %};
+          {% else %}linear-gradient(90deg,var(--orange),#fb923c){% endif %};
           width:{{ row.pct|int }}%;"></div>
       </div>
     </div>
@@ -269,7 +269,7 @@
               <div style="display:flex; align-items:center; gap:8px;">
                 <div style="flex:1; height:6px; border-radius:99px; background:var(--bg); overflow:hidden; max-width:80px;">
                   <div style="height:100%; border-radius:99px; width:{{ emp.risk }}%;
-                    background:{% if emp.level == 'high' %}#dc2626{% elif emp.level == 'medium' %}#ea580c{% else %}#2b5bff{% endif %};"></div>
+                    background:{% if emp.level == 'high' %}var(--red){% elif emp.level == 'medium' %}var(--orange){% else %}#2b5bff{% endif %};"></div>
                 </div>
                 <span style="font-size:13px; font-weight:700;
                   color:{% if emp.level == 'high' %}var(--red){% elif emp.level == 'medium' %}var(--orange){% else %}var(--primary){% endif %};">
@@ -354,7 +354,7 @@
       <div style="font-size:13px; color:var(--tx-3); margin-top:4px;">분석 대상 직원</div>
     </div>
     <div class="card" style="padding:20px; text-align:center;">
-      <div style="font-size:28px; font-weight:800; color:{% if outliers|length > 10 %}#dc2626{% else %}#d97706{% endif %};">
+      <div style="font-size:28px; font-weight:800; color:{% if outliers|length > 10 %}var(--red){% else %}var(--orange){% endif %};">
         {{ outliers|length }}
       </div>
       <div style="font-size:13px; color:var(--tx-3); margin-top:4px;">이상치 (밴드 ±15% 초과)</div>
@@ -379,7 +379,7 @@
       <div style="background:var(--surface-3); border-radius:8px; padding:10px 16px; min-width:140px;">
         <div style="font-size:12px; color:var(--tx-3); margin-bottom:4px;">{{ dept }}</div>
         <div style="font-size:18px; font-weight:700;
-             color:{% if avg < 0.9 %}#b45309{% elif avg > 1.1 %}#1d4ed8{% else %}#15803d{% endif %};">
+             color:{% if avg < 0.9 %}var(--orange){% elif avg > 1.1 %}var(--info){% else %}var(--green){% endif %};">
           {{ avg }}
         </div>
         <div style="font-size:10px; color:var(--tx-3); margin-top:2px;">
@@ -423,7 +423,7 @@
               {% endif %}
             </td>
             <td>
-              <span style="font-weight:700; color:{% if e.perf_grade in ['S','A'] %}#16a34a{% elif e.perf_grade == 'B' %}#d97706{% else %}#dc2626{% endif %};">
+              <span style="font-weight:700; color:{% if e.perf_grade in ['S','A'] %}var(--green){% elif e.perf_grade == 'B' %}var(--orange){% else %}var(--red){% endif %};">
                 {{ e.perf_grade or '-' }}
               </span>
             </td>
@@ -465,13 +465,13 @@
               {% if e.compa_ratio %}
                 {% set r = e.compa_ratio %}
                 <span style="padding:2px 8px; border-radius:8px; font-size:11px; font-weight:700;
-                  background:{% if r < 0.9 %}#fef3c7{% elif r > 1.1 %}#dbeafe{% else %}#dcfce7{% endif %};
-                  color:{% if r < 0.9 %}#92400e{% elif r > 1.1 %}#1e40af{% else %}#166534{% endif %};">
+                  background:{% if r < 0.9 %}var(--orange-bg){% elif r > 1.1 %}var(--info-bg){% else %}var(--green-bg){% endif %};
+                  color:{% if r < 0.9 %}var(--orange){% elif r > 1.1 %}var(--info){% else %}var(--green){% endif %};">
                   {{ r }}
                 </span>
               {% else %}<span style="color:var(--tx-3);">-</span>{% endif %}
             </td>
-            <td style="font-weight:700; color:{% if e.perf_grade in ['S','A'] %}#16a34a{% elif e.perf_grade=='B' %}#d97706{% else %}#dc2626{% endif %};">
+            <td style="font-weight:700; color:{% if e.perf_grade in ['S','A'] %}var(--green){% elif e.perf_grade=='B' %}var(--orange){% else %}var(--red){% endif %};">
               {{ e.perf_grade or '-' }}
             </td>
           </tr>

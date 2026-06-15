@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}Dashboard{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 
@@ -120,7 +120,7 @@
           <div style="flex-shrink:0; text-align:right;">
             {% if g.avg_score %}
             <div style="font-size:17px; font-weight:700;
-                        color:{% if g.avg_score >= 4 %}#16a34a{% elif g.avg_score >= 3 %}var(--primary){% else %}#ea580c{% endif %};">
+                        color:{% if g.avg_score >= 4 %}var(--green){% elif g.avg_score >= 3 %}var(--primary){% else %}var(--orange){% endif %};">
               {{ '%.1f'|format(g.avg_score) }}
             </div>
             {% else %}

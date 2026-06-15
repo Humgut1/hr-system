@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}구독 관리 — TalentCore{% endblock %}
 {% block page_title %}구독 관리{% endblock %}
 {% block content %}
@@ -9,9 +9,9 @@
   {% if s %}
 
     {% if s.state == 'active' %}
-    <div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:20px;padding:32px;color:#fff;margin-bottom:24px;display:flex;align-items:center;gap:24px;">
+    <div style="background:linear-gradient(135deg,var(--tx-1),#1e3a5f);border-radius:20px;padding:32px;color:#fff;margin-bottom:24px;display:flex;align-items:center;gap:24px;">
       <div style="width:56px;height:56px;background:rgba(34,197,94,.2);border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-        <i class="fas fa-check-circle" style="color:#22c55e;font-size:24px;"></i>
+        <i class="fas fa-check-circle" style="color:var(--green);font-size:24px;"></i>
       </div>
       <div>
         <div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">구독 상태</div>
@@ -24,7 +24,7 @@
     <div style="background:linear-gradient(135deg,#1c1917,#292524);border-radius:20px;padding:32px;color:#fff;margin-bottom:24px;">
       <div style="display:flex;align-items:flex-start;gap:20px;">
         <div style="width:56px;height:56px;background:rgba(245,158,11,.15);border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <i class="fas fa-hourglass-half" style="color:#f59e0b;font-size:22px;"></i>
+          <i class="fas fa-hourglass-half" style="color:var(--orange);font-size:22px;"></i>
         </div>
         <div style="flex:1;">
           <div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">무료 체험 중</div>
@@ -36,13 +36,13 @@
           <div style="font-size:.875rem;color:rgba(255,255,255,.55);margin-top:6px;">체험 종료: {{ tenant.trial_ends_at or '-' }} · 카드 등록 전까지 무료예요.</div>
         </div>
         {% if not tenant.toss_billing_key %}
-        <a href="{{ url_for('billing_register') }}" style="background:#f59e0b;color:#1c1917;padding:10px 20px;border-radius:10px;font-weight:700;font-size:.875rem;white-space:nowrap;text-decoration:none;flex-shrink:0;">카드 등록하기</a>
+        <a href="{{ url_for('billing_register') }}" style="background:var(--orange);color:#1c1917;padding:10px 20px;border-radius:10px;font-weight:700;font-size:.875rem;white-space:nowrap;text-decoration:none;flex-shrink:0;">카드 등록하기</a>
         {% endif %}
       </div>
       <!-- 남은 기간 프로그레스 -->
       {% if s.days_left is defined %}
       <div style="margin-top:20px;background:rgba(255,255,255,.08);border-radius:999px;height:6px;overflow:hidden;">
-        <div style="height:100%;background:#f59e0b;border-radius:999px;width:{{ [(14 - s.days_left) / 14 * 100, 100] | min }}%;transition:width .6s;"></div>
+        <div style="height:100%;background:var(--orange);border-radius:999px;width:{{ [(14 - s.days_left) / 14 * 100, 100] | min }}%;transition:width .6s;"></div>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:.75rem;color:rgba(255,255,255,.35);margin-top:6px;">
         <span>시작</span><span>14일 체험</span>
@@ -64,12 +64,12 @@
             현재 조회만 가능하고 새로운 데이터 입력은 제한돼요.
           </div>
         </div>
-        <a href="{{ url_for('billing_register') }}" style="background:#ef4444;color:#fff;padding:10px 20px;border-radius:10px;font-weight:700;font-size:.875rem;white-space:nowrap;text-decoration:none;flex-shrink:0;">지금 등록하기</a>
+        <a href="{{ url_for('billing_register') }}" style="background:var(--red);color:#fff;padding:10px 20px;border-radius:10px;font-weight:700;font-size:.875rem;white-space:nowrap;text-decoration:none;flex-shrink:0;">지금 등록하기</a>
       </div>
     </div>
 
     {% elif s.state == 'locked' %}
-    <div style="background:#0f172a;border-radius:20px;padding:32px;color:#fff;margin-bottom:24px;text-align:center;">
+    <div style="background:var(--tx-1);border-radius:20px;padding:32px;color:#fff;margin-bottom:24px;text-align:center;">
       <i class="fas fa-lock" style="font-size:40px;color:#475569;margin-bottom:16px;display:block;"></i>
       <div style="font-size:1.3rem;font-weight:800;margin-bottom:8px;">접근이 제한됐어요.</div>
       <div style="font-size:.875rem;color:rgba(255,255,255,.55);margin-bottom:20px;">카드를 등록하면 즉시 모든 데이터와 기능이 복구돼요. 데이터는 안전하게 보관되어 있어요.</div>
@@ -103,7 +103,7 @@
     <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px;">결제 수단</h3>
     {% if tenant and tenant.toss_billing_key %}
       <div style="display:flex;align-items:center;gap:14px;">
-        <div style="width:44px;height:28px;background:#1e293b;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <div style="width:44px;height:28px;background:var(--tx-1);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
           <span style="color:#94a3b8;font-size:.6rem;font-weight:700;">CARD</span>
         </div>
         <div>
@@ -121,7 +121,7 @@
         </div>
       </div>
     {% else %}
-      <div style="display:flex;align-items:center;gap:16px;padding:16px;background:#f8fafc;border-radius:12px;">
+      <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--surface-3);border-radius:12px;">
         <i class="fas fa-credit-card" style="font-size:24px;color:#cbd5e1;"></i>
         <div>
           <div style="font-weight:600;font-size:.9rem;margin-bottom:2px;">등록된 카드가 없어요.</div>
@@ -141,7 +141,7 @@
     {% if logs %}
     <table style="width:100%;border-collapse:collapse;font-size:.875rem;">
       <thead>
-        <tr style="border-bottom:2px solid #f1f5f9;">
+        <tr style="border-bottom:2px solid var(--surface-3);">
           <th style="text-align:left;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">날짜</th>
           <th style="text-align:right;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">직원 수</th>
           <th style="text-align:right;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">금액</th>
@@ -150,17 +150,17 @@
       </thead>
       <tbody>
         {% for log in logs %}
-        <tr style="border-bottom:1px solid #f8fafc;">
-          <td style="padding:11px 0;color:#334155;">{{ log.created_at[:10] }}</td>
-          <td style="text-align:right;color:#64748b;">{{ log.headcount }}명</td>
+        <tr style="border-bottom:1px solid var(--surface-3);">
+          <td style="padding:11px 0;color:var(--tx-2);">{{ log.created_at[:10] }}</td>
+          <td style="text-align:right;color:var(--tx-3);">{{ log.headcount }}명</td>
           <td style="text-align:right;font-weight:600;">₩{{ "{:,}".format(log.amount) }}</td>
           <td style="text-align:center;">
             {% if log.status == 'paid' %}
-              <span style="background:#dcfce7;color:#16a34a;font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:999px;">결제완료</span>
+              <span style="background:var(--green-bg);color:var(--green);font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:999px;">결제완료</span>
             {% elif log.status == 'pending' %}
-              <span style="background:#fef3c7;color:#d97706;font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:999px;">처리중</span>
+              <span style="background:var(--orange-bg);color:var(--orange);font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:999px;">처리중</span>
             {% else %}
-              <span style="background:#fee2e2;color:#dc2626;font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:999px;">실패</span>
+              <span style="background:var(--red-bg);color:var(--red);font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:999px;">실패</span>
             {% endif %}
           </td>
         </tr>

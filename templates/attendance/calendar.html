@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}Attendance Calendar{% endblock %}
 {% block page_title %}Attendance Calendar{% endblock %}
 
@@ -108,7 +108,7 @@
 <div class="card" style="margin-bottom:16px;">
   <div style="padding:14px 20px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-      <div style="background:#fee2e2; color:#dc2626; width:34px; height:34px;
+      <div style="background:var(--red-bg); color:var(--red); width:34px; height:34px;
                   border-radius:50%; display:flex; align-items:center; justify-content:center;">
         <i class="fas fa-user-clock" style="font-size:14px;"></i>
       </div>
@@ -132,9 +132,9 @@
   </div>
 </div>
 {% else %}
-<div style="background:#f0fdf4; border:1px solid #86efac; border-radius:var(--r);
+<div style="background:var(--green-bg); border:1px solid #86efac; border-radius:var(--r);
             padding:11px 18px; margin-bottom:16px; font-size:13px;
-            color:#15803d; font-weight:600; display:flex; align-items:center; gap:8px;">
+            color:var(--green); font-weight:600; display:flex; align-items:center; gap:8px;">
   <i class="fas fa-check-circle"></i>
   Everyone is in today.
 </div>

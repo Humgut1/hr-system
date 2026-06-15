@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}조직도{% endblock %}
 {% block page_title %}조직도{% endblock %}
 
@@ -235,7 +235,7 @@ function renderPanel() {
                   display:flex;align-items:center;justify-content:center;
                   font-size:20px;font-weight:700;color:#fff;">${ini(p.name)}</div>
       <div style="font-size:14px;font-weight:700;color:var(--tx-1);">
-        ${p.name}${isMe ? ' <span style="font-size:10px;background:#eff6ff;color:var(--primary);padding:1px 7px;border-radius:20px;">나</span>' : ''}
+        ${p.name}${isMe ? ' <span style="font-size:10px;background:var(--info-bg);color:var(--primary);padding:1px 7px;border-radius:20px;">나</span>' : ''}
       </div>
       <div style="font-size:12px;color:var(--tx-3);margin-top:3px">${p.title || '—'}</div>
     </div>

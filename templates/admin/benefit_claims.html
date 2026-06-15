@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}환급 신청 관리 — TalentCore{% endblock %}
 {% block page_title %}복리후생 환급 신청 관리{% endblock %}
 
@@ -6,12 +6,12 @@
 <div style="max-width:960px;margin:0 auto;">
 
   <!-- 탭 -->
-  <div style="display:flex;gap:0;margin-bottom:24px;border-bottom:2px solid #e2e8f0;">
+  <div style="display:flex;gap:0;margin-bottom:24px;border-bottom:2px solid var(--surface-3);">
     {% for t, label in [('pending','대기중'), ('approved','승인'), ('rejected','반려'), ('all','전체')] %}
-    <a href="?tab={{ t }}" style="padding:10px 20px;font-size:.85rem;font-weight:{% if tab==t %}700{% else %}400{% endif %};color:{% if tab==t %}#3b82f6{% else %}#64748b{% endif %};border-bottom:2px solid {% if tab==t %}#3b82f6{% else %}transparent{% endif %};margin-bottom:-2px;text-decoration:none;">
+    <a href="?tab={{ t }}" style="padding:10px 20px;font-size:.85rem;font-weight:{% if tab==t %}700{% else %}400{% endif %};color:{% if tab==t %}#3b82f6{% else %}var(--tx-3){% endif %};border-bottom:2px solid {% if tab==t %}#3b82f6{% else %}transparent{% endif %};margin-bottom:-2px;text-decoration:none;">
       {{ label }}
       {% if t != 'all' and counts.get(t, 0) > 0 %}
-      <span style="background:{% if t=='pending' %}#fee2e2{% else %}#f1f5f9{% endif %};color:{% if t=='pending' %}#991b1b{% else %}#64748b{% endif %};font-size:.7rem;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:4px;">{{ counts[t] }}</span>
+      <span style="background:{% if t=='pending' %}var(--red-bg){% else %}var(--surface-3){% endif %};color:{% if t=='pending' %}var(--red){% else %}var(--tx-3){% endif %};font-size:.7rem;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:4px;">{{ counts[t] }}</span>
       {% endif %}
     </a>
     {% endfor %}
@@ -21,19 +21,19 @@
   <div class="card" style="padding:0;overflow:hidden;">
     <table style="width:100%;border-collapse:collapse;">
       <thead>
-        <tr style="background:#f8fafc;">
-          <th style="padding:12px 16px;text-align:left;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">직원</th>
-          <th style="padding:12px 16px;text-align:left;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">항목</th>
-          <th style="padding:12px 16px;text-align:right;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">신청금액</th>
-          <th style="padding:12px 16px;text-align:left;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">사용일</th>
-          <th style="padding:12px 16px;text-align:left;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">신청일</th>
-          <th style="padding:12px 16px;text-align:center;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">상태</th>
-          <th style="padding:12px 16px;text-align:center;font-size:.75rem;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0;">액션</th>
+        <tr style="background:var(--surface-3);">
+          <th style="padding:12px 16px;text-align:left;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">직원</th>
+          <th style="padding:12px 16px;text-align:left;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">항목</th>
+          <th style="padding:12px 16px;text-align:right;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">신청금액</th>
+          <th style="padding:12px 16px;text-align:left;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">사용일</th>
+          <th style="padding:12px 16px;text-align:left;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">신청일</th>
+          <th style="padding:12px 16px;text-align:center;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">상태</th>
+          <th style="padding:12px 16px;text-align:center;font-size:.75rem;color:var(--tx-3);font-weight:600;border-bottom:1px solid var(--surface-3);">액션</th>
         </tr>
       </thead>
       <tbody>
         {% for c in claims %}
-        <tr style="border-bottom:1px solid #f1f5f9;transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <tr style="border-bottom:1px solid var(--surface-3);transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
           <td style="padding:13px 16px;">
             <div style="font-size:.85rem;font-weight:600;">{{ c.emp_name }}</div>
             <div style="font-size:.72rem;color:#94a3b8;">{{ c.emp_no or '' }}</div>
@@ -52,22 +52,22 @@
           </td>
           <td style="padding:13px 16px;text-align:center;">
             {% if c.status == 'pending' %}
-            <span style="background:#fef3c7;color:#92400e;font-size:.72rem;font-weight:600;padding:3px 10px;border-radius:999px;">대기중</span>
+            <span style="background:var(--orange-bg);color:var(--orange);font-size:.72rem;font-weight:600;padding:3px 10px;border-radius:999px;">대기중</span>
             {% elif c.status == 'approved' %}
-            <span style="background:#dcfce7;color:#166534;font-size:.72rem;font-weight:600;padding:3px 10px;border-radius:999px;">승인</span>
+            <span style="background:var(--green-bg);color:var(--green);font-size:.72rem;font-weight:600;padding:3px 10px;border-radius:999px;">승인</span>
             {% else %}
-            <span style="background:#fee2e2;color:#991b1b;font-size:.72rem;font-weight:600;padding:3px 10px;border-radius:999px;">반려</span>
+            <span style="background:var(--red-bg);color:var(--red);font-size:.72rem;font-weight:600;padding:3px 10px;border-radius:999px;">반려</span>
             {% endif %}
           </td>
           <td style="padding:13px 16px;text-align:center;">
             {% if c.status == 'pending' %}
             <div style="display:flex;gap:6px;justify-content:center;">
               <form method="POST" action="{{ url_for('admin_benefit_claim_action', claim_id=c.id, action='approve') }}" style="display:inline;">
-                <button type="submit" style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;">승인</button>
+                <button type="submit" style="background:var(--green);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;">승인</button>
               </form>
               <form method="POST" action="{{ url_for('admin_benefit_claim_action', claim_id=c.id, action='reject') }}" style="display:inline;"
                     onsubmit="return confirm('반려하시겠습니까?')">
-                <button type="submit" style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;">반려</button>
+                <button type="submit" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;">반려</button>
               </form>
             </div>
             {% else %}
@@ -76,9 +76,9 @@
           </td>
         </tr>
         {% if c.description %}
-        <tr style="background:#fafafa;border-bottom:1px solid #f1f5f9;">
+        <tr style="background:#fafafa;border-bottom:1px solid var(--surface-3);">
           <td colspan="7" style="padding:6px 16px 10px 16px;">
-            <span style="font-size:.75rem;color:#64748b;"><i class="fas fa-paperclip"></i> {{ c.description }}</span>
+            <span style="font-size:.75rem;color:var(--tx-3);"><i class="fas fa-paperclip"></i> {{ c.description }}</span>
           </td>
         </tr>
         {% endif %}
@@ -94,7 +94,7 @@
   {% endif %}
 
   <div style="margin-top:20px;">
-    <a href="{{ url_for('admin_benefits') }}" style="color:#64748b;font-size:.83rem;text-decoration:none;">
+    <a href="{{ url_for('admin_benefits') }}" style="color:var(--tx-3);font-size:.83rem;text-decoration:none;">
       <i class="fas fa-arrow-left"></i> 복리후생 설정으로 돌아가기
     </a>
   </div>

@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}후계자 계획{% endblock %}
 {% block page_title %}성과{% endblock %}
 
@@ -45,9 +45,9 @@
 
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% for cat, msg in messages %}
-  <div style="background:{% if cat=='error' %}#fef2f2{% else %}#f0fdf4{% endif %};
-              border:1px solid {% if cat=='error' %}#fecaca{% else %}#bbf7d0{% endif %};
-              color:{% if cat=='error' %}#991b1b{% else %}#166534{% endif %};
+  <div style="background:{% if cat=='error' %}var(--red-bg){% else %}var(--green-bg){% endif %};
+              border:1px solid {% if cat=='error' %}var(--red-bg){% else %}var(--green){% endif %};
+              color:{% if cat=='error' %}var(--red){% else %}var(--green){% endif %};
               padding:12px 16px; border-radius:8px; margin-bottom:16px;
               font-weight:600; display:flex; align-items:center; gap:8px;">
     <i class="fas fa-{% if cat=='error' %}exclamation-circle{% else %}check-circle{% endif %}"></i> {{ msg }}
@@ -118,7 +118,7 @@
               onsubmit="return confirm('이 후계자 계획을 삭제합니까?')">
           <input type="hidden" name="action" value="delete">
           <input type="hidden" name="sp_id" value="{{ c.id }}">
-          <button type="submit" class="btn btn-ghost btn-sm" style="color:#ef4444;" title="삭제">
+          <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--red);" title="삭제">
             <i class="fas fa-trash"></i>
           </button>
         </form>
@@ -154,7 +154,7 @@
       <input type="hidden" name="action" value="add">
 
       <div class="field" style="margin-bottom:14px;">
-        <label class="form-label">포지션명 <span style="color:#ef4444;">*</span></label>
+        <label class="form-label">포지션명 <span style="color:var(--red);">*</span></label>
         <input type="text" name="position_title" class="input" style="margin-top:6px;"
                placeholder="예) CTO, 영업본부장, 인사팀장 ..." required>
       </div>
@@ -170,7 +170,7 @@
       </div>
 
       <div class="field" style="margin-bottom:14px;">
-        <label class="form-label">후보자 <span style="color:#ef4444;">*</span></label>
+        <label class="form-label">후보자 <span style="color:var(--red);">*</span></label>
         <select name="candidate_id" class="input" style="margin-top:6px;" required>
           <option value="">— 선택 —</option>
           {% for e in employees %}

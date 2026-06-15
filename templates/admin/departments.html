@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}부서·직급 관리{% endblock %}
 {% block page_title %}부서·직급 관리{% endblock %}
 
@@ -86,7 +86,7 @@
                   <input type="hidden" name="action" value="delete_dept">
                   <input type="hidden" name="dept_id" value="{{ d.id }}">
                   <button type="submit" class="btn btn-sm"
-                          style="background:#fef2f2; color:var(--red); border:1px solid #fecaca;">
+                          style="background:var(--red-bg); color:var(--red); border:1px solid var(--red-bg);">
                     <i class="fas fa-trash-alt"></i>
                   </button>
                 </form>
@@ -183,7 +183,7 @@
                   <input type="hidden" name="action" value="delete_pos">
                   <input type="hidden" name="pos_id" value="{{ p.id }}">
                   <button type="submit" class="btn btn-sm"
-                          style="background:#fef2f2; color:var(--red); border:1px solid #fecaca;">
+                          style="background:var(--red-bg); color:var(--red); border:1px solid var(--red-bg);">
                     <i class="fas fa-trash-alt"></i>
                   </button>
                 </form>

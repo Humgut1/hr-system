@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}퇴직 요청 상세{% endblock %}
 {% block page_title %}Termination Request{% endblock %}
 
@@ -101,7 +101,7 @@
         </div>
         {% endif %}
         {% if termination.rejection_reason %}
-        <div style="margin-top:16px; padding:12px 14px; border:1px solid #fecaca; background:#fef2f2; border-radius:var(--r); color:#991b1b; font-size:13px;">
+        <div style="margin-top:16px; padding:12px 14px; border:1px solid var(--red-bg); background:var(--red-bg); border-radius:var(--r); color:var(--red); font-size:13px;">
           <strong>Rejection reason</strong><br>
           {{ termination.rejection_reason }}
         </div>
@@ -128,7 +128,7 @@
             </div>
             <div>
               {% if task.status == 'completed' %}
-              <span class="status-chip" style="background:#f0fdf4; color:#15803d;">Completed</span>
+              <span class="status-chip" style="background:var(--green-bg); color:var(--green);">Completed</span>
               {% elif session.user_role == 'admin' or (task.owner_role == 'employee' and termination.user_id == session.user_id) or (task.owner_role == 'manager' and can_manage) %}
               <form method="POST" style="min-width:220px;">
                 <input type="hidden" name="action" value="complete_task">
@@ -137,7 +137,7 @@
                 <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">Mark Complete</button>
               </form>
               {% else %}
-              <span class="status-chip" style="background:#f8fafc; color:var(--text-muted);">Pending</span>
+              <span class="status-chip" style="background:var(--surface-3); color:var(--text-muted);">Pending</span>
               {% endif %}
             </div>
           </div>
@@ -210,7 +210,7 @@
         </div>
         <div style="display:flex; justify-content:space-between;">
           <span class="muted">Estimated Severance</span>
-          <strong style="font-size:18px; color:#1e40af;">{{ "{:,}원".format(preview.severance_amount) }}</strong>
+          <strong style="font-size:18px; color:var(--info);">{{ "{:,}원".format(preview.severance_amount) }}</strong>
         </div>
         {% else %}
         <div style="font-size:13px; color:var(--text-muted);">{{ preview.get('reason', 'No severance preview available.') }}</div>
@@ -224,7 +224,7 @@
       <div class="card-body">
         <form method="POST">
           <input type="hidden" name="action" value="cancel_request">
-          <button type="submit" class="btn btn-ghost" style="color:#b91c1c; border-color:#fecaca;">Cancel Request</button>
+          <button type="submit" class="btn btn-ghost" style="color:var(--red); border-color:var(--red-bg);">Cancel Request</button>
         </form>
       </div>
     </div>
@@ -241,7 +241,7 @@
         <form method="POST" style="flex:1; min-width:240px;">
           <input type="hidden" name="action" value="reject_request">
           <input type="text" name="rejection_reason" class="input" placeholder="Reason for rejection" style="margin-bottom:8px;">
-          <button type="submit" class="btn btn-ghost" style="color:#b91c1c; border-color:#fecaca;">Reject</button>
+          <button type="submit" class="btn btn-ghost" style="color:var(--red); border-color:var(--red-bg);">Reject</button>
         </form>
       </div>
     </div>

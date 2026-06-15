@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}채용 요청서 상세{% endblock %}
 {% block page_title %}채용 요청서 상세{% endblock %}
 
@@ -69,15 +69,15 @@
         )) %}
         <div style="display:flex; flex-direction:column; align-items:center; flex:1; min-width:0;">
           <div style="width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px;
-                      background:{% if is_rejected %}#fee2e2{% elif is_done or is_active %}var(--primary){% else %}var(--bg-3){% endif %};
-                      color:{% if is_rejected %}#991b1b{% elif is_done or is_active %}#fff{% else %}var(--tx-3){% endif %};
+                      background:{% if is_rejected %}var(--red-bg){% elif is_done or is_active %}var(--primary){% else %}var(--bg-3){% endif %};
+                      color:{% if is_rejected %}var(--red){% elif is_done or is_active %}#fff{% else %}var(--tx-3){% endif %};
                       font-weight:700;">
             {% if is_rejected %}<i class="fas fa-times"></i>
             {% elif is_done %}<i class="fas fa-check"></i>
             {% else %}<i class="fas {{ icon }}"></i>{% endif %}
           </div>
           <div style="font-size:11px; font-weight:600; margin-top:6px; text-align:center;
-                      color:{% if is_rejected %}#991b1b{% elif is_done or is_active %}var(--primary){% else %}var(--tx-3){% endif %};">
+                      color:{% if is_rejected %}var(--red){% elif is_done or is_active %}var(--primary){% else %}var(--tx-3){% endif %};">
             {{ label }}
           </div>
           {% if actor %}
@@ -94,7 +94,7 @@
 
   <!-- 반려 사유 배너 -->
   {% if req.status == 'rejected' %}
-  <div class="info-banner" style="background:#fee2e2; border-color:#fca5a5; color:#991b1b; margin-bottom:16px;">
+  <div class="info-banner" style="background:var(--red-bg); border-color:#fca5a5; color:var(--red); margin-bottom:16px;">
     <i class="fas fa-times-circle"></i>
     <strong>반려됨</strong> —
     {% if req.hr_reject_reason %}HR 검토 반려: {{ req.hr_reject_reason }}
@@ -163,8 +163,8 @@
       <div style="font-size:13px;">
         <strong>{{ posting.title }}</strong>
         <span style="margin-left:10px; font-size:11px; padding:2px 8px; border-radius:99px;
-                     background:{% if posting.status == 'open' %}#dcfce7{% else %}#f1f5f9{% endif %};
-                     color:{% if posting.status == 'open' %}#166534{% else %}#475569{% endif %};">
+                     background:{% if posting.status == 'open' %}var(--green-bg){% else %}var(--surface-3){% endif %};
+                     color:{% if posting.status == 'open' %}var(--green){% else %}#475569{% endif %};">
           {{ '공개 중' if posting.status == 'open' else posting.status }}
         </span>
       </div>
@@ -175,8 +175,8 @@
   <!-- 부서장 승인 액션 -->
   {% if req.status == 'pending_dept' and session.user_role in ('admin','manager') %}
   <div class="card" style="margin-bottom:16px; border:2px solid #fbbf24;">
-    <div class="card-head" style="background:#fffbeb;">
-      <span class="card-title"><i class="fas fa-user-check" style="margin-right:6px; color:#d97706;"></i>부서장 승인 필요</span>
+    <div class="card-head" style="background:var(--orange-bg);">
+      <span class="card-title"><i class="fas fa-user-check" style="margin-right:6px; color:var(--orange);"></i>부서장 승인 필요</span>
     </div>
     <div class="card-body">
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
@@ -198,7 +198,7 @@
   <!-- HR 최종 승인 액션 -->
   {% if req.status == 'pending_hr' and session.user_role == 'admin' %}
   <div class="card" style="margin-bottom:16px; border:2px solid var(--primary);">
-    <div class="card-head" style="background:#eff6ff;">
+    <div class="card-head" style="background:var(--info-bg);">
       <span class="card-title"><i class="fas fa-building" style="margin-right:6px; color:var(--primary);"></i>HR 최종 승인 필요</span>
     </div>
     <div class="card-body">
@@ -230,7 +230,7 @@
     <form id="reject-form" method="POST">
       <input type="hidden" name="action" value="reject">
       <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label">반려 사유 <span style="color:#dc2626;">*</span></label>
+        <label class="form-label">반려 사유 <span style="color:var(--red);">*</span></label>
         <textarea name="reject_reason" class="form-control" rows="3" required
                   style="resize:none;" placeholder="반려 사유를 입력해주세요."></textarea>
       </div>

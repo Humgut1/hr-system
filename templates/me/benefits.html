@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}내 복리후생 — TalentCore{% endblock %}
 
 {% block content %}
@@ -7,14 +7,14 @@
 </div>
 
 {% if enrollment_event %}
-<div style="background:#fffbeb;border:1px solid #f59e0b;border-radius:12px;padding:1rem 1.5rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:1rem;">
-  <i class="fas fa-bell" style="color:#f59e0b;font-size:1.2rem;flex-shrink:0;"></i>
+<div style="background:var(--orange-bg);border:1px solid var(--orange);border-radius:12px;padding:1rem 1.5rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:1rem;">
+  <i class="fas fa-bell" style="color:var(--orange);font-size:1.2rem;flex-shrink:0;"></i>
   <div style="flex:1;">
-    <div style="font-weight:600;color:#92400e;margin-bottom:.2rem;">{{ enrollment_event.event_label }}</div>
-    <div style="font-size:.82rem;color:#b45309;">복리후생 항목을 확인하고 등록을 완료해 주세요.{% if enrollment_event.due_date %} 기한: {{ enrollment_event.due_date }}{% endif %}</div>
+    <div style="font-weight:600;color:var(--orange);margin-bottom:.2rem;">{{ enrollment_event.event_label }}</div>
+    <div style="font-size:.82rem;color:var(--orange);">복리후생 항목을 확인하고 등록을 완료해 주세요.{% if enrollment_event.due_date %} 기한: {{ enrollment_event.due_date }}{% endif %}</div>
   </div>
   <form method="POST" action="{{ url_for('enrollment_complete', eid=enrollment_event.id) }}" style="margin:0;">
-    <button type="submit" style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:.5rem 1rem;font-size:.85rem;font-weight:600;cursor:pointer;">확인 완료</button>
+    <button type="submit" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:.5rem 1rem;font-size:.85rem;font-weight:600;cursor:pointer;">확인 완료</button>
   </form>
 </div>
 {% endif %}

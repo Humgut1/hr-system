@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}휴가 상세{% endblock %}
 {% block page_title %}휴가 신청 상세{% endblock %}
 
@@ -339,7 +339,7 @@
 
     <!-- 흐름 안내 메시지 -->
     <div style="margin-top:14px; padding:10px 14px; border-radius:8px; font-size:12px;
-      {% if flow == 'manager_only' %}background:#eff6ff; color:#1e40af;
+      {% if flow == 'manager_only' %}background:var(--info-bg); color:var(--info);
       {% elif flow == 'hr_direct' %}background:#f5f3ff; color:#6d28d9;
       {% else %}background:#faf5ff; color:#6d28d9;{% endif %}">
       <i class="fas fa-info-circle"></i>
@@ -428,7 +428,7 @@
       <li class="tl-item">
         <div class="tl-dot bad"><i class="fas fa-times"></i></div>
         <div>
-          <div class="tl-title" style="color:#dc2626;">반려됨</div>
+          <div class="tl-title" style="color:var(--red);">반려됨</div>
           <div class="tl-meta">—</div>
           {% if req.reject_reason %}
           <div class="tl-note bad">반려 사유: {{ req.reject_reason }}</div>
@@ -449,7 +449,7 @@
     {% if can_cancel %}
     <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
       <form method="POST" action="{{ url_for('leave_cancel', req_id=req.id) }}" style="margin:0;">
-        <button type="submit" class="btn btn-ghost btn-sm" style="color:#ef4444;"
+        <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--red);"
                 onclick="return confirm('신청을 취소하시겠습니까?')">
           <i class="fas fa-times"></i> 신청 취소
         </button>
@@ -463,7 +463,7 @@
 {% if meta.law or meta.pay_info %}
 <div class="legal-panel">
   <button class="legal-toggle" onclick="toggleLegal(this)">
-    <span><i class="fas fa-scale-balanced" style="color:#1e40af; margin-right:8px;"></i>
+    <span><i class="fas fa-scale-balanced" style="color:var(--info); margin-right:8px;"></i>
     법령 안내 — {{ meta.label }}</span>
     <i class="fas fa-chevron-down" style="color:#94a3b8;"></i>
   </button>
@@ -511,21 +511,21 @@
 {% if meta.requires_docs and meta.docs_note %}
 <div class="card" style="margin-top:16px;">
   <div class="card-head">
-    <span class="card-title"><i class="fas fa-file-alt" style="color:#7c3aed; margin-right:8px;"></i>제출 서류</span>
+    <span class="card-title"><i class="fas fa-file-alt" style="color:var(--purple); margin-right:8px;"></i>제출 서류</span>
   </div>
   <div class="card-body">
     <ul class="doc-list">
       {% for line in meta.docs_note.split(' — ') %}
       {% if line.strip() %}
       <li class="doc-item">
-        <i class="fas fa-check-circle" style="color:#22c55e; margin-top:2px; flex-shrink:0;"></i>
+        <i class="fas fa-check-circle" style="color:var(--green); margin-top:2px; flex-shrink:0;"></i>
         <span>{{ line.strip() }}</span>
       </li>
       {% endif %}
       {% endfor %}
     </ul>
     {% if flow in ('manager_hr', 'hr_direct') %}
-    <div style="margin-top:10px; padding:9px 12px; background:#fff7ed; border-radius:8px; font-size:12px; color:#92400e;">
+    <div style="margin-top:10px; padding:9px 12px; background:var(--orange-bg); border-radius:8px; font-size:12px; color:var(--orange);">
       <i class="fas fa-exclamation-triangle"></i>
       서류 미제출 시 반려될 수 있습니다. HR Admin에게 직접 제출하거나 채팅/이메일로 문의하세요.
     </div>

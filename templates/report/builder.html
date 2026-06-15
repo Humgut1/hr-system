@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}HR 데이터 마법사{% endblock %}
 {% block page_title %}HR 데이터 마법사{% endblock %}
 
@@ -237,8 +237,8 @@
   <div class="rb-right">
 
     <!-- 사번 고정 안내 -->
-    <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--r);margin-bottom:16px;font-size:13px;">
-      <i class="fas fa-lock" style="color:#16a34a;"></i>
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--green-bg);border:1px solid var(--green);border-radius:var(--r);margin-bottom:16px;font-size:13px;">
+      <i class="fas fa-lock" style="color:var(--green);"></i>
       <span><strong>사번</strong>은 항상 포함됩니다 (기준 식별자) · 이름은 직원 정보에서 선택</span>
     </div>
 
@@ -308,10 +308,10 @@
         선택된 필드
       </div>
       <div class="selected-summary" id="selectedSummary">
-        <span class="sel-chip" style="background:#f0fdf4;color:#16a34a;">
+        <span class="sel-chip" style="background:var(--green-bg);color:var(--green);">
           <i class="fas fa-lock" style="font-size:10px;"></i> 사번
         </span>
-        <span class="sel-chip" style="background:#f0fdf4;color:#16a34a;">
+        <span class="sel-chip" style="background:var(--green-bg);color:var(--green);">
           <i class="fas fa-lock" style="font-size:10px;"></i> 이름
         </span>
       </div>
@@ -398,7 +398,7 @@ function updateSummary() {
   const wrap = document.getElementById('selectedSummary');
   // 고정 칩 유지
   wrap.innerHTML = `
-    <span class="sel-chip" style="background:#f0fdf4;color:#16a34a;">
+    <span class="sel-chip" style="background:var(--green-bg);color:var(--green);">
       <i class="fas fa-lock" style="font-size:10px;"></i> 사번
     </span>`;
   selectedFields.forEach(k => {

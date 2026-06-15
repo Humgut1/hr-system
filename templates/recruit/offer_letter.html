@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}오퍼 레터 — {{ offer.applicant_name }}{% endblock %}
 
 {% block content %}
@@ -160,7 +160,7 @@
             <span class="ol-level-badge">
               {{ offer.job_level }} · {{ 'IC' if offer.track == 'IC' else 'Manager' }} Track
             </span>
-            {% else %}<span style="color:#9ca3af">미지정</span>{% endif %}
+            {% else %}<span style="color:var(--tx-3)">미지정</span>{% endif %}
           </div>
         </div>
         <div>
@@ -221,7 +221,7 @@
             </span>
           </td>
           <td class="ol-tc-cell ol-tc-amount">
-            <span style="color:#6b7280">최대 <span id="display-bonus">₩{{ '{:,}'.format((offer.salary * (offer.bonus_pct or 20) // 100)) if offer.salary else '협의' }}</span></span>
+            <span style="color:var(--tx-3)">최대 <span id="display-bonus">₩{{ '{:,}'.format((offer.salary * (offer.bonus_pct or 20) // 100)) if offer.salary else '협의' }}</span></span>
           </td>
         </tr>
         {% if offer.rsu_total and offer.rsu_total > 0 %}
@@ -231,7 +231,7 @@
             <span class="ol-tc-note">{{ offer.rsu_vest_years or 4 }}년 균등 베스팅 · 연간 환산</span>
           </td>
           <td class="ol-tc-cell ol-tc-amount">
-            <span style="color:#6b7280">₩{{ '{:,}'.format(offer.rsu_total // (offer.rsu_vest_years or 4)) }} / 년</span>
+            <span style="color:var(--tx-3)">₩{{ '{:,}'.format(offer.rsu_total // (offer.rsu_vest_years or 4)) }} / 년</span>
           </td>
         </tr>
         {% endif %}
@@ -242,7 +242,7 @@
             <span class="ol-tc-note">입사 후 30일 내 일시 지급 · 1년 내 퇴직 시 반환</span>
           </td>
           <td class="ol-tc-cell ol-tc-amount">
-            <span style="color:#6b7280">₩{{ '{:,}'.format(offer.signing_bonus) }}</span>
+            <span style="color:var(--tx-3)">₩{{ '{:,}'.format(offer.signing_bonus) }}</span>
           </td>
         </tr>
         {% endif %}
@@ -294,7 +294,7 @@
           </div>
         </div>
         <div class="ol-date-item">
-          <div class="ol-date-icon" style="background:#fef3c7;color:#b45309"><i class="fas fa-clock"></i></div>
+          <div class="ol-date-icon" style="background:var(--orange-bg);color:var(--orange)"><i class="fas fa-clock"></i></div>
           <div>
             <div class="ol-date-label">응답 기한</div>
             <div class="ol-date-val">
@@ -303,7 +303,7 @@
           </div>
         </div>
         <div class="ol-date-item">
-          <div class="ol-date-icon" style="background:#f0fdf4;color:#15803d"><i class="fas fa-map-marker-alt"></i></div>
+          <div class="ol-date-icon" style="background:var(--green-bg);color:var(--green)"><i class="fas fa-map-marker-alt"></i></div>
           <div>
             <div class="ol-date-label">근무지</div>
             <div class="ol-date-val">{{ offer.location or '협의' }}</div>
@@ -366,7 +366,7 @@
 
     {% if offer.expiry_date %}
     <div class="ol-deadline">
-      <i class="fas fa-info-circle" style="color:#15803d;flex-shrink:0"></i>
+      <i class="fas fa-info-circle" style="color:var(--green);flex-shrink:0"></i>
       <span>응답 기한 <strong>{{ offer.expiry_date }}</strong>까지 채용팀으로 회신 부탁드립니다.</span>
     </div>
     {% endif %}

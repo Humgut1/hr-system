@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}ACR — {{ cycle.name }}{% endblock %}
 {% block content %}
 <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
@@ -11,9 +11,9 @@
       {{ cycle.review_year }}년도
       {% if cycle.effective_date %} · 적용일 {{ cycle.effective_date }}{% endif %}
       &nbsp;·&nbsp;
-      {% if cycle.status == 'open' %}<span style="color:#16a34a; font-weight:700;">● 진행 중</span>
-      {% elif cycle.status == 'closed' %}<span style="color:#6b7280;">마감됨</span>
-      {% else %}<span style="color:#9ca3af;">초안</span>{% endif %}
+      {% if cycle.status == 'open' %}<span style="color:var(--green); font-weight:700;">● 진행 중</span>
+      {% elif cycle.status == 'closed' %}<span style="color:var(--tx-3);">마감됨</span>
+      {% else %}<span style="color:var(--tx-3);">초안</span>{% endif %}
     </p>
   </div>
   {% if role == 'admin' and cycle.status == 'open' %}
@@ -44,9 +44,9 @@
       <thead>
         <tr style="background:#f9fafb;">
           <th style="padding:8px 12px; border:1px solid #e5e7eb;">등급</th>
-          <th style="padding:8px 12px; border:1px solid #e5e7eb; color:#1e40af;">Below Band<br><small>&lt;0.9</small></th>
-          <th style="padding:8px 12px; border:1px solid #e5e7eb; color:#166534;">At Band<br><small>0.9–1.1</small></th>
-          <th style="padding:8px 12px; border:1px solid #e5e7eb; color:#92400e;">Above Band<br><small>&gt;1.1</small></th>
+          <th style="padding:8px 12px; border:1px solid #e5e7eb; color:var(--info);">Below Band<br><small>&lt;0.9</small></th>
+          <th style="padding:8px 12px; border:1px solid #e5e7eb; color:var(--green);">At Band<br><small>0.9–1.1</small></th>
+          <th style="padding:8px 12px; border:1px solid #e5e7eb; color:var(--orange);">Above Band<br><small>&gt;1.1</small></th>
         </tr>
       </thead>
       <tbody>
@@ -92,26 +92,26 @@
           <td>
             {% if r.compa_ratio %}
               {% if r.compa_band == 'below' %}
-                <span style="color:#b45309;">{{ r.compa_ratio }} ↓</span>
+                <span style="color:var(--orange);">{{ r.compa_ratio }} ↓</span>
               {% elif r.compa_band == 'above' %}
-                <span style="color:#1d4ed8;">{{ r.compa_ratio }} ↑</span>
+                <span style="color:var(--info);">{{ r.compa_ratio }} ↑</span>
               {% else %}
-                <span style="color:#15803d;">{{ r.compa_ratio }}</span>
+                <span style="color:var(--green);">{{ r.compa_ratio }}</span>
               {% endif %}
             {% else %}-{% endif %}
           </td>
           <td>
-            <span style="font-weight:700; color:{% if r.perf_grade in ['S','A'] %}#16a34a{% elif r.perf_grade == 'B' %}#d97706{% else %}#dc2626{% endif %};">
+            <span style="font-weight:700; color:{% if r.perf_grade in ['S','A'] %}var(--green){% elif r.perf_grade == 'B' %}var(--orange){% else %}var(--red){% endif %};">
               {{ r.perf_grade or '-' }}
             </span>
           </td>
-          <td style="color:#6b7280;">{{ r.suggested_pct }}%</td>
+          <td style="color:var(--tx-3);">{{ r.suggested_pct }}%</td>
           <td>
             {% if r.status in ['submitted','approved'] %}
               <strong>{{ r.proposed_increase_pct or 0 }}%</strong>
-              {% if r.manager_note %}<div style="font-size:11px; color:#6b7280;">{{ r.manager_note }}</div>{% endif %}
+              {% if r.manager_note %}<div style="font-size:11px; color:var(--tx-3);">{{ r.manager_note }}</div>{% endif %}
             {% else %}
-              <span style="color:#9ca3af;">미제출</span>
+              <span style="color:var(--tx-3);">미제출</span>
             {% endif %}
           </td>
           <td>
@@ -124,7 +124,7 @@
               <input type="number" step="0.1" placeholder="{{ r.proposed_increase_pct or '' }}"
                      id="hr_pct_{{ r.employee_id }}"
                      style="width:65px; padding:3px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;">
-              <span style="font-size:11px; color:#6b7280;">%</span>
+              <span style="font-size:11px; color:var(--tx-3);">%</span>
             </div>
             {% elif r.hr_override_pct %}
               HR {{ r.hr_override_pct }}%
@@ -132,13 +132,13 @@
           </td>
           <td>
             {% if r.status == 'approved' %}
-              <span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:11px;">✓ 승인</span>
+              <span style="background:var(--green-bg);color:var(--green);padding:2px 8px;border-radius:10px;font-size:11px;">✓ 승인</span>
             {% elif r.status == 'submitted' %}
-              <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;">검토 대기</span>
+              <span style="background:var(--orange-bg);color:var(--orange);padding:2px 8px;border-radius:10px;font-size:11px;">검토 대기</span>
             {% elif r.status == 'rejected' %}
-              <span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:11px;">반려</span>
+              <span style="background:var(--red-bg);color:var(--red);padding:2px 8px;border-radius:10px;font-size:11px;">반려</span>
             {% else %}
-              <span style="background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:10px;font-size:11px;">미제출</span>
+              <span style="background:#f3f4f6;color:var(--tx-3);padding:2px 8px;border-radius:10px;font-size:11px;">미제출</span>
             {% endif %}
           </td>
           {% if cycle.status == 'open' %}
@@ -191,17 +191,17 @@
             <td style="font-weight:600;">{{ '{:,}'.format(r.current_salary) }}원</td>
             <td>
               {% if r.compa_ratio %}
-                <span style="color:{% if r.compa_band=='below' %}#b45309{% elif r.compa_band=='above' %}#1d4ed8{% else %}#15803d{% endif %};">
+                <span style="color:{% if r.compa_band=='below' %}var(--orange){% elif r.compa_band=='above' %}var(--info){% else %}var(--green){% endif %};">
                   {{ r.compa_ratio }}
                 </span>
               {% else %}-{% endif %}
             </td>
             <td>
-              <span style="font-weight:700; color:{% if r.perf_grade in ['S','A'] %}#16a34a{% elif r.perf_grade=='B' %}#d97706{% else %}#dc2626{% endif %};">
+              <span style="font-weight:700; color:{% if r.perf_grade in ['S','A'] %}var(--green){% elif r.perf_grade=='B' %}var(--orange){% else %}var(--red){% endif %};">
                 {{ r.perf_grade or '-' }}
               </span>
             </td>
-            <td style="color:#6b7280;">{{ r.suggested_pct }}%</td>
+            <td style="color:var(--tx-3);">{{ r.suggested_pct }}%</td>
             <td>
               {% if r.status == 'approved' %}
                 <strong>{{ r.proposed_increase_pct or 0 }}%</strong>
@@ -230,11 +230,11 @@
             </td>
             <td>
               {% if r.status == 'approved' %}
-                <span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:11px;">✓ 승인</span>
+                <span style="background:var(--green-bg);color:var(--green);padding:2px 8px;border-radius:10px;font-size:11px;">✓ 승인</span>
               {% elif r.status == 'submitted' %}
-                <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;">제출됨</span>
+                <span style="background:var(--orange-bg);color:var(--orange);padding:2px 8px;border-radius:10px;font-size:11px;">제출됨</span>
               {% else %}
-                <span style="background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:10px;font-size:11px;">작성 중</span>
+                <span style="background:#f3f4f6;color:var(--tx-3);padding:2px 8px;border-radius:10px;font-size:11px;">작성 중</span>
               {% endif %}
             </td>
           </tr>

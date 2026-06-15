@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}캘리브레이션{% endblock %}
 {% block page_title %}성과{% endblock %}
 
@@ -78,9 +78,9 @@
 
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% for cat, msg in messages %}
-  <div style="background:{% if cat=='error' %}#fef2f2{% else %}#f0fdf4{% endif %};
-              border:1px solid {% if cat=='error' %}#fecaca{% else %}#bbf7d0{% endif %};
-              color:{% if cat=='error' %}#991b1b{% else %}#166534{% endif %};
+  <div style="background:{% if cat=='error' %}var(--red-bg){% else %}var(--green-bg){% endif %};
+              border:1px solid {% if cat=='error' %}var(--red-bg){% else %}var(--green){% endif %};
+              color:{% if cat=='error' %}var(--red){% else %}var(--green){% endif %};
               padding:12px 16px; border-radius:8px; margin-bottom:16px;
               font-weight:600; display:flex; align-items:center; gap:8px;">
     <i class="fas fa-{% if cat=='error' %}exclamation-circle{% else %}check-circle{% endif %}"></i> {{ msg }}
@@ -138,20 +138,20 @@
   </div>
   <div class="card" style="margin:0; text-align:center;">
     <div class="card-body" style="padding:14px;">
-      <div style="font-size:22px; font-weight:900; color:#16a34a;">{{ confirmed_count }}</div>
+      <div style="font-size:22px; font-weight:900; color:var(--green);">{{ confirmed_count }}</div>
       <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">등급 확정</div>
     </div>
   </div>
   <div class="card" style="margin:0; text-align:center;">
     <div class="card-body" style="padding:14px;">
-      <div style="font-size:22px; font-weight:900; color:#d97706;">{{ rows|length - confirmed_count }}</div>
+      <div style="font-size:22px; font-weight:900; color:var(--orange);">{{ rows|length - confirmed_count }}</div>
       <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">미확정</div>
     </div>
   </div>
   {% set anomaly_count = rows|selectattr('anomaly')|list|length %}
   <div class="card" style="margin:0; text-align:center;">
     <div class="card-body" style="padding:14px;">
-      <div style="font-size:22px; font-weight:900; color:{% if anomaly_count > 0 %}#d97706{% else %}#16a34a{% endif %};">{{ anomaly_count }}</div>
+      <div style="font-size:22px; font-weight:900; color:{% if anomaly_count > 0 %}var(--orange){% else %}var(--green){% endif %};">{{ anomaly_count }}</div>
       <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">이상 감지</div>
     </div>
   </div>
@@ -189,9 +189,9 @@
 <div style="background:#faf5ff; border:1px solid #e9d5ff; border-radius:8px; padding:10px 16px;
             margin-bottom:14px; font-size:12px; color:#6b21a8; display:flex; align-items:center; gap:8px;">
   <i class="fas fa-info-circle"></i>
-  <span><strong>잠재력(Potential)</strong> 점수 — <strong style="color:#7c3aed;">Low</strong> 현재 역할에 적합 &nbsp;·&nbsp;
-  <strong style="color:#7c3aed;">Mid</strong> 1단계 성장 가능 &nbsp;·&nbsp;
-  <strong style="color:#7c3aed;">High</strong> 리더십 잠재력 보유. 9박스 배치에 활용됩니다.</span>
+  <span><strong>잠재력(Potential)</strong> 점수 — <strong style="color:var(--purple);">Low</strong> 현재 역할에 적합 &nbsp;·&nbsp;
+  <strong style="color:var(--purple);">Mid</strong> 1단계 성장 가능 &nbsp;·&nbsp;
+  <strong style="color:var(--purple);">High</strong> 리더십 잠재력 보유. 9박스 배치에 활용됩니다.</span>
 </div>
 
 <!-- 캘리브레이션 테이블 -->
@@ -200,7 +200,7 @@
     <span class="card-title">직원별 평가 현황</span>
     <div style="display:flex; gap:8px; align-items:center;">
       <span style="font-size:12px; color:var(--tx-3);">
-        <span style="display:inline-block; width:10px; height:10px; background:#fef3c7; border:1px solid #fde68a; border-radius:2px; margin-right:4px;"></span>이상 감지
+        <span style="display:inline-block; width:10px; height:10px; background:var(--orange-bg); border:1px solid #fde68a; border-radius:2px; margin-right:4px;"></span>이상 감지
       </span>
       <input type="text" class="input" style="width:150px; font-size:12px; padding:6px 10px;"
              placeholder="이름 검색..." oninput="filterTable(this.value)">
@@ -228,7 +228,7 @@
         <tr class="{% if r.anomaly %}anomaly-row{% endif %}" data-name="{{ r.name }}">
           <td>
             <div style="display:flex; align-items:center; gap:8px;">
-              <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#1e3a8a,#3b82f6);
+              <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--info),#3b82f6);
                           color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;
                           justify-content:center;flex-shrink:0;">{{ r.name[0] }}</div>
               <div>
@@ -244,19 +244,19 @@
           <td>
             {% if r.self_avg %}
             <div style="display:flex; align-items:center; gap:5px;">
-              <div class="score-bar-bg"><div class="score-bar-fill" style="width:{{ (r.self_avg/5*100)|int }}%; background:#7c3aed;"></div></div>
+              <div class="score-bar-bg"><div class="score-bar-fill" style="width:{{ (r.self_avg/5*100)|int }}%; background:var(--purple);"></div></div>
               <span style="font-weight:700;">{{ '%.1f'|format(r.self_avg) }}</span>
             </div>
-            {% else %}<span style="color:#e2e8f0; font-size:11px;">—</span>{% endif %}
+            {% else %}<span style="color:var(--surface-3); font-size:11px;">—</span>{% endif %}
           </td>
 
           <td>
             {% if r.peer_avg %}
             <div style="display:flex; align-items:center; gap:5px;">
-              <div class="score-bar-bg"><div class="score-bar-fill" style="width:{{ (r.peer_avg/5*100)|int }}%; background:#0891b2;"></div></div>
+              <div class="score-bar-bg"><div class="score-bar-fill" style="width:{{ (r.peer_avg/5*100)|int }}%; background:var(--info);"></div></div>
               <span style="font-weight:700;">{{ '%.1f'|format(r.peer_avg) }}</span>
             </div>
-            {% else %}<span style="color:#e2e8f0; font-size:11px;">—</span>{% endif %}
+            {% else %}<span style="color:var(--surface-3); font-size:11px;">—</span>{% endif %}
           </td>
 
           <td>
@@ -265,20 +265,20 @@
               <div class="score-bar-bg"><div class="score-bar-fill" style="width:{{ (r.mgr_avg/5*100)|int }}%; background:#059669;"></div></div>
               <span style="font-weight:700;">{{ '%.1f'|format(r.mgr_avg) }}</span>
             </div>
-            {% else %}<span style="color:#e2e8f0; font-size:11px;">—</span>{% endif %}
+            {% else %}<span style="color:var(--surface-3); font-size:11px;">—</span>{% endif %}
           </td>
 
           <td>
             {% if r.overall %}
             <span style="font-size:14px; font-weight:900; color:var(--primary);">{{ '%.2f'|format(r.overall) }}</span>
-            {% else %}<span style="color:#e2e8f0; font-size:11px;">—</span>{% endif %}
+            {% else %}<span style="color:var(--surface-3); font-size:11px;">—</span>{% endif %}
           </td>
 
           <!-- AI 제안 등급 -->
           <td>
             {% if r.suggested_grade %}
             <span class="grade-chip g-{{ r.suggested_grade|lower }}">{{ r.suggested_grade }}</span>
-            {% else %}<span style="color:#e2e8f0; font-size:11px;">—</span>{% endif %}
+            {% else %}<span style="color:var(--surface-3); font-size:11px;">—</span>{% endif %}
           </td>
 
           <!-- 잠재력 (Potential Score) -->
@@ -286,9 +286,9 @@
             {% if r.confirmed %}
               {% set ps = r.get('potential_score') if r.get else none %}
               {% if ps == 1 %}<span style="font-size:12px; color:#0369a1; font-weight:700;">Low</span>
-              {% elif ps == 2 %}<span style="font-size:12px; color:#7c3aed; font-weight:700;">Mid</span>
-              {% elif ps == 3 %}<span style="font-size:12px; color:#16a34a; font-weight:700;">High</span>
-              {% else %}<span style="color:#e2e8f0; font-size:11px;">—</span>{% endif %}
+              {% elif ps == 2 %}<span style="font-size:12px; color:var(--purple); font-weight:700;">Mid</span>
+              {% elif ps == 3 %}<span style="font-size:12px; color:var(--green); font-weight:700;">High</span>
+              {% else %}<span style="color:var(--surface-3); font-size:11px;">—</span>{% endif %}
             {% else %}
             <select class="potential-select" id="potential-{{ r.user_id }}"
                     onchange="document.getElementById('ps-{{ r.user_id }}').value=this.value">
@@ -306,11 +306,11 @@
             <div style="display:flex; align-items:center; gap:6px;">
               <span class="grade-chip g-{{ r.final_grade|lower }}">{{ r.final_grade }}</span>
               {% if r.is_shared %}
-              <span style="font-size:10px; color:#16a34a; font-weight:700;">공개됨</span>
+              <span style="font-size:10px; color:var(--green); font-weight:700;">공개됨</span>
               {% endif %}
             </div>
             {% if r.get('downgrade_reason') %}
-            <div style="font-size:10px; color:#dc2626; margin-top:4px; background:#fff5f5;
+            <div style="font-size:10px; color:var(--red); margin-top:4px; background:#fff5f5;
                         padding:3px 6px; border-radius:4px;">
               <i class="fas fa-arrow-down"></i> {{ r['downgrade_reason'] }}
             </div>
@@ -335,7 +335,7 @@
 
               <!-- 하향 사유 (동적 표시) -->
               <div class="downgrade-reason-wrap" id="dg-wrap-{{ r.user_id }}">
-                <div style="font-size:10px; color:#dc2626; font-weight:700; margin-bottom:3px;">
+                <div style="font-size:10px; color:var(--red); font-weight:700; margin-bottom:3px;">
                   <i class="fas fa-exclamation-triangle"></i> 하향 조정 사유 필수
                   <span class="downgrade-badge" id="dg-gap-{{ r.user_id }}"></span>
                 </div>
@@ -367,7 +367,7 @@
               <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
               <input type="hidden" name="user_id" value="{{ r.user_id }}">
               <input type="hidden" name="final_grade" value="{{ r.final_grade }}">
-              <button type="submit" class="btn btn-ghost btn-sm" style="color:#16a34a;">
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--green);">
                 <i class="fas fa-check-circle"></i> 재확정
               </button>
             </form>

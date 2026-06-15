@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}목표 템플릿{% endblock %}
 {% block page_title %}성과{% endblock %}
 
@@ -6,9 +6,9 @@
 
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% for cat, msg in messages %}
-  <div style="background:{% if cat=='error' %}#fef2f2{% else %}#f0fdf4{% endif %};
-              border:1px solid {% if cat=='error' %}#fecaca{% else %}#bbf7d0{% endif %};
-              color:{% if cat=='error' %}#991b1b{% else %}#166534{% endif %};
+  <div style="background:{% if cat=='error' %}var(--red-bg){% else %}var(--green-bg){% endif %};
+              border:1px solid {% if cat=='error' %}var(--red-bg){% else %}var(--green){% endif %};
+              color:{% if cat=='error' %}var(--red){% else %}var(--green){% endif %};
               padding:12px 16px; border-radius:8px; margin-bottom:16px;
               font-weight:600; display:flex; align-items:center; gap:8px;">
     <i class="fas fa-{% if cat=='error' %}exclamation-circle{% else %}check-circle{% endif %}"></i> {{ msg }}
@@ -34,7 +34,7 @@
   <div style="overflow-x:auto;">
     <table style="width:100%; border-collapse:collapse;">
       <thead>
-        <tr style="background:#1e293b; color:#fff;">
+        <tr style="background:var(--tx-1); color:#fff;">
           <th style="padding:10px 14px; font-size:11px; font-weight:700; text-align:left;">목표명</th>
           <th style="padding:10px 14px; font-size:11px; font-weight:700; text-align:left;">설명</th>
           <th style="padding:10px 14px; font-size:11px; font-weight:700;">카테고리</th>
@@ -48,7 +48,7 @@
       </thead>
       <tbody>
         {% for t in templates %}
-        <tr style="border-bottom:1px solid #f1f5f9; {% if not t.is_active %}opacity:.5;{% endif %}">
+        <tr style="border-bottom:1px solid var(--surface-3); {% if not t.is_active %}opacity:.5;{% endif %}">
           <td style="padding:10px 14px; font-size:13px; font-weight:700;">{{ t.title }}</td>
           <td style="padding:10px 14px; font-size:12px; color:var(--tx-3); max-width:260px;">
             {{ t.description or '—' }}
@@ -66,10 +66,10 @@
           <td style="padding:10px 14px; text-align:center;">
             {% if t.is_active %}
             <span style="font-size:11px; font-weight:700; padding:2px 9px; border-radius:20px;
-                         background:#dcfce7; color:#166534;">활성</span>
+                         background:var(--green-bg); color:var(--green);">활성</span>
             {% else %}
             <span style="font-size:11px; font-weight:700; padding:2px 9px; border-radius:20px;
-                         background:#f1f5f9; color:#94a3b8;">비활성</span>
+                         background:var(--surface-3); color:#94a3b8;">비활성</span>
             {% endif %}
           </td>
           {% if session.user_role in ('admin','manager') %}
@@ -87,7 +87,7 @@
                     onsubmit="return confirm('삭제합니까?')">
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="template_id" value="{{ t.id }}">
-                <button type="submit" class="btn btn-ghost btn-sm" style="color:#ef4444;">
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--red);">
                   <i class="fas fa-trash"></i>
                 </button>
               </form>
@@ -122,7 +122,7 @@
     <form method="POST">
       <input type="hidden" name="action" value="add">
       <div class="field" style="margin-bottom:14px;">
-        <label class="form-label">목표명 <span style="color:#ef4444;">*</span></label>
+        <label class="form-label">목표명 <span style="color:var(--red);">*</span></label>
         <input type="text" name="title" class="input" style="margin-top:6px;"
                placeholder="예) Q2 고객만족도 90점 이상 달성" required>
       </div>

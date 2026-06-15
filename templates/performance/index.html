@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}성과{% endblock %}
 {% block page_title %}성과{% endblock %}
 
@@ -163,9 +163,9 @@
 
 <!-- ── 보상 배수 사전 공개 배너 (company_config.show_merit_to_employee=1 일 때) ── -->
 {% if company_config and company_config.get('show_merit_to_employee', 1) %}
-<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px;
+<div style="background:var(--green-bg); border:1px solid var(--green); border-radius:10px;
             padding:14px 18px; margin-bottom:20px;">
-  <div style="font-size:12px; font-weight:800; color:#166534; margin-bottom:10px;">
+  <div style="font-size:12px; font-weight:800; color:var(--green); margin-bottom:10px;">
     <i class="fas fa-coins"></i> 등급별 인상률 · 상여 배수 (사전 공개)
   </div>
   <div style="display:flex; gap:8px; flex-wrap:wrap;">
