@@ -10069,6 +10069,362 @@ def export_applicants():
     return to_response(wb, fname)
 
 
+# ── 추가 Export 라우트 ───────────────────────────────────────
+
+@app.route('/export/calibration')
+@admin_required
+def export_calibration():
+    db = get_db()
+    cycle_id = request.args.get('cycle_id', '')
+    where = 'WHERE cr.cycle_id = ?' if cycle_id else ''
+    params = (cycle_id,) if cycle_id else ()
+    rows = db.execute(
+        f'''SELECT pc.name cycle_name,
+               u.name emp_name, u.emp_no, d.name dept, u.position,
+               cr.suggested_grade, cr.final_grade, cr.downgrade_reason,
+               cr.self_avg, cr.peer_avg, cr.mgr_avg,
+               cr.potential_score, cr.retention_risk, cr.loss_impact,
+               cr.achievable_level, cr.is_shared, cr.decided_at
+        FROM calibration_results cr
+        JOIN users u ON u.id = cr.user_id
+        JOIN performance_cycles pc ON pc.id = cr.cycle_id
+        LEFT JOIN departments d ON d.id = u.department_id
+        {where}
+        ORDER BY pc.id DESC, d.name, u.name''', params
+    ).fetchall()
+
+    wb, ws = make_wb("성과 캘리브레이션")
+    headers = ['평가주기','직원명','사번','부서','직위',
+               '권고등급','최종등급','하향사유',
+               '자기평가평균','다면평가평균','매니저평가평균',
+               '잠재력','이탈위험(Retention Risk)','이탈임팩트(Loss Impact)',
+               '달성가능레벨','직원공개','확정일']
+    write_header(ws, headers)
+    for i, r in enumerate(rows, 2):
+        write_row(ws, i, [
+            r['cycle_name'], r['emp_name'], r['emp_no'] or '',
+            r['dept'] or '', r['position'] or '',
+            r['suggested_grade'] or '', r['final_grade'] or '',
+            r['downgrade_reason'] or '',
+            round(r['self_avg'], 2) if r['self_avg'] else '',
+            round(r['peer_avg'], 2) if r['peer_avg'] else '',
+            round(r['mgr_avg'], 2) if r['mgr_avg'] else '',
+            r['potential_score'] or '', r['retention_risk'] or '',
+            r['loss_impact'] or '', r['achievable_level'] or '',
+            '공개' if r['is_shared'] else '비공개',
+            r['decided_at'] or '',
+        ])
+    auto_width(ws); freeze_header(ws)
+    fname = urllib.parse.quote("캘리브레이션결과.xlsx")
+    return to_response(wb, fname)
+
+
+@app.route('/export/salary-history')
+@admin_required
+def export_salary_history():
+    db = get_db()
+    year = request.args.get('year', date.today().year)
+    rows = db.execute(
+        '''SELECT sh.changed_at, u.name emp_name, u.emp_no, d.name dept, u.position,
+               sh.old_base_salary, sh.new_base_salary,
+               sh.old_base_salary - sh.new_base_salary change_amt,
+               sh.reason, cb.name changed_by_name
+        FROM salary_history sh
+        JOIN users u ON u.id = sh.user_id
+        LEFT JOIN departments d ON d.id = u.department_id
+        LEFT JOIN users cb ON cb.id = sh.changed_by
+        WHERE strftime('%Y', sh.changed_at) = ?
+        ORDER BY sh.changed_at DESC''', (str(year),)
+    ).fetchall()
+
+    wb, ws = make_wb("급여변경이력")
+    headers = ['변경일시','직원명','사번','부서','직위',
+               '변경전 기본급','변경후 기본급','변경액','변경사유','처리자']
+    write_header(ws, headers)
+    for i, r in enumerate(rows, 2):
+        delta = (r['new_base_salary'] or 0) - (r['old_base_salary'] or 0)
+        write_row(ws, i, [
+            r['changed_at'] or '', r['emp_name'], r['emp_no'] or '',
+            r['dept'] or '', r['position'] or '',
+            r['old_base_salary'] or 0, r['new_base_salary'] or 0,
+            delta, r['reason'] or '', r['changed_by_name'] or '',
+        ])
+    auto_width(ws); freeze_header(ws)
+    fname = urllib.parse.quote(f"급여변경이력_{year}.xlsx")
+    return to_response(wb, fname)
+
+
+@app.route('/export/performance-reviews')
+@admin_required
+def export_performance_reviews():
+    db = get_db()
+    cycle_id = request.args.get('cycle_id', '')
+    where = 'WHERE pg.cycle_id = ?' if cycle_id else ''
+    params = (cycle_id,) if cycle_id else ()
+    rows = db.execute(
+        f'''SELECT pc.name cycle_name,
+               u.name emp_name, u.emp_no, d.name dept,
+               pg.title goal_title, pg.weight,
+               pr.score, pr.comment, rv.name reviewer_name,
+               pr.created_at
+        FROM performance_reviews pr
+        JOIN performance_goals pg ON pg.id = pr.goal_id
+        JOIN performance_cycles pc ON pc.id = pg.cycle_id
+        JOIN users u ON u.id = pg.user_id
+        LEFT JOIN departments d ON d.id = u.department_id
+        LEFT JOIN users rv ON rv.id = pr.reviewer_id
+        {where}
+        ORDER BY pc.id DESC, u.name, pg.id''', params
+    ).fetchall()
+
+    wb, ws = make_wb("매니저 평가")
+    headers = ['평가주기','직원명','사번','부서','목표명','가중치(%)','점수','코멘트','평가자','평가일시']
+    write_header(ws, headers)
+    for i, r in enumerate(rows, 2):
+        write_row(ws, i, [
+            r['cycle_name'], r['emp_name'], r['emp_no'] or '',
+            r['dept'] or '', r['goal_title'] or '',
+            r['weight'] or 0, r['score'] or 0,
+            r['comment'] or '', r['reviewer_name'] or '',
+            r['created_at'] or '',
+        ])
+    auto_width(ws); freeze_header(ws)
+    fname = urllib.parse.quote("매니저평가.xlsx")
+    return to_response(wb, fname)
+
+
+@app.route('/export/peer-reviews')
+@admin_required
+def export_peer_reviews():
+    db = get_db()
+    cycle_id = request.args.get('cycle_id', '')
+    where = 'WHERE pr.cycle_id = ?' if cycle_id else ''
+    params = (cycle_id,) if cycle_id else ()
+    rows = db.execute(
+        f'''SELECT pc.name cycle_name,
+               u.name reviewee_name, u.emp_no, d.name dept,
+               pr.review_type, pr.score,
+               pr.q1_score, pr.q2_score, pr.q3_score, pr.q4_score, pr.q5_score,
+               pr.strength, pr.improvement, pr.comment,
+               pr.created_at
+        FROM peer_reviews pr
+        JOIN performance_cycles pc ON pc.id = pr.cycle_id
+        JOIN users u ON u.id = pr.reviewee_id
+        LEFT JOIN departments d ON d.id = u.department_id
+        {where}
+        ORDER BY pc.id DESC, u.name''', params
+    ).fetchall()
+
+    wb, ws = make_wb("다면평가")
+    headers = ['평가주기','피평가자','사번','부서','유형','종합점수',
+               'Q1','Q2','Q3','Q4','Q5',
+               '잘하는 점(Continue)','개선할 점(Stop)','시작할 점(Start)','일시']
+    write_header(ws, headers)
+    for i, r in enumerate(rows, 2):
+        write_row(ws, i, [
+            r['cycle_name'], r['reviewee_name'], r['emp_no'] or '',
+            r['dept'] or '', r['review_type'] or '',
+            r['score'] or 0,
+            r['q1_score'] or '', r['q2_score'] or '',
+            r['q3_score'] or '', r['q4_score'] or '', r['q5_score'] or '',
+            r['strength'] or '', r['improvement'] or '',
+            r['comment'] or '', r['created_at'] or '',
+        ])
+    auto_width(ws); freeze_header(ws)
+    fname = urllib.parse.quote("다면평가.xlsx")
+    return to_response(wb, fname)
+
+
+@app.route('/export/welfare-points')
+@admin_required
+def export_welfare_points():
+    db = get_db()
+    year = request.args.get('year', date.today().year)
+    rows = db.execute(
+        '''SELECT strftime('%Y-%m-%d', wl.created_at) dt,
+               u.name emp_name, u.emp_no, d.name dept,
+               wl.delta, wl.balance_after, wl.reason
+        FROM welfare_point_ledger wl
+        JOIN users u ON u.id = wl.user_id
+        LEFT JOIN departments d ON d.id = u.department_id
+        WHERE strftime('%Y', wl.created_at) = ?
+        ORDER BY wl.created_at DESC''', (str(year),)
+    ).fetchall()
+
+    wb, ws = make_wb("복지포인트이력")
+    headers = ['일자','직원명','사번','부서','증감 포인트','잔액','사유']
+    write_header(ws, headers)
+    for i, r in enumerate(rows, 2):
+        write_row(ws, i, [
+            r['dt'] or '', r['emp_name'], r['emp_no'] or '',
+            r['dept'] or '', r['delta'] or 0,
+            r['balance_after'] or 0, r['reason'] or '',
+        ])
+    auto_width(ws); freeze_header(ws)
+    fname = urllib.parse.quote(f"복지포인트이력_{year}.xlsx")
+    return to_response(wb, fname)
+
+
+@app.route('/export/life-events')
+@admin_required
+def export_life_events():
+    db = get_db()
+    rows = db.execute(
+        '''SELECT le.event_date, u.name emp_name, u.emp_no, d.name dept,
+               le.event_type, le.description,
+               cb.name created_by_name, le.created_at
+        FROM life_events le
+        JOIN users u ON u.id = le.user_id
+        LEFT JOIN departments d ON d.id = u.department_id
+        LEFT JOIN users cb ON cb.id = le.created_by
+        ORDER BY le.event_date DESC'''
+    ).fetchall()
+
+    EVENT_KO = {
+        'marriage': '결혼', 'birth': '출산', 'join': '입사',
+        'bereavement': '경조사', 'illness': '질병', 'other': '기타',
+    }
+    wb, ws = make_wb("생애사건이력")
+    headers = ['사건일','직원명','사번','부서','사건유형','상세내용','등록자','등록일시']
+    write_header(ws, headers)
+    for i, r in enumerate(rows, 2):
+        write_row(ws, i, [
+            r['event_date'] or '', r['emp_name'], r['emp_no'] or '',
+            r['dept'] or '',
+            EVENT_KO.get(r['event_type'], r['event_type'] or ''),
+            r['description'] or '',
+            r['created_by_name'] or '', r['created_at'] or '',
+        ])
+    auto_width(ws); freeze_header(ws)
+    fname = urllib.parse.quote("생애사건이력.xlsx")
+    return to_response(wb, fname)
+
+
+@app.route('/export/succession')
+@admin_required
+def export_succession():
+    db = get_db()
+    rows = db.execute(
+        '''SELECT sp.position_title,
+               inc.name incumbent_name, inc.emp_no incumbent_no, id.name inc_dept,
+               cand.name candidate_name, cand.emp_no candidate_no, cd.name cand_dept,
+               sp.readiness, sp.note,
+               cb.name created_by_name, sp.created_at
+        FROM succession_plans sp
+        LEFT JOIN users inc  ON inc.id  = sp.incumbent_id
+        LEFT JOIN users cand ON cand.id = sp.candidate_id
+        LEFT JOIN departments id ON id.id = inc.department_id
+        LEFT JOIN departments cd ON cd.id = cand.department_id
+        LEFT JOIN users cb ON cb.id = sp.created_by
+        ORDER BY sp.position_title, sp.readiness'''
+    ).fetchall()
+
+    READINESS_KO = {'ready_now':'즉시 가능','1_2_years':'1~2년 후','3_5_years':'3~5년 후','unknown':'미정'}
+    wb, ws = make_wb("후계자계획")
+    headers = ['포지션','현직자','현직자 사번','현직자 부서',
+               '후보자','후보자 사번','후보자 부서',
+               '승계 준비도','메모','등록자','등록일']
+    write_header(ws, headers)
+    for i, r in enumerate(rows, 2):
+        write_row(ws, i, [
+            r['position_title'] or '',
+            r['incumbent_name'] or '', r['incumbent_no'] or '', r['inc_dept'] or '',
+            r['candidate_name'] or '', r['candidate_no'] or '', r['cand_dept'] or '',
+            READINESS_KO.get(r['readiness'], r['readiness'] or ''),
+            r['note'] or '', r['created_by_name'] or '',
+            (r['created_at'] or '')[:10],
+        ])
+    auto_width(ws); freeze_header(ws)
+    fname = urllib.parse.quote("후계자계획.xlsx")
+    return to_response(wb, fname)
+
+
+@app.route('/export/skills')
+@admin_required
+def export_skills():
+    db = get_db()
+    skill_rows = db.execute(
+        '''SELECT u.name emp_name, u.emp_no, d.name dept, u.position,
+               es.skill_name, es.level, es.created_at
+        FROM employee_skills es
+        JOIN users u ON u.id = es.user_id
+        LEFT JOIN departments d ON d.id = u.department_id
+        ORDER BY u.name, es.skill_name'''
+    ).fetchall()
+    cert_rows = db.execute(
+        '''SELECT u.name emp_name, u.emp_no, d.name dept, u.position,
+               ec.cert_name, ec.issued_by, ec.issued_date, ec.expiry_date
+        FROM employee_certs ec
+        JOIN users u ON u.id = ec.user_id
+        LEFT JOIN departments d ON d.id = u.department_id
+        ORDER BY u.name, ec.cert_name'''
+    ).fetchall()
+
+    LEVEL_KO = {'beginner':'입문','intermediate':'중급','advanced':'고급','expert':'전문가'}
+
+    wb, ws = make_wb("스킬목록")
+    write_header(ws, ['직원명','사번','부서','직위','스킬명','레벨','등록일'])
+    for i, r in enumerate(skill_rows, 2):
+        write_row(ws, i, [
+            r['emp_name'], r['emp_no'] or '', r['dept'] or '', r['position'] or '',
+            r['skill_name'], LEVEL_KO.get(r['level'], r['level'] or ''),
+            (r['created_at'] or '')[:10],
+        ])
+    auto_width(ws); freeze_header(ws)
+
+    ws2 = wb.create_sheet("자격증목록")
+    write_header(ws2, ['직원명','사번','부서','직위','자격증명','발급기관','취득일','만료일'])
+    for i, r in enumerate(cert_rows, 2):
+        write_row(ws2, i, [
+            r['emp_name'], r['emp_no'] or '', r['dept'] or '', r['position'] or '',
+            r['cert_name'], r['issued_by'] or '',
+            r['issued_date'] or '', r['expiry_date'] or '',
+        ])
+    auto_width(ws2)
+
+    fname = urllib.parse.quote("스킬자격증.xlsx")
+    return to_response(wb, fname)
+
+
+@app.route('/export/contracts')
+@admin_required
+def export_contracts():
+    db = get_db()
+    rows = db.execute(
+        '''SELECT c.id, ct.name template_name, c.contract_type,
+               u.name emp_name, u.emp_no, d.name dept,
+               c.status, c.issued_at, c.signed_at, c.expires_at
+        FROM contracts c
+        JOIN users u ON u.id = c.employee_id
+        LEFT JOIN departments d ON d.id = u.department_id
+        LEFT JOIN contract_templates ct ON ct.id = c.template_id
+        ORDER BY c.issued_at DESC'''
+    ).fetchall()
+
+    STATUS_KO = {'draft':'초안','sent':'발송','signed':'서명완료',
+                 'rejected':'거절','cancelled':'취소','expired':'만료'}
+    TYPE_KO   = {'employment':'근로계약','nda':'NDA','probation':'수습계약',
+                 'freelance':'프리랜서계약','other':'기타'}
+
+    wb, ws = make_wb("전자계약")
+    headers = ['계약ID','템플릿','계약유형','직원명','사번','부서',
+               '상태','발행일','서명일','만료일']
+    write_header(ws, headers)
+    for i, r in enumerate(rows, 2):
+        write_row(ws, i, [
+            r['id'], r['template_name'] or '',
+            TYPE_KO.get(r['contract_type'], r['contract_type'] or ''),
+            r['emp_name'], r['emp_no'] or '', r['dept'] or '',
+            STATUS_KO.get(r['status'], r['status'] or ''),
+            (r['issued_at'] or '')[:10],
+            (r['signed_at'] or '')[:10],
+            (r['expires_at'] or '')[:10],
+        ])
+    auto_width(ws); freeze_header(ws)
+    fname = urllib.parse.quote("전자계약.xlsx")
+    return to_response(wb, fname)
+
+
 # ── Error Handlers ───────────────────────────────────────────
 @app.errorhandler(403)
 def forbidden(e):

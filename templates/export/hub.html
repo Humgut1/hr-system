@@ -256,6 +256,185 @@
 
 </div>
 
+<!-- ── 성과 추가 ─────────────────────────── -->
+
+  <!-- 캘리브레이션 결과 -->
+  <div class="export-card">
+    <div class="export-card-header">
+      <div class="export-icon purple"><i class="fas fa-sliders-h"></i></div>
+      <div>
+        <div class="export-card-title">캘리브레이션 결과</div>
+        <div class="export-card-desc">성과 등급 확정 이력 + Talent 평가(이탈위험·임팩트·잠재력)</div>
+      </div>
+    </div>
+    <form class="export-form" method="get" action="{{ url_for('export_calibration') }}" target="_blank">
+      <div class="form-row">
+        <label>평가주기</label>
+        <select name="cycle_id">
+          <option value="">전체</option>
+          {% for c in cycles %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn-export"><i class="fas fa-download"></i> 다운로드</button>
+    </form>
+  </div>
+
+  <!-- 매니저 평가 -->
+  <div class="export-card">
+    <div class="export-card-header">
+      <div class="export-icon purple"><i class="fas fa-star-half-alt"></i></div>
+      <div>
+        <div class="export-card-title">매니저 평가</div>
+        <div class="export-card-desc">목표별 매니저 평가 점수 및 코멘트</div>
+      </div>
+    </div>
+    <form class="export-form" method="get" action="{{ url_for('export_performance_reviews') }}" target="_blank">
+      <div class="form-row">
+        <label>평가주기</label>
+        <select name="cycle_id">
+          <option value="">전체</option>
+          {% for c in cycles %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn-export"><i class="fas fa-download"></i> 다운로드</button>
+    </form>
+  </div>
+
+  <!-- 다면평가 -->
+  <div class="export-card">
+    <div class="export-card-header">
+      <div class="export-icon purple"><i class="fas fa-comments"></i></div>
+      <div>
+        <div class="export-card-title">다면평가 (피어리뷰)</div>
+        <div class="export-card-desc">Start/Stop/Continue 항목 포함 피어리뷰 전체 원시 데이터</div>
+      </div>
+    </div>
+    <form class="export-form" method="get" action="{{ url_for('export_peer_reviews') }}" target="_blank">
+      <div class="form-row">
+        <label>평가주기</label>
+        <select name="cycle_id">
+          <option value="">전체</option>
+          {% for c in cycles %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn-export"><i class="fas fa-download"></i> 다운로드</button>
+    </form>
+  </div>
+
+</div>
+
+<!-- ── 급여 추가 ─────────────────────────── -->
+<div class="section-heading"></div>
+<div class="export-grid">
+
+  <!-- 급여 변경 이력 -->
+  <div class="export-card">
+    <div class="export-card-header">
+      <div class="export-icon green"><i class="fas fa-history"></i></div>
+      <div>
+        <div class="export-card-title">급여 변경 이력</div>
+        <div class="export-card-desc">연도별 급여 인상·조정 이력 및 변경 사유</div>
+      </div>
+    </div>
+    <form class="export-form" method="get" action="{{ url_for('export_salary_history') }}" target="_blank">
+      <div class="form-row">
+        <label>연도</label>
+        <select name="year">
+          {% for y in range(today_year, today_year - 5, -1) %}
+          <option value="{{ y }}" {% if y == today_year %}selected{% endif %}>{{ y }}년</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn-export"><i class="fas fa-download"></i> 다운로드</button>
+    </form>
+  </div>
+
+</div>
+
+<!-- ── 인사·복지 ─────────────────────────── -->
+<div class="section-heading">인사·복지 (People & Benefits)</div>
+<div class="export-grid">
+
+  <!-- 스킬 & 자격증 -->
+  <div class="export-card">
+    <div class="export-card-header">
+      <div class="export-icon blue"><i class="fas fa-certificate"></i></div>
+      <div>
+        <div class="export-card-title">스킬 & 자격증</div>
+        <div class="export-card-desc">직원별 보유 스킬·레벨 및 자격증 취득·만료 현황 (2시트)</div>
+      </div>
+    </div>
+    <a href="{{ url_for('export_skills') }}" class="btn-export" target="_blank">
+      <i class="fas fa-download"></i> 다운로드
+    </a>
+  </div>
+
+  <!-- 복지포인트 이력 -->
+  <div class="export-card">
+    <div class="export-card-header">
+      <div class="export-icon orange"><i class="fas fa-gift"></i></div>
+      <div>
+        <div class="export-card-title">복지포인트 이력</div>
+        <div class="export-card-desc">연도별 직원 복지포인트 지급·사용·잔액 내역</div>
+      </div>
+    </div>
+    <form class="export-form" method="get" action="{{ url_for('export_welfare_points') }}" target="_blank">
+      <div class="form-row">
+        <label>연도</label>
+        <select name="year">
+          {% for y in range(today_year, today_year - 5, -1) %}
+          <option value="{{ y }}" {% if y == today_year %}selected{% endif %}>{{ y }}년</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn-export"><i class="fas fa-download"></i> 다운로드</button>
+    </form>
+  </div>
+
+  <!-- 생애사건 -->
+  <div class="export-card">
+    <div class="export-card-header">
+      <div class="export-icon teal"><i class="fas fa-heart"></i></div>
+      <div>
+        <div class="export-card-title">생애사건 이력</div>
+        <div class="export-card-desc">결혼·출산·경조사 등 직원 생애사건 전체 기록</div>
+      </div>
+    </div>
+    <a href="{{ url_for('export_life_events') }}" class="btn-export" target="_blank">
+      <i class="fas fa-download"></i> 다운로드
+    </a>
+  </div>
+
+  <!-- 후계자 계획 -->
+  <div class="export-card">
+    <div class="export-card-header">
+      <div class="export-icon blue"><i class="fas fa-sitemap"></i></div>
+      <div>
+        <div class="export-card-title">후계자 계획</div>
+        <div class="export-card-desc">포지션별 후보자·승계 준비도 현황</div>
+      </div>
+    </div>
+    <a href="{{ url_for('export_succession') }}" class="btn-export" target="_blank">
+      <i class="fas fa-download"></i> 다운로드
+    </a>
+  </div>
+
+  <!-- 전자계약 -->
+  <div class="export-card">
+    <div class="export-card-header">
+      <div class="export-icon teal"><i class="fas fa-file-signature"></i></div>
+      <div>
+        <div class="export-card-title">전자계약 목록</div>
+        <div class="export-card-desc">발행·서명·만료 상태 포함 전체 계약서 이력</div>
+      </div>
+    </div>
+    <a href="{{ url_for('export_contracts') }}" class="btn-export" target="_blank">
+      <i class="fas fa-download"></i> 다운로드
+    </a>
+  </div>
+
+</div>
+
 <!-- ── 채용 ─────────────────────────────── -->
 <div class="section-heading">채용 (Recruiting)</div>
 <div class="export-grid">
