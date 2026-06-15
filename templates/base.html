@@ -39,8 +39,8 @@
         <a href="{{ url_for('attendance_home') }}" class="nav-item{% if active_page == 'attendance_home' %} active{% endif %}" title="근태">
           <i class="fas fa-clock"></i><span>근태</span>
         </a>
-        <a href="{{ url_for('payroll_list') }}" class="nav-item{% if active_page == 'payroll' %} active{% endif %}" title="급여명세서">
-          <i class="fas fa-won-sign"></i><span>급여명세서</span>
+        <a href="{{ url_for('payroll_list') }}" class="nav-item{% if active_page == 'my_docs' %} active{% endif %}" title="내 문서">
+          <i class="fas fa-folder-open"></i><span>내 문서</span>
         </a>
         <a href="{{ url_for('performance') }}" class="nav-item{% if active_page in ('performance','peer') %} active{% endif %}" title="성과">
           <i class="fas fa-chart-line"></i><span>성과</span>
@@ -48,14 +48,6 @@
         <a href="{{ url_for('me_benefits') }}" class="nav-item{% if active_page == 'me_benefits' %} active{% endif %}" title="복리후생">
           <i class="fas fa-gift"></i><span>복리후생</span>
         </a>
-        <a href="{{ url_for('certificates_hub') }}" class="nav-item{% if active_page == 'certificates' %} active{% endif %}" title="증명서">
-          <i class="fas fa-folder-open"></i><span>증명서</span>
-        </a>
-        {% if session.user_role != 'guest' %}
-        <a href="{{ url_for('contracts_list') }}" class="nav-item{% if active_page == 'contracts' %} active{% endif %}" title="계약서">
-          <i class="fas fa-file-signature"></i><span>계약서</span>
-        </a>
-        {% endif %}
       </div>
 
       <div class="nav-section-divider"></div>

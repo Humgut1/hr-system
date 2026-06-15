@@ -1,64 +1,119 @@
-﻿{% extends 'base.html' %}
-{% block title %}Payslips{% endblock %}
-{% block page_title %}Payslips{% endblock %}
+{% extends 'base.html' %}
+{% block title %}내 문서{% endblock %}
+{% block page_title %}내 문서{% endblock %}
+
+{% block extra_css %}
+<style>
+  .doc-tabs { display:flex; gap:4px; border-bottom:2px solid var(--line); margin-bottom:24px; }
+  .doc-tab {
+    padding:10px 20px; font-size:13px; font-weight:700;
+    color:var(--tx-3); border:none; background:none; cursor:pointer;
+    border-bottom:2px solid transparent; margin-bottom:-2px;
+    display:flex; align-items:center; gap:7px;
+  }
+  .doc-tab.active { color:var(--primary); border-bottom-color:var(--primary); }
+  .doc-tab .badge {
+    font-size:10px; font-weight:800; padding:2px 6px;
+    border-radius:20px; background:var(--surface-raised);
+    color:var(--tx-3);
+  }
+  .doc-tab.active .badge { background:var(--primary); color:#fff; }
+  .doc-panel { display:none; }
+  .doc-panel.active { display:block; }
+
+  /* 급여명세서 테이블 */
+  .slip-row { cursor:pointer; transition:background .1s; }
+  .slip-row:hover { background:var(--surface-raised); }
+
+  /* 증명서 카드 그리드 */
+  .cert-grid {
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap:14px;
+    margin-bottom:28px;
+  }
+  .cert-card {
+    border:1px solid var(--line); border-radius:var(--r-lg);
+    padding:20px 16px; display:flex; flex-direction:column; gap:10px;
+    text-decoration:none; color:var(--tx-1);
+    transition:box-shadow .15s, border-color .15s;
+    background:var(--surface);
+  }
+  .cert-card:hover { border-color:var(--primary); box-shadow:0 2px 10px rgba(0,0,0,.07); }
+  .cert-icon {
+    width:40px; height:40px; border-radius:var(--r);
+    display:flex; align-items:center; justify-content:center;
+    font-size:17px; flex-shrink:0;
+  }
+  .cert-card-title { font-size:13px; font-weight:700; }
+  .cert-card-desc  { font-size:11.5px; color:var(--tx-3); line-height:1.5; }
+
+  /* 계약서 상태 배지 */
+  .status-badge {
+    display:inline-block; padding:2px 8px; border-radius:20px;
+    font-size:11px; font-weight:700;
+  }
+  .status-signed    { background:#dcfce7; color:#166534; }
+  .status-sent      { background:#dbeafe; color:#1e40af; }
+  .status-draft     { background:#f3f4f6; color:#6b7280; }
+  .status-rejected  { background:#fee2e2; color:#991b1b; }
+  .status-cancelled { background:#f3f4f6; color:#9ca3af; }
+  .status-expired   { background:#fef3c7; color:#92400e; }
+</style>
+{% endblock %}
 
 {% block content %}
 
-<div class="stat-grid" style="margin-bottom:22px;">
-  <div class="stat-card">
-    <div class="stat-ico ico-blue"><i class="fas fa-calendar-check"></i></div>
-    <div class="stat-body">
-      <div class="stat-val">{{ (total_leave - used_leave)|int }}</div>
-      <div class="stat-lbl">Leave Remaining</div>
-    </div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-ico ico-orange"><i class="fas fa-calendar-minus"></i></div>
-    <div class="stat-body">
-      <div class="stat-val">{{ used_leave|int }}</div>
-      <div class="stat-lbl">Leave Used</div>
-    </div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-ico ico-green"><i class="fas fa-file-invoice-dollar"></i></div>
-    <div class="stat-body">
-      <div class="stat-val">{{ slips|length }}</div>
-      <div class="stat-lbl">Payslips Issued</div>
-    </div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-ico ico-purple"><i class="fas fa-file-alt"></i></div>
-    <div class="stat-body">
-      <div class="stat-val">2</div>
-      <div class="stat-lbl">Certificates Available</div>
-    </div>
-  </div>
+{% set active_tab = request.args.get('tab', 'payslips') %}
+
+<div class="doc-tabs">
+  <button class="doc-tab {% if active_tab == 'payslips' %}active{% endif %}"
+          onclick="switchTab('payslips')">
+    <i class="fas fa-won-sign"></i> 급여명세서
+    <span class="badge">{{ slips|length }}</span>
+  </button>
+  <button class="doc-tab {% if active_tab == 'certs' %}active{% endif %}"
+          onclick="switchTab('certs')">
+    <i class="fas fa-folder-open"></i> 증명서
+    {% if cert_requests %}
+    <span class="badge">{{ cert_requests|length }}</span>
+    {% endif %}
+  </button>
+  <button class="doc-tab {% if active_tab == 'contracts' %}active{% endif %}"
+          onclick="switchTab('contracts')">
+    <i class="fas fa-file-signature"></i> 계약서
+    {% if contracts %}
+    <span class="badge">{{ contracts|length }}</span>
+    {% endif %}
+  </button>
 </div>
 
-<div class="grid-2" style="align-items:start;">
-
-  <!-- Payslip list -->
+<!-- ── 탭 1: 급여명세서 ─────────────────────────────── -->
+<div class="doc-panel {% if active_tab == 'payslips' %}active{% endif %}" id="panel-payslips">
+  {% if slips %}
   <div class="card">
-    <div class="card-head">
-      <span class="card-title">Monthly Payslips</span>
-    </div>
-    {% if slips %}
     <div class="tbl-wrap">
       <table>
         <thead>
-          <tr><th>Period</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th></th></tr>
+          <tr>
+            <th>지급월</th>
+            <th>총지급액</th>
+            <th>공제합계</th>
+            <th>실수령액</th>
+            <th></th>
+          </tr>
         </thead>
         <tbody>
           {% for s in slips %}
-          <tr>
-            <td style="font-weight:700;">{{ s.year }} / {{ '%02d'|format(s.month) }}</td>
-            <td>{{ fmt_krw(s.gross_pay) }}₩</td>
-            <td style="color:var(--red);">- {{ fmt_krw(s.total_deduction) }}₩</td>
-            <td style="font-weight:800; color:var(--primary);">{{ fmt_krw(s.net_pay) }}₩</td>
-            <td>
+          <tr class="slip-row" onclick="location.href='{{ url_for('payroll_detail', year=s.year, month=s.month) }}'">
+            <td style="font-weight:700;">{{ s.year }}년 {{ '%02d'|format(s.month) }}월</td>
+            <td>{{ fmt_krw(s.gross_pay) }}원</td>
+            <td style="color:var(--red);">－{{ fmt_krw(s.total_deduction) }}원</td>
+            <td style="font-weight:800; color:var(--primary);">{{ fmt_krw(s.net_pay) }}원</td>
+            <td style="text-align:right;">
               <a href="{{ url_for('payroll_detail', year=s.year, month=s.month) }}"
-                 class="btn btn-ghost btn-sm">
-                <i class="fas fa-eye"></i> View
+                 class="btn btn-ghost btn-sm" onclick="event.stopPropagation()">
+                <i class="fas fa-eye"></i> 보기
               </a>
             </td>
           </tr>
@@ -66,40 +121,154 @@
         </tbody>
       </table>
     </div>
-    {% else %}
-    <div class="card-body" style="text-align:center; color:var(--tx-3); padding:48px;">
-      <i class="fas fa-file-invoice-dollar" style="font-size:32px; color:var(--border); margin-bottom:12px; display:block;"></i>
-      No payslips yet.<br>
-      <span style="font-size:12px; margin-top:6px; display:block;">Contact your HR admin to set up payroll.</span>
-    </div>
-    {% endif %}
   </div>
-
-  <!-- Certificates -->
+  {% else %}
   <div class="card">
-    <div class="card-head">
-      <span class="card-title">Certificates</span>
-    </div>
-    <div class="card-body" style="display:flex; flex-direction:column; gap:10px;">
-      <a href="{{ url_for('certificates_hub') }}"
-         style="display:flex; align-items:center; gap:14px; padding:16px;
-                border:1.5px solid var(--border); border-radius:var(--r);
-                transition:all .15s; text-decoration:none;"
-         onmouseover="this.style.borderColor='var(--primary)'; this.style.background='#eff6ff'"
-         onmouseout="this.style.borderColor='var(--border)'; this.style.background=''">
-        <div style="width:42px; height:42px; background:var(--info-bg); border-radius:var(--r-sm);
-                    display:flex; align-items:center; justify-content:center;
-                    color:var(--primary); font-size:18px; flex-shrink:0;">
-          <i class="fas fa-id-card"></i>
-        </div>
-        <div>
-          <div style="font-size:14px; font-weight:700; color:var(--tx-1);">Employment Certificate</div>
-          <div style="font-size:12px; color:var(--tx-3);">재직·경력·소득·퇴직 증명서 발급</div>
-        </div>
-        <i class="fas fa-arrow-right" style="margin-left:auto; color:var(--tx-3);"></i>
-      </a>
+    <div style="text-align:center; padding:60px 24px; color:var(--tx-3);">
+      <i class="fas fa-file-invoice-dollar" style="font-size:36px; color:var(--line); margin-bottom:14px; display:block;"></i>
+      아직 발급된 급여명세서가 없습니다.<br>
+      <span style="font-size:12px; margin-top:6px; display:block;">HR 담당자에게 문의하세요.</span>
     </div>
   </div>
-
+  {% endif %}
 </div>
+
+<!-- ── 탭 2: 증명서 ─────────────────────────────── -->
+<div class="doc-panel {% if active_tab == 'certs' %}active{% endif %}" id="panel-certs">
+
+  <p style="font-size:13px; color:var(--tx-3); margin-bottom:18px;">
+    발급받을 증명서를 선택하세요. 일부 서류는 HR 검토 후 출력할 수 있습니다.
+  </p>
+
+  <div class="cert-grid">
+    <a href="{{ url_for('certificate_employment') }}" class="cert-card">
+      <div class="cert-icon" style="background:#dbeafe; color:#1d4ed8;"><i class="fas fa-id-card"></i></div>
+      <div>
+        <div class="cert-card-title">재직증명서</div>
+        <div class="cert-card-desc">현재 재직 사실 확인서류</div>
+      </div>
+    </a>
+    <a href="{{ url_for('certificate_career') }}" class="cert-card">
+      <div class="cert-icon" style="background:#dcfce7; color:#166534;"><i class="fas fa-briefcase"></i></div>
+      <div>
+        <div class="cert-card-title">경력증명서</div>
+        <div class="cert-card-desc">근무 기간·직위 확인 서류</div>
+      </div>
+    </a>
+    <a href="{{ url_for('certificate_income') }}" class="cert-card">
+      <div class="cert-icon" style="background:#fef3c7; color:#92400e;"><i class="fas fa-receipt"></i></div>
+      <div>
+        <div class="cert-card-title">근로소득 원천징수영수증</div>
+        <div class="cert-card-desc">연간 소득·세금 납부 확인</div>
+      </div>
+    </a>
+    <a href="{{ url_for('certificate_resignation') }}" class="cert-card">
+      <div class="cert-icon" style="background:#f3e8ff; color:#7c3aed;"><i class="fas fa-door-open"></i></div>
+      <div>
+        <div class="cert-card-title">퇴직확인서</div>
+        <div class="cert-card-desc">퇴직 사실 및 사유 확인 서류</div>
+      </div>
+    </a>
+  </div>
+
+  {% if cert_requests %}
+  <div style="font-size:11px; font-weight:800; color:var(--tx-3); text-transform:uppercase;
+              letter-spacing:.08em; margin-bottom:10px;">신청 이력</div>
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>서류 종류</th><th>신청일</th><th>상태</th></tr>
+        </thead>
+        <tbody>
+          {% for r in cert_requests %}
+          <tr>
+            <td>{{ r.cert_type or '—' }}</td>
+            <td style="color:var(--tx-3);">{{ (r.created_at or '')[:10] }}</td>
+            <td>
+              {% if r.status == 'approved' %}
+              <span class="status-badge status-signed">승인</span>
+              {% elif r.status == 'pending' %}
+              <span class="status-badge status-sent">검토 중</span>
+              {% else %}
+              <span class="status-badge status-rejected">반려</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── 탭 3: 계약서 ─────────────────────────────── -->
+<div class="doc-panel {% if active_tab == 'contracts' %}active{% endif %}" id="panel-contracts">
+  {% if contracts %}
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>계약 종류</th>
+            <th>발행자</th>
+            <th>발행일</th>
+            <th>서명일</th>
+            <th>상태</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set status_labels = {
+            'draft':'초안', 'sent':'서명 요청', 'signed':'서명 완료',
+            'rejected':'거절', 'cancelled':'취소', 'expired':'만료'
+          } %}
+          {% for c in contracts %}
+          <tr>
+            <td style="font-weight:700;">
+              {{ contract_type_labels.get(c.contract_type, c.contract_type) }}
+            </td>
+            <td style="color:var(--tx-3);">{{ c.issuer_name }}</td>
+            <td style="color:var(--tx-3);">{{ (c.issued_at or '')[:10] }}</td>
+            <td style="color:var(--tx-3);">{{ (c.signed_at or '')[:10] or '—' }}</td>
+            <td>
+              <span class="status-badge status-{{ c.status }}">
+                {{ status_labels.get(c.status, c.status) }}
+              </span>
+            </td>
+            <td style="text-align:right;">
+              <a href="{{ url_for('contract_view', contract_id=c.id) }}"
+                 class="btn btn-ghost btn-sm">
+                <i class="fas fa-eye"></i> 보기
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="card">
+    <div style="text-align:center; padding:60px 24px; color:var(--tx-3);">
+      <i class="fas fa-file-signature" style="font-size:36px; color:var(--line); margin-bottom:14px; display:block;"></i>
+      발급된 계약서가 없습니다.
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.doc-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.doc-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector('#panel-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  history.replaceState(null, '', '?tab=' + name);
+}
+</script>
 {% endblock %}

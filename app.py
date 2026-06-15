@@ -3858,23 +3858,36 @@ def attendance_calendar():
 def payroll_list():
     db  = get_db()
     uid = session['user_id']
+
+    # 급여명세서
     slips = db.execute(
         'SELECT year, month, gross_pay, total_deduction, net_pay '
         'FROM payslips WHERE user_id=? ORDER BY year DESC, month DESC',
         (uid,)
     ).fetchall()
-    # 연차 잔여일 계산
-    user = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
-    total_leave = calc_annual_leave(user['hire_date']) if user and user['hire_date'] else 15
-    used_leave  = db.execute(
-        "SELECT COALESCE(SUM(days),0) FROM leave_requests "
-        "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm','sick')",
+
+    # 계약서 (본인 것만)
+    contracts = db.execute(
+        "SELECT c.*, i.name AS issuer_name "
+        "FROM contracts c "
+        "JOIN users i ON i.id = c.issued_by "
+        "WHERE c.employee_id=? ORDER BY c.created_at DESC",
         (uid,)
-    ).fetchone()[0]
-    return render_template('payroll/list.html', slips=slips,
-                           total_leave=total_leave, used_leave=used_leave,
+    ).fetchall()
+
+    # 증명서 신청 이력
+    cert_requests = db.execute(
+        'SELECT * FROM certificate_requests WHERE user_id=? ORDER BY created_at DESC',
+        (uid,)
+    ).fetchall()
+
+    return render_template('payroll/list.html',
+                           slips=slips,
+                           contracts=contracts,
+                           cert_requests=cert_requests,
+                           contract_type_labels=CONTRACT_TYPE_LABELS,
                            fmt_krw=fmt_krw,
-                           active_page='payroll')
+                           active_page='my_docs')
 
 @app.route('/payroll/<int:year>/<int:month>')
 @login_required
