@@ -11,7 +11,7 @@
     <div class="welcome-greeting">{{ greet }}, {{ first_name }}.</div>
     <div class="welcome-sub">
       {% if session.dept_name %}{{ session.dept_name }}{% if session.pos_name %} · {{ session.pos_name }}{% endif %} · {% endif %}
-      연차 잔여 <span style="color:#fcd34d; font-weight:700;">{{ remain_leave | int }}일</span>
+      연차 잔여 <span class="hero-badge">{{ remain_leave | int }}일</span>
     </div>
   </div>
   <i class="fas fa-user welcome-icon"></i>
@@ -63,7 +63,7 @@
           <span>Request Leave</span>
         </a>
         <a href="{{ url_for('attendance_home') }}" class="qa-btn">
-          <div class="qa-btn-ico" style="background:#f0f9ff; color:#0891b2;"><i class="fas fa-clock"></i></div>
+          <div class="qa-btn-ico ico-cyan"><i class="fas fa-clock"></i></div>
           <span>Attendance</span>
         </a>
         <a href="{{ url_for('payroll_list') }}" class="qa-btn">
@@ -79,15 +79,15 @@
           <span>Documents</span>
         </a>
         <a href="{{ url_for('peer_reviews_page') }}" class="qa-btn">
-          <div class="qa-btn-ico" style="background:#fffbeb; color:#d97706;"><i class="fas fa-star"></i></div>
+          <div class="qa-btn-ico ico-amber"><i class="fas fa-star"></i></div>
           <span>Peer Review</span>
         </a>
         <a href="{{ url_for('attendance_home') }}" class="qa-btn">
-          <div class="qa-btn-ico" style="background:#f0fdf4; color:#16a34a;"><i class="fas fa-clock"></i></div>
+          <div class="qa-btn-ico ico-green"><i class="fas fa-clock"></i></div>
           <span>Attendance</span>
         </a>
         <a href="{{ url_for('profile') }}" class="qa-btn">
-          <div class="qa-btn-ico" style="background:#f8fafc; color:#64748b;"><i class="fas fa-cog"></i></div>
+          <div class="qa-btn-ico ico-slate"><i class="fas fa-cog"></i></div>
           <span>Settings</span>
         </a>
       </div>
@@ -120,7 +120,7 @@
         </table>
       </div>
       {% else %}
-      <div class="card-body" style="text-align:center; padding:40px;" class="muted">
+      <div class="card-body muted" style="text-align:center; padding:40px;">
         <i class="fas fa-calendar" style="font-size:28px; opacity:.3; display:block; margin-bottom:10px;"></i>
         No leave requests yet.
       </div>
@@ -156,7 +156,7 @@
       <div style="padding:0 10px 10px;">
         {% for u in upcoming_leave %}
         <div class="row" style="padding:10px 12px; border-radius:12px;">
-          <div style="width:36px; height:36px; border-radius:12px; flex-shrink:0; background:#eff6ff; color:var(--primary); display:grid; place-items:center;">
+          <div class="qa-btn-ico ico-blue" style="width:36px; height:36px; border-radius:12px; flex-shrink:0;">
             <i class="fas fa-calendar" style="font-size:14px;"></i>
           </div>
           <div style="flex:1; min-width:0;">
@@ -176,8 +176,7 @@
         <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">All</a>
       </div>
       {% for post in recent_posts %}
-      <a href="{{ url_for('announcement_detail', post_id=post.id) }}"
-         style="padding:12px 22px; border-bottom:1px solid rgba(21,28,35,0.05); display:flex; align-items:center; gap:10px; text-decoration:none;"
+      <a href="{{ url_for('announcement_detail', post_id=post.id) }}" class="list-link-item"
          onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
         <div style="flex:1; min-width:0;">
           <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--tx-1);">{{ post.title }}</div>

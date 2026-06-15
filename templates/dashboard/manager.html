@@ -12,7 +12,7 @@
     <div class="welcome-sub">
       팀원 {{ team_count }}명
       {% if inbox_count > 0 %}
-      · <span style="color:#fcd34d; font-weight:700;">처리할 항목 {{ inbox_count }}건</span>
+      · <span class="hero-badge">처리할 항목 {{ inbox_count }}건</span>
       {% else %}
       · 처리 대기 항목 없음
       {% endif %}
@@ -196,8 +196,7 @@
         <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">All</a>
       </div>
       {% for post in recent_posts %}
-      <a href="{{ url_for('announcement_detail', post_id=post.id) }}"
-         style="padding:12px 22px; border-bottom:1px solid rgba(21,28,35,0.05); display:flex; align-items:center; gap:10px; text-decoration:none;"
+      <a href="{{ url_for('announcement_detail', post_id=post.id) }}" class="list-link-item"
          onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
         <div style="flex:1; min-width:0;">
           <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--tx-1);">{{ post.title }}</div>

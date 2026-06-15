@@ -245,15 +245,15 @@
       <div class="summary-lbl">등록된 목표</div>
     </div>
     <div class="summary-card">
-      <div class="summary-val" style="color:#16a34a;">{{ self_done }}</div>
+      <div class="summary-val" style="color:var(--green);">{{ self_done }}</div>
       <div class="summary-lbl">자기평가 완료</div>
     </div>
     <div class="summary-card">
-      <div class="summary-val" style="color:#d97706;">{{ goals|length - self_done }}</div>
+      <div class="summary-val" style="color:var(--orange);">{{ goals|length - self_done }}</div>
       <div class="summary-lbl">자기평가 미완료</div>
     </div>
     <div class="summary-card">
-      <div class="summary-val" style="color:#7c3aed;">{{ total_w.v }}%</div>
+      <div class="summary-val" style="color:var(--purple);">{{ total_w.v }}%</div>
       <div class="summary-lbl">가중치 합계</div>
     </div>
   </div>
@@ -299,7 +299,7 @@
             <input type="range" name="progress" min="0" max="100" step="5"
                    value="{{ g.progress or 0 }}"
                    oninput="this.nextElementSibling.textContent=this.value+'%'"
-                   style="flex:1; accent-color:#1e40af;">
+                   style="flex:1; accent-color:var(--primary);">
             <span style="font-size:11px; color:var(--tx-3); min-width:32px;">{{ g.progress or 0 }}%</span>
             <button type="submit" class="btn btn-ghost btn-sm">저장</button>
           </form>
@@ -315,7 +315,7 @@
           {% if g.self_score %}
           <div style="text-align:center;">
             <div style="font-size:10px; color:var(--tx-3);">자기평가</div>
-            <div style="font-size:16px; font-weight:800; color:#7c3aed;">{{ g.self_score }}점</div>
+            <div style="font-size:16px; font-weight:800; color:var(--purple);">{{ g.self_score }}점</div>
           </div>
           <a href="{{ url_for('performance_self_review', goal_id=g.id) }}"
              class="btn btn-ghost btn-sm">
@@ -380,7 +380,7 @@
     </div>
     {% if p.done_id %}
     <a href="{{ url_for('peer_review_write', reviewee_id=p.reviewee_id) }}?cycle={{ p.cycle_id }}&type=peer"
-       class="btn btn-ghost btn-sm" style="color:#16a34a;">
+       class="btn btn-ghost btn-sm" style="color:var(--green);">
       <i class="fas fa-check-circle"></i> 완료 · 수정
     </a>
     {% else %}
@@ -491,12 +491,12 @@
       <div class="summary-lbl">목표 있는 직원</div>
     </div>
     <div class="summary-card">
-      <div class="summary-val" style="color:#16a34a;">{{ goals|length }}</div>
+      <div class="summary-val" style="color:var(--green);">{{ goals|length }}</div>
       <div class="summary-lbl">총 목표 수</div>
     </div>
     <div class="summary-card">
       {% set reviewed = goals|selectattr('review_count')|list|length %}
-      <div class="summary-val" style="color:#d97706;">{{ reviewed }}</div>
+      <div class="summary-val" style="color:var(--orange);">{{ reviewed }}</div>
       <div class="summary-lbl">평가 완료 목표</div>
     </div>
   </div>

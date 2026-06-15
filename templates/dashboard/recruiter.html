@@ -98,8 +98,7 @@
         <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">All</a>
       </div>
       {% for post in recent_posts %}
-      <a href="{{ url_for('announcement_detail', post_id=post.id) }}"
-         style="padding:12px 22px; border-bottom:1px solid rgba(21,28,35,0.05); display:flex; align-items:center; gap:10px; text-decoration:none;"
+      <a href="{{ url_for('announcement_detail', post_id=post.id) }}" class="list-link-item"
          onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
         <div style="flex:1; min-width:0;">
           <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--tx-1);">{{ post.title }}</div>
@@ -134,7 +133,7 @@
           <span>Pipeline</span>
         </a>
         <a href="{{ url_for('profile') }}" class="qa-btn">
-          <div class="qa-btn-ico" style="background:#f8fafc; color:#64748b;"><i class="fas fa-cog"></i></div>
+          <div class="qa-btn-ico ico-slate"><i class="fas fa-cog"></i></div>
           <span>Settings</span>
         </a>
       </div>

@@ -448,3 +448,26 @@ tbody tr:hover { background: var(--hover); }
   .stat-grid, .quick-actions-grid { grid-template-columns: 1fr; }
   .global-search-wrap { display: none; }
 }
+
+/* ── Icon color utilities for qa-btn-ico ── */
+.ico-cyan   { background: #f0f9ff; color: #0891b2; }
+.ico-amber  { background: #fffbeb; color: #d97706; }
+.ico-green  { background: #f0fdf4; color: #16a34a; }
+.ico-slate  { background: #f8fafc; color: #64748b; }
+.ico-orange { background: #fff7ed; color: #ea580c; }
+.ico-blue   { background: #eff6ff; color: var(--primary); }
+
+/* ── Hero badge (inbox count highlight) ── */
+.hero-badge { color: #fcd34d; font-weight: 700; }
+
+/* ── List link item ── */
+.list-link-item {
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+.list-link-item:hover { background: var(--hover); }

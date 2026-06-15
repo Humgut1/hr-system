@@ -12,7 +12,7 @@
     <div class="welcome-sub">
       {{ total_employees }}명 재직 중 · {{ total_departments }}개 부서
       {% if inbox_count > 0 %}
-      · <span style="color:#fcd34d; font-weight:700;">처리할 항목 {{ inbox_count }}건</span>
+      · <span class="hero-badge">처리할 항목 {{ inbox_count }}건</span>
       {% else %}
       · 처리 대기 항목 없음
       {% endif %}
@@ -159,19 +159,19 @@
           <span>Analytics</span>
         </a>
         <a href="{{ url_for('recruit_posting_new') }}" class="qa-btn">
-          <div class="qa-btn-ico" style="background:#f0f9ff; color:#0891b2;"><i class="fas fa-file-signature"></i></div>
+          <div class="qa-btn-ico ico-cyan"><i class="fas fa-file-signature"></i></div>
           <span>New Posting</span>
         </a>
         <a href="{{ url_for('people_analytics') }}" class="qa-btn">
-          <div class="qa-btn-ico" style="background:#fff7ed; color:#ea580c;"><i class="fas fa-chart-pie"></i></div>
+          <div class="qa-btn-ico ico-orange"><i class="fas fa-chart-pie"></i></div>
           <span>Analytics</span>
         </a>
         <a href="{{ url_for('export_hub') }}" class="qa-btn">
-          <div class="qa-btn-ico" style="background:#f0fdf4; color:#16a34a;"><i class="fas fa-file-excel"></i></div>
+          <div class="qa-btn-ico ico-green"><i class="fas fa-file-excel"></i></div>
           <span>Export</span>
         </a>
         <a href="{{ url_for('admin_settings') }}" class="qa-btn">
-          <div class="qa-btn-ico" style="background:#f8fafc; color:#64748b;"><i class="fas fa-building"></i></div>
+          <div class="qa-btn-ico ico-slate"><i class="fas fa-building"></i></div>
           <span>Settings</span>
         </a>
       </div>
@@ -211,11 +211,10 @@
         </div>
       </div>
       {% for post in recent_posts %}
-      <a href="{{ url_for('announcement_detail', post_id=post.id) }}"
-         class="list-item" style="padding:12px 22px; text-decoration:none; border-bottom:1px solid rgba(21,28,35,0.05); display:flex; align-items:center; gap:12px;"
+      <a href="{{ url_for('announcement_detail', post_id=post.id) }}" class="list-link-item"
          onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
         <div style="width:30px; height:30px; border-radius:8px; flex-shrink:0;
-                    background:{% if post.pinned %}var(--secondary-container,#e0e7ff){% else %}var(--bg){% endif %};
+                    background:{% if post.pinned %}var(--primary-soft){% else %}var(--bg){% endif %};
                     display:flex; align-items:center; justify-content:center;
                     color:{% if post.pinned %}var(--primary){% else %}var(--tx-3){% endif %}; font-size:12px;">
           <i class="fas fa-{% if post.pinned %}thumbtack{% else %}file-alt{% endif %}"></i>
