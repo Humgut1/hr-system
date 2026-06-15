@@ -4357,13 +4357,34 @@ def compensation():
            WHERE u.status = 'active' AND u.role NOT IN ('admin','guest')
            ORDER BY d.name, u.name'''
     ).fetchall()
+    from datetime import date as _date, datetime as _datetime
     merit_review_rows = []
     for r in raw_merit:
         ratio   = calc_compa_ratio(r['base_salary'], r['mid_salary'])
         band    = _compa_band(ratio)
         sug_pct = merit_from_matrix(db, r['perf_grade'] or 'B', ratio)
+        # Flight Risk 자동 감지
+        fr_reasons = []
+        if ratio < 0.85:
+            fr_reasons.append(f'Compa {ratio:.2f}')
+        if r['perf_grade'] in ('C', 'D'):
+            fr_reasons.append(f'성과 {r["perf_grade"]}')
+        recent_promo = db.execute(
+            "SELECT id FROM personnel_actions WHERE user_id=? AND action_type='promotion' AND applied_at >= date('now','-2 years') LIMIT 1",
+            (r['id'],)
+        ).fetchone()
+        hire_date = db.execute("SELECT hire_date FROM users WHERE id=?", (r['id'],)).fetchone()
+        if not recent_promo and hire_date and hire_date['hire_date']:
+            try:
+                hd = _datetime.strptime(hire_date['hire_date'][:10], '%Y-%m-%d').date()
+                if (_date.today() - hd).days > 730:
+                    fr_reasons.append('미승진 2년+')
+            except Exception:
+                pass
+        flight_risk = len(fr_reasons) >= 2
         merit_review_rows.append({**dict(r), 'compa_ratio': ratio,
-                                  'compa_band': band, 'suggested_pct': sug_pct})
+                                  'compa_band': band, 'suggested_pct': sug_pct,
+                                  'flight_risk': flight_risk, 'flight_risk_reasons': fr_reasons})
     merit_target_count = sum(1 for r in merit_review_rows if r['perf_grade'])
     merit_avg_pct = (
         round(sum(r['suggested_pct'] for r in merit_review_rows if r['perf_grade']) / merit_target_count, 1)
@@ -8778,6 +8799,8 @@ def talent_card(user_id):
     if uid != user_id and role not in ('manager', 'admin'):
         abort(403)
 
+    from payroll_utils import calc_compa_ratio
+
     emp = db.execute(
         '''SELECT u.*, d.name dept_name, p.name position_name, jf.name job_family_name
            FROM users u
@@ -8793,7 +8816,9 @@ def talent_card(user_id):
     grade_history = db.execute(
         '''SELECT pc.name cycle_name, pc.start_date, cr.final_grade,
                   cr.suggested_grade, cr.potential_score,
-                  cr.self_avg, cr.peer_avg, cr.mgr_avg, cr.is_shared
+                  cr.self_avg, cr.peer_avg, cr.mgr_avg, cr.is_shared,
+                  cr.id cr_id,
+                  cr.retention_risk, cr.loss_impact, cr.achievable_level
            FROM calibration_results cr
            JOIN performance_cycles  pc ON cr.cycle_id = pc.id
            WHERE cr.user_id = ?
@@ -8802,6 +8827,47 @@ def talent_card(user_id):
 
     # 가장 최근 캘리브레이션 결과
     latest = grade_history[0] if grade_history else None
+
+    # ── Flight Risk 자동 감지 ──────────────────────────────────────────────
+    flight_risk = False
+    flight_risk_reasons = []
+    # 1) Compa-ratio < 0.85 (급여 밴드 하단)
+    sal_row = db.execute(
+        '''SELECT s.base_salary, sg.mid_salary
+           FROM employee_salary s
+           LEFT JOIN salary_grades sg ON sg.position_id = ? AND sg.job_family_id = ?
+           WHERE s.user_id = ?''',
+        (emp['position_id'], emp['job_family_id'], user_id)
+    ).fetchone()
+    if sal_row and sal_row['mid_salary']:
+        ratio = calc_compa_ratio(sal_row['base_salary'], sal_row['mid_salary'])
+        if ratio < 0.85:
+            flight_risk_reasons.append(f'급여 밴드 하단 (Compa {ratio:.2f})')
+    # 2) 최근 성과 C 이하
+    if latest and latest['final_grade'] in ('C', 'D'):
+        flight_risk_reasons.append(f'성과 등급 {latest["final_grade"]}')
+    # 3) 승진 이력 2년 이상 없음
+    recent_promotion = db.execute(
+        '''SELECT id FROM personnel_actions
+           WHERE user_id = ? AND action_type = 'promotion'
+             AND applied_at >= date('now', '-2 years')
+           LIMIT 1''', (user_id,)
+    ).fetchone()
+    hire_date = emp['hire_date'] if 'hire_date' in emp.keys() else None
+    if not recent_promotion:
+        if hire_date:
+            from datetime import date, datetime
+            try:
+                hd = datetime.strptime(hire_date[:10], '%Y-%m-%d').date()
+                if (date.today() - hd).days > 730:
+                    flight_risk_reasons.append('2년 이상 미승진')
+            except Exception:
+                pass
+    if len(flight_risk_reasons) >= 2:
+        flight_risk = True
+
+    # 직급 목록 (Achievable Level 선택용)
+    positions_list = db.execute('SELECT id, name FROM positions ORDER BY level').fetchall()
 
     # 9박스 위치 계산
     # X축: potential_score (1=Low, 2=Mid, 3=High)
@@ -8845,8 +8911,36 @@ def talent_card(user_id):
         goals=goals,
         active_cycle=active_cycle,
         succession_as_candidate=succession_as_candidate,
+        flight_risk=flight_risk,
+        flight_risk_reasons=flight_risk_reasons,
+        positions_list=positions_list,
         active_page='performance',
     )
+
+
+@app.route('/performance/talent-card/<int:user_id>/talent-flags', methods=['POST'])
+@login_required
+def talent_card_flags(user_id):
+    role = session['user_role']
+    if role not in ('manager', 'admin'):
+        abort(403)
+    db = get_db()
+    cr_id       = request.form.get('cr_id')
+    retention   = request.form.get('retention_risk')
+    loss        = request.form.get('loss_impact')
+    achievable  = request.form.get('achievable_level')
+    if cr_id:
+        db.execute(
+            '''UPDATE calibration_results
+               SET retention_risk=?, loss_impact=?, achievable_level=?
+               WHERE id=? AND user_id=?''',
+            (retention or None, loss or None, achievable or None, cr_id, user_id)
+        )
+        db.commit()
+        flash('Talent 평가 항목이 저장됐습니다.', 'success')
+    else:
+        flash('저장할 캘리브레이션 결과가 없습니다.', 'warning')
+    return redirect(url_for('talent_card', user_id=user_id))
 
 
 # ──────────────────────────────────────────────

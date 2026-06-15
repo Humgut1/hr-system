@@ -747,6 +747,12 @@ def init_db(db_path: str = None):
             c.execute('ALTER TABLE calibration_results ADD COLUMN box_position INTEGER DEFAULT NULL')
         if 'downgrade_reason' not in cal_cols:
             c.execute('ALTER TABLE calibration_results ADD COLUMN downgrade_reason TEXT DEFAULT NULL')
+        if 'retention_risk' not in cal_cols:
+            c.execute("ALTER TABLE calibration_results ADD COLUMN retention_risk TEXT DEFAULT NULL")
+        if 'loss_impact' not in cal_cols:
+            c.execute("ALTER TABLE calibration_results ADD COLUMN loss_impact TEXT DEFAULT NULL")
+        if 'achievable_level' not in cal_cols:
+            c.execute("ALTER TABLE calibration_results ADD COLUMN achievable_level TEXT DEFAULT NULL")
 
         # company_config 컬럼 마이그레이션 (v0.50 — 등급별 보상 배수)
         cc_cols = {r[1] for r in c.execute('PRAGMA table_info(company_config)').fetchall()}
