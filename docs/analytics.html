@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>분석·보고서 — TalentCore 가이드</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <h1><i class="fas fa-cube" style="color:#818cf8;margin-right:8px;"></i>TalentCore</h1>
+    <span>사용자 가이드 v0.79</span>
+  </div>
+  <div class="sidebar-section">시작하기</div>
+  <a href="index.html"><i class="fas fa-home"></i> 소개 및 역할 안내</a>
+  <div class="sidebar-section">기능별 가이드</div>
+  <a href="organization.html"><i class="fas fa-users"></i> 조직 관리</a>
+  <a href="attendance.html"><i class="fas fa-clock"></i> 근태 관리</a>
+  <a href="performance.html"><i class="fas fa-chart-line"></i> 성과 관리</a>
+  <a href="compensation.html"><i class="fas fa-coins"></i> 보상 관리</a>
+  <a href="recruitment.html"><i class="fas fa-user-plus"></i> 채용 관리</a>
+  <a href="documents.html"><i class="fas fa-folder-open"></i> 내 문서</a>
+  <a href="analytics.html" class="active"><i class="fas fa-chart-bar"></i> 분석·보고서</a>
+</nav>
+<div class="main">
+<div class="page-header">
+  <div class="breadcrumb">TalentCore 가이드</div>
+  <h1><i class="fas fa-chart-bar" style="color:var(--primary);margin-right:10px;"></i>분석·보고서</h1>
+  <p>인력 분석, Pay Equity, 퇴직자 분석, 52h 모니터링, HR 데이터 마법사, 데이터 내보내기</p>
+</div>
+<div class="content">
+
+<!-- 개요 -->
+<div class="section">
+  <div class="section-title"><i class="fas fa-info-circle"></i> 기능 개요</div>
+  <div class="card">
+    <p style="font-size:14px; color:var(--tx-2); line-height:1.8;">
+      HR Admin 전용 통합 분석 대시보드입니다. 6개 탭으로 구성되며 <b>실시간 인력 현황</b>, <b>보상 형평성</b>,
+      <b>퇴직자 패턴 분석</b>, <b>52시간 위반 모니터링</b>, <b>자유 형식 HR 데이터 마법사</b>를 제공합니다.
+      Excel 내보내기(7종)도 이 페이지에서 실행됩니다.
+    </p>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:16px;">
+      <div style="background:#eff6ff; border-radius:8px; padding:12px; text-align:center; font-size:12px; font-weight:700; color:#1e40af;"><i class="fas fa-users" style="margin-right:4px;"></i>인력 분석</div>
+      <div style="background:#f0fdf4; border-radius:8px; padding:12px; text-align:center; font-size:12px; font-weight:700; color:#166534;"><i class="fas fa-balance-scale" style="margin-right:4px;"></i>Pay Equity</div>
+      <div style="background:#fef2f2; border-radius:8px; padding:12px; text-align:center; font-size:12px; font-weight:700; color:#991b1b;"><i class="fas fa-door-open" style="margin-right:4px;"></i>퇴직자 분석</div>
+      <div style="background:#fffbeb; border-radius:8px; padding:12px; text-align:center; font-size:12px; font-weight:700; color:#92400e;"><i class="fas fa-clock" style="margin-right:4px;"></i>52h 모니터링</div>
+      <div style="background:#ede9fe; border-radius:8px; padding:12px; text-align:center; font-size:12px; font-weight:700; color:#6d28d9;"><i class="fas fa-magic" style="margin-right:4px;"></i>데이터 마법사</div>
+      <div style="background:#e0f2fe; border-radius:8px; padding:12px; text-align:center; font-size:12px; font-weight:700; color:#0369a1;"><i class="fas fa-download" style="margin-right:4px;"></i>Excel 내보내기</div>
+    </div>
+  </div>
+</div>
+
+<!-- 탭별 기능 -->
+<div class="section">
+  <div class="section-title"><i class="fas fa-th-list"></i> 탭별 기능 상세</div>
+
+  <div class="card">
+    <h3>① 인력 분석 (Headcount)</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:10px;">
+      <div>
+        <div style="font-size:12px; color:var(--tx-3); line-height:2.2;">
+          · 부서별 현원 도넛 차트<br>
+          · 직급별 분포 막대 차트<br>
+          · 고용형태별 현황<br>
+          · 월별 입사·퇴사 추이<br>
+          · Attrition Risk 목록<br>
+          · Leave 사용률 현황
+        </div>
+      </div>
+      <div style="background:#f8fafc; border-radius:8px; padding:12px;">
+        <div style="font-size:11px; font-weight:700; color:#334155; margin-bottom:6px;">Attrition Risk 감지 조건</div>
+        <div style="font-size:11px; color:#64748b; line-height:1.9;">
+          Compa-Ratio &lt; 0.85 (저보상)<br>
+          최근 성과 등급 C 또는 D<br>
+          2년 이상 미승진<br>
+          → 3개 중 2개 이상 해당 시 Flight Risk ✈
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>② Pay Equity (보상 형평성)</h3>
+    <div style="font-size:12px; color:var(--tx-3); line-height:2; margin-top:8px;">
+      · 전 직원 Compa-Ratio 산포도 (이상치 하이라이트)<br>
+      · 부서별 평균 Compa-Ratio 비교<br>
+      · 밴드 하단(80% 미만) / 상단(120% 초과) 위치 직원 목록<br>
+      · 이상치 직원 직접 링크 (직원 프로필로 이동)
+    </div>
+    <div class="alert alert-warn" style="margin-top:10px;">
+      <i class="fas fa-exclamation-triangle"></i>
+      <span>Compa-Ratio 이상치(80% 미만 또는 120% 초과)는 보상 불형평의 신호입니다. 정기적으로 확인하고 Merit 검토 시 우선 반영하세요.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>③ 퇴직자 분석</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:10px;">
+      <div>
+        <div style="font-size:12px; color:var(--tx-3); line-height:2.2;">
+          · 최근 24개월 완료된 퇴직 건 분석<br>
+          · KPI 카드 (총 퇴직, 아쉬운 퇴직, 재채용 가능)<br>
+          · 이탈 원인 분포 (8개 카테고리)<br>
+          · 근속기간별 분포 (1년 미만 ~ 5년 이상)<br>
+          · 월별 이탈 추이 Bar 차트<br>
+          · 매니저별 이탈 Top 5
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px; font-weight:700; color:#334155; margin-bottom:8px;">이탈 원인 8개 카테고리</div>
+        <div style="font-size:11px; color:#64748b; line-height:1.9;">
+          보상 (급여·복리후생)<br>
+          커리어 성장 (승진·역할)<br>
+          매니저 관계<br>
+          문화·팀 적합도<br>
+          워라밸<br>
+          개인 사정<br>
+          이사·지역 이동<br>
+          비자발적 (권고사직·계약만료)
+        </div>
+      </div>
+    </div>
+    <div class="alert alert-info" style="margin-top:10px;">
+      <i class="fas fa-database"></i>
+      <span>퇴직자 분석 데이터는 HR 승인 단계에서 입력한 <b>아쉬운 퇴직 여부, 재채용 가능 여부, 실제 이탈 원인</b>을 기반으로 집계됩니다.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>④ HR 데이터 마법사</h3>
+    <p style="font-size:13px; color:var(--tx-3); margin-bottom:12px;">코드 없이 HR 데이터를 자유롭게 조회·분석·시각화하는 셀프서비스 분석 도구입니다.</p>
+    <svg viewBox="0 0 680 130" xmlns="http://www.w3.org/2000/svg" style="width:100%;margin-bottom:8px;">
+      <defs><marker id="a" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#6366f1"/></marker></defs>
+      <rect x="10"  y="25" width="120" height="70" rx="8" fill="#ede9fe" stroke="#6366f1" stroke-width="1.5"/>
+      <text x="70"  y="53" text-anchor="middle" font-size="11" font-weight="700" fill="#4f46e5">① 소스 선택</text>
+      <text x="70"  y="69" text-anchor="middle" font-size="9" fill="#6d28d9">직원/근태/성과</text>
+      <text x="70"  y="83" text-anchor="middle" font-size="9" fill="#6d28d9">급여/채용</text>
+
+      <rect x="170" y="25" width="120" height="70" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+      <text x="230" y="53" text-anchor="middle" font-size="11" font-weight="700" fill="#1e40af">② 필드 선택</text>
+      <text x="230" y="69" text-anchor="middle" font-size="9" fill="#1e40af">원하는 컬럼</text>
+      <text x="230" y="83" text-anchor="middle" font-size="9" fill="#1e40af">체크박스 선택</text>
+
+      <rect x="330" y="25" width="120" height="70" rx="8" fill="#dcfce7" stroke="#22c55e" stroke-width="1.5"/>
+      <text x="390" y="53" text-anchor="middle" font-size="11" font-weight="700" fill="#166534">③ 필터·미리보기</text>
+      <text x="390" y="69" text-anchor="middle" font-size="9" fill="#166534">조건 설정</text>
+      <text x="390" y="83" text-anchor="middle" font-size="9" fill="#166534">테이블 확인</text>
+
+      <rect x="490" y="25" width="120" height="70" rx="8" fill="#fef9c3" stroke="#eab308" stroke-width="1.5"/>
+      <text x="550" y="46" text-anchor="middle" font-size="11" font-weight="700" fill="#854d0e">④ 시각화·내보내기</text>
+      <text x="550" y="62" text-anchor="middle" font-size="9" fill="#92400e">Bar/Line/Pie 차트</text>
+      <text x="550" y="76" text-anchor="middle" font-size="9" fill="#92400e">피벗·통계</text>
+      <text x="550" y="90" text-anchor="middle" font-size="9" fill="#92400e">Excel 다운로드</text>
+
+      <line x1="130" y1="60" x2="168" y2="60" stroke="#6366f1" stroke-width="1.5" marker-end="url(#a)"/>
+      <line x1="290" y1="60" x2="328" y2="60" stroke="#6366f1" stroke-width="1.5" marker-end="url(#a)"/>
+      <line x1="450" y1="60" x2="488" y2="60" stroke="#6366f1" stroke-width="1.5" marker-end="url(#a)"/>
+    </svg>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px;">
+      <div style="background:#f8fafc; border-radius:6px; padding:8px; text-align:center; font-size:11px; color:#334155;"><b>테이블</b><br><span style="color:#64748b;">컬럼 정렬</span></div>
+      <div style="background:#f8fafc; border-radius:6px; padding:8px; text-align:center; font-size:11px; color:#334155;"><b>차트</b><br><span style="color:#64748b;">4종 그래프</span></div>
+      <div style="background:#f8fafc; border-radius:6px; padding:8px; text-align:center; font-size:11px; color:#334155;"><b>피벗</b><br><span style="color:#64748b;">그룹·집계</span></div>
+      <div style="background:#f8fafc; border-radius:6px; padding:8px; text-align:center; font-size:11px; color:#334155;"><b>통계</b><br><span style="color:#64748b;">min/max/avg</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>⑤ Excel 데이터 내보내기 (7종)</h3>
+    <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:10px;">
+      <div style="background:#f8fafc; border-radius:6px; padding:10px; font-size:12px;"><b>👥 인사정보</b> — 전 직원 Workday 19컬럼 양식</div>
+      <div style="background:#f8fafc; border-radius:6px; padding:10px; font-size:12px;"><b>💰 월 급여</b> — 기준월 전 직원 명세</div>
+      <div style="background:#f8fafc; border-radius:6px; padding:10px; font-size:12px;"><b>📅 연간 급여</b> — 연도별 월별 급여 합산</div>
+      <div style="background:#f8fafc; border-radius:6px; padding:10px; font-size:12px;"><b>🕐 근태</b> — 출퇴근 기록 (체크인·아웃·수당)</div>
+      <div style="background:#f8fafc; border-radius:6px; padding:10px; font-size:12px;"><b>🎯 성과</b> — 목표·평가·등급 통합</div>
+      <div style="background:#f8fafc; border-radius:6px; padding:10px; font-size:12px;"><b>🎯 채용</b> — 지원자·파이프라인 현황</div>
+    </div>
+    <div class="alert alert-tip" style="margin-top:12px;">
+      <i class="fas fa-file-excel"></i>
+      <span>모든 Excel 파일은 헤더 스타일, 통화 포맷, 컬럼 자동 너비가 적용된 전문 양식으로 출력됩니다 (openpyxl 기반).</span>
+    </div>
+  </div>
+</div>
+
+<!-- 권한 -->
+<div class="section">
+  <div class="section-title"><i class="fas fa-lock"></i> 권한 매트릭스</div>
+  <div class="card" style="padding:0; overflow:hidden;">
+    <table class="perm-table">
+      <thead>
+        <tr><th>기능</th><th><span class="badge badge-employee">Employee</span></th><th><span class="badge badge-manager">Manager</span></th><th><span class="badge badge-admin">HR Admin</span></th></tr>
+      </thead>
+      <tbody>
+        <tr><td>인력 분석 대시보드</td><td class="perm-no">✗</td><td class="perm-no">✗</td><td class="perm-yes">✓</td></tr>
+        <tr><td>Pay Equity 분석</td><td class="perm-no">✗</td><td class="perm-no">✗</td><td class="perm-yes">✓</td></tr>
+        <tr><td>퇴직자 분석</td><td class="perm-no">✗</td><td class="perm-no">✗</td><td class="perm-yes">✓</td></tr>
+        <tr><td>52h 모니터링</td><td class="perm-no">✗</td><td class="perm-no">✗</td><td class="perm-yes">✓</td></tr>
+        <tr><td>HR 데이터 마법사</td><td class="perm-no">✗</td><td class="perm-no">✗</td><td class="perm-yes">✓</td></tr>
+        <tr><td>Excel 내보내기 (7종)</td><td class="perm-no">✗</td><td class="perm-no">✗</td><td class="perm-yes">✓</td></tr>
+        <tr><td>채용 대시보드</td><td class="perm-no">✗</td><td class="perm-no">✗</td><td class="perm-yes">✓ (Recruiter 포함)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 사용법 -->
+<div class="section">
+  <div class="section-title"><i class="fas fa-user-cog"></i> HR Admin 사용법</div>
+  <div class="card">
+    <h3>📌 퇴직자 분석 활용 방법</h3>
+    <div class="steps">
+      <div class="step"><div class="step-body"><h4>분석·보고서 → 퇴직자 분석 탭</h4><p>최근 24개월 완료된 퇴직 건이 자동 집계됩니다.</p></div></div>
+      <div class="step"><div class="step-body"><h4>KPI 확인</h4><p>아쉬운 퇴직 비율이 높으면 보상·문화 개선이 필요. 재채용 가능 비율은 채용 전략에 활용</p></div></div>
+      <div class="step"><div class="step-body"><h4>매니저별 이탈 Top 5</h4><p>특정 매니저 팀에서 이탈이 집중되면 매니저십 이슈로 판단. 1:1 면담·코칭 검토</p></div></div>
+    </div>
+    <div class="alert alert-info">
+      <i class="fas fa-pencil-alt"></i>
+      <span>퇴직자 분석 데이터가 부족하면 퇴직 승인 시 <b>아쉬운 퇴직 여부, 재채용 가능 여부, 실제 이탈 원인</b>을 반드시 입력하도록 HR 프로세스를 수립하세요.</span>
+    </div>
+  </div>
+  <div class="card">
+    <h3>📌 HR 데이터 마법사 활용 예시</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px;">
+      <div style="background:#eff6ff; border-radius:8px; padding:12px;">
+        <div style="font-size:12px; font-weight:700; color:#1e40af; margin-bottom:6px;">📊 부서별 평균 연봉 비교</div>
+        <div style="font-size:11px; color:#1e40af;">소스: 직원 → 필드: 부서·기본급 → 피벗: 부서 그룹, 평균 집계</div>
+      </div>
+      <div style="background:#f0fdf4; border-radius:8px; padding:12px;">
+        <div style="font-size:12px; font-weight:700; color:#166534; margin-bottom:6px;">📈 월별 신규입사 추이</div>
+        <div style="font-size:11px; color:#166534;">소스: 직원 → 필드: 입사일 → 차트: Line, 월별 집계</div>
+      </div>
+      <div style="background:#fffbeb; border-radius:8px; padding:12px;">
+        <div style="font-size:12px; font-weight:700; color:#b45309; margin-bottom:6px;">🏆 성과 등급 분포</div>
+        <div style="font-size:11px; color:#b45309;">소스: 성과 → 필드: 등급 → 차트: Pie/Doughnut</div>
+      </div>
+      <div style="background:#fce7f3; border-radius:8px; padding:12px;">
+        <div style="font-size:12px; font-weight:700; color:#9d174d; margin-bottom:6px;">⏰ 연장근로 상위 직원</div>
+        <div style="font-size:11px; color:#9d174d;">소스: 근태 → 필드: 이름·OT분 → 테이블, OT분 내림차순</div>
+      </div>
+    </div>
+  </div>
+  <div class="screenshot-wrap">
+    <img src="screenshots/analytics.png" alt="분석·보고서 화면">
+    <div class="screenshot-caption">분석·보고서 — 인력 분석 대시보드</div>
+  </div>
+</div>
+
+</div>
+</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>보상 관리 — TalentCore 가이드</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <h1><i class="fas fa-cube" style="color:#818cf8;margin-right:8px;"></i>TalentCore</h1>
+    <span>사용자 가이드 v0.79</span>
+  </div>
+  <div class="sidebar-section">시작하기</div>
+  <a href="index.html"><i class="fas fa-home"></i> 소개 및 역할 안내</a>
+  <div class="sidebar-section">기능별 가이드</div>
+  <a href="organization.html"><i class="fas fa-users"></i> 조직 관리</a>
+  <a href="attendance.html"><i class="fas fa-clock"></i> 근태 관리</a>
+  <a href="performance.html"><i class="fas fa-chart-line"></i> 성과 관리</a>
+  <a href="compensation.html" class="active"><i class="fas fa-coins"></i> 보상 관리</a>
+  <a href="recruitment.html"><i class="fas fa-user-plus"></i> 채용 관리</a>
+  <a href="documents.html"><i class="fas fa-folder-open"></i> 내 문서</a>
+  <a href="analytics.html"><i class="fas fa-chart-bar"></i> 분석·보고서</a>
+</nav>
+<div class="main">
+<div class="page-header">
+  <div class="breadcrumb">TalentCore 가이드</div>
+  <h1><i class="fas fa-coins" style="color:var(--primary);margin-right:10px;"></i>보상 관리</h1>
+  <p>월급여 생성, Compa-Ratio, Merit Matrix, 성과 연동 급여 검토, 급여 밴드</p>
+</div>
+<div class="content">
+
+<!-- 개요 -->
+<div class="section">
+  <div class="section-title"><i class="fas fa-info-circle"></i> 기능 개요</div>
+  <div class="card">
+    <p style="font-size:14px; color:var(--tx-2); line-height:1.8;">
+      보상 관리 허브는 <b>급여 운영</b>(월 급여 생성·수정), <b>급여 구조</b>(밴드·Compa-Ratio·Merit Matrix),
+      <b>성과 연동 급여 검토</b>(캘리브레이션 결과 기반 Merit 인상 반영), <b>보상 분석</b>을 4개 탭으로 통합합니다.
+    </p>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:16px;">
+      <div style="background:#ede9fe; border-radius:8px; padding:12px; text-align:center; font-size:12px; font-weight:700; color:#6d28d9;">급여 운영</div>
+      <div style="background:#dbeafe; border-radius:8px; padding:12px; text-align:center; font-size:12px; font-weight:700; color:#1e40af;">급여 구조</div>
+      <div style="background:#dcfce7; border-radius:8px; padding:12px; text-align:center; font-size:12px; font-weight:700; color:#166534;">성과 연동 검토</div>
+      <div style="background:#fef9c3; border-radius:8px; padding:12px; text-align:center; font-size:12px; font-weight:700; color:#854d0e;">보상 분석</div>
+    </div>
+  </div>
+</div>
+
+<!-- 프로세스 -->
+<div class="section">
+  <div class="section-title"><i class="fas fa-project-diagram"></i> 핵심 프로세스</div>
+
+  <div class="card">
+    <h3>월 급여 생성 흐름</h3>
+    <svg viewBox="0 0 700 110" xmlns="http://www.w3.org/2000/svg" style="width:100%;margin-top:12px;">
+      <defs><marker id="a" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#6366f1"/></marker></defs>
+      <rect x="10"  y="25" width="120" height="55" rx="8" fill="#ede9fe" stroke="#6366f1" stroke-width="1.5"/>
+      <text x="70"  y="49" text-anchor="middle" font-size="11" font-weight="700" fill="#4f46e5">기준월 선택</text>
+      <text x="70"  y="67" text-anchor="middle" font-size="10" fill="#6d28d9">미리보기 확인</text>
+
+      <rect x="170" y="25" width="130" height="55" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+      <text x="235" y="49" text-anchor="middle" font-size="11" font-weight="700" fill="#1e40af">자동 계산</text>
+      <text x="235" y="67" text-anchor="middle" font-size="10" fill="#1e40af">4대보험+수당+복리후생</text>
+
+      <rect x="340" y="25" width="130" height="55" rx="8" fill="#dcfce7" stroke="#22c55e" stroke-width="1.5"/>
+      <text x="405" y="49" text-anchor="middle" font-size="11" font-weight="700" fill="#166534">확정 생성</text>
+      <text x="405" y="67" text-anchor="middle" font-size="10" fill="#166534">직원 알림 발송</text>
+
+      <rect x="510" y="25" width="120" height="55" rx="8" fill="#fef9c3" stroke="#eab308" stroke-width="1.5"/>
+      <text x="570" y="49" text-anchor="middle" font-size="11" font-weight="700" fill="#854d0e">명세서 열람</text>
+      <text x="570" y="67" text-anchor="middle" font-size="10" fill="#854d0e">직원 셀프서비스</text>
+
+      <line x1="130" y1="52" x2="168" y2="52" stroke="#6366f1" stroke-width="1.5" marker-end="url(#a)"/>
+      <line x1="300" y1="52" x2="338" y2="52" stroke="#6366f1" stroke-width="1.5" marker-end="url(#a)"/>
+      <line x1="470" y1="52" x2="508" y2="52" stroke="#6366f1" stroke-width="1.5" marker-end="url(#a)"/>
+    </svg>
+    <div class="alert alert-info" style="margin-top:12px;">
+      <i class="fas fa-calculator"></i>
+      <span>자동 계산 항목: 기본급, 연장·야간·휴일수당, 식대·교통비 등 비과세, 4대보험(국민연금·건강보험·고용보험·산재), 소득세·지방소득세</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>성과 연동 Merit 급여 검토 흐름 (3단계)</h3>
+    <svg viewBox="0 0 660 130" xmlns="http://www.w3.org/2000/svg" style="width:100%;margin-top:12px;">
+      <defs><marker id="b" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#6366f1"/></marker></defs>
+      <!-- Step circles -->
+      <circle cx="80" cy="55" r="28" fill="#ede9fe" stroke="#6366f1" stroke-width="2"/>
+      <text x="80" y="51" text-anchor="middle" font-size="18" fill="#6366f1">①</text>
+      <text x="80" y="94" text-anchor="middle" font-size="11" font-weight="700" fill="#4f46e5">성과 확정</text>
+      <text x="80" y="110" text-anchor="middle" font-size="10" fill="#6d28d9">캘리브레이션</text>
+
+      <line x1="110" y1="55" x2="198" y2="55" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#b)"/>
+
+      <circle cx="230" cy="55" r="28" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>
+      <text x="230" y="51" text-anchor="middle" font-size="18" fill="#3b82f6">②</text>
+      <text x="230" y="94" text-anchor="middle" font-size="11" font-weight="700" fill="#1e40af">검토</text>
+      <text x="230" y="110" text-anchor="middle" font-size="10" fill="#1e40af">Merit Matrix 참조</text>
+
+      <line x1="260" y1="55" x2="348" y2="55" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#b)"/>
+
+      <circle cx="380" cy="55" r="28" fill="#dcfce7" stroke="#22c55e" stroke-width="2"/>
+      <text x="380" y="51" text-anchor="middle" font-size="18" fill="#22c55e">③</text>
+      <text x="380" y="94" text-anchor="middle" font-size="11" font-weight="700" fill="#166534">반영</text>
+      <text x="380" y="110" text-anchor="middle" font-size="10" fill="#166534">급여 즉시 업데이트</text>
+
+      <!-- Merit Matrix 예시 -->
+      <rect x="460" y="10" width="190" height="110" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+      <text x="555" y="30" text-anchor="middle" font-size="11" font-weight="700" fill="#334155">Merit Matrix (예시)</text>
+      <text x="470" y="50" font-size="10" fill="#64748b">등급  하단  중간  상단</text>
+      <text x="470" y="66" font-size="10" fill="#16a34a">  S   8%   6%   4%</text>
+      <text x="470" y="80" font-size="10" fill="#2563eb">  A   6%   4%   2%</text>
+      <text x="470" y="94" font-size="10" fill="#64748b">  B   4%   2%   1%</text>
+      <text x="470" y="108" font-size="10" fill="#dc2626">  C   0%   0%   0%</text>
+    </svg>
+  </div>
+
+  <div class="card">
+    <h3>Compa-Ratio 이해하기</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px;">
+      <div>
+        <h4 style="font-size:13px; margin-bottom:8px;">📐 공식</h4>
+        <div style="background:#f8fafc; border-radius:8px; padding:12px; font-family:monospace; font-size:13px;">
+          Compa-Ratio = 현재 연봉 / 밴드 중간값 × 100
+        </div>
+        <div style="font-size:12px; color:var(--tx-3); margin-top:8px; line-height:1.7;">
+          · <b>100% 미만</b>: 밴드 하단 위치 (성장 여지 큼)<br>
+          · <b>100%</b>: 시장 중간값과 일치<br>
+          · <b>100% 초과</b>: 밴드 상단 (Merit 인상 제한)
+        </div>
+      </div>
+      <div>
+        <h4 style="font-size:13px; margin-bottom:8px;">🎨 색상 배지</h4>
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+          <div style="display:flex; align-items:center; gap:8px;"><span style="background:#fee2e2; color:#dc2626; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">↓ 80% 미만</span><span style="font-size:12px; color:var(--tx-3);">밴드 하단</span></div>
+          <div style="display:flex; align-items:center; gap:8px;"><span style="background:#dcfce7; color:#16a34a; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">● 80~120%</span><span style="font-size:12px; color:var(--tx-3);">정상 범위</span></div>
+          <div style="display:flex; align-items:center; gap:8px;"><span style="background:#fef9c3; color:#b45309; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">↑ 120% 초과</span><span style="font-size:12px; color:var(--tx-3);">밴드 상단</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 권한 -->
+<div class="section">
+  <div class="section-title"><i class="fas fa-lock"></i> 권한 매트릭스</div>
+  <div class="card" style="padding:0; overflow:hidden;">
+    <table class="perm-table">
+      <thead>
+        <tr><th>기능</th><th><span class="badge badge-employee">Employee</span></th><th><span class="badge badge-manager">Manager</span></th><th><span class="badge badge-admin">HR Admin</span></th></tr>
+      </thead>
+      <tbody>
+        <tr><td>월 급여 생성</td><td class="perm-no">✗</td><td class="perm-no">✗</td><td class="perm-yes">✓</td></tr>
+        <tr><td>급여 미리보기</td><td class="perm-no">✗</td><td class="perm-no">✗</td><td class="perm-yes">✓</td></tr>
+        <tr><td>개인 급여 수정</td><td class="perm-no">✗</td><td class="perm-no">✗</td><td class="perm-yes">✓</td></tr>
+        <tr><td>일괄 인상 (Bulk Raise)</td><td class="perm-no">✗</td><td class="perm-no">✗</td><td class="perm-yes">✓</td></tr>
+        <tr><td>Merit 급여 검토·반영</td><td class="perm-no">✗</td><td class="perm-no">✗</td><td class="perm-yes">✓</td></tr>
+        <tr><td>급여 밴드 조회</td><td class="perm-no">✗</td><td class="perm-no">✗</td><td class="perm-yes">✓</td></tr>
+        <tr><td>Merit Matrix 편집</td><td class="perm-no">✗</td><td class="perm-no">✗</td><td class="perm-yes">✓</td></tr>
+        <tr><td>본인 급여명세서 열람</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td></tr>
+        <tr><td>총보상 명세서</td><td class="perm-yes">✓ 본인</td><td class="perm-yes">✓ 본인</td><td class="perm-yes">✓ 전체</td></tr>
+        <tr><td>복리후생 현황 조회</td><td class="perm-yes">✓ 본인</td><td class="perm-yes">✓ 본인</td><td class="perm-yes">✓ 전체</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 역할별 사용법 -->
+<div class="section">
+  <div class="section-title"><i class="fas fa-user-cog"></i> 역할별 사용법</div>
+  <div class="role-tabs">
+    <button class="role-tab active employee" onclick="switchRole('employee', this)">직원</button>
+    <button class="role-tab admin" onclick="switchRole('admin', this)">HR Admin</button>
+  </div>
+
+  <div id="role-employee" class="role-panel active">
+    <div class="card">
+      <h3>📌 급여명세서 및 복리후생 조회</h3>
+      <div class="steps">
+        <div class="step"><div class="step-body"><h4>내 문서 → 급여명세서</h4><p>월별 급여명세서 열람. 기본급, 수당, 공제 항목 상세 확인 가능</p></div></div>
+        <div class="step"><div class="step-body"><h4>복리후생 조회</h4><p>내 복리후생 페이지에서 적용 중인 항목과 복지포인트 잔액 확인</p></div></div>
+        <div class="step"><div class="step-body"><h4>총보상 명세서</h4><p>연간 기본급 + 상여 + 복리후생 + 퇴직금 적립액 합산 명세서 (인쇄 가능)</p></div></div>
+      </div>
+      <div class="alert alert-info">
+        <i class="fas fa-eye"></i>
+        <span>성과 등급별 보상 배수(Merit 인상률)는 성과 관리 페이지에서 사전 공개됩니다.</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="role-admin" class="role-panel">
+    <div class="card">
+      <h3>📌 월 급여 생성</h3>
+      <div class="steps">
+        <div class="step"><div class="step-body"><h4>보상 관리 → 급여 운영 탭</h4><p>년/월 선택 → 미리보기로 전 직원 예상 급여 확인</p></div></div>
+        <div class="step"><div class="step-body"><h4>확정 생성</h4><p>미리보기 검토 후 <b>급여 생성</b> 클릭 → 전 직원에게 인앱 알림 자동 발송</p></div></div>
+        <div class="step"><div class="step-body"><h4>개별 수정</h4><p>특수 수당 등 수동 조정 필요 시 직원별 급여 수정 모달 사용 (변경 사유 기록)</p></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>📌 성과 연동 Merit 급여 검토</h3>
+      <div class="steps">
+        <div class="step"><div class="step-body"><h4>캘리브레이션 완료 확인</h4><p>성과 → 캘리브레이션에서 전원 등급 확정 후 <b>보상 검토 시작</b> 버튼 클릭</p></div></div>
+        <div class="step"><div class="step-body"><h4>보상 관리 → 성과 연동 검토 탭</h4><p>부서·등급 필터로 대상 직원 추려내기. 권고 인상률(Merit Matrix 기반) 자동 표시</p></div></div>
+        <div class="step"><div class="step-body"><h4>선택 후 일괄 반영</h4><p>반영할 직원 체크박스 선택 → <b>선택 직원 급여 반영</b> → salary_history 자동 기록</p></div></div>
+      </div>
+    </div>
+    <div class="screenshot-wrap">
+      <img src="screenshots/compensation.png" alt="보상 관리 화면">
+      <div class="screenshot-caption">보상 관리 허브 — 4탭 통합 화면</div>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+</div>
+<script>
+function switchRole(r, b) {
+  document.querySelectorAll('.role-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.role-tab').forEach(x => x.classList.remove('active'));
+  document.getElementById('role-' + r).classList.add('active');
+  b.classList.add('active');
+}
+</script>
+</body>
+</html>
