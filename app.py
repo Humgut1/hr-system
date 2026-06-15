@@ -4053,7 +4053,7 @@ def payroll_bulk_raise():
 @app.route('/compensation', methods=['GET', 'POST'])
 @admin_required
 def compensation():
-    from payroll_utils import calc_compa_ratio, compa_band as _compa_band, calc_payslip, calc_extra_pay, check_min_wage
+    from payroll_utils import calc_compa_ratio, compa_band as _compa_band, calc_payslip, calc_extra_pay, check_min_wage, merit_from_matrix
     import calendar as cal_mod, json as _json, datetime
     db  = get_db()
     cfg = get_company_config()
@@ -4239,6 +4239,35 @@ def compensation():
             flash(f'인상 완료 — {count}명 적용', 'success')
             _tab = 'analysis'
 
+        elif action == 'merit_apply':
+            emp_ids = request.form.getlist('emp_id')
+            changer = session['user_id']
+            count = 0
+            for eid in emp_ids:
+                eid = int(eid)
+                pct = float(request.form.get(f'pct_{eid}', 0) or 0)
+                if pct == 0:
+                    continue
+                old = db.execute('SELECT * FROM employee_salary WHERE user_id=?', (eid,)).fetchone()
+                if not old:
+                    continue
+                new_base = int(old['base_salary'] * (1 + pct / 100))
+                perf_grade = request.form.get(f'grade_{eid}', '')
+                db.execute(
+                    'INSERT INTO salary_history (user_id, changed_by, old_base_salary, new_base_salary, reason) '
+                    'VALUES (?,?,?,?,?)',
+                    (eid, changer, old['base_salary'], new_base,
+                     f'성과 연동 인상 {pct:+.1f}% (등급: {perf_grade})')
+                )
+                db.execute(
+                    'UPDATE employee_salary SET base_salary=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?',
+                    (new_base, eid)
+                )
+                count += 1
+            db.commit()
+            flash(f'급여 반영 완료 — {count}명', 'success')
+            _tab = 'acr'
+
         return redirect(url_for('compensation', tab=_tab))
 
     # ── GET ──────────────────────────────────────────────────────────────────
@@ -4302,6 +4331,42 @@ def compensation():
 
     departments = db.execute('SELECT id, name FROM departments ORDER BY name').fetchall()
 
+    # ── 성과 연동 급여 검토 데이터 (ACR 탭) ──────────────────────────────────
+    raw_merit = db.execute(
+        '''SELECT u.id, u.name, d.name dept_name, p.name pos_name,
+                  COALESCE(s.base_salary, 0) base_salary,
+                  sg.mid_salary,
+                  (SELECT cr.final_grade
+                   FROM calibration_results cr
+                   JOIN performance_cycles pc ON cr.cycle_id = pc.id
+                   WHERE cr.user_id = u.id AND cr.final_grade IS NOT NULL
+                   ORDER BY pc.start_date DESC LIMIT 1) perf_grade
+           FROM users u
+           LEFT JOIN departments d ON u.department_id = d.id
+           LEFT JOIN positions   p ON u.position_id   = p.id
+           LEFT JOIN employee_salary s ON u.id = s.user_id
+           LEFT JOIN salary_grades sg ON sg.position_id   = u.position_id
+                                     AND sg.job_family_id = u.job_family_id
+           WHERE u.status = 'active' AND u.role NOT IN ('admin','guest')
+           ORDER BY d.name, u.name'''
+    ).fetchall()
+    merit_review_rows = []
+    for r in raw_merit:
+        ratio   = calc_compa_ratio(r['base_salary'], r['mid_salary'])
+        band    = _compa_band(ratio)
+        sug_pct = merit_from_matrix(db, r['perf_grade'] or 'B', ratio)
+        merit_review_rows.append({**dict(r), 'compa_ratio': ratio,
+                                  'compa_band': band, 'suggested_pct': sug_pct})
+    merit_target_count = sum(1 for r in merit_review_rows if r['perf_grade'])
+    merit_avg_pct = (
+        round(sum(r['suggested_pct'] for r in merit_review_rows if r['perf_grade']) / merit_target_count, 1)
+        if merit_target_count else 0
+    )
+    merit_total_increase = sum(
+        int(r['base_salary'] * (r['suggested_pct'] / 100))
+        for r in merit_review_rows if r['perf_grade']
+    )
+
     return render_template('payroll/compensation.html',
         active_count=active_count,
         this_month_done=this_month_done,
@@ -4320,7 +4385,11 @@ def compensation():
         cfg=cfg,
         fmt_krw=fmt_krw,
         active_tab=_tab,
-        active_page='compensation'
+        active_page='compensation',
+        merit_review_rows=merit_review_rows,
+        merit_target_count=merit_target_count,
+        merit_avg_pct=merit_avg_pct,
+        merit_total_increase=merit_total_increase,
     )
 
 
