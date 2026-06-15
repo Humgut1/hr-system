@@ -8,7 +8,7 @@
   <!-- 탭 -->
   <div style="display:flex;gap:0;margin-bottom:24px;border-bottom:2px solid var(--surface-3);">
     {% for t, label in [('pending','대기중'), ('approved','승인'), ('rejected','반려'), ('all','전체')] %}
-    <a href="?tab={{ t }}" style="padding:10px 20px;font-size:.85rem;font-weight:{% if tab==t %}700{% else %}400{% endif %};color:{% if tab==t %}#3b82f6{% else %}var(--tx-3){% endif %};border-bottom:2px solid {% if tab==t %}#3b82f6{% else %}transparent{% endif %};margin-bottom:-2px;text-decoration:none;">
+    <a href="?tab={{ t }}" style="padding:10px 20px;font-size:.85rem;font-weight:{% if tab==t %}700{% else %}400{% endif %};color:{% if tab==t %}var(--info){% else %}var(--tx-3){% endif %};border-bottom:2px solid {% if tab==t %}var(--info){% else %}transparent{% endif %};margin-bottom:-2px;text-decoration:none;">
       {{ label }}
       {% if t != 'all' and counts.get(t, 0) > 0 %}
       <span style="background:{% if t=='pending' %}var(--red-bg){% else %}var(--surface-3){% endif %};color:{% if t=='pending' %}var(--red){% else %}var(--tx-3){% endif %};font-size:.7rem;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:4px;">{{ counts[t] }}</span>
@@ -36,18 +36,18 @@
         <tr style="border-bottom:1px solid var(--surface-3);transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
           <td style="padding:13px 16px;">
             <div style="font-size:.85rem;font-weight:600;">{{ c.emp_name }}</div>
-            <div style="font-size:.72rem;color:#94a3b8;">{{ c.emp_no or '' }}</div>
+            <div style="font-size:.72rem;color:var(--tx-3);">{{ c.emp_no or '' }}</div>
           </td>
           <td style="padding:13px 16px;">
-            <span style="font-size:.83rem;color:#374151;">{{ benefit_names.get(c.benefit_key, c.benefit_key) }}</span>
+            <span style="font-size:.83rem;color:var(--tx-2);">{{ benefit_names.get(c.benefit_key, c.benefit_key) }}</span>
           </td>
-          <td style="padding:13px 16px;text-align:right;font-size:.88rem;font-weight:600;color:#111827;">
+          <td style="padding:13px 16px;text-align:right;font-size:.88rem;font-weight:600;color:var(--tx-1);">
             ₩{{ '{:,}'.format(c.amount) }}
           </td>
-          <td style="padding:13px 16px;font-size:.82rem;color:#374151;">
+          <td style="padding:13px 16px;font-size:.82rem;color:var(--tx-2);">
             {{ c.expense_date or '-' }}
           </td>
-          <td style="padding:13px 16px;font-size:.82rem;color:#94a3b8;">
+          <td style="padding:13px 16px;font-size:.82rem;color:var(--tx-3);">
             {{ c.submitted_at[:10] if c.submitted_at else '-' }}
           </td>
           <td style="padding:13px 16px;text-align:center;">
@@ -63,20 +63,20 @@
             {% if c.status == 'pending' %}
             <div style="display:flex;gap:6px;justify-content:center;">
               <form method="POST" action="{{ url_for('admin_benefit_claim_action', claim_id=c.id, action='approve') }}" style="display:inline;">
-                <button type="submit" style="background:var(--green);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;">승인</button>
+                <button type="submit" style="background:var(--green);color:var(--surface);border:none;border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;">승인</button>
               </form>
               <form method="POST" action="{{ url_for('admin_benefit_claim_action', claim_id=c.id, action='reject') }}" style="display:inline;"
                     onsubmit="return confirm('반려하시겠습니까?')">
-                <button type="submit" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;">반려</button>
+                <button type="submit" style="background:var(--red);color:var(--surface);border:none;border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;">반려</button>
               </form>
             </div>
             {% else %}
-            <span style="font-size:.75rem;color:#94a3b8;">{{ c.reviewer_name or '-' }}</span>
+            <span style="font-size:.75rem;color:var(--tx-3);">{{ c.reviewer_name or '-' }}</span>
             {% endif %}
           </td>
         </tr>
         {% if c.description %}
-        <tr style="background:#fafafa;border-bottom:1px solid var(--surface-3);">
+        <tr style="background:var(--bg);border-bottom:1px solid var(--surface-3);">
           <td colspan="7" style="padding:6px 16px 10px 16px;">
             <span style="font-size:.75rem;color:var(--tx-3);"><i class="fas fa-paperclip"></i> {{ c.description }}</span>
           </td>
@@ -87,7 +87,7 @@
     </table>
   </div>
   {% else %}
-  <div style="text-align:center;padding:60px 20px;color:#94a3b8;">
+  <div style="text-align:center;padding:60px 20px;color:var(--tx-3);">
     <i class="fas fa-receipt" style="font-size:2.5rem;margin-bottom:12px;display:block;"></i>
     <p style="font-size:.9rem;">환급 신청 내역이 없습니다.</p>
   </div>

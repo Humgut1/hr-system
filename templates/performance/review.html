@@ -61,7 +61,7 @@
                           {% endif %}">
                 <div style="font-size:20px; font-weight:900; color:
                   {% if score == 5 %}var(--green)
-                  {% elif score == 4 %}#2563eb
+                  {% elif score == 4 %}var(--info)
                   {% elif score == 3 %}var(--tx-3)
                   {% elif score == 2 %}var(--orange)
                   {% else %}var(--red){% endif %};">
@@ -85,7 +85,7 @@
             {% for score, label in score_labels.items()|sort(reverse=true) %}
             <div>
               <div style="font-weight:800; font-size:14px; color:
-                {% if score == 5 %}var(--green){% elif score == 4 %}#2563eb
+                {% if score == 5 %}var(--green){% elif score == 4 %}var(--info)
                 {% elif score == 3 %}var(--tx-3){% elif score == 2 %}var(--orange){% else %}var(--red){% endif %};">
                 {{ score }}pt
               </div>

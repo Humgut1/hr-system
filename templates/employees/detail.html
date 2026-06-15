@@ -218,11 +218,11 @@
     <div class="prof-meta">
       {% if emp.role == 'admin' %}<span class="prof-tag" style="background:var(--info-bg); color:var(--info);">Admin</span>
       {% elif emp.role == 'manager' %}<span class="prof-tag" style="background:var(--green-bg); color:var(--green);">Manager</span>
-      {% elif emp.role == 'recruiter' %}<span class="prof-tag" style="background:#fefce8; color:#854d0e;">Recruiter</span>
+      {% elif emp.role == 'recruiter' %}<span class="prof-tag" style="background:var(--orange-bg); color:var(--orange);">Recruiter</span>
       {% else %}<span class="prof-tag">Employee</span>{% endif %}
 
       {% if emp.employment_type == 'contract' %}<span class="prof-tag" style="background:var(--orange-bg); color:var(--orange);">계약직</span>
-      {% elif emp.employment_type == 'intern' %}<span class="prof-tag" style="background:#fdf4ff; color:#7e22ce;">인턴</span>
+      {% elif emp.employment_type == 'intern' %}<span class="prof-tag" style="background:var(--purple-bg); color:var(--purple);">인턴</span>
       {% elif emp.employment_type == 'part_time' %}<span class="prof-tag" style="background:var(--orange-bg); color:var(--orange);">시간제</span>
       {% else %}<span class="prof-tag" style="background:var(--green-bg); color:var(--green);">정규직</span>{% endif %}
 
@@ -376,7 +376,7 @@
         <tr style="border-bottom:1px solid var(--border);">
           <td style="padding:11px 16px; white-space:nowrap;">{{ a.effective_date }}</td>
           <td style="padding:11px 16px;">
-            <span style="font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:20px; background:#ede9fe; color:#6d28d9;">
+            <span style="font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:20px; background:var(--purple-bg); color:var(--purple);">
               {{ {'dept_change':'부서이동','position_change':'직급변경','role_change':'역할변경',
                   'employment_type_change':'고용형태','manager_change':'상관변경','salary_change':'급여변경'}.get(a.action_type, a.action_type) }}
             </span>
@@ -579,12 +579,12 @@
       {% if bmax > bmin %}
       {% set pct = [([(base - bmin) / (bmax - bmin) * 100, 0]|max), 100]|min %}
       {% set mid_pct = (bmid - bmin) / (bmax - bmin) * 100 %}
-      <div style="position:relative; height:12px; background:#e5e7eb; border-radius:6px; margin:8px 0;">
+      <div style="position:relative; height:12px; background:var(--surface-3); border-radius:6px; margin:8px 0;">
         <!-- Mid 마커 -->
         <div style="position:absolute; left:{{ mid_pct }}%; top:-4px; bottom:-4px; width:2px; background:var(--tx-3);"></div>
         <!-- 현재 위치 -->
         <div style="position:absolute; left:0; width:{{ pct }}%; height:100%; border-radius:6px;
-                    background:{% if ratio and ratio < 0.9 %}var(--orange){% elif ratio and ratio > 1.1 %}#3b82f6{% else %}var(--green){% endif %};"></div>
+                    background:{% if ratio and ratio < 0.9 %}var(--orange){% elif ratio and ratio > 1.1 %}var(--info){% else %}var(--green){% endif %};"></div>
         <div style="position:absolute; left:{{ pct }}%; top:50%; transform:translate(-50%,-50%);
                     width:16px; height:16px; background:white; border:3px solid var(--info);
                     border-radius:50%; box-shadow:0 1px 3px rgba(0,0,0,.3);"></div>
@@ -705,7 +705,7 @@
             <div style="text-align:right; flex-shrink:0; margin-left:12px;">
               <div style="font-size:12px; color:var(--text-muted);">{{ h.changed_at[:10] }}</div>
               {% if h.changed_by_name %}
-              <div style="font-size:11px; color:#94a3b8; margin-top:2px;">{{ h.changed_by_name }}</div>
+              <div style="font-size:11px; color:var(--tx-3); margin-top:2px;">{{ h.changed_by_name }}</div>
               {% endif %}
             </div>
           </div>
@@ -812,7 +812,7 @@
   <form method="POST" action="{{ url_for('employee_benefits_save', emp_id=emp.id) }}">
 
     <!-- 안내 -->
-    <div style="background:var(--info-bg);border:1px solid var(--info-bg);border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:.82rem;color:#0369a1;line-height:1.6;">
+    <div style="background:var(--info-bg);border:1px solid var(--info-bg);border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:.82rem;color:var(--info);line-height:1.6;">
       <i class="fas fa-info-circle" style="margin-right:6px;"></i>
       전사 기본 설정을 기반으로 이 직원에게만 다르게 적용할 항목을 설정하세요.
       <strong>오버라이드 ON</strong>이면 아래 금액·활성화 여부가 우선 적용됩니다.
@@ -827,18 +827,18 @@
       {% if not loop.first %}</div>{% endif %}
       {% set cur_pt.val = row.payment_type %}
       <div style="margin-bottom:16px;">
-      <div style="font-size:.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;padding-left:2px;">
+      <div style="font-size:.72rem;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;padding-left:2px;">
         {{ pt_labels.get(row.payment_type, row.payment_type) }}
       </div>
       {% endif %}
 
       {% set is_ovr = row.has_override %}
-      <div style="border:1px solid {% if is_ovr %}#bfdbfe{% else %}var(--surface-3){% endif %};border-radius:12px;padding:16px;margin-bottom:8px;background:{% if is_ovr %}#f0f7ff{% else %}#fafafa{% endif %};" id="brow_{{ row.key }}">
+      <div style="border:1px solid {% if is_ovr %}var(--info-bg){% else %}var(--surface-3){% endif %};border-radius:12px;padding:16px;margin-bottom:8px;background:{% if is_ovr %}var(--info-bg){% else %}var(--bg){% endif %};" id="brow_{{ row.key }}">
         <div style="display:flex;align-items:flex-start;gap:12px;">
 
           <!-- 아이콘 -->
-          <div style="width:36px;height:36px;background:{% if is_ovr %}#3b82f6{% else %}var(--surface-3){% endif %};border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-            <i class="fas {{ row.icon }}" style="color:{% if is_ovr %}#fff{% else %}#94a3b8{% endif %};font-size:13px;"></i>
+          <div style="width:36px;height:36px;background:{% if is_ovr %}var(--info){% else %}var(--surface-3){% endif %};border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="fas {{ row.icon }}" style="color:{% if is_ovr %}var(--surface){% else %}var(--tx-3){% endif %};font-size:13px;"></i>
           </div>
 
           <div style="flex:1;min-width:0;">
@@ -850,7 +850,7 @@
               <span style="background:var(--orange-bg);color:var(--orange);font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">과세</span>
               {% endif %}
             </div>
-            <div style="font-size:.75rem;color:#94a3b8;">
+            <div style="font-size:.75rem;color:var(--tx-3);">
               전사 기본값:
               {% if row.company_pct %}기본급 × {{ row.company_pct }}%
               {% elif row.company_amount %}월 {{ '{:,}'.format(row.company_amount) }}원
@@ -866,8 +866,8 @@
                 <input type="checkbox" name="override_{{ row.key }}" id="ovr_{{ row.key }}" value="1"
                        {% if is_ovr %}checked{% endif %}
                        style="position:absolute;opacity:0;width:0;height:0;">
-                <div id="otrack_{{ row.key }}" style="position:absolute;inset:0;background:{{ '#3b82f6' if is_ovr else '#cbd5e1' }};border-radius:999px;transition:background .2s;"></div>
-                <div id="oknob_{{ row.key }}"  style="position:absolute;top:2px;left:{{ '21px' if is_ovr else '2px' }};width:17px;height:17px;background:#fff;border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+                <div id="otrack_{{ row.key }}" style="position:absolute;inset:0;background:{{ 'var(--info)' if is_ovr else 'var(--line)' }};border-radius:999px;transition:background .2s;"></div>
+                <div id="oknob_{{ row.key }}"  style="position:absolute;top:2px;left:{{ '21px' if is_ovr else '2px' }};width:17px;height:17px;background:var(--surface);border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
               </div>
             </label>
           </div>
@@ -879,13 +879,13 @@
 
             <!-- 비활성화 체크박스 -->
             <div>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.8rem;color:#374151;">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.8rem;color:var(--tx-2);">
                 <input type="checkbox" name="disabled_{{ row.key }}" value="1"
                        {% if is_ovr and not row.ovr_enabled %}checked{% endif %}
                        style="width:15px;height:15px;accent-color:var(--red);">
                 이 직원은 제외 (비활성화)
               </label>
-              <div style="font-size:.7rem;color:#94a3b8;margin-top:2px;">체크하면 급여 생성 시 이 항목 미포함</div>
+              <div style="font-size:.7rem;color:var(--tx-3);margin-top:2px;">체크하면 급여 생성 시 이 항목 미포함</div>
             </div>
 
             <!-- 금액 오버라이드 -->
@@ -897,8 +897,8 @@
                        value="{{ row.ovr_amount if row.ovr_amount is not none else row.company_amount }}"
                        min="0" step="10000"
                        placeholder="{{ row.company_amount }}"
-                       style="width:140px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
-                <span style="font-size:.78rem;color:#94a3b8;">원 (기본: {{ '{:,}'.format(row.company_amount) }}원)</span>
+                       style="width:140px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:.85rem;">
+                <span style="font-size:.78rem;color:var(--tx-3);">원 (기본: {{ '{:,}'.format(row.company_amount) }}원)</span>
               </div>
             </div>
             {% endif %}
@@ -908,7 +908,7 @@
               <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">사유 / 메모</label>
               <input type="text" name="note_{{ row.key }}" value="{{ row.ovr_note or '' }}"
                      placeholder="예: 임원 패키지, 자녀 없음"
-                     style="width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.78rem;">
+                     style="width:100%;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:.78rem;">
             </div>
           </div>
         </div>
@@ -923,7 +923,7 @@
   </form>
 
   {% else %}
-  <div style="text-align:center;padding:60px 20px;color:#94a3b8;">
+  <div style="text-align:center;padding:60px 20px;color:var(--tx-3);">
     <i class="fas fa-gift" style="font-size:2.5rem;margin-bottom:12px;display:block;"></i>
     <p style="font-size:.9rem;">전사 복리후생 설정이 없습니다.</p>
     <a href="{{ url_for('admin_benefits') }}" class="btn btn-primary" style="margin-top:12px;">복리후생 설정하러 가기</a>
@@ -1037,7 +1037,7 @@
       </tbody>
     </table>
     {% else %}
-    <p style="text-align:center;color:#94a3b8;padding:24px 0;font-size:.875rem;">등록된 부양가족이 없습니다.</p>
+    <p style="text-align:center;color:var(--tx-3);padding:24px 0;font-size:.875rem;">등록된 부양가족이 없습니다.</p>
     {% endif %}
   </div>
 
@@ -1048,19 +1048,19 @@
     <h3 style="font-weight:700;font-size:.95rem;margin-bottom:14px;">최근 급여 세금 공제 요약 ({{ last_ps.year }}년 {{ last_ps.month }}월)</h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
       <div style="background:var(--info-bg);border-radius:10px;padding:14px;">
-        <div style="font-size:.75rem;color:#0369a1;font-weight:600;margin-bottom:4px;">기본공제 인원</div>
+        <div style="font-size:.75rem;color:var(--info);font-weight:600;margin-bottom:4px;">기본공제 인원</div>
         <div style="font-size:1.2rem;font-weight:800;">{{ last_ps.num_dependents if last_ps.num_dependents else '-' }}명</div>
       </div>
       <div style="background:var(--green-bg);border-radius:10px;padding:14px;">
         <div style="font-size:.75rem;color:var(--green);font-weight:600;margin-bottom:4px;">근로소득공제 (§47)</div>
         <div style="font-size:1.1rem;font-weight:800;">{{ '{:,}'.format(last_ps.income_deduction or 0) }}원</div>
       </div>
-      <div style="background:#fefce8;border-radius:10px;padding:14px;">
-        <div style="font-size:.75rem;color:#a16207;font-weight:600;margin-bottom:4px;">인적공제 합계 (§50/§51)</div>
+      <div style="background:var(--orange-bg);border-radius:10px;padding:14px;">
+        <div style="font-size:.75rem;color:var(--orange);font-weight:600;margin-bottom:4px;">인적공제 합계 (§50/§51)</div>
         <div style="font-size:1.1rem;font-weight:800;">{{ '{:,}'.format(last_ps.total_personal_deduction or 0) }}원</div>
       </div>
-      <div style="background:#fdf4ff;border-radius:10px;padding:14px;">
-        <div style="font-size:.75rem;color:#7e22ce;font-weight:600;margin-bottom:4px;">자녀세액공제 (§59의2)</div>
+      <div style="background:var(--purple-bg);border-radius:10px;padding:14px;">
+        <div style="font-size:.75rem;color:var(--purple);font-weight:600;margin-bottom:4px;">자녀세액공제 (§59의2)</div>
         <div style="font-size:1.1rem;font-weight:800;">{{ '{:,}'.format(last_ps.child_tax_credit_amount or 0) }}원</div>
       </div>
     </div>
@@ -1123,13 +1123,13 @@
         <div style="flex:1;">
           <div style="font-weight:600;font-size:.9rem;">{{ life_event_label.get(ev.event_type, ev.event_type) }}</div>
           <div style="font-size:.8rem;color:var(--tx-3);margin-top:2px;">{{ ev.event_date }}{% if ev.created_by_name %} · 기록: {{ ev.created_by_name }}{% endif %}</div>
-          {% if ev.description %}<div style="font-size:.82rem;color:#475569;margin-top:4px;">{{ ev.description }}</div>{% endif %}
+          {% if ev.description %}<div style="font-size:.82rem;color:var(--tx-2);margin-top:4px;">{{ ev.description }}</div>{% endif %}
         </div>
       </div>
       {% endfor %}
     </div>
     {% else %}
-    <p style="text-align:center;color:#94a3b8;padding:24px 0;font-size:.875rem;">기록된 생애사건이 없습니다.</p>
+    <p style="text-align:center;color:var(--tx-3);padding:24px 0;font-size:.875rem;">기록된 생애사건이 없습니다.</p>
     {% endif %}
   </div>
 

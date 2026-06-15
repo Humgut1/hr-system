@@ -40,7 +40,7 @@
       <div style="display:flex; gap:8px; align-items:center; font-size:12px;">
         <span style="display:flex; align-items:center; gap:4px;"><span style="width:12px;height:12px;background:var(--info-bg);display:inline-block;border-radius:2px;"></span> Min</span>
         <span style="display:flex; align-items:center; gap:4px;"><span style="width:12px;height:12px;background:var(--green-bg);display:inline-block;border-radius:2px;"></span> Mid</span>
-        <span style="display:flex; align-items:center; gap:4px;"><span style="width:12px;height:12px;background:#fef9c3;display:inline-block;border-radius:2px;"></span> Max</span>
+        <span style="display:flex; align-items:center; gap:4px;"><span style="width:12px;height:12px;background:var(--orange-bg);display:inline-block;border-radius:2px;"></span> Max</span>
       </div>
     </div>
     <div class="card-body" style="padding:0; overflow-x:auto;">
@@ -69,10 +69,10 @@
               <div style="padding:4px 6px;">
                 <div style="background:var(--info-bg); padding:1px 4px; border-radius:2px; text-align:right; font-size:11px; color:var(--info);">{{ '{:,.0f}'.format(sg.min_salary / 10000) }}만</div>
                 <div style="background:var(--green-bg); padding:1px 4px; border-radius:2px; text-align:right; font-size:11px; color:var(--green); font-weight:700;">{{ '{:,.0f}'.format(sg.mid_salary / 10000) }}만</div>
-                <div style="background:#fef9c3; padding:1px 4px; border-radius:2px; text-align:right; font-size:11px; color:#854d0e;">{{ '{:,.0f}'.format(sg.max_salary / 10000) }}만</div>
+                <div style="background:var(--orange-bg); padding:1px 4px; border-radius:2px; text-align:right; font-size:11px; color:var(--orange);">{{ '{:,.0f}'.format(sg.max_salary / 10000) }}만</div>
               </div>
               {% else %}
-              <div style="padding:10px; text-align:center; color:#d1d5db; font-size:10px;">-</div>
+              <div style="padding:10px; text-align:center; color:var(--line); font-size:10px;">-</div>
               {% endif %}
             </td>
             {% endfor %}
@@ -157,7 +157,7 @@
             <td>{{ '{:,}'.format(e.base_salary) }}원</td>
             <td style="color:var(--info);">{{ '{:,}'.format(e.min_salary) if e.min_salary else '-' }}</td>
             <td style="color:var(--green); font-weight:700;">{{ '{:,}'.format(e.mid_salary) if e.mid_salary else '-' }}</td>
-            <td style="color:#854d0e;">{{ '{:,}'.format(e.max_salary) if e.max_salary else '-' }}</td>
+            <td style="color:var(--orange);">{{ '{:,}'.format(e.max_salary) if e.max_salary else '-' }}</td>
             <td>
               {% if e.compa_ratio is not none %}
                 {% set r = e.compa_ratio %}

@@ -42,19 +42,19 @@
   <div style="padding:0 20px 16px; overflow-x:auto;">
     <table style="border-collapse:collapse; font-size:12px; min-width:420px;">
       <thead>
-        <tr style="background:#f9fafb;">
-          <th style="padding:8px 12px; border:1px solid #e5e7eb;">등급</th>
-          <th style="padding:8px 12px; border:1px solid #e5e7eb; color:var(--info);">Below Band<br><small>&lt;0.9</small></th>
-          <th style="padding:8px 12px; border:1px solid #e5e7eb; color:var(--green);">At Band<br><small>0.9–1.1</small></th>
-          <th style="padding:8px 12px; border:1px solid #e5e7eb; color:var(--orange);">Above Band<br><small>&gt;1.1</small></th>
+        <tr style="background:var(--surface-3);">
+          <th style="padding:8px 12px; border:1px solid var(--surface-3);">등급</th>
+          <th style="padding:8px 12px; border:1px solid var(--surface-3); color:var(--info);">Below Band<br><small>&lt;0.9</small></th>
+          <th style="padding:8px 12px; border:1px solid var(--surface-3); color:var(--green);">At Band<br><small>0.9–1.1</small></th>
+          <th style="padding:8px 12px; border:1px solid var(--surface-3); color:var(--orange);">Above Band<br><small>&gt;1.1</small></th>
         </tr>
       </thead>
       <tbody>
         {% for grade in ['S','A','B','C','D'] %}
         <tr>
-          <td style="padding:6px 12px; border:1px solid #e5e7eb; font-weight:700;">{{ grade }}</td>
+          <td style="padding:6px 12px; border:1px solid var(--surface-3); font-weight:700;">{{ grade }}</td>
           {% for band in ['below','at','above'] %}
-          <td style="padding:6px 12px; border:1px solid #e5e7eb; text-align:center;">
+          <td style="padding:6px 12px; border:1px solid var(--surface-3); text-align:center;">
             {{ matrix.get((grade, band), 0) }}%
           </td>
           {% endfor %}
@@ -123,7 +123,7 @@
             <div style="display:flex; gap:4px; align-items:center;">
               <input type="number" step="0.1" placeholder="{{ r.proposed_increase_pct or '' }}"
                      id="hr_pct_{{ r.employee_id }}"
-                     style="width:65px; padding:3px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;">
+                     style="width:65px; padding:3px 6px; border:1px solid var(--line); border-radius:4px; font-size:12px;">
               <span style="font-size:11px; color:var(--tx-3);">%</span>
             </div>
             {% elif r.hr_override_pct %}
@@ -138,7 +138,7 @@
             {% elif r.status == 'rejected' %}
               <span style="background:var(--red-bg);color:var(--red);padding:2px 8px;border-radius:10px;font-size:11px;">반려</span>
             {% else %}
-              <span style="background:#f3f4f6;color:var(--tx-3);padding:2px 8px;border-radius:10px;font-size:11px;">미제출</span>
+              <span style="background:var(--surface-3);color:var(--tx-3);padding:2px 8px;border-radius:10px;font-size:11px;">미제출</span>
             {% endif %}
           </td>
           {% if cycle.status == 'open' %}
@@ -234,7 +234,7 @@
               {% elif r.status == 'submitted' %}
                 <span style="background:var(--orange-bg);color:var(--orange);padding:2px 8px;border-radius:10px;font-size:11px;">제출됨</span>
               {% else %}
-                <span style="background:#f3f4f6;color:var(--tx-3);padding:2px 8px;border-radius:10px;font-size:11px;">작성 중</span>
+                <span style="background:var(--surface-3);color:var(--tx-3);padding:2px 8px;border-radius:10px;font-size:11px;">작성 중</span>
               {% endif %}
             </td>
           </tr>

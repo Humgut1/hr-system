@@ -14,7 +14,7 @@
     <div style="font-size:.82rem;color:var(--orange);">복리후생 항목을 확인하고 등록을 완료해 주세요.{% if enrollment_event.due_date %} 기한: {{ enrollment_event.due_date }}{% endif %}</div>
   </div>
   <form method="POST" action="{{ url_for('enrollment_complete', eid=enrollment_event.id) }}" style="margin:0;">
-    <button type="submit" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:.5rem 1rem;font-size:.85rem;font-weight:600;cursor:pointer;">확인 완료</button>
+    <button type="submit" style="background:var(--orange);color:var(--surface);border:none;border-radius:8px;padding:.5rem 1rem;font-size:.85rem;font-weight:600;cursor:pointer;">확인 완료</button>
   </form>
 </div>
 {% endif %}
@@ -48,14 +48,14 @@
     <div class="stat-card">
       <div class="stat-ico ico-green"><i class="fas fa-leaf"></i></div>
       <div class="stat-body">
-        <div class="stat-val" style="color:#27ae60;">{{ '{:,}'.format(total_monthly - total_monthly_tax) }}원</div>
+        <div class="stat-val" style="color:var(--green);">{{ '{:,}'.format(total_monthly - total_monthly_tax) }}원</div>
         <div class="stat-lbl">비과세 혜택</div>
       </div>
     </div>
     <div class="stat-card">
       <div class="stat-ico ico-orange"><i class="fas fa-receipt"></i></div>
       <div class="stat-body">
-        <div class="stat-val" style="color:#e67e22;">{{ '{:,}'.format(total_monthly_tax) }}원</div>
+        <div class="stat-val" style="color:var(--orange);">{{ '{:,}'.format(total_monthly_tax) }}원</div>
         <div class="stat-lbl">과세 복리후생</div>
       </div>
     </div>
@@ -86,9 +86,9 @@
           <td style="padding:.85rem 0;">
             <div style="display:flex;align-items:center;gap:.75rem;">
               <div style="width:34px;height:34px;border-radius:10px;
-                          background:{% if item.tax_exempt %}#eafaf1{% else %}#fef9e7{% endif %};
+                          background:{% if item.tax_exempt %}var(--green-bg){% else %}var(--orange-bg){% endif %};
                           display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <i class="fas {{ item.icon }}" style="font-size:13px;color:{% if item.tax_exempt %}#27ae60{% else %}#e67e22{% endif %};"></i>
+                <i class="fas {{ item.icon }}" style="font-size:13px;color:{% if item.tax_exempt %}var(--green){% else %}var(--orange){% endif %};"></i>
               </div>
               <span style="font-weight:600;font-size:.9rem;color:var(--tx-1);">{{ item.name }}</span>
             </div>
@@ -96,14 +96,14 @@
           <td style="padding:.85rem .75rem;font-size:.82rem;color:var(--tx-3);max-width:220px;">
             {{ item.description }}
             {% if item.conditions %}
-            <div style="color:#e67e22;margin-top:.2rem;"><i class="fas fa-info-circle"></i> {{ item.conditions }}</div>
+            <div style="color:var(--orange);margin-top:.2rem;"><i class="fas fa-info-circle"></i> {{ item.conditions }}</div>
             {% endif %}
           </td>
           <td style="padding:.85rem 0;text-align:center;">
             {% if item.tax_exempt %}
-            <span style="background:#eafaf1;color:#1e8449;padding:.2rem .7rem;border-radius:20px;font-size:.75rem;font-weight:600;">비과세</span>
+            <span style="background:var(--green-bg);color:var(--green);padding:.2rem .7rem;border-radius:20px;font-size:.75rem;font-weight:600;">비과세</span>
             {% else %}
-            <span style="background:#fef9e7;color:#9a7d0a;padding:.2rem .7rem;border-radius:20px;font-size:.75rem;font-weight:600;">과세</span>
+            <span style="background:var(--orange-bg);color:var(--orange);padding:.2rem .7rem;border-radius:20px;font-size:.75rem;font-weight:600;">과세</span>
             {% endif %}
           </td>
           <td style="padding:.85rem 0;text-align:right;font-weight:700;font-size:.95rem;color:var(--tx-1);">
@@ -137,7 +137,7 @@
         <div style="font-weight:700;color:var(--tx-1);font-size:.9rem;">{{ '{:,}'.format(item.amount) }}원</div>
         {% endif %}
         {% if item.tax_exempt %}
-        <span style="background:#eafaf1;color:#1e8449;padding:.15rem .6rem;border-radius:20px;font-size:.72rem;font-weight:600;flex-shrink:0;">비과세</span>
+        <span style="background:var(--green-bg);color:var(--green);padding:.15rem .6rem;border-radius:20px;font-size:.72rem;font-weight:600;flex-shrink:0;">비과세</span>
         {% endif %}
       </div>
       {% endfor %}
@@ -145,7 +145,7 @@
   </div>
   {% endif %}
 
-  <div class="card" style="padding:1.2rem 1.5rem;background:#f8fbff;border:1px solid #d0e4fa;">
+  <div class="card" style="padding:1.2rem 1.5rem;background:var(--info-bg);border:1px solid var(--info-bg);">
     <div style="font-weight:600;color:var(--tx-1);margin-bottom:.5rem;font-size:.88rem;">
       <i class="fas fa-lightbulb" style="color:var(--primary);margin-right:.4rem;"></i>비과세란?
     </div>
@@ -222,7 +222,7 @@
       </div>
       <div style="display:flex;justify-content:space-between;font-size:.82rem;padding:.45rem 0;border-top:1px solid var(--bd);">
         <span style="color:var(--tx-3);">사용액</span>
-        <span style="font-weight:600;color:#e67e22;">{{ '{:,}'.format(wp_used) }}원</span>
+        <span style="font-weight:600;color:var(--orange);">{{ '{:,}'.format(wp_used) }}원</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:.82rem;padding:.45rem 0;border-top:1px solid var(--bd);">
         <span style="color:var(--tx-3);">연간 기준</span>
@@ -248,7 +248,7 @@
           <tr style="border-bottom:1px solid var(--bd);">
             <td style="padding:.65rem 0;color:var(--tx-3);white-space:nowrap;font-size:.8rem;">{{ h.created_at[:10] if h.created_at else '—' }}</td>
             <td style="padding:.65rem .75rem;color:var(--tx-2);">{{ h.reason or '—' }}</td>
-            <td style="padding:.65rem 0;text-align:right;font-weight:700;color:{% if h.delta > 0 %}#27ae60{% else %}#e74c3c{% endif %};">
+            <td style="padding:.65rem 0;text-align:right;font-weight:700;color:{% if h.delta > 0 %}var(--green){% else %}var(--red){% endif %};">
               {{ '+' if h.delta > 0 else '' }}{{ '{:,}'.format(h.delta) }}원
             </td>
             <td style="padding:.65rem 0;text-align:right;color:var(--tx-2);font-size:.83rem;">

@@ -24,10 +24,10 @@
 
 <!-- 문서 본문 -->
 <div id="total-comp-paper" style="background:white; max-width:800px; margin:0 auto;
-     border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,.08);">
+     border:1px solid var(--surface-3); border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,.08);">
 
   <!-- 헤더 -->
-  <div style="background:linear-gradient(135deg,var(--info),#3b82f6); color:white; padding:32px 40px;">
+  <div style="background:linear-gradient(135deg,var(--info),var(--info)); color:white; padding:32px 40px;">
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
       <div>
         <div style="font-size:11px; letter-spacing:2px; opacity:.8; margin-bottom:6px;">TOTAL COMPENSATION STATEMENT</div>
@@ -62,7 +62,7 @@
     <!-- ① 기본 급여 -->
     <div style="margin-bottom:28px;">
       <h3 style="font-size:14px; color:var(--tx-3); letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">① 기본 급여</h3>
-      <div style="background:#f9fafb; border-radius:8px; overflow:hidden;">
+      <div style="background:var(--surface-3); border-radius:8px; overflow:hidden;">
         {% set rows = [
           ('현재 연봉 (기본급)', base_salary, ''),
           ('실지급 총액 (세전)', total_gross, months_paid ~ '개월 합산'),
@@ -71,7 +71,7 @@
         ] %}
         {% for label, amount, note in rows %}
         <div style="display:flex; justify-content:space-between; align-items:center;
-                    padding:12px 16px; border-bottom:1px solid #f3f4f6;">
+                    padding:12px 16px; border-bottom:1px solid var(--surface-3);">
           <div>
             <span style="font-size:14px;">{{ label }}</span>
             {% if note %}<span style="font-size:11px; color:var(--tx-3); margin-left:8px;">{{ note }}</span>{% endif %}
@@ -86,10 +86,10 @@
     {% if benefit_items %}
     <div style="margin-bottom:28px;">
       <h3 style="font-size:14px; color:var(--tx-3); letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">② 복리후생 (연간 추정)</h3>
-      <div style="background:#f9fafb; border-radius:8px; overflow:hidden;">
+      <div style="background:var(--surface-3); border-radius:8px; overflow:hidden;">
         {% for item in benefit_items %}
         <div style="display:flex; justify-content:space-between; align-items:center;
-                    padding:10px 16px; border-bottom:1px solid #f3f4f6;">
+                    padding:10px 16px; border-bottom:1px solid var(--surface-3);">
           <div style="font-size:14px;">
             {{ item.name }}
             {% if item.tax_exempt %}
@@ -111,7 +111,7 @@
     <!-- ③ 퇴직금 적립 -->
     <div style="margin-bottom:28px;">
       <h3 style="font-size:14px; color:var(--tx-3); letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">③ 퇴직금 적립 (연간)</h3>
-      <div style="background:#f9fafb; border-radius:8px; padding:14px 16px;
+      <div style="background:var(--surface-3); border-radius:8px; padding:14px 16px;
                   display:flex; justify-content:space-between; align-items:center;">
         <div>
           <span style="font-size:14px;">퇴직금 적립 추정액</span>
@@ -125,7 +125,7 @@
     {% if perf_grade %}
     <div style="margin-bottom:28px;">
       <h3 style="font-size:14px; color:var(--tx-3); letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">④ 성과 상여 예상 (PI)</h3>
-      <div style="background:#fefce8; border:1px solid #fde047; border-radius:8px; padding:16px;">
+      <div style="background:var(--orange-bg); border:1px solid var(--orange); border-radius:8px; padding:16px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
           <div>
             <span style="font-size:14px;">성과등급 {{ perf_grade }} 기준</span>
@@ -133,7 +133,7 @@
           </div>
           <strong style="font-size:16px; color:var(--orange);">~ {{ '{:,}'.format(estimated_bonus) }}원</strong>
         </div>
-        <p style="font-size:11px; color:#a16207; margin:0;">
+        <p style="font-size:11px; color:var(--orange); margin:0;">
           * 예상 금액이며 실제 지급액은 회사 정책에 따라 변동될 수 있습니다.
         </p>
       </div>
@@ -144,7 +144,7 @@
     {% if band and band.mid_salary %}
     <div style="margin-bottom:28px;">
       <h3 style="font-size:14px; color:var(--tx-3); letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">⑤ 급여 밴드 포지션</h3>
-      <div style="background:#f9fafb; border-radius:8px; padding:16px;">
+      <div style="background:var(--surface-3); border-radius:8px; padding:16px;">
         <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--tx-3); margin-bottom:8px;">
           <span>Min {{ '{:,}'.format(band.min_salary) }}원</span>
           <span>Mid {{ '{:,}'.format(band.mid_salary) }}원</span>
@@ -153,9 +153,9 @@
         {% if band.max_salary > band.min_salary %}
         {% set pct = [([(base_salary - band.min_salary) / (band.max_salary - band.min_salary) * 100, 0]|max), 100]|min %}
         {% set mid_pct = (band.mid_salary - band.min_salary) / (band.max_salary - band.min_salary) * 100 %}
-        <div style="position:relative; height:10px; background:#e5e7eb; border-radius:5px;">
+        <div style="position:relative; height:10px; background:var(--surface-3); border-radius:5px;">
           <div style="position:absolute; left:{{ mid_pct }}%; top:-3px; bottom:-3px; width:2px; background:var(--tx-3);"></div>
-          <div style="position:absolute; left:0; width:{{ pct }}%; height:100%; background:#3b82f6; border-radius:5px;"></div>
+          <div style="position:absolute; left:0; width:{{ pct }}%; height:100%; background:var(--info); border-radius:5px;"></div>
           <div style="position:absolute; left:{{ pct }}%; top:50%; transform:translate(-50%,-50%);
                       width:14px; height:14px; background:white; border:3px solid var(--info); border-radius:50%;"></div>
         </div>

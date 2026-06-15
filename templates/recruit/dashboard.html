@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}채용 대시보드 — TalentCore{% endblock %}
 
 {% block content %}
@@ -20,12 +20,12 @@
   </div>
   <div class="stat-card">
     <div class="stat-label">최종 합격</div>
-    <div class="stat-value" style="color:#27ae60">{{ accepted }}</div>
+    <div class="stat-value" style="color:var(--green)">{{ accepted }}</div>
     <div class="stat-sub">오퍼 수락 완료</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">전체 합격률</div>
-    <div class="stat-value" style="color:#e67e22">
+    <div class="stat-value" style="color:var(--orange)">
       {% if total > 0 %}{{ (accepted / total * 100) | round(1) }}%{% else %}—{% endif %}
     </div>
     <div class="stat-sub">합격 / 전체 지원</div>
@@ -60,15 +60,15 @@
     <!-- 터미널 단계 요약 -->
     <div style="margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--bd);display:flex;gap:1.5rem;">
       <div style="text-align:center;">
-        <div style="font-size:1.25rem;font-weight:700;color:#27ae60;">{{ accepted }}</div>
+        <div style="font-size:1.25rem;font-weight:700;color:var(--green);">{{ accepted }}</div>
         <div style="font-size:.75rem;color:var(--tx-3);">최종 합격</div>
       </div>
       <div style="text-align:center;">
-        <div style="font-size:1.25rem;font-weight:700;color:#e74c3c;">{{ disqualified }}</div>
+        <div style="font-size:1.25rem;font-weight:700;color:var(--red);">{{ disqualified }}</div>
         <div style="font-size:.75rem;color:var(--tx-3);">불합격</div>
       </div>
       <div style="text-align:center;">
-        <div style="font-size:1.25rem;font-weight:700;color:#95a5a6;">{{ rejected }}</div>
+        <div style="font-size:1.25rem;font-weight:700;color:var(--tx-3);">{{ rejected }}</div>
         <div style="font-size:.75rem;color:var(--tx-3);">오퍼 거절</div>
       </div>
     </div>
@@ -94,10 +94,10 @@
         <tr style="border-bottom:1px solid var(--bd);">
           <td style="padding:.55rem 0;color:var(--tx-1);font-weight:500;">{{ s.source }}</td>
           <td style="text-align:right;padding:.55rem 0;color:var(--tx-2);">{{ s.total }}</td>
-          <td style="text-align:right;padding:.55rem 0;color:#27ae60;font-weight:600;">{{ s.hired }}</td>
+          <td style="text-align:right;padding:.55rem 0;color:var(--green);font-weight:600;">{{ s.hired }}</td>
           <td style="text-align:right;padding:.55rem 0;">
-            <span style="background:{% if s.rate >= 10 %}#d5f5e3{% elif s.rate >= 5 %}#fef9e7{% else %}#fdf2f8{% endif %};
-                         color:{% if s.rate >= 10 %}#1e8449{% elif s.rate >= 5 %}#9a7d0a{% else %}#922b21{% endif %};
+            <span style="background:{% if s.rate >= 10 %}var(--green-bg){% elif s.rate >= 5 %}var(--orange-bg){% else %}var(--purple-bg){% endif %};
+                         color:{% if s.rate >= 10 %}var(--green){% elif s.rate >= 5 %}var(--orange){% else %}var(--red){% endif %};
                          padding:.2rem .5rem;border-radius:12px;font-size:.78rem;font-weight:600;">
               {{ s.rate }}%
             </span>
@@ -156,7 +156,7 @@
           <td style="padding:.5rem 0;color:var(--tx-1);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.title }}</td>
           <td style="text-align:right;padding:.5rem 0;color:var(--tx-2);">{{ r.hired_cnt }}명</td>
           <td style="text-align:right;padding:.5rem 0;">
-            <span style="font-weight:700;color:{% if r.avg_days <= 30 %}#27ae60{% elif r.avg_days <= 60 %}#e67e22{% else %}#e74c3c{% endif %};">
+            <span style="font-weight:700;color:{% if r.avg_days <= 30 %}var(--green){% elif r.avg_days <= 60 %}var(--orange){% else %}var(--red){% endif %};">
               {{ r.avg_days }}일
             </span>
           </td>
@@ -185,7 +185,7 @@
       <div style="display:flex;justify-content:space-between;margin-bottom:.3rem;">
         <span style="font-size:.85rem;color:var(--tx-1);font-weight:500;">{{ p.title }}</span>
         <span style="font-size:.85rem;color:var(--tx-2);">{{ p.cnt }}명
-          {% if p.hired > 0 %}<span style="color:#27ae60;margin-left:.5rem;">✓ {{ p.hired }}명 합격</span>{% endif %}
+          {% if p.hired > 0 %}<span style="color:var(--green);margin-left:.5rem;">✓ {{ p.hired }}명 합격</span>{% endif %}
         </span>
       </div>
       <div style="height:8px;background:var(--bg-2);border-radius:4px;overflow:hidden;">

@@ -73,21 +73,21 @@
         <textarea name="content_html" id="content-editor" class="form-control"
           style="border:none;border-radius:0;resize:vertical;min-height:500px;
                  font-family:'Courier New',monospace;font-size:12.5px;line-height:1.6;
-                 padding:20px;background:#fafafa;"
+                 padding:20px;background:var(--bg);"
           placeholder="계약서 내용을 입력하세요..." required
           oninput="syncIssuePreview()">{{ request.form.get('content_html','') }}</textarea>
       </div>
-      <div id="issue-pane-preview" style="display:none; min-height:500px; background:#f3f4f6; padding:24px;">
-        <div style="max-width:700px; margin:0 auto; background:#fff; padding:48px 56px;
+      <div id="issue-pane-preview" style="display:none; min-height:500px; background:var(--surface-3); padding:24px;">
+        <div style="max-width:700px; margin:0 auto; background:var(--surface); padding:48px 56px;
                     box-shadow:0 2px 16px rgba(0,0,0,.08); border-radius:4px;
                     font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;
-                    font-size:13.5px; line-height:1.9; color:#111; word-break:keep-all;">
+                    font-size:13.5px; line-height:1.9; color:var(--tx-1); word-break:keep-all;">
           <div id="issue-preview-body"></div>
         </div>
       </div>
     </div>
 
-    <div style="background:var(--orange-bg); border:1px solid #fed7aa; border-radius:var(--r); padding:14px 18px; margin-bottom:16px;">
+    <div style="background:var(--orange-bg); border:1px solid var(--orange-bg); border-radius:var(--r); padding:14px 18px; margin-bottom:16px;">
       <div style="font-size:13px; color:var(--orange);">
         <i class="fas fa-info-circle" style="margin-right:6px;"></i>
         발행 후 직원에게 알림이 전송되며, 직원은 계약서를 검토 후 전자 서명 또는 거절할 수 있습니다.

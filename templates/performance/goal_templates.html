@@ -34,7 +34,7 @@
   <div style="overflow-x:auto;">
     <table style="width:100%; border-collapse:collapse;">
       <thead>
-        <tr style="background:var(--tx-1); color:#fff;">
+        <tr style="background:var(--tx-1); color:var(--surface);">
           <th style="padding:10px 14px; font-size:11px; font-weight:700; text-align:left;">목표명</th>
           <th style="padding:10px 14px; font-size:11px; font-weight:700; text-align:left;">설명</th>
           <th style="padding:10px 14px; font-size:11px; font-weight:700;">카테고리</th>
@@ -55,7 +55,7 @@
           </td>
           <td style="padding:10px 14px; text-align:center;">
             <span style="font-size:11px; font-weight:700; padding:2px 9px; border-radius:20px;
-                         background:#ede9fe; color:#6d28d9;">{{ t.category or '개인' }}</span>
+                         background:var(--purple-bg); color:var(--purple);">{{ t.category or '개인' }}</span>
           </td>
           <td style="padding:10px 14px; text-align:center; font-size:13px; font-weight:700;">
             {{ t.weight }}%
@@ -69,7 +69,7 @@
                          background:var(--green-bg); color:var(--green);">활성</span>
             {% else %}
             <span style="font-size:11px; font-weight:700; padding:2px 9px; border-radius:20px;
-                         background:var(--surface-3); color:#94a3b8;">비활성</span>
+                         background:var(--surface-3); color:var(--tx-3);">비활성</span>
             {% endif %}
           </td>
           {% if session.user_role in ('admin','manager') %}
@@ -112,7 +112,7 @@
 <!-- 추가 모달 -->
 <div id="add-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.4);
      z-index:1000; align-items:center; justify-content:center; padding:20px;">
-  <div style="background:#fff; border-radius:12px; width:100%; max-width:460px;
+  <div style="background:var(--surface); border-radius:12px; width:100%; max-width:460px;
               padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.2);">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
       <div style="font-size:16px; font-weight:800;">목표 템플릿 추가</div>

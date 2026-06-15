@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}계약서 템플릿 생성{% endblock %}
 {% block page_title %}계약서 템플릿 생성{% endblock %}
 
@@ -60,17 +60,17 @@
         <textarea name="content_html" id="content-editor" class="form-control"
           style="border:none; border-radius:0; resize:vertical; min-height:520px;
                  font-family:'Courier New',monospace; font-size:12.5px; line-height:1.6;
-                 padding:20px; background:#fafafa;"
+                 padding:20px; background:var(--bg);"
           placeholder="계약서 내용을 HTML로 입력하세요..." required
           oninput="syncPreview()">{{ request.form.get('content_html', default_content) }}</textarea>
       </div>
 
       <!-- 미리보기 탭 -->
-      <div id="pane-preview" style="display:none; min-height:520px; background:#f3f4f6; padding:24px;">
-        <div style="max-width:700px; margin:0 auto; background:#fff; padding:48px 56px;
+      <div id="pane-preview" style="display:none; min-height:520px; background:var(--surface-3); padding:24px;">
+        <div style="max-width:700px; margin:0 auto; background:var(--surface); padding:48px 56px;
                     box-shadow:0 2px 16px rgba(0,0,0,.08); border-radius:4px;
                     font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;
-                    font-size:13.5px; line-height:1.9; color:#111; word-break:keep-all;">
+                    font-size:13.5px; line-height:1.9; color:var(--tx-1); word-break:keep-all;">
           <div id="preview-body"></div>
         </div>
       </div>

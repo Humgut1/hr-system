@@ -163,10 +163,10 @@
     <div style="margin-bottom:10px;">
       <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
         <span style="font-size:13px; font-weight:600; color:var(--tx-1);">{{ row.grade }}</span>
-        <span style="font-size:13px; font-weight:700; color:#9333ea;">{{ row.cnt }}</span>
+        <span style="font-size:13px; font-weight:700; color:var(--purple);">{{ row.cnt }}</span>
       </div>
       <div style="height:7px; border-radius:99px; background:var(--bg); overflow:hidden;">
-        <div style="height:100%; border-radius:99px; background:linear-gradient(90deg,#9333ea,#c084fc); width:{{ pct }}%;"></div>
+        <div style="height:100%; border-radius:99px; background:linear-gradient(90deg,var(--purple),var(--purple-bg)); width:{{ pct }}%;"></div>
       </div>
     </div>
     {% else %}
@@ -190,7 +190,7 @@
       {% set bar_h = (row.cnt / (max_t if max_t > 0 else 1) * 80)|int %}
       <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;">
         <span style="font-size:10px; font-weight:700; color:var(--orange);">{{ row.cnt }}</span>
-        <div style="width:100%; height:{{ bar_h }}px; min-height:4px; background:linear-gradient(180deg,var(--orange),#fb923c); border-radius:4px 4px 0 0;"></div>
+        <div style="width:100%; height:{{ bar_h }}px; min-height:4px; background:linear-gradient(180deg,var(--orange),var(--orange)); border-radius:4px 4px 0 0;"></div>
         <span style="font-size:9px; color:var(--tx-3); writing-mode:initial;">{{ row.ym[5:] }}</span>
       </div>
       {% endfor %}
@@ -221,7 +221,7 @@
         <div style="height:100%; border-radius:99px; background:
           {% if row.pct >= 80 %}linear-gradient(90deg,var(--green),#4ade80)
           {% elif row.pct >= 50 %}linear-gradient(90deg,var(--primary),var(--primary-light))
-          {% else %}linear-gradient(90deg,var(--orange),#fb923c){% endif %};
+          {% else %}linear-gradient(90deg,var(--orange),var(--orange)){% endif %};
           width:{{ row.pct|int }}%;"></div>
       </div>
     </div>
@@ -803,7 +803,7 @@
                 <option value="doughnut">도넛</option>
               </select>
             </div>
-            <button onclick="wzRenderChart()" style="padding:7px 14px; background:var(--primary); color:#fff; border:none; border-radius:var(--r); font-size:12px; font-weight:700; cursor:pointer; margin-top:16px;">적용</button>
+            <button onclick="wzRenderChart()" style="padding:7px 14px; background:var(--primary); color:var(--surface); border:none; border-radius:var(--r); font-size:12px; font-weight:700; cursor:pointer; margin-top:16px;">적용</button>
           </div>
           <div style="max-height:380px; position:relative;">
             <canvas id="wz-chart-canvas"></canvas>
@@ -831,7 +831,7 @@
                 <option value="min">최소</option>
               </select>
             </div>
-            <button onclick="wzRenderPivot()" style="padding:7px 14px; background:var(--primary); color:#fff; border:none; border-radius:var(--r); font-size:12px; font-weight:700; cursor:pointer; margin-top:16px;">피벗 적용</button>
+            <button onclick="wzRenderPivot()" style="padding:7px 14px; background:var(--primary); color:var(--surface); border:none; border-radius:var(--r); font-size:12px; font-weight:700; cursor:pointer; margin-top:16px;">피벗 적용</button>
           </div>
           <div class="preview-wrap">
             <table class="pivot-tbl" id="wz-pivot-table"></table>

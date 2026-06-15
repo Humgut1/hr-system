@@ -11,11 +11,11 @@
      class="btn {% if status == val %}btn-primary{% else %}btn-ghost{% endif %}">
     {{ label }}
     {% if val == 'pending' and pending_count > 0 %}
-    <span style="background:var(--red); color:#fff; border-radius:20px;
+    <span style="background:var(--red); color:var(--surface); border-radius:20px;
                  padding:1px 7px; font-size:11px; margin-left:4px;">{{ pending_count }}</span>
     {% endif %}
     {% if val == 'reviewed' and reviewed_count > 0 %}
-    <span style="background:var(--accent); color:#fff; border-radius:20px;
+    <span style="background:var(--accent); color:var(--surface); border-radius:20px;
                  padding:1px 7px; font-size:11px; margin-left:4px;">{{ reviewed_count }}</span>
     {% endif %}
   </a>

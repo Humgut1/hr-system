@@ -250,7 +250,7 @@
 
       <!-- TC 합계 -->
       <div class="ol-tc-total">
-        <div class="ol-tc-total-label">연간 TC <span style="font-size:11px;font-weight:400;color:#3b82f6">(기본급 + 성과급 포함)</span></div>
+        <div class="ol-tc-total-label">연간 TC <span style="font-size:11px;font-weight:400;color:var(--info)">(기본급 + 성과급 포함)</span></div>
         <div class="ol-tc-total-val" id="display-tc">
           {% if offer.salary %}
           ₩{{ '{:,}'.format(offer.salary + (offer.salary * (offer.bonus_pct or 20) // 100)) }}
@@ -310,7 +310,7 @@
           </div>
         </div>
         <div class="ol-date-item">
-          <div class="ol-date-icon" style="background:#fdf4ff;color:#7e22ce"><i class="fas fa-shield-alt"></i></div>
+          <div class="ol-date-icon" style="background:var(--purple-bg);color:var(--purple)"><i class="fas fa-shield-alt"></i></div>
           <div>
             <div class="ol-date-label">수습 기간</div>
             <div class="ol-date-val">3개월</div>

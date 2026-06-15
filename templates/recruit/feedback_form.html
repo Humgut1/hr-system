@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}면접 피드백 — {{ round.applicant_name }}{% endblock %}
 {% block page_title %}면접 피드백 작성{% endblock %}
 
@@ -47,8 +47,8 @@
                  style="padding:14px; border-radius:var(--r-sm); border:2px solid var(--border);
                         text-align:center; font-weight:700; font-size:15px; cursor:pointer;
                         {% if existing and existing.recommendation == val %}
-                          {% if val == 'pass' %}background:#e6f7ed; border-color:#27ae60; color:#27ae60;
-                          {% elif val == 'hold' %}background:#fff8e1; border-color:#f39c12; color:#c87700;
+                          {% if val == 'pass' %}background:var(--green-bg); border-color:var(--green); color:var(--green);
+                          {% elif val == 'hold' %}background:var(--surface)8e1; border-color:var(--orange); color:var(--orange);
                           {% else %}background:#fde8e8; border-color:#e74c3c; color:#e74c3c;{% endif %}
                         {% endif %}">
               {% if val == 'pass' %}✅ {{ label }}
@@ -83,7 +83,7 @@
                        {% if existing and existing[field] == i %}checked{% endif %}
                        style="display:none;">
                 <span class="star-btn" data-score="{{ i }}"
-                      style="font-size:22px; color:{% if existing and existing[field] and existing[field] >= i %}#f39c12{% else %}var(--border){% endif %}; cursor:pointer;">★</span>
+                      style="font-size:22px; color:{% if existing and existing[field] and existing[field] >= i %}var(--orange){% else %}var(--border){% endif %}; cursor:pointer;">★</span>
               </label>
               {% endfor %}
             </div>

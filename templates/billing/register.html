@@ -1,21 +1,21 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}결제 수단 등록 — TalentCore{% endblock %}
 {% block content %}
 <div style="max-width:560px;margin:40px auto;padding:0 16px;">
 
   <div class="card" style="padding:32px;">
     <h2 style="font-size:1.25rem;font-weight:800;margin-bottom:6px;">결제 수단 등록</h2>
-    <p style="color:#666;font-size:.875rem;margin-bottom:28px;">
+    <p style="color:var(--tx-2);font-size:.875rem;margin-bottom:28px;">
       카드를 등록하면 매월 자동 청구됩니다. 언제든 해지 가능합니다.
     </p>
 
     <!-- 요금 안내 -->
-    <div style="background:#f0f4ff;border-radius:12px;padding:20px;margin-bottom:28px;">
-      <div style="font-size:.8rem;color:#4361ee;font-weight:600;margin-bottom:4px;">월 청구 예상 금액</div>
-      <div style="font-size:1.6rem;font-weight:800;color:#0f0f23;">
+    <div style="background:var(--info-bg);border-radius:12px;padding:20px;margin-bottom:28px;">
+      <div style="font-size:.8rem;color:var(--info);font-weight:600;margin-bottom:4px;">월 청구 예상 금액</div>
+      <div style="font-size:1.6rem;font-weight:800;color:var(--tx-1);">
         <span id="est-amount">계산 중...</span>
       </div>
-      <div style="font-size:.8rem;color:#888;margin-top:4px;">
+      <div style="font-size:.8rem;color:var(--tx-3);margin-top:4px;">
         현재 활성 직원 수 기준 (High-Water Mark 방식)
       </div>
     </div>
@@ -27,13 +27,13 @@
       카드 등록하기
     </button>
 
-    <p style="text-align:center;color:#999;font-size:.8rem;margin-top:14px;">
+    <p style="text-align:center;color:var(--tx-3);font-size:.8rem;margin-top:14px;">
       안전한 결제를 위해 토스페이먼츠가 카드 정보를 암호화하여 보관합니다.
     </p>
   </div>
 
   <div style="text-align:center;margin-top:16px;">
-    <a href="{{ url_for('billing_dashboard') }}" style="color:#888;font-size:.875rem;">
+    <a href="{{ url_for('billing_dashboard') }}" style="color:var(--tx-3);font-size:.875rem;">
       나중에 등록하기
     </a>
   </div>

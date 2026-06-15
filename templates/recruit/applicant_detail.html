@@ -84,7 +84,7 @@
       <div class="apd-avatar">{{ applicant.name[0] }}</div>
       <div class="apd-name">{{ applicant.name }}</div>
       <div class="apd-posting">{{ applicant.posting_title }}</div>
-      <span class="apd-stage-pill" style="background:{{ {'accepted':'#27ae60','rejected':'#c87700','disqualified':'#c0392b'}.get(applicant.stage, 'var(--primary)') }}">
+      <span class="apd-stage-pill" style="background:{{ {'accepted':'var(--green)','rejected':'var(--orange)','disqualified':'var(--red)'}.get(applicant.stage, 'var(--primary)') }}">
         {{ stage_map.get(applicant.stage, applicant.stage) }}
       </span>
     </div>
@@ -118,9 +118,9 @@
     <div class="apd-actions">
       {% if applicant.stage in ('disqualified', 'accepted', 'rejected') %}
         <div style="text-align:center;padding:10px;border-radius:var(--r-sm);
-          {% if applicant.stage == 'accepted' %}background:#e6f7ed;color:#27ae60;
-          {% elif applicant.stage == 'rejected' %}background:#fff3e0;color:#c87700;
-          {% else %}background:#fde8e8;color:#c0392b;{% endif %}
+          {% if applicant.stage == 'accepted' %}background:var(--green-bg);color:var(--green);
+          {% elif applicant.stage == 'rejected' %}background:var(--surface)3e0;color:var(--orange);
+          {% else %}background:var(--red-bg);color:var(--red);{% endif %}
           font-size:13px;font-weight:700;">
           {% if applicant.stage == 'accepted' %}🎉 최종 합격
             {% if applicant.hired_employee_id %}<div style="font-size:11px;margin-top:4px;">직원 전환 완료</div>{% endif %}
@@ -173,20 +173,20 @@
         {% if applicant.stage == 'offer' %}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:2px;">
           <form action="{{ url_for('recruit_hire', applicant_id=applicant.id) }}" method="POST">
-            <button type="submit" class="btn btn-sm" style="width:100%;background:#27ae60;color:#fff;border:none;"
+            <button type="submit" class="btn btn-sm" style="width:100%;background:var(--green);color:var(--surface);border:none;"
                     onclick="return confirm('최종 합격 처리할까요? 직원 등록 페이지로 이동합니다.')">
               🎉 합격 처리
             </button>
           </form>
           <button type="button" onclick="document.getElementById('offer-reject-modal').style.display='flex'"
-                  class="btn btn-ghost btn-sm" style="width:100%;color:#c87700;border-color:#c87700;">
+                  class="btn btn-ghost btn-sm" style="width:100%;color:var(--orange);border-color:var(--orange);">
             오퍼 거절
           </button>
         </div>
         {% endif %}
 
         <button type="button" onclick="document.getElementById('disqualify-modal').style.display='flex'"
-                class="btn btn-sm" style="width:100%;background:#fde8e8;color:#c0392b;border:1px solid #f7c1c1;">
+                class="btn btn-sm" style="width:100%;background:var(--red-bg);color:var(--red);border:1px solid var(--red-bg);">
           <i class="fas fa-times-circle"></i> 불합격 처리
         </button>
       {% endif %}
@@ -350,9 +350,9 @@
               <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                 {% for iv in interviewers %}
                 <div style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;border:1px solid var(--border);font-size:13px;background:var(--bg-1);">
-                  <div style="width:22px;height:22px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0;">{{ iv.interviewer_name[0] }}</div>
+                  <div style="width:22px;height:22px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--surface);flex-shrink:0;">{{ iv.interviewer_name[0] }}</div>
                   <span>{{ iv.interviewer_name }}</span>
-                  <span title="{% if iv.feedback_submitted %}피드백 제출 완료{% else %}피드백 미제출{% endif %}" style="width:8px;height:8px;border-radius:50%;background:{% if iv.feedback_submitted %}#27ae60{% else %}#e74c3c{% endif %};"></span>
+                  <span title="{% if iv.feedback_submitted %}피드백 제출 완료{% else %}피드백 미제출{% endif %}" style="width:8px;height:8px;border-radius:50%;background:{% if iv.feedback_submitted %}var(--green){% else %}var(--red){% endif %};"></span>
                   {% if r.status != 'completed' %}
                   <form action="{{ url_for('recruit_round_remove_interviewer', round_id=r.id, interviewer_id=iv.interviewer_id) }}" method="POST" style="display:inline;">
                     <button type="submit" style="background:none;border:none;cursor:pointer;color:var(--tx-4);font-size:11px;padding:0 2px;">×</button>
@@ -378,11 +378,11 @@
               {% for fb in feedbacks %}
               <div style="padding:10px 0;border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;">
                 <div style="min-width:90px;font-size:13px;font-weight:700;color:var(--tx-1);">{{ fb.interviewer_name }}{% if fb.is_edited %}<span title="피드백 수정됨" style="font-size:10px;color:var(--warning);margin-left:2px;">⚠</span>{% endif %}</div>
-                <div style="min-width:50px;"><span style="font-size:11px;padding:3px 8px;border-radius:var(--r-sm);font-weight:700;{% if fb.recommendation == 'pass' %}background:#e6f7ed;color:#27ae60;{% elif fb.recommendation == 'hold' %}background:#fff8e1;color:#c87700;{% else %}background:#fde8e8;color:#e74c3c;{% endif %}">{{ recommendation_label.get(fb.recommendation, fb.recommendation) }}</span></div>
+                <div style="min-width:50px;"><span style="font-size:11px;padding:3px 8px;border-radius:var(--r-sm);font-weight:700;{% if fb.recommendation == 'pass' %}background:var(--green-bg);color:var(--green);{% elif fb.recommendation == 'hold' %}background:var(--surface)8e1;color:var(--orange);{% else %}background:var(--red-bg);color:var(--red);{% endif %}">{{ recommendation_label.get(fb.recommendation, fb.recommendation) }}</span></div>
                 <div style="flex:1;font-size:12px;">
                   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
                     {% for fld, slbl in [('score_technical','기술'),('score_communication','소통'),('score_culture_fit','컬처'),('score_growth','성장'),('score_overall','종합')] %}
-                    {% if fb[fld] %}<span style="font-size:11px;color:var(--tx-3);">{{ slbl }} <strong style="color:{% if fb[fld] >= 4 %}#27ae60{% elif fb[fld] >= 3 %}#f39c12{% else %}#e74c3c{% endif %};">{{ fb[fld] }}/5</strong></span>{% endif %}
+                    {% if fb[fld] %}<span style="font-size:11px;color:var(--tx-3);">{{ slbl }} <strong style="color:{% if fb[fld] >= 4 %}var(--green){% elif fb[fld] >= 3 %}var(--orange){% else %}var(--red){% endif %};">{{ fb[fld] }}/5</strong></span>{% endif %}
                     {% endfor %}
                   </div>
                   {% if fb.strengths %}<div style="color:var(--tx-2);margin-bottom:3px;"><b style="color:var(--tx-3);">강점:</b> {{ fb.strengths }}</div>{% endif %}
@@ -391,9 +391,9 @@
               </div>
               {% endfor %}
               <div style="margin-top:10px;padding:10px 14px;background:var(--bg-2);border-radius:var(--r-sm);display:flex;gap:16px;font-size:13px;align-items:center;flex-wrap:wrap;">
-                <span style="color:#27ae60;font-weight:700;"><i class="fas fa-thumbs-up"></i> {{ pass_count }} 추천</span>
-                <span style="color:#c87700;font-weight:700;"><i class="fas fa-pause"></i> {{ hold_count }} 보류</span>
-                <span style="color:#e74c3c;font-weight:700;"><i class="fas fa-thumbs-down"></i> {{ fail_count }} 불가</span>
+                <span style="color:var(--green);font-weight:700;"><i class="fas fa-thumbs-up"></i> {{ pass_count }} 추천</span>
+                <span style="color:var(--orange);font-weight:700;"><i class="fas fa-pause"></i> {{ hold_count }} 보류</span>
+                <span style="color:var(--red);font-weight:700;"><i class="fas fa-thumbs-down"></i> {{ fail_count }} 불가</span>
                 {% set avg_overall = [] %}{% for fb in feedbacks %}{% if fb.score_overall %}{% set _ = avg_overall.append(fb.score_overall) %}{% endif %}{% endfor %}
                 {% if avg_overall %}<span style="margin-left:auto;color:var(--tx-3);">종합 평균 <strong style="color:var(--tx-1);">{{ '%.1f'|format(avg_overall|sum / avg_overall|length) }} / 5</strong></span>{% endif %}
               </div>
@@ -407,7 +407,7 @@
               <div style="font-size:12px;font-weight:700;color:var(--tx-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">면접 노트 <span style="font-size:10px;font-weight:400;color:var(--tx-4);text-transform:none;">— 면접 중 빠른 메모</span></div>
               {% for note in rd.notes %}
               <div style="padding:8px 10px;background:var(--bg-2);border-radius:var(--r-sm);margin-bottom:6px;display:flex;gap:10px;align-items:flex-start;">
-                <div style="width:24px;height:24px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0;">{{ note.author_name[0] }}</div>
+                <div style="width:24px;height:24px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--surface);flex-shrink:0;">{{ note.author_name[0] }}</div>
                 <div style="flex:1;">
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
                     <span style="font-size:12px;font-weight:700;color:var(--tx-1);">{{ note.author_name }}</span>
@@ -565,8 +565,8 @@
               <span style="font-size:14px;font-weight:700;color:var(--tx-1);">
                 {% if offer.salary %}연봉 {{ '{:,}'.format(offer.salary) }}원{% else %}연봉 협의{% endif %}
               </span>
-              <span style="font-size:11px;padding:3px 10px;border-radius:999px;font-weight:700;color:#fff;
-                background:{{ {'draft':'var(--tx-3)','sent':'#3b82f6','accepted':'#10b981','rejected':'var(--red)','expired':'var(--tx-3)','negotiating':'var(--orange)'}.get(offer.status,'var(--tx-3)') }}">
+              <span style="font-size:11px;padding:3px 10px;border-radius:999px;font-weight:700;color:var(--surface);
+                background:{{ {'draft':'var(--tx-3)','sent':'var(--info)','accepted':'var(--green)','rejected':'var(--red)','expired':'var(--tx-3)','negotiating':'var(--orange)'}.get(offer.status,'var(--tx-3)') }}">
                 {{ offer_status_label.get(offer.status, offer.status) }}
               </span>
             </div>
@@ -664,11 +664,11 @@
 <!-- ── 불합격 처리 모달 ────────────────────────────────────────── -->
 <div id="disqualify-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;align-items:center;justify-content:center;">
   <div style="background:var(--bg-1);border-radius:var(--r-lg);padding:28px;width:480px;max-width:92vw;box-shadow:0 8px 32px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto;">
-    <div style="font-size:16px;font-weight:900;color:#c0392b;margin-bottom:6px;"><i class="fas fa-times-circle"></i> 불합격 처리</div>
+    <div style="font-size:16px;font-weight:900;color:var(--red);margin-bottom:6px;"><i class="fas fa-times-circle"></i> 불합격 처리</div>
     <div style="font-size:12px;color:var(--tx-3);margin-bottom:18px;">현재 단계: <strong>{{ stage_map.get(applicant.stage, applicant.stage) }}</strong></div>
     <form action="{{ url_for('recruit_disqualify', applicant_id=applicant.id) }}" method="POST">
       <div class="field">
-        <label class="form-label">불합격 사유 코드 <span style="color:#e74c3c;">*</span></label>
+        <label class="form-label">불합격 사유 코드 <span style="color:var(--red);">*</span></label>
         <select name="reason_code" class="input" required>
           <option value="">— 사유를 선택하세요 —</option>
           {% for code, label in rejection_reason_codes.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
@@ -694,7 +694,7 @@
 
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button type="button" onclick="document.getElementById('disqualify-modal').style.display='none'" class="btn btn-ghost btn-sm">취소</button>
-        <button type="submit" class="btn btn-sm" style="background:#c0392b;color:#fff;border:none;">불합격 처리 확정</button>
+        <button type="submit" class="btn btn-sm" style="background:var(--red);color:var(--surface);border:none;">불합격 처리 확정</button>
       </div>
     </form>
   </div>
@@ -703,7 +703,7 @@
 <!-- ── 오퍼 거절 모달 ──────────────────────────────────────────── -->
 <div id="offer-reject-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;align-items:center;justify-content:center;">
   <div style="background:var(--bg-1);border-radius:var(--r-lg);padding:28px;width:380px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.2);">
-    <div style="font-size:16px;font-weight:900;color:#c87700;margin-bottom:6px;">오퍼 거절 처리</div>
+    <div style="font-size:16px;font-weight:900;color:var(--orange);margin-bottom:6px;">오퍼 거절 처리</div>
     <div style="font-size:12px;color:var(--tx-3);margin-bottom:18px;">후보자가 오퍼를 거절한 경우 기록합니다.</div>
     <form action="{{ url_for('recruit_offer_reject', applicant_id=applicant.id) }}" method="POST">
       <div class="field">
@@ -712,7 +712,7 @@
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button type="button" onclick="document.getElementById('offer-reject-modal').style.display='none'" class="btn btn-ghost btn-sm">취소</button>
-        <button type="submit" class="btn btn-sm" style="background:#c87700;color:#fff;border:none;">오퍼 거절 기록</button>
+        <button type="submit" class="btn btn-sm" style="background:var(--orange);color:var(--surface);border:none;">오퍼 거절 기록</button>
       </div>
     </form>
   </div>

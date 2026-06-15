@@ -110,7 +110,7 @@
 {% endif %}
 
 {% if not selected_cycle %}
-<div style="background:var(--orange-bg); border:1px solid #fed7aa; border-radius:8px; padding:16px 20px; color:var(--orange); font-weight:600;">
+<div style="background:var(--orange-bg); border:1px solid var(--orange-bg); border-radius:8px; padding:16px 20px; color:var(--orange); font-weight:600;">
   <i class="fas fa-exclamation-triangle"></i> 평가 주기를 선택해주세요.
 </div>
 
@@ -145,10 +145,10 @@
 {% if dept_emps %}
 <div class="dept-section">
   <div class="dept-header" onclick="toggleDept('dept-{{ dept.id }}')">
-    <i class="fas fa-building" style="color:#94a3b8; font-size:12px;"></i>
+    <i class="fas fa-building" style="color:var(--tx-3); font-size:12px;"></i>
     {{ dept.name }}
     <span style="font-size:12px; font-weight:400; color:var(--tx-3);">{{ dept_emps|length }}명</span>
-    <i class="fas fa-chevron-down" style="margin-left:auto; font-size:11px; color:#94a3b8;" id="arrow-dept-{{ dept.id }}"></i>
+    <i class="fas fa-chevron-down" style="margin-left:auto; font-size:11px; color:var(--tx-3);" id="arrow-dept-{{ dept.id }}"></i>
   </div>
   <div class="dept-body" id="dept-{{ dept.id }}">
     {% for emp in dept_emps %}
@@ -182,7 +182,7 @@
           </button>
           <div class="reviewer-dropdown" id="dd-{{ emp.id }}">
             <div class="rd-search">
-              <i class="fas fa-search" style="color:#94a3b8; font-size:11px;"></i>
+              <i class="fas fa-search" style="color:var(--tx-3); font-size:11px;"></i>
               <input type="text" placeholder="이름 검색..."
                      oninput="filterDropdown({{ emp.id }}, this.value)">
             </div>
@@ -195,7 +195,7 @@
                  onclick="addAssignment({{ selected_cycle.id }}, {{ emp.id }}, {{ rv.id }})">
               <div>
                 <div style="font-weight:600;">{{ rv.name }}
-                  {% if already %}<span style="font-size:10px; color:#94a3b8;">배정됨</span>{% endif %}
+                  {% if already %}<span style="font-size:10px; color:var(--tx-3);">배정됨</span>{% endif %}
                 </div>
                 <div class="rd-dept">{{ rv.dept_name or '' }}</div>
               </div>

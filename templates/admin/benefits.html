@@ -25,8 +25,8 @@
 
   <!-- 안내 배너 -->
   <div style="background:var(--info-bg);border:1px solid var(--info-bg);border-radius:12px;padding:16px 20px;margin-bottom:28px;display:flex;gap:14px;align-items:flex-start;">
-    <i class="fas fa-info-circle" style="color:#0284c7;margin-top:2px;flex-shrink:0;"></i>
-    <div style="font-size:.82rem;color:#0369a1;line-height:1.6;">
+    <i class="fas fa-info-circle" style="color:var(--info);margin-top:2px;flex-shrink:0;"></i>
+    <div style="font-size:.82rem;color:var(--info);line-height:1.6;">
       복리후생 항목을 4가지 지급 방식으로 관리합니다.
       <strong>① 매월 급여명세서</strong>에 자동 반영되는 항목,
       <strong>② 연간 예산</strong>으로 운영하는 복지포인트,
@@ -42,8 +42,8 @@
   {% if section %}
   <div class="card" style="padding:24px;margin-bottom:24px;">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--surface-3);">
-      <div style="width:36px;height:36px;background:#3b82f6;border-radius:10px;display:flex;align-items:center;justify-content:center;">
-        <i class="fas fa-file-invoice-dollar" style="color:#fff;font-size:15px;"></i>
+      <div style="width:36px;height:36px;background:var(--info);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+        <i class="fas fa-file-invoice-dollar" style="color:var(--surface);font-size:15px;"></i>
       </div>
       <div>
         <h3 style="font-size:.95rem;font-weight:700;margin:0;">① 매월 급여명세서 반영 (비과세 수당)</h3>
@@ -52,10 +52,10 @@
     </div>
 
     {% for item in section %}
-    <div data-key="{{ item.key }}" style="border:1px solid {% if item.enabled %}#bfdbfe{% else %}var(--surface-3){% endif %};border-radius:12px;padding:16px;margin-bottom:10px;background:{% if item.enabled %}#f0f7ff{% else %}#fafafa{% endif %};transition:all .2s;">
+    <div data-key="{{ item.key }}" style="border:1px solid {% if item.enabled %}var(--info-bg){% else %}var(--surface-3){% endif %};border-radius:12px;padding:16px;margin-bottom:10px;background:{% if item.enabled %}var(--info-bg){% else %}var(--bg){% endif %};transition:all .2s;">
       <div style="display:flex;align-items:flex-start;gap:12px;">
-        <div style="width:38px;height:38px;background:{% if item.enabled %}#3b82f6{% else %}var(--surface-3){% endif %};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <i class="fas {{ item.icon }}" style="color:{% if item.enabled %}#fff{% else %}#94a3b8{% endif %};font-size:14px;"></i>
+        <div style="width:38px;height:38px;background:{% if item.enabled %}var(--info){% else %}var(--surface-3){% endif %};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas {{ item.icon }}" style="color:{% if item.enabled %}var(--surface){% else %}var(--tx-3){% endif %};font-size:14px;"></i>
         </div>
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
@@ -63,7 +63,7 @@
             <span style="background:var(--green-bg);color:var(--green);font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">
               비과세 월 {{ '{:,}'.format(item.monthly_limit) }}원 한도
             </span>
-            <span style="color:#94a3b8;font-size:.7rem;">{{ item.legal_basis }}</span>
+            <span style="color:var(--tx-3);font-size:.7rem;">{{ item.legal_basis }}</span>
           </div>
           <p style="font-size:.78rem;color:var(--tx-3);margin:0 0 4px;">{{ item.description }}</p>
           {% if item.conditions %}
@@ -76,8 +76,8 @@
             <input type="checkbox" name="enabled_{{ item.key }}" id="chk_{{ item.key }}" value="1"
                    {% if item.enabled %}checked{% endif %}
                    style="position:absolute;opacity:0;width:0;height:0;">
-            <div id="track_{{ item.key }}" style="position:absolute;inset:0;background:{{ '#3b82f6' if item.enabled else '#cbd5e1' }};border-radius:999px;transition:background .2s;"></div>
-            <div id="knob_{{ item.key }}"  style="position:absolute;top:2px;left:{{ '22px' if item.enabled else '2px' }};width:18px;height:18px;background:#fff;border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+            <div id="track_{{ item.key }}" style="position:absolute;inset:0;background:{{ 'var(--info)' if item.enabled else 'var(--line)' }};border-radius:999px;transition:background .2s;"></div>
+            <div id="knob_{{ item.key }}"  style="position:absolute;top:2px;left:{{ '22px' if item.enabled else '2px' }};width:18px;height:18px;background:var(--surface);border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
           </div>
           <span style="font-size:.78rem;color:var(--tx-3);">사용</span>
         </label>
@@ -90,7 +90,7 @@
             <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">월 지급액 (원)</label>
             <div style="display:flex;align-items:center;gap:6px;">
               <input type="number" name="amount_{{ item.key }}" value="{{ item.amount or item.monthly_limit or 0 }}"
-                     min="0" step="10000" style="width:130px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
+                     min="0" step="10000" style="width:130px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:.85rem;">
               <span style="color:var(--tx-3);font-size:.78rem;">원</span>
             </div>
             <div style="font-size:.7rem;color:var(--green);margin-top:2px;">비과세 한도: {{ '{:,}'.format(item.monthly_limit) }}원 / 월</div>
@@ -99,7 +99,7 @@
             <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">메모 (내부용)</label>
             <input type="text" name="note_{{ item.key }}" value="{{ item.note or '' }}"
                    placeholder="예: 전 직원 적용"
-                   style="width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.78rem;">
+                   style="width:100%;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:.78rem;">
           </div>
         </div>
       </div>
@@ -113,8 +113,8 @@
   {% if section %}
   <div class="card" style="padding:24px;margin-bottom:24px;">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--surface-3);">
-      <div style="width:36px;height:36px;background:#8b5cf6;border-radius:10px;display:flex;align-items:center;justify-content:center;">
-        <i class="fas fa-wallet" style="color:#fff;font-size:15px;"></i>
+      <div style="width:36px;height:36px;background:var(--purple);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+        <i class="fas fa-wallet" style="color:var(--surface);font-size:15px;"></i>
       </div>
       <div>
         <h3 style="font-size:.95rem;font-weight:700;margin:0;">② 연간 예산형 (복지포인트)</h3>
@@ -123,16 +123,16 @@
     </div>
 
     {% for item in section %}
-    <div data-key="{{ item.key }}" style="border:1px solid {% if item.enabled %}#e9d5ff{% else %}var(--surface-3){% endif %};border-radius:12px;padding:16px;margin-bottom:10px;background:{% if item.enabled %}#faf5ff{% else %}#fafafa{% endif %};transition:all .2s;">
+    <div data-key="{{ item.key }}" style="border:1px solid {% if item.enabled %}var(--purple-bg){% else %}var(--surface-3){% endif %};border-radius:12px;padding:16px;margin-bottom:10px;background:{% if item.enabled %}var(--purple-bg){% else %}var(--bg){% endif %};transition:all .2s;">
       <div style="display:flex;align-items:flex-start;gap:12px;">
-        <div style="width:38px;height:38px;background:{% if item.enabled %}#8b5cf6{% else %}var(--surface-3){% endif %};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <i class="fas {{ item.icon }}" style="color:{% if item.enabled %}#fff{% else %}#94a3b8{% endif %};font-size:14px;"></i>
+        <div style="width:38px;height:38px;background:{% if item.enabled %}var(--purple){% else %}var(--surface-3){% endif %};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas {{ item.icon }}" style="color:{% if item.enabled %}var(--surface){% else %}var(--tx-3){% endif %};font-size:14px;"></i>
         </div>
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
             <strong style="font-size:.88rem;">{{ item.name }}</strong>
             <span style="background:var(--orange-bg);color:var(--orange);font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">과세 (2024 대법원)</span>
-            <span style="color:#94a3b8;font-size:.7rem;">{{ item.legal_basis }}</span>
+            <span style="color:var(--tx-3);font-size:.7rem;">{{ item.legal_basis }}</span>
           </div>
           <p style="font-size:.78rem;color:var(--tx-3);margin:0;">{{ item.description }}</p>
         </div>
@@ -142,8 +142,8 @@
             <input type="checkbox" name="enabled_{{ item.key }}" id="chk_{{ item.key }}" value="1"
                    {% if item.enabled %}checked{% endif %}
                    style="position:absolute;opacity:0;width:0;height:0;">
-            <div id="track_{{ item.key }}" style="position:absolute;inset:0;background:{{ '#8b5cf6' if item.enabled else '#cbd5e1' }};border-radius:999px;transition:background .2s;"></div>
-            <div id="knob_{{ item.key }}"  style="position:absolute;top:2px;left:{{ '22px' if item.enabled else '2px' }};width:18px;height:18px;background:#fff;border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+            <div id="track_{{ item.key }}" style="position:absolute;inset:0;background:{{ 'var(--purple)' if item.enabled else 'var(--line)' }};border-radius:999px;transition:background .2s;"></div>
+            <div id="knob_{{ item.key }}"  style="position:absolute;top:2px;left:{{ '22px' if item.enabled else '2px' }};width:18px;height:18px;background:var(--surface);border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
           </div>
           <span style="font-size:.78rem;color:var(--tx-3);">사용</span>
         </label>
@@ -155,14 +155,14 @@
             <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">1인당 연간 예산 (원)</label>
             <div style="display:flex;align-items:center;gap:6px;">
               <input type="number" name="annual_limit_{{ item.key }}" value="{{ item.annual_limit or 0 }}"
-                     min="0" step="100000" style="width:160px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
+                     min="0" step="100000" style="width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:.85rem;">
               <span style="color:var(--tx-3);font-size:.78rem;">원 / 년</span>
             </div>
           </div>
           {% if item.platform_options %}
           <div>
             <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">운영 플랫폼</label>
-            <select name="platform_{{ item.key }}" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.82rem;background:#fff;">
+            <select name="platform_{{ item.key }}" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;background:var(--surface);">
               <option value="">직접 선택</option>
               {% for opt in item.platform_options %}
               <option value="{{ opt }}" {% if item.platform == opt %}selected{% endif %}>{{ opt }}</option>
@@ -174,7 +174,7 @@
             <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">메모 (내부용)</label>
             <input type="text" name="note_{{ item.key }}" value="{{ item.note or '' }}"
                    placeholder="예: 매년 1월 1일 지급"
-                   style="width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.78rem;">
+                   style="width:100%;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:.78rem;">
           </div>
         </div>
       </div>
@@ -188,8 +188,8 @@
   {% if section %}
   <div class="card" style="padding:24px;margin-bottom:24px;">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--surface-3);">
-      <div style="width:36px;height:36px;background:#059669;border-radius:10px;display:flex;align-items:center;justify-content:center;">
-        <i class="fas fa-receipt" style="color:#fff;font-size:15px;"></i>
+      <div style="width:36px;height:36px;background:var(--green);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+        <i class="fas fa-receipt" style="color:var(--surface);font-size:15px;"></i>
       </div>
       <div>
         <h3 style="font-size:.95rem;font-weight:700;margin:0;">③ 영수증 환급형</h3>
@@ -198,16 +198,16 @@
     </div>
 
     {% for item in section %}
-    <div data-key="{{ item.key }}" style="border:1px solid {% if item.enabled %}var(--green){% else %}var(--surface-3){% endif %};border-radius:12px;padding:16px;margin-bottom:10px;background:{% if item.enabled %}var(--green-bg){% else %}#fafafa{% endif %};transition:all .2s;">
+    <div data-key="{{ item.key }}" style="border:1px solid {% if item.enabled %}var(--green){% else %}var(--surface-3){% endif %};border-radius:12px;padding:16px;margin-bottom:10px;background:{% if item.enabled %}var(--green-bg){% else %}var(--bg){% endif %};transition:all .2s;">
       <div style="display:flex;align-items:flex-start;gap:12px;">
-        <div style="width:38px;height:38px;background:{% if item.enabled %}#059669{% else %}var(--surface-3){% endif %};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <i class="fas {{ item.icon }}" style="color:{% if item.enabled %}#fff{% else %}#94a3b8{% endif %};font-size:14px;"></i>
+        <div style="width:38px;height:38px;background:{% if item.enabled %}var(--green){% else %}var(--surface-3){% endif %};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas {{ item.icon }}" style="color:{% if item.enabled %}var(--surface){% else %}var(--tx-3){% endif %};font-size:14px;"></i>
         </div>
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
             <strong style="font-size:.88rem;">{{ item.name }}</strong>
             <span style="background:var(--orange-bg);color:var(--orange);font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">과세</span>
-            <span style="color:#94a3b8;font-size:.7rem;">{{ item.legal_basis }}</span>
+            <span style="color:var(--tx-3);font-size:.7rem;">{{ item.legal_basis }}</span>
           </div>
           <p style="font-size:.78rem;color:var(--tx-3);margin:0;">{{ item.description }}</p>
         </div>
@@ -217,8 +217,8 @@
             <input type="checkbox" name="enabled_{{ item.key }}" id="chk_{{ item.key }}" value="1"
                    {% if item.enabled %}checked{% endif %}
                    style="position:absolute;opacity:0;width:0;height:0;">
-            <div id="track_{{ item.key }}" style="position:absolute;inset:0;background:{{ '#059669' if item.enabled else '#cbd5e1' }};border-radius:999px;transition:background .2s;"></div>
-            <div id="knob_{{ item.key }}"  style="position:absolute;top:2px;left:{{ '22px' if item.enabled else '2px' }};width:18px;height:18px;background:#fff;border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+            <div id="track_{{ item.key }}" style="position:absolute;inset:0;background:{{ 'var(--green)' if item.enabled else 'var(--line)' }};border-radius:999px;transition:background .2s;"></div>
+            <div id="knob_{{ item.key }}"  style="position:absolute;top:2px;left:{{ '22px' if item.enabled else '2px' }};width:18px;height:18px;background:var(--surface);border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
           </div>
           <span style="font-size:.78rem;color:var(--tx-3);">사용</span>
         </label>
@@ -230,16 +230,16 @@
             <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">1인당 연간 한도 (원)</label>
             <div style="display:flex;align-items:center;gap:6px;">
               <input type="number" name="annual_limit_{{ item.key }}" value="{{ item.annual_limit or 0 }}"
-                     min="0" step="100000" style="width:160px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
+                     min="0" step="100000" style="width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:.85rem;">
               <span style="color:var(--tx-3);font-size:.78rem;">원 / 년</span>
             </div>
-            <div style="font-size:.7rem;color:#94a3b8;margin-top:2px;">0 입력 시 한도 없음</div>
+            <div style="font-size:.7rem;color:var(--tx-3);margin-top:2px;">0 입력 시 한도 없음</div>
           </div>
           <div style="flex:1;min-width:140px;">
             <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">메모 (내부용)</label>
             <input type="text" name="note_{{ item.key }}" value="{{ item.note or '' }}"
                    placeholder="예: 영수증 30일 이내 제출"
-                   style="width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.78rem;">
+                   style="width:100%;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:.78rem;">
           </div>
         </div>
       </div>
@@ -254,25 +254,25 @@
   <div class="card" style="padding:24px;margin-bottom:24px;">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--surface-3);">
       <div style="width:36px;height:36px;background:var(--red);border-radius:10px;display:flex;align-items:center;justify-content:center;">
-        <i class="fas fa-trophy" style="color:#fff;font-size:15px;"></i>
+        <i class="fas fa-trophy" style="color:var(--surface);font-size:15px;"></i>
       </div>
       <div>
         <h3 style="font-size:.95rem;font-weight:700;margin:0;">④ 상여·성과급 별도 지급</h3>
-        <p style="font-size:.75rem;color:var(--tx-3);margin:0;">연간 지급 기준을 설정하세요. 실제 지급은 <a href="{{ url_for('admin_bonus_pay') }}" style="color:#3b82f6;">상여 지급 관리</a> 페이지에서 별도 진행합니다.</p>
+        <p style="font-size:.75rem;color:var(--tx-3);margin:0;">연간 지급 기준을 설정하세요. 실제 지급은 <a href="{{ url_for('admin_bonus_pay') }}" style="color:var(--info);">상여 지급 관리</a> 페이지에서 별도 진행합니다.</p>
       </div>
     </div>
 
     {% for item in section %}
-    <div data-key="{{ item.key }}" style="border:1px solid {% if item.enabled %}var(--red-bg){% else %}var(--surface-3){% endif %};border-radius:12px;padding:16px;margin-bottom:10px;background:{% if item.enabled %}#fff5f5{% else %}#fafafa{% endif %};transition:all .2s;">
+    <div data-key="{{ item.key }}" style="border:1px solid {% if item.enabled %}var(--red-bg){% else %}var(--surface-3){% endif %};border-radius:12px;padding:16px;margin-bottom:10px;background:{% if item.enabled %}var(--red-bg){% else %}var(--bg){% endif %};transition:all .2s;">
       <div style="display:flex;align-items:flex-start;gap:12px;">
         <div style="width:38px;height:38px;background:{% if item.enabled %}var(--red){% else %}var(--surface-3){% endif %};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <i class="fas {{ item.icon }}" style="color:{% if item.enabled %}#fff{% else %}#94a3b8{% endif %};font-size:14px;"></i>
+          <i class="fas {{ item.icon }}" style="color:{% if item.enabled %}var(--surface){% else %}var(--tx-3){% endif %};font-size:14px;"></i>
         </div>
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
             <strong style="font-size:.88rem;">{{ item.name }}</strong>
             <span style="background:var(--red-bg);color:var(--red);font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:4px;">과세 (상여)</span>
-            <span style="color:#94a3b8;font-size:.7rem;">{{ item.legal_basis }}</span>
+            <span style="color:var(--tx-3);font-size:.7rem;">{{ item.legal_basis }}</span>
           </div>
           <p style="font-size:.78rem;color:var(--tx-3);margin:0;">{{ item.description }}</p>
         </div>
@@ -282,8 +282,8 @@
             <input type="checkbox" name="enabled_{{ item.key }}" id="chk_{{ item.key }}" value="1"
                    {% if item.enabled %}checked{% endif %}
                    style="position:absolute;opacity:0;width:0;height:0;">
-            <div id="track_{{ item.key }}" style="position:absolute;inset:0;background:{{ 'var(--red)' if item.enabled else '#cbd5e1' }};border-radius:999px;transition:background .2s;"></div>
-            <div id="knob_{{ item.key }}"  style="position:absolute;top:2px;left:{{ '22px' if item.enabled else '2px' }};width:18px;height:18px;background:#fff;border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+            <div id="track_{{ item.key }}" style="position:absolute;inset:0;background:{{ 'var(--red)' if item.enabled else 'var(--line)' }};border-radius:999px;transition:background .2s;"></div>
+            <div id="knob_{{ item.key }}"  style="position:absolute;top:2px;left:{{ '22px' if item.enabled else '2px' }};width:18px;height:18px;background:var(--surface);border-radius:999px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
           </div>
           <span style="font-size:.78rem;color:var(--tx-3);">사용</span>
         </label>
@@ -297,10 +297,10 @@
             <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">지급률 (기본급 대비 %)</label>
             <div style="display:flex;align-items:center;gap:6px;">
               <input type="number" name="pct_{{ item.key }}" value="{{ item.pct or item.default_pct or 100 }}"
-                     min="0" max="1000" style="width:90px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
+                     min="0" max="1000" style="width:90px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:.85rem;">
               <span style="color:var(--tx-3);font-size:.78rem;">%</span>
             </div>
-            <div style="font-size:.7rem;color:#94a3b8;margin-top:2px;">기본급 × 설정값%</div>
+            <div style="font-size:.7rem;color:var(--tx-3);margin-top:2px;">기본급 × 설정값%</div>
           </div>
 
           {% elif item.calc_type == 'grade_pct' %}
@@ -310,16 +310,16 @@
               {% set grade_pct = item.grade_pct or {'S':20,'A':15,'B':10,'C':5,'D':0} %}
               {% for grade in ['S','A','B','C','D'] %}
               <div style="text-align:center;">
-                <div style="font-size:.72rem;font-weight:700;color:{% if grade=='S' %}var(--red){% elif grade=='A' %}var(--orange){% elif grade=='B' %}var(--green){% elif grade=='C' %}#2563eb{% else %}#94a3b8{% endif %};margin-bottom:4px;">{{ grade }}</div>
+                <div style="font-size:.72rem;font-weight:700;color:{% if grade=='S' %}var(--red){% elif grade=='A' %}var(--orange){% elif grade=='B' %}var(--green){% elif grade=='C' %}var(--info){% else %}var(--tx-3){% endif %};margin-bottom:4px;">{{ grade }}</div>
                 <div style="display:flex;align-items:center;gap:4px;">
                   <input type="number" name="pct_{{ item.key }}_{{ grade }}" value="{{ grade_pct[grade] }}"
-                         min="0" max="100" style="width:56px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:.8rem;text-align:center;">
+                         min="0" max="100" style="width:56px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:.8rem;text-align:center;">
                   <span style="color:var(--tx-3);font-size:.72rem;">%</span>
                 </div>
               </div>
               {% endfor %}
             </div>
-            <div style="font-size:.7rem;color:#94a3b8;margin-top:4px;">성과등급 결과가 있는 직원에게 연봉 × 지급률 / 12 적용</div>
+            <div style="font-size:.7rem;color:var(--tx-3);margin-top:4px;">성과등급 결과가 있는 직원에게 연봉 × 지급률 / 12 적용</div>
           </div>
 
           {% elif item.calc_type == 'company_pct' %}
@@ -327,10 +327,10 @@
             <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">기준 지급률 (기본급 대비 %)</label>
             <div style="display:flex;align-items:center;gap:6px;">
               <input type="number" name="pct_{{ item.key }}" value="{{ item.pct or item.default_pct or 10 }}"
-                     min="0" max="200" style="width:90px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.85rem;">
+                     min="0" max="200" style="width:90px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:.85rem;">
               <span style="color:var(--tx-3);font-size:.78rem;">%</span>
             </div>
-            <div style="font-size:.7rem;color:#94a3b8;margin-top:2px;">지급 시 회사 달성률 × 기준율로 계산</div>
+            <div style="font-size:.7rem;color:var(--tx-3);margin-top:2px;">지급 시 회사 달성률 × 기준율로 계산</div>
           </div>
           {% endif %}
 
@@ -338,7 +338,7 @@
             <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">메모 (내부용)</label>
             <input type="text" name="note_{{ item.key }}" value="{{ item.note or '' }}"
                    placeholder="예: 매년 설 전월 지급"
-                   style="width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.78rem;">
+                   style="width:100%;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:.78rem;">
           </div>
         </div>
       </div>
@@ -353,10 +353,10 @@
   </form>
 
   <div style="display:flex;gap:12px;margin-top:16px;">
-    <a href="{{ url_for('admin_benefit_claims') }}" class="btn" style="background:var(--surface-3);color:#475569;padding:9px 20px;font-size:.85rem;">
+    <a href="{{ url_for('admin_benefit_claims') }}" class="btn" style="background:var(--surface-3);color:var(--tx-2);padding:9px 20px;font-size:.85rem;">
       <i class="fas fa-receipt"></i> 환급 신청 관리
     </a>
-    <a href="{{ url_for('admin_bonus_pay') }}" class="btn" style="background:var(--surface-3);color:#475569;padding:9px 20px;font-size:.85rem;">
+    <a href="{{ url_for('admin_bonus_pay') }}" class="btn" style="background:var(--surface-3);color:var(--tx-2);padding:9px 20px;font-size:.85rem;">
       <i class="fas fa-trophy"></i> 상여 지급 관리
     </a>
   </div>
@@ -440,7 +440,7 @@ function switchBenefitTab(tab) {
     <div class="stat-card">
       <div class="stat-ico ico-orange"><i class="fas fa-leaf"></i></div>
       <div class="stat-body">
-        <div class="stat-val" style="color:#27ae60;">{{ '{:,}'.format(tax_saving) }}원</div>
+        <div class="stat-val" style="color:var(--green);">{{ '{:,}'.format(tax_saving) }}원</div>
         <div class="stat-lbl">월 세금 절감 효과 (추정)</div>
       </div>
     </div>
@@ -465,16 +465,16 @@ function switchBenefitTab(tab) {
         <div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
             <div style="display:flex;align-items:center;gap:.5rem;">
-              <i class="fas {{ item.icon }}" style="color:{% if item.tax_exempt %}#27ae60{% else %}#e67e22{% endif %};font-size:12px;width:14px;"></i>
+              <i class="fas {{ item.icon }}" style="color:{% if item.tax_exempt %}var(--green){% else %}var(--orange){% endif %};font-size:12px;width:14px;"></i>
               <span style="font-size:.83rem;font-weight:600;color:var(--tx-1);">{{ item.name }}</span>
               {% if item.tax_exempt %}
-              <span style="background:#eafaf1;color:#1e8449;padding:.1rem .45rem;border-radius:10px;font-size:.68rem;font-weight:600;">비과세</span>
+              <span style="background:var(--green-bg);color:var(--green);padding:.1rem .45rem;border-radius:10px;font-size:.68rem;font-weight:600;">비과세</span>
               {% endif %}
             </div>
             <span style="font-size:.82rem;font-weight:700;color:var(--tx-1);">{{ '{:,}'.format(item.total) }}원</span>
           </div>
           <div style="height:6px;background:var(--bg-2);border-radius:3px;overflow:hidden;">
-            <div style="height:100%;width:{{ (item.total / max_cost * 100) | round(0) | int }}%;background:{% if item.tax_exempt %}#27ae60{% else %}var(--primary){% endif %};border-radius:3px;"></div>
+            <div style="height:100%;width:{{ (item.total / max_cost * 100) | round(0) | int }}%;background:{% if item.tax_exempt %}var(--green){% else %}var(--primary){% endif %};border-radius:3px;"></div>
           </div>
           <div style="font-size:.72rem;color:var(--tx-3);margin-top:.15rem;">1인 {{ '{:,}'.format(item.per_person) }}원 × {{ total_emp }}명</div>
         </div>
@@ -518,11 +518,11 @@ function switchBenefitTab(tab) {
     <h3 class="section-title" style="margin-bottom:1.2rem;">{{ this_year }}년 복지포인트 현황</h3>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-bottom:1.2rem;">
       <div style="text-align:center;padding:1rem;background:var(--bg-2);border-radius:12px;">
-        <div style="font-size:1.4rem;font-weight:700;color:#27ae60;">{{ '{:,}'.format(wp_total_granted) }}원</div>
+        <div style="font-size:1.4rem;font-weight:700;color:var(--green);">{{ '{:,}'.format(wp_total_granted) }}원</div>
         <div style="font-size:.78rem;color:var(--tx-3);margin-top:.3rem;">총 지급액</div>
       </div>
       <div style="text-align:center;padding:1rem;background:var(--bg-2);border-radius:12px;">
-        <div style="font-size:1.4rem;font-weight:700;color:#e67e22;">{{ '{:,}'.format(wp_used) }}원</div>
+        <div style="font-size:1.4rem;font-weight:700;color:var(--orange);">{{ '{:,}'.format(wp_used) }}원</div>
         <div style="font-size:.78rem;color:var(--tx-3);margin-top:.3rem;">총 사용액</div>
       </div>
       <div style="text-align:center;padding:1rem;background:var(--bg-2);border-radius:12px;">
@@ -531,7 +531,7 @@ function switchBenefitTab(tab) {
       </div>
     </div>
     <div style="background:var(--bg-2);border-radius:8px;overflow:hidden;height:10px;">
-      <div style="height:100%;width:{{ [wp_usage_pct, 100] | min }}%;background:#e67e22;border-radius:8px;transition:width .3s;"></div>
+      <div style="height:100%;width:{{ [wp_usage_pct, 100] | min }}%;background:var(--orange);border-radius:8px;transition:width .3s;"></div>
     </div>
     <div style="display:flex;justify-content:space-between;margin-top:.5rem;font-size:.78rem;color:var(--tx-3);">
       <span>사용률 {{ wp_usage_pct }}%</span>

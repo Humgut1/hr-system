@@ -10,15 +10,15 @@
 
   <!-- 직원 헤더 -->
   <div class="card" style="padding:20px;margin-bottom:20px;display:flex;align-items:center;gap:16px;">
-    <div style="width:48px;height:48px;background:linear-gradient(135deg,#3b82f6,var(--info));border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-      <i class="fas fa-user" style="color:#fff;font-size:18px;"></i>
+    <div style="width:48px;height:48px;background:linear-gradient(135deg,var(--info),var(--info));border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      <i class="fas fa-user" style="color:var(--surface);font-size:18px;"></i>
     </div>
     <div>
       <div style="font-size:1.05rem;font-weight:700;">{{ emp.name }}</div>
       <div style="font-size:.82rem;color:var(--tx-3);margin-top:2px;">
         {{ emp.emp_no or '' }} · {{ emp.dept_name or '—' }} · {{ emp.pos_name or '—' }}
       </div>
-      <div style="font-size:.8rem;color:#94a3b8;margin-top:2px;">
+      <div style="font-size:.8rem;color:var(--tx-3);margin-top:2px;">
         입사 {{ emp.hire_date or '—' }} → 퇴직 {{ term_date }}
         {% if sev.tenure_years is defined %}
           · 근속 {{ sev.tenure_years }}년 ({{ sev.tenure_days }}일)
@@ -28,7 +28,7 @@
   </div>
 
   <!-- 총 정산액 히어로 -->
-  <div style="background:linear-gradient(135deg,var(--tx-1),#1e3a5f);border-radius:20px;padding:28px 32px;color:#fff;margin-bottom:24px;">
+  <div style="background:linear-gradient(135deg,var(--tx-1),var(--info));border-radius:20px;padding:28px 32px;color:var(--surface);margin-bottom:24px;">
     <div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">
       근로기준법 기준 법정 지급 총액
     </div>
@@ -51,19 +51,19 @@
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:{% if sev.eligible %}12px{% else %}0{% endif %};">
         <div style="display:flex;align-items:center;gap:10px;">
           <div style="width:32px;height:32px;background:var(--info-bg);border-radius:8px;display:flex;align-items:center;justify-content:center;">
-            <i class="fas fa-piggy-bank" style="color:#3b82f6;font-size:14px;"></i>
+            <i class="fas fa-piggy-bank" style="color:var(--info);font-size:14px;"></i>
           </div>
           <div>
             <div style="font-weight:600;font-size:.9rem;">퇴직금</div>
-            <div style="font-size:.75rem;color:#94a3b8;">근로기준법 §34 · 1년 이상 근속 시 지급</div>
+            <div style="font-size:.75rem;color:var(--tx-3);">근로기준법 §34 · 1년 이상 근속 시 지급</div>
           </div>
         </div>
         <div style="text-align:right;">
           {% if sev.eligible %}
           <div style="font-size:1.15rem;font-weight:800;color:var(--tx-1);">₩{{ '{:,}'.format(sev.severance_amount) }}</div>
           {% else %}
-          <div style="font-size:.85rem;color:#94a3b8;">해당없음</div>
-          <div style="font-size:.72rem;color:#cbd5e1;">{{ sev.reason or '1년 미만 근속' }}</div>
+          <div style="font-size:.85rem;color:var(--tx-3);">해당없음</div>
+          <div style="font-size:.72rem;color:var(--line);">{{ sev.reason or '1년 미만 근속' }}</div>
           {% endif %}
         </div>
       </div>
@@ -71,19 +71,19 @@
       <div style="background:var(--surface-3);border-radius:8px;padding:12px;font-size:.78rem;color:var(--tx-3);">
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
           <div>
-            <div style="color:#94a3b8;margin-bottom:2px;">3개월 총임금</div>
+            <div style="color:var(--tx-3);margin-bottom:2px;">3개월 총임금</div>
             <div style="font-weight:600;color:var(--tx-2);">₩{{ '{:,}'.format(sev.basis_total_pay) }}</div>
           </div>
           <div>
-            <div style="color:#94a3b8;margin-bottom:2px;">3개월 일수</div>
+            <div style="color:var(--tx-3);margin-bottom:2px;">3개월 일수</div>
             <div style="font-weight:600;color:var(--tx-2);">{{ sev.basis_days }}일</div>
           </div>
           <div>
-            <div style="color:#94a3b8;margin-bottom:2px;">평균임금(일)</div>
+            <div style="color:var(--tx-3);margin-bottom:2px;">평균임금(일)</div>
             <div style="font-weight:600;color:var(--tx-2);">₩{{ '{:,}'.format(settlement.avg_daily_wage) }}</div>
           </div>
         </div>
-        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--surface-3);color:#94a3b8;">
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--surface-3);color:var(--tx-3);">
           산식: 평균임금 ₩{{ '{:,}'.format(settlement.avg_daily_wage) }} × 30일 × ({{ sev.tenure_days }}일 ÷ 365)
         </div>
       </div>
@@ -99,39 +99,39 @@
           </div>
           <div>
             <div style="font-weight:600;font-size:.9rem;">미사용 연차수당</div>
-            <div style="font-size:.75rem;color:#94a3b8;">근로기준법 §60⑦ · 미사용 연차는 반드시 금전 보상</div>
+            <div style="font-size:.75rem;color:var(--tx-3);">근로기준법 §60⑦ · 미사용 연차는 반드시 금전 보상</div>
           </div>
         </div>
         <div style="text-align:right;">
           <div style="font-size:1.15rem;font-weight:800;color:var(--tx-1);">₩{{ '{:,}'.format(ul.unused_leave_pay) }}</div>
-          <div style="font-size:.75rem;color:#94a3b8;">{{ ul.unused_days }}일 미사용</div>
+          <div style="font-size:.75rem;color:var(--tx-3);">{{ ul.unused_days }}일 미사용</div>
         </div>
       </div>
       <div style="background:var(--surface-3);border-radius:8px;padding:12px;font-size:.78rem;color:var(--tx-3);">
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">
           <div>
-            <div style="color:#94a3b8;margin-bottom:2px;">발생 연차</div>
+            <div style="color:var(--tx-3);margin-bottom:2px;">발생 연차</div>
             <div style="font-weight:600;color:var(--tx-2);">{{ ul.total_leave }}일</div>
           </div>
           <div>
-            <div style="color:#94a3b8;margin-bottom:2px;">사용 연차</div>
+            <div style="color:var(--tx-3);margin-bottom:2px;">사용 연차</div>
             <div style="font-weight:600;color:var(--tx-2);">{{ used_days }}일</div>
           </div>
           <div>
-            <div style="color:#94a3b8;margin-bottom:2px;">미사용</div>
+            <div style="color:var(--tx-3);margin-bottom:2px;">미사용</div>
             <div style="font-weight:600;color:var(--green);">{{ ul.unused_days }}일</div>
           </div>
           <div>
-            <div style="color:#94a3b8;margin-bottom:2px;">평균임금(일)</div>
+            <div style="color:var(--tx-3);margin-bottom:2px;">평균임금(일)</div>
             <div style="font-weight:600;color:var(--tx-2);">₩{{ '{:,}'.format(settlement.avg_daily_wage) }}</div>
           </div>
         </div>
         {% if ul.unused_days > 0 %}
-        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--surface-3);color:#94a3b8;">
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--surface-3);color:var(--tx-3);">
           산식: ₩{{ '{:,}'.format(settlement.avg_daily_wage) }} × {{ ul.unused_days }}일
         </div>
         {% else %}
-        <div style="margin-top:6px;color:#94a3b8;">발생 연차를 모두 사용했습니다.</div>
+        <div style="margin-top:6px;color:var(--tx-3);">발생 연차를 모두 사용했습니다.</div>
         {% endif %}
       </div>
     </div>
@@ -141,26 +141,26 @@
     <div style="border:1px solid var(--surface-3);border-radius:12px;padding:18px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:{% if not pro.is_full_month %}12px{% else %}0{% endif %};">
         <div style="display:flex;align-items:center;gap:10px;">
-          <div style="width:32px;height:32px;background:#fefce8;border-radius:8px;display:flex;align-items:center;justify-content:center;">
-            <i class="fas fa-calendar-day" style="color:#ca8a04;font-size:14px;"></i>
+          <div style="width:32px;height:32px;background:var(--orange-bg);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+            <i class="fas fa-calendar-day" style="color:var(--orange);font-size:14px;"></i>
           </div>
           <div>
             <div style="font-weight:600;font-size:.9rem;">마지막 월 급여 (일할계산)</div>
-            <div style="font-size:.75rem;color:#94a3b8;">
+            <div style="font-size:.75rem;color:var(--tx-3);">
               퇴직월 {{ term_date[:7] }} · {{ pro.days_worked }}/{{ pro.days_total }}일 근무
             </div>
           </div>
         </div>
         <div style="text-align:right;">
           {% if pro.is_full_month %}
-          <div style="font-size:.85rem;color:#94a3b8;">월 전체 근무 (별도 정산 불필요)</div>
+          <div style="font-size:.85rem;color:var(--tx-3);">월 전체 근무 (별도 정산 불필요)</div>
           {% else %}
           <div style="font-size:1.15rem;font-weight:800;color:var(--tx-1);">₩{{ '{:,}'.format(pro.prorated_salary) }}</div>
           {% endif %}
         </div>
       </div>
       {% if not pro.is_full_month %}
-      <div style="background:var(--surface-3);border-radius:8px;padding:12px;font-size:.78rem;color:#94a3b8;">
+      <div style="background:var(--surface-3);border-radius:8px;padding:12px;font-size:.78rem;color:var(--tx-3);">
         산식: 기본급 ₩{{ '{:,}'.format(pro.base_salary) }} × {{ pro.days_worked }}일 ÷ {{ pro.days_total }}일
       </div>
       {% endif %}
@@ -209,7 +209,7 @@
     <div class="card" style="padding:20px;margin-bottom:16px;">
       <label style="font-size:.82rem;font-weight:600;display:block;margin-bottom:6px;">처리 메모 (선택)</label>
       <input type="text" name="note" placeholder="예: 정상 합의 퇴직, 정산 완료"
-             style="width:100%;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:.875rem;">
+             style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:.875rem;">
     </div>
     <div style="display:flex;justify-content:flex-end;gap:12px;">
       <a href="{{ url_for('employee_detail', emp_id=emp.id) }}" class="btn btn-secondary">취소</a>

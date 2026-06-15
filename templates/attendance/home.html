@@ -865,7 +865,7 @@
     </a>
     <a href="{{ url_for('attendance_home', tab='approvals', apv_status='reviewed') }}"
        class="apv-btn {% if request.args.get('apv_status')=='reviewed' %}active{% endif %}">
-      검토완료 {% if reviewed_count > 0 %}<span class="att-tab-badge" style="background:#6d28d9;">{{ reviewed_count }}</span>{% endif %}
+      검토완료 {% if reviewed_count > 0 %}<span class="att-tab-badge" style="background:var(--purple);">{{ reviewed_count }}</span>{% endif %}
     </a>
     <a href="{{ url_for('attendance_home', tab='approvals', apv_status='approved') }}"
        class="apv-btn {% if request.args.get('apv_status')=='approved' %}active{% endif %}">승인됨</a>

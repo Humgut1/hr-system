@@ -18,7 +18,7 @@
 
     <!-- 익명성 안내 배너 (피어/상향 모두) -->
     <div style="background:var(--info-bg); border:1px solid var(--info-bg); border-radius:var(--r-sm);
-                padding:12px 16px; margin-bottom:20px; font-size:13px; color:#0369a1;">
+                padding:12px 16px; margin-bottom:20px; font-size:13px; color:var(--info);">
       <i class="fas fa-lock"></i>
       {% if review_type == 'upward' %}
         <strong>완전 익명 보장</strong> — 작성자 신원은 공개되지 않으며, <strong>3명 이상</strong> 응답이 모인 후에만 결과가 공개됩니다.
@@ -79,7 +79,7 @@
                   required>{{ existing.strength if existing and existing.strength else '' }}</textarea>
       </div>
 
-      <div style="background:#fff5f5; border:1px solid var(--red-bg); border-radius:10px;
+      <div style="background:var(--red-bg); border:1px solid var(--red-bg); border-radius:10px;
                   padding:16px 18px; margin-bottom:16px;">
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
           <span style="font-size:20px;">🔴</span>
@@ -94,7 +94,7 @@
                   required>{{ existing.comment if existing and existing.comment else '' }}</textarea>
       </div>
 
-      <div style="background:var(--info-bg); border:1px solid #bfdbfe; border-radius:10px;
+      <div style="background:var(--info-bg); border:1px solid var(--info-bg); border-radius:10px;
                   padding:16px 18px; margin-bottom:28px;">
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
           <span style="font-size:20px;">🟡</span>
@@ -104,7 +104,7 @@
           </div>
         </div>
         <textarea name="improvement" class="input" rows="3"
-                  style="margin-top:4px; resize:vertical; border-color:#bfdbfe;"
+                  style="margin-top:4px; resize:vertical; border-color:var(--info-bg);"
                   placeholder="예) 코드 리뷰 시 변경 배경 설명을 코멘트로 남겨주시면 의도 파악에 큰 도움이 될 것 같습니다."
                   required>{{ existing.improvement if existing and existing.improvement else '' }}</textarea>
       </div>

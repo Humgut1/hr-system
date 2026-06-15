@@ -96,8 +96,8 @@
   <div class="card-body" style="padding:24px; display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
     <!-- 아바타 -->
     <div style="width:64px; height:64px; border-radius:50%;
-                background:linear-gradient(135deg,var(--info),#3b82f6);
-                color:#fff; font-size:24px; font-weight:900;
+                background:linear-gradient(135deg,var(--info),var(--info));
+                color:var(--surface); font-size:24px; font-weight:900;
                 display:flex; align-items:center; justify-content:center; flex-shrink:0;">
       {{ emp.name[0] }}
     </div>
@@ -134,9 +134,9 @@
       {% if latest.potential_score == 3 %}
         <span class="badge-sm" style="background:var(--green-bg); color:var(--green); font-size:14px; padding:6px 14px;">🔥 High</span>
       {% elif latest.potential_score == 2 %}
-        <span class="badge-sm" style="background:#ede9fe; color:#6d28d9; font-size:14px; padding:6px 14px;">⭐ Mid</span>
+        <span class="badge-sm" style="background:var(--purple-bg); color:var(--purple); font-size:14px; padding:6px 14px;">⭐ Mid</span>
       {% else %}
-        <span class="badge-sm" style="background:var(--surface-3); color:#475569; font-size:14px; padding:6px 14px;">— Low</span>
+        <span class="badge-sm" style="background:var(--surface-3); color:var(--tx-2); font-size:14px; padding:6px 14px;">— Low</span>
       {% endif %}
     </div>
     {% endif %}

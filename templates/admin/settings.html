@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}회사 설정{% endblock %}
 {% block page_title %}Company Settings{% endblock %}
 
@@ -495,7 +495,7 @@
         ('fa-chart-pie',      '#eff6ff:#1d4ed8',  '분석·보고서',       url_for('people_analytics')),
       ] %}
       {% set bg, fg = color.split(':') %}
-      <a href="{{ url }}" style="display:flex;align-items:center;gap:12px;padding:16px;background:#fff;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:box-shadow .15s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.08)'" onmouseout="this.style.boxShadow='none'">
+      <a href="{{ url }}" style="display:flex;align-items:center;gap:12px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:box-shadow .15s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.08)'" onmouseout="this.style.boxShadow='none'">
         <div style="width:36px;height:36px;border-radius:8px;background:{{ bg }};color:{{ fg }};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
           <i class="fas {{ icon }}"></i>
         </div>

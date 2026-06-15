@@ -70,7 +70,7 @@
         <div style="display:flex; flex-direction:column; align-items:center; flex:1; min-width:0;">
           <div style="width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px;
                       background:{% if is_rejected %}var(--red-bg){% elif is_done or is_active %}var(--primary){% else %}var(--bg-3){% endif %};
-                      color:{% if is_rejected %}var(--red){% elif is_done or is_active %}#fff{% else %}var(--tx-3){% endif %};
+                      color:{% if is_rejected %}var(--red){% elif is_done or is_active %}var(--surface){% else %}var(--tx-3){% endif %};
                       font-weight:700;">
             {% if is_rejected %}<i class="fas fa-times"></i>
             {% elif is_done %}<i class="fas fa-check"></i>
@@ -94,7 +94,7 @@
 
   <!-- 반려 사유 배너 -->
   {% if req.status == 'rejected' %}
-  <div class="info-banner" style="background:var(--red-bg); border-color:#fca5a5; color:var(--red); margin-bottom:16px;">
+  <div class="info-banner" style="background:var(--red-bg); border-color:var(--red-bg); color:var(--red); margin-bottom:16px;">
     <i class="fas fa-times-circle"></i>
     <strong>반려됨</strong> —
     {% if req.hr_reject_reason %}HR 검토 반려: {{ req.hr_reject_reason }}
@@ -164,7 +164,7 @@
         <strong>{{ posting.title }}</strong>
         <span style="margin-left:10px; font-size:11px; padding:2px 8px; border-radius:99px;
                      background:{% if posting.status == 'open' %}var(--green-bg){% else %}var(--surface-3){% endif %};
-                     color:{% if posting.status == 'open' %}var(--green){% else %}#475569{% endif %};">
+                     color:{% if posting.status == 'open' %}var(--green){% else %}var(--tx-2){% endif %};">
           {{ '공개 중' if posting.status == 'open' else posting.status }}
         </span>
       </div>
@@ -174,7 +174,7 @@
 
   <!-- 부서장 승인 액션 -->
   {% if req.status == 'pending_dept' and session.user_role in ('admin','manager') %}
-  <div class="card" style="margin-bottom:16px; border:2px solid #fbbf24;">
+  <div class="card" style="margin-bottom:16px; border:2px solid var(--orange);">
     <div class="card-head" style="background:var(--orange-bg);">
       <span class="card-title"><i class="fas fa-user-check" style="margin-right:6px; color:var(--orange);"></i>부서장 승인 필요</span>
     </div>

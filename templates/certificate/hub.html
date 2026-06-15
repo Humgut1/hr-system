@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% block title %}증명서 발급{% endblock %}
 
 {% block head %}
@@ -70,7 +70,7 @@
 {% if session.user_role != 'admin' %}
 <div class="hub-selector">
   <div style="display:flex; align-items:center; gap:1rem;">
-    <div class="avatar-sm" style="width:44px; height:44px; background:var(--primary); color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800;">{{ session.user_name[0] }}</div>
+    <div class="avatar-sm" style="width:44px; height:44px; background:var(--primary); color:var(--surface); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800;">{{ session.user_name[0] }}</div>
     <div>
       <div class="hub-name">{{ session.user_name }}</div>
       <div class="hub-meta">귀하의 증명서 발급 신청 및 내역을 관리합니다.</div>

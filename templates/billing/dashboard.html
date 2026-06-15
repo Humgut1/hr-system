@@ -9,7 +9,7 @@
   {% if s %}
 
     {% if s.state == 'active' %}
-    <div style="background:linear-gradient(135deg,var(--tx-1),#1e3a5f);border-radius:20px;padding:32px;color:#fff;margin-bottom:24px;display:flex;align-items:center;gap:24px;">
+    <div style="background:linear-gradient(135deg,var(--tx-1),var(--info));border-radius:20px;padding:32px;color:var(--surface);margin-bottom:24px;display:flex;align-items:center;gap:24px;">
       <div style="width:56px;height:56px;background:rgba(34,197,94,.2);border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
         <i class="fas fa-check-circle" style="color:var(--green);font-size:24px;"></i>
       </div>
@@ -21,7 +21,7 @@
     </div>
 
     {% elif s.state in ('trial_active', 'trial_warning') %}
-    <div style="background:linear-gradient(135deg,#1c1917,#292524);border-radius:20px;padding:32px;color:#fff;margin-bottom:24px;">
+    <div style="background:linear-gradient(135deg,var(--tx-1),var(--tx-1));border-radius:20px;padding:32px;color:var(--surface);margin-bottom:24px;">
       <div style="display:flex;align-items:flex-start;gap:20px;">
         <div style="width:56px;height:56px;background:rgba(245,158,11,.15);border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
           <i class="fas fa-hourglass-half" style="color:var(--orange);font-size:22px;"></i>
@@ -30,13 +30,13 @@
           <div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">무료 체험 중</div>
           <div style="font-size:1.4rem;font-weight:800;">
             {% if s.days_left == 0 %}오늘이 마지막 날이에요.
-            {% else %}<strong style="color:#fbbf24;">{{ s.days_left }}일</strong> 남았어요.
+            {% else %}<strong style="color:var(--orange);">{{ s.days_left }}일</strong> 남았어요.
             {% endif %}
           </div>
           <div style="font-size:.875rem;color:rgba(255,255,255,.55);margin-top:6px;">체험 종료: {{ tenant.trial_ends_at or '-' }} · 카드 등록 전까지 무료예요.</div>
         </div>
         {% if not tenant.toss_billing_key %}
-        <a href="{{ url_for('billing_register') }}" style="background:var(--orange);color:#1c1917;padding:10px 20px;border-radius:10px;font-weight:700;font-size:.875rem;white-space:nowrap;text-decoration:none;flex-shrink:0;">카드 등록하기</a>
+        <a href="{{ url_for('billing_register') }}" style="background:var(--orange);color:var(--tx-1);padding:10px 20px;border-radius:10px;font-weight:700;font-size:.875rem;white-space:nowrap;text-decoration:none;flex-shrink:0;">카드 등록하기</a>
         {% endif %}
       </div>
       <!-- 남은 기간 프로그레스 -->
@@ -51,29 +51,29 @@
     </div>
 
     {% elif s.state in ('grace', 'payment_failed') %}
-    <div style="background:linear-gradient(135deg,#450a0a,#7f1d1d);border-radius:20px;padding:32px;color:#fff;margin-bottom:24px;">
+    <div style="background:linear-gradient(135deg,var(--red),var(--red));border-radius:20px;padding:32px;color:var(--surface);margin-bottom:24px;">
       <div style="display:flex;align-items:flex-start;gap:20px;">
         <div style="width:56px;height:56px;background:rgba(239,68,68,.2);border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <i class="fas fa-exclamation-triangle" style="color:#f87171;font-size:22px;"></i>
+          <i class="fas fa-exclamation-triangle" style="color:var(--red);font-size:22px;"></i>
         </div>
         <div style="flex:1;">
           <div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">유예 기간 중</div>
           <div style="font-size:1.4rem;font-weight:800;">체험이 만료됐어요.</div>
           <div style="font-size:.875rem;color:rgba(255,255,255,.65);margin-top:6px;">
-            <strong style="color:#fca5a5;">{{ s.days_left }}일 이내</strong>에 카드를 등록하지 않으면 데이터 조회도 중단돼요.<br>
+            <strong style="color:var(--red-bg);">{{ s.days_left }}일 이내</strong>에 카드를 등록하지 않으면 데이터 조회도 중단돼요.<br>
             현재 조회만 가능하고 새로운 데이터 입력은 제한돼요.
           </div>
         </div>
-        <a href="{{ url_for('billing_register') }}" style="background:var(--red);color:#fff;padding:10px 20px;border-radius:10px;font-weight:700;font-size:.875rem;white-space:nowrap;text-decoration:none;flex-shrink:0;">지금 등록하기</a>
+        <a href="{{ url_for('billing_register') }}" style="background:var(--red);color:var(--surface);padding:10px 20px;border-radius:10px;font-weight:700;font-size:.875rem;white-space:nowrap;text-decoration:none;flex-shrink:0;">지금 등록하기</a>
       </div>
     </div>
 
     {% elif s.state == 'locked' %}
-    <div style="background:var(--tx-1);border-radius:20px;padding:32px;color:#fff;margin-bottom:24px;text-align:center;">
-      <i class="fas fa-lock" style="font-size:40px;color:#475569;margin-bottom:16px;display:block;"></i>
+    <div style="background:var(--tx-1);border-radius:20px;padding:32px;color:var(--surface);margin-bottom:24px;text-align:center;">
+      <i class="fas fa-lock" style="font-size:40px;color:var(--tx-2);margin-bottom:16px;display:block;"></i>
       <div style="font-size:1.3rem;font-weight:800;margin-bottom:8px;">접근이 제한됐어요.</div>
       <div style="font-size:.875rem;color:rgba(255,255,255,.55);margin-bottom:20px;">카드를 등록하면 즉시 모든 데이터와 기능이 복구돼요. 데이터는 안전하게 보관되어 있어요.</div>
-      <a href="{{ url_for('billing_register') }}" style="background:#3b82f6;color:#fff;padding:12px 28px;border-radius:10px;font-weight:700;font-size:.9rem;text-decoration:none;display:inline-block;">카드 등록하고 복구하기</a>
+      <a href="{{ url_for('billing_register') }}" style="background:var(--info);color:var(--surface);padding:12px 28px;border-radius:10px;font-weight:700;font-size:.9rem;text-decoration:none;display:inline-block;">카드 등록하고 복구하기</a>
     </div>
     {% endif %}
 
@@ -82,19 +82,19 @@
   <!-- ── 수치 카드 3개 ───────────────────────────────────── -->
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px;">
     <div class="card" style="padding:20px;">
-      <div style="font-size:.72rem;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">요금제</div>
-      <div style="font-size:1.5rem;font-weight:800;letter-spacing:-.02em;">₩1,000<span style="font-size:.7rem;font-weight:500;color:#888;">/인/월</span></div>
-      <div style="font-size:.8rem;color:#aaa;margin-top:4px;">High-Water Mark · 최소 약정 없음</div>
+      <div style="font-size:.72rem;color:var(--tx-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">요금제</div>
+      <div style="font-size:1.5rem;font-weight:800;letter-spacing:-.02em;">₩1,000<span style="font-size:.7rem;font-weight:500;color:var(--tx-3);">/인/월</span></div>
+      <div style="font-size:.8rem;color:var(--tx-3);margin-top:4px;">High-Water Mark · 최소 약정 없음</div>
     </div>
     <div class="card" style="padding:20px;">
-      <div style="font-size:.72rem;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">이달 최고 직원 수</div>
-      <div style="font-size:1.5rem;font-weight:800;letter-spacing:-.02em;color:#3b82f6;">{{ tenant.peak_headcount or active_count }}<span style="font-size:.8rem;font-weight:500;color:#888;">명</span></div>
-      <div style="font-size:.8rem;color:#aaa;margin-top:4px;">현재 활성 {{ active_count }}명</div>
+      <div style="font-size:.72rem;color:var(--tx-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">이달 최고 직원 수</div>
+      <div style="font-size:1.5rem;font-weight:800;letter-spacing:-.02em;color:var(--info);">{{ tenant.peak_headcount or active_count }}<span style="font-size:.8rem;font-weight:500;color:var(--tx-3);">명</span></div>
+      <div style="font-size:.8rem;color:var(--tx-3);margin-top:4px;">현재 활성 {{ active_count }}명</div>
     </div>
     <div class="card" style="padding:20px;">
-      <div style="font-size:.72rem;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">이달 예상 청구액</div>
+      <div style="font-size:.72rem;color:var(--tx-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">이달 예상 청구액</div>
       <div style="font-size:1.5rem;font-weight:800;letter-spacing:-.02em;">₩{{ "{:,}".format(monthly_amount) }}</div>
-      <div style="font-size:.8rem;color:#aaa;margin-top:4px;">₩{{ "{:,}".format(price_per_seat) }} × {{ tenant.peak_headcount or active_count }}명</div>
+      <div style="font-size:.8rem;color:var(--tx-3);margin-top:4px;">₩{{ "{:,}".format(price_per_seat) }} × {{ tenant.peak_headcount or active_count }}명</div>
     </div>
   </div>
 
@@ -104,11 +104,11 @@
     {% if tenant and tenant.toss_billing_key %}
       <div style="display:flex;align-items:center;gap:14px;">
         <div style="width:44px;height:28px;background:var(--tx-1);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <span style="color:#94a3b8;font-size:.6rem;font-weight:700;">CARD</span>
+          <span style="color:var(--tx-3);font-size:.6rem;font-weight:700;">CARD</span>
         </div>
         <div>
           <div style="font-weight:600;font-size:.9rem;">카드 등록 완료</div>
-          <div style="color:#888;font-size:.8rem;margin-top:2px;">자동 결제 활성화 · 매월 말 청구</div>
+          <div style="color:var(--tx-3);font-size:.8rem;margin-top:2px;">자동 결제 활성화 · 매월 말 청구</div>
         </div>
         <div style="margin-left:auto;display:flex;gap:8px;">
           <a href="{{ url_for('billing_register') }}" class="btn btn-secondary" style="font-size:.8rem;padding:6px 14px;">카드 변경</a>
@@ -122,10 +122,10 @@
       </div>
     {% else %}
       <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--surface-3);border-radius:12px;">
-        <i class="fas fa-credit-card" style="font-size:24px;color:#cbd5e1;"></i>
+        <i class="fas fa-credit-card" style="font-size:24px;color:var(--line);"></i>
         <div>
           <div style="font-weight:600;font-size:.9rem;margin-bottom:2px;">등록된 카드가 없어요.</div>
-          <div style="color:#888;font-size:.8rem;">
+          <div style="color:var(--tx-3);font-size:.8rem;">
             {% if tenant and tenant.sub_status == 'trialing' %}체험 종료 전에 등록하면 자동으로 이어서 사용할 수 있어요.
             {% else %}카드를 등록하면 즉시 모든 기능이 활성화돼요.{% endif %}
           </div>
@@ -142,10 +142,10 @@
     <table style="width:100%;border-collapse:collapse;font-size:.875rem;">
       <thead>
         <tr style="border-bottom:2px solid var(--surface-3);">
-          <th style="text-align:left;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">날짜</th>
-          <th style="text-align:right;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">직원 수</th>
-          <th style="text-align:right;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">금액</th>
-          <th style="text-align:center;padding:8px 0;color:#94a3b8;font-weight:600;font-size:.75rem;text-transform:uppercase;">상태</th>
+          <th style="text-align:left;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">날짜</th>
+          <th style="text-align:right;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">직원 수</th>
+          <th style="text-align:right;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">금액</th>
+          <th style="text-align:center;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">상태</th>
         </tr>
       </thead>
       <tbody>
@@ -168,7 +168,7 @@
       </tbody>
     </table>
     {% else %}
-    <div style="text-align:center;padding:32px;color:#94a3b8;">
+    <div style="text-align:center;padding:32px;color:var(--tx-3);">
       <i class="fas fa-receipt" style="font-size:32px;margin-bottom:12px;display:block;opacity:.4;"></i>
       <div style="font-size:.875rem;">아직 결제 내역이 없어요.</div>
       <div style="font-size:.8rem;margin-top:4px;opacity:.7;">카드 등록 후 첫 결제가 발생하면 여기에 표시돼요.</div>

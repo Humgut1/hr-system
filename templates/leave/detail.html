@@ -340,8 +340,8 @@
     <!-- 흐름 안내 메시지 -->
     <div style="margin-top:14px; padding:10px 14px; border-radius:8px; font-size:12px;
       {% if flow == 'manager_only' %}background:var(--info-bg); color:var(--info);
-      {% elif flow == 'hr_direct' %}background:#f5f3ff; color:#6d28d9;
-      {% else %}background:#faf5ff; color:#6d28d9;{% endif %}">
+      {% elif flow == 'hr_direct' %}background:var(--purple-bg); color:var(--purple);
+      {% else %}background:var(--purple-bg); color:var(--purple);{% endif %}">
       <i class="fas fa-info-circle"></i>
       {% if flow == 'manager_only' %}
         <strong>연차·반차·재택·외출·대체휴무·생리휴가</strong>는 매니저 승인 즉시 확정됩니다.
@@ -465,7 +465,7 @@
   <button class="legal-toggle" onclick="toggleLegal(this)">
     <span><i class="fas fa-scale-balanced" style="color:var(--info); margin-right:8px;"></i>
     법령 안내 — {{ meta.label }}</span>
-    <i class="fas fa-chevron-down" style="color:#94a3b8;"></i>
+    <i class="fas fa-chevron-down" style="color:var(--tx-3);"></i>
   </button>
   <div class="legal-body" id="legalBody" style="display:none;">
     {% if meta.law %}
