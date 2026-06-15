@@ -200,7 +200,7 @@
                 onclick="openSalaryModal({{ emp.id }},'{{ emp.name }}',{{ emp.base_salary }},{{ emp.meal_allowance }},{{ emp.transport_allowance }})">
                 <i class="fas fa-pencil-alt"></i>
               </button>
-              <a href="{{ url_for('payroll_employee', user_id=emp.id) }}" class="btn btn-ghost btn-sm" title="명세서 보기">
+              <a href="{{ url_for('employee_detail', emp_id=emp.id) }}?tab=payroll" class="btn btn-ghost btn-sm" title="명세서 보기">
                 <i class="fas fa-file-alt"></i>
               </a>
             </td>
