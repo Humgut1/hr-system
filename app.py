@@ -2234,7 +2234,7 @@ def termination_my():
 
     if request.method == 'POST':
         if open_request:
-            flash('An open termination request already exists.', 'error')
+            flash('이미 진행 중인 퇴직 신청이 있습니다.', 'error')
             return redirect(url_for('termination_my'))
 
         request_type = request.form.get('request_type', 'voluntary')
@@ -2250,7 +2250,7 @@ def termination_my():
         if reason_code not in TERMINATION_REASON_CODES:
             reason_code = 'other'
         if requested_termination_date < requested_last_work_date:
-            flash('Termination date must be on or after the last work date.', 'error')
+            flash('퇴직일은 마지막 근무일과 같거나 이후여야 합니다.', 'error')
             return redirect(url_for('termination_my'))
 
         db.execute(
@@ -2266,7 +2266,7 @@ def termination_my():
             )
         )
         db.commit()
-        flash('Termination request submitted.', 'success')
+        flash('퇴직 신청이 접수되었습니다.', 'success')
         return redirect(url_for('termination_my'))
 
     history = db.execute(
@@ -2373,7 +2373,7 @@ def termination_request_new(emp_id):
             flash('Invalid termination type.', 'error')
             return redirect(url_for('termination_request_new', emp_id=emp_id))
         if requested_termination_date < requested_last_work_date:
-            flash('Termination date must be on or after the last work date.', 'error')
+            flash('퇴직일은 마지막 근무일과 같거나 이후여야 합니다.', 'error')
             return redirect(url_for('termination_request_new', emp_id=emp_id))
 
         db.execute(
@@ -2394,7 +2394,7 @@ def termination_request_new(emp_id):
         )
         db.commit()
         new_id = db.execute('SELECT last_insert_rowid()').fetchone()[0]
-        flash('Termination process started.', 'success')
+        flash('퇴직 처리가 시작되었습니다.', 'success')
         return redirect(url_for('termination_request_detail', req_id=new_id))
 
     return render_template(
@@ -2441,21 +2441,21 @@ def termination_request_detail(req_id):
 
         if action == 'cancel_request' and termination['user_id'] == session['user_id']:
             if termination['status'] not in ('submitted', 'under_review'):
-                flash('This request can no longer be cancelled.', 'error')
+                flash('이미 처리 중인 요청은 취소할 수 없습니다.', 'error')
             else:
                 db.execute(
                     "UPDATE termination_requests SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE id=?",
                     (req_id,)
                 )
                 db.commit()
-                flash('Termination request cancelled.', 'success')
+                flash('퇴직 신청이 취소되었습니다.', 'success')
             return redirect(url_for('termination_request_detail', req_id=req_id))
 
         if action == 'manager_approve':
             if not can_manage:
                 abort(403)
             if termination['manager_approved_by']:
-                flash('Manager approval is already recorded.', 'error')
+                flash('이미 매니저 검토가 완료된 요청입니다.', 'error')
             else:
                 next_status = 'under_review' if session.get('user_role') == 'manager' else termination['status']
                 db.execute(
@@ -2466,13 +2466,13 @@ def termination_request_detail(req_id):
                     (session['user_id'], next_status, req_id)
                 )
                 db.commit()
-                flash('Manager review completed.', 'success')
+                flash('매니저 검토가 완료되었습니다.', 'success')
             return redirect(url_for('termination_request_detail', req_id=req_id))
 
         if action == 'reject_request':
             if not can_manage:
                 abort(403)
-            rejection_reason = request.form.get('rejection_reason', '').strip() or 'Rejected during review.'
+            rejection_reason = request.form.get('rejection_reason', '').strip() or '검토 후 반려되었습니다.'
             db.execute(
                 "UPDATE termination_requests "
                 "SET status='rejected', rejection_reason=?, updated_at=CURRENT_TIMESTAMP "
@@ -2480,33 +2480,39 @@ def termination_request_detail(req_id):
                 (rejection_reason, req_id)
             )
             db.commit()
-            flash('Termination request rejected.', 'success')
+            flash('퇴직 신청이 반려되었습니다.', 'success')
             return redirect(url_for('termination_request_detail', req_id=req_id))
 
         if action == 'hr_approve':
             if session.get('user_role') != 'admin':
                 abort(403)
             if not termination['manager_approved_by']:
-                flash('Manager review is required before HR approval.', 'error')
+                flash('HR 승인 전 매니저 검토가 필요합니다.', 'error')
                 return redirect(url_for('termination_request_detail', req_id=req_id))
 
             final_last_work_date = request.form.get('final_last_work_date') or termination['requested_last_work_date']
             final_termination_date = request.form.get('final_termination_date') or termination['requested_termination_date']
             if final_termination_date < final_last_work_date:
-                flash('Final termination date must be on or after the last work date.', 'error')
+                flash('퇴직일은 마지막 근무일과 같거나 이후여야 합니다.', 'error')
                 return redirect(url_for('termination_request_detail', req_id=req_id))
+
+            is_regrettable     = 1 if request.form.get('is_regrettable') == '1' else 0
+            is_rehire_eligible = 1 if request.form.get('is_rehire_eligible') == '1' else 0
+            exit_reason_cat    = request.form.get('exit_reason_category') or termination['reason_code'] or None
 
             db.execute(
                 "UPDATE termination_requests "
                 "SET hr_approved_by=?, hr_approved_at=CURRENT_TIMESTAMP, "
                 "final_last_work_date=?, final_termination_date=?, "
+                "is_regrettable=?, is_rehire_eligible=?, exit_reason_category=?, "
                 "status='in_progress', updated_at=CURRENT_TIMESTAMP "
                 'WHERE id=?',
-                (session['user_id'], final_last_work_date, final_termination_date, req_id)
+                (session['user_id'], final_last_work_date, final_termination_date,
+                 is_regrettable, is_rehire_eligible, exit_reason_cat, req_id)
             )
             create_offboarding_tasks(db, req_id, final_last_work_date)
             db.commit()
-            flash('HR approval completed. Offboarding tasks created.', 'success')
+            flash('HR 승인이 완료되었습니다. 오프보딩 태스크가 생성되었습니다.', 'success')
             return redirect(url_for('termination_request_detail', req_id=req_id))
 
         if action == 'complete_task':
@@ -2548,7 +2554,7 @@ def termination_request_detail(req_id):
                 (req_id,)
             ).fetchone()[0]
             if pending_tasks:
-                flash('Complete all offboarding tasks before finalization.', 'error')
+                flash('모든 오프보딩 태스크를 완료한 후 최종 처리할 수 있습니다.', 'error')
                 return redirect(url_for('termination_request_detail', req_id=req_id))
 
             term_date = request.form.get('final_termination_date') or termination['final_termination_date'] or termination['requested_termination_date']
@@ -2598,7 +2604,7 @@ def termination_request_detail(req_id):
                 (last_work_date, term_date, session['user_id'], req_id)
             )
             db.commit()
-            flash('Termination completed.', 'success')
+            flash('퇴직 처리가 최종 완료되었습니다.', 'success')
             return redirect(url_for('termination_request_detail', req_id=req_id))
 
     tasks = db.execute(
@@ -3218,15 +3224,17 @@ TERMINATION_STATUS_LABELS = {
 }
 
 TERMINATION_REASON_CODES = {
-    'career': 'Career Move',
-    'compensation': 'Compensation',
-    'culture': 'Culture / Team Fit',
-    'performance': 'Performance',
-    'contract_end': 'Contract End',
-    'retirement': 'Retirement',
-    'personal': 'Personal',
-    'other': 'Other',
+    'compensation':      '보상 (급여·복리후생)',
+    'career_growth':     '커리어 성장 (승진·역할)',
+    'manager':           '매니저 관계',
+    'culture':           '문화·팀 적합도',
+    'work_life_balance': '워라밸',
+    'personal':          '개인 사정',
+    'relocation':        '이사·지역 이동',
+    'involuntary':       '비자발적 (권고사직·계약만료)',
 }
+
+EXIT_REASON_CATEGORY_LABEL = TERMINATION_REASON_CODES  # alias
 
 OFFBOARDING_TASK_BLUEPRINTS = [
     ('handover', 'Handover plan and knowledge transfer', 'employee'),
@@ -9776,6 +9784,86 @@ def people_analytics():
         ot_chart[uid]['hours'].append(round(r['total_min'] / 60, 1))
     ot_chart_json = _json.dumps(list(ot_chart.values()))
 
+    # ── 퇴직자 분석 데이터 ────────────────────────────────────────────
+    # 최근 24개월 완료된 퇴직 요청 기준
+    attrition_rows = db.execute(
+        "SELECT tr.*, u.name AS emp_name, u.hire_date, u.gender, "
+        "  d.name AS dept_name, p.name AS pos_name, "
+        "  m.name AS manager_name "
+        "FROM termination_requests tr "
+        "JOIN users u ON tr.user_id = u.id "
+        "LEFT JOIN departments d ON u.department_id = d.id "
+        "LEFT JOIN positions p ON u.position_id = p.id "
+        "LEFT JOIN users m ON u.manager_id = m.id "
+        "WHERE tr.status = 'completed' "
+        "AND tr.final_termination_date >= date('now', '-24 months') "
+        "ORDER BY tr.final_termination_date DESC"
+    ).fetchall()
+
+    # 이탈 원인 분포
+    reason_dist = {}
+    for r in attrition_rows:
+        cat = r['exit_reason_category'] or r['reason_code'] or 'other'
+        reason_dist[cat] = reason_dist.get(cat, 0) + 1
+
+    # 아쉬운 퇴직 비율
+    total_attrition = len(attrition_rows)
+    regrettable_count = sum(1 for r in attrition_rows if r['is_regrettable'])
+    regrettable_rate = round(regrettable_count / total_attrition * 100, 1) if total_attrition else 0
+
+    # 재채용 가능 인원
+    rehire_count = sum(1 for r in attrition_rows if r['is_rehire_eligible'])
+
+    # 매니저별 이탈 수 (상위 5명)
+    mgr_attrition = {}
+    for r in attrition_rows:
+        mgr = r['manager_name'] or '(매니저 없음)'
+        mgr_attrition[mgr] = mgr_attrition.get(mgr, 0) + 1
+    mgr_attrition_top = sorted(mgr_attrition.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    # 부서별 이탈 수
+    dept_attrition = {}
+    for r in attrition_rows:
+        dept = r['dept_name'] or '미지정'
+        dept_attrition[dept] = dept_attrition.get(dept, 0) + 1
+
+    # 월별 이탈 추이 (최근 12개월, termination_requests 기준)
+    monthly_attrition = db.execute(
+        "SELECT strftime('%Y-%m', final_termination_date) AS ym, COUNT(*) AS cnt "
+        "FROM termination_requests WHERE status='completed' "
+        "AND final_termination_date >= date('now', '-12 months') "
+        "GROUP BY ym ORDER BY ym ASC"
+    ).fetchall()
+
+    # 근속기간별 이탈 분포
+    tenure_dist = {'1년 미만': 0, '1-2년': 0, '2-3년': 0, '3-5년': 0, '5년 이상': 0}
+    for r in attrition_rows:
+        if r['hire_date'] and r['final_termination_date']:
+            from datetime import datetime as _dt
+            hd = _dt.strptime(r['hire_date'], '%Y-%m-%d').date()
+            td = _dt.strptime(r['final_termination_date'], '%Y-%m-%d').date()
+            months = (td.year - hd.year) * 12 + (td.month - hd.month)
+            if months < 12:       tenure_dist['1년 미만'] += 1
+            elif months < 24:     tenure_dist['1-2년'] += 1
+            elif months < 36:     tenure_dist['2-3년'] += 1
+            elif months < 60:     tenure_dist['3-5년'] += 1
+            else:                 tenure_dist['5년 이상'] += 1
+
+    import json as _json2
+    attrition_data = {
+        'total': total_attrition,
+        'regrettable_count': regrettable_count,
+        'regrettable_rate': regrettable_rate,
+        'rehire_count': rehire_count,
+        'reason_dist': reason_dist,
+        'mgr_attrition_top': mgr_attrition_top,
+        'dept_attrition': dept_attrition,
+        'monthly_labels': [r['ym'] for r in monthly_attrition],
+        'monthly_counts': [r['cnt'] for r in monthly_attrition],
+        'tenure_dist': tenure_dist,
+        'reason_labels': EXIT_REASON_CATEGORY_LABEL,
+    }
+
     return render_template('analytics/index.html',
         active_page='analytics',
         total_active=total_active, turnover_rate=turnover_rate,
@@ -9788,6 +9876,7 @@ def people_analytics():
         bonus_configs=bonus_configs,
         ot_violations=ot_violations, ot_warnings=ot_warnings,
         ot_safe_count=ot_safe_count, ot_chart_json=ot_chart_json,
+        attrition_data=attrition_data,
         report_sources=REPORT_SOURCES,
     )
 

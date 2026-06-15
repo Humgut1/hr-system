@@ -799,6 +799,15 @@ def init_db(db_path: str = None):
                 [('S', 3.0), ('A', 2.0), ('B', 1.0), ('C', 0.5), ('D', 0.0)]
             )
 
+        # termination_requests 컬럼 마이그레이션 (v0.79 — 퇴직자 분석 필드)
+        tr_cols = {r[1] for r in c.execute('PRAGMA table_info(termination_requests)').fetchall()}
+        if 'is_regrettable' not in tr_cols:
+            c.execute('ALTER TABLE termination_requests ADD COLUMN is_regrettable INTEGER DEFAULT NULL')
+        if 'is_rehire_eligible' not in tr_cols:
+            c.execute('ALTER TABLE termination_requests ADD COLUMN is_rehire_eligible INTEGER DEFAULT NULL')
+        if 'exit_reason_category' not in tr_cols:
+            c.execute('ALTER TABLE termination_requests ADD COLUMN exit_reason_category TEXT DEFAULT NULL')
+
         # merit_matrix 테이블 (v0.51) — 성과등급 × Compa 구간 → 인상률
         c.execute('''
             CREATE TABLE IF NOT EXISTS merit_matrix (
