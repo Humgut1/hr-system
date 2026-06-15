@@ -1557,8 +1557,8 @@ REPORT_SOURCES = [
         'key': 'skills', 'label': '스킬 & 자격증',
         'icon': 'fa-certificate', 'color': '#dbeafe', 'icon_color': '#1d4ed8',
         'fields': [
-            {'key': 'skill_count', 'label': '보유 스킬 수',  'sql': 'COALESCE(sk_agg.skill_count,0)', 'agg': False, 'needs': ['skill_join']},
-            {'key': 'cert_count',  'label': '보유 자격증 수', 'sql': 'COALESCE(ec_agg.cert_count,0)',  'agg': False, 'needs': ['cert_join']},
+            {'key': 'skill_names', 'label': '보유 스킬 목록',  'sql': 'sk_agg.skill_names',  'agg': False, 'needs': ['skill_join']},
+            {'key': 'cert_names',  'label': '보유 자격증 목록', 'sql': 'ec_agg.cert_names',   'agg': False, 'needs': ['cert_join']},
         ]
     },
 ]
@@ -1644,13 +1644,15 @@ def build_report_query(field_keys, filters, limit=200):
         )
     if 'skill_join' in needs:
         joins.append(
-            'LEFT JOIN (SELECT user_id, COUNT(*) skill_count '
-            'FROM employee_skills GROUP BY user_id) sk_agg ON sk_agg.user_id = u.id'
+            "LEFT JOIN (SELECT user_id, "
+            "GROUP_CONCAT(skill_name || '(' || level || ')', ', ') skill_names "
+            "FROM employee_skills GROUP BY user_id) sk_agg ON sk_agg.user_id = u.id"
         )
     if 'cert_join' in needs:
         joins.append(
-            'LEFT JOIN (SELECT user_id, COUNT(*) cert_count '
-            'FROM employee_certs GROUP BY user_id) ec_agg ON ec_agg.user_id = u.id'
+            "LEFT JOIN (SELECT user_id, "
+            "GROUP_CONCAT(cert_name, ', ') cert_names "
+            "FROM employee_certs GROUP BY user_id) ec_agg ON ec_agg.user_id = u.id"
         )
 
     # WHERE 절
