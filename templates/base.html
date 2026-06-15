@@ -33,11 +33,14 @@
       <!-- ── 나 ─────────────────────────────────────── -->
       <div class="nav-section-body">
         <div class="nav-category-btn" style="cursor:default;"><span>나</span></div>
+        <a href="{{ url_for('dashboard') }}" class="nav-item{% if active_page == 'home' %} active{% endif %}" title="홈">
+          <i class="fas fa-home"></i><span>홈</span>
+        </a>
         <a href="{{ url_for('attendance_home') }}" class="nav-item{% if active_page == 'attendance_home' %} active{% endif %}" title="근태">
           <i class="fas fa-clock"></i><span>근태</span>
         </a>
-        <a href="{{ url_for('payroll_list') }}" class="nav-item{% if active_page == 'payroll' %} active{% endif %}" title="급여">
-          <i class="fas fa-won-sign"></i><span>급여</span>
+        <a href="{{ url_for('payroll_list') }}" class="nav-item{% if active_page == 'payroll' %} active{% endif %}" title="급여명세서">
+          <i class="fas fa-won-sign"></i><span>급여명세서</span>
         </a>
         <a href="{{ url_for('performance') }}" class="nav-item{% if active_page in ('performance','peer') %} active{% endif %}" title="성과">
           <i class="fas fa-chart-line"></i><span>성과</span>
@@ -45,9 +48,14 @@
         <a href="{{ url_for('me_benefits') }}" class="nav-item{% if active_page == 'me_benefits' %} active{% endif %}" title="복리후생">
           <i class="fas fa-gift"></i><span>복리후생</span>
         </a>
-        <a href="{{ url_for('dashboard') }}" class="nav-item{% if active_page == 'home' %} active{% endif %}" title="홈">
-          <i class="fas fa-home"></i><span>홈</span>
+        <a href="{{ url_for('certificates_hub') }}" class="nav-item{% if active_page == 'certificates' %} active{% endif %}" title="증명서">
+          <i class="fas fa-folder-open"></i><span>증명서</span>
         </a>
+        {% if session.user_role != 'guest' %}
+        <a href="{{ url_for('contracts_list') }}" class="nav-item{% if active_page == 'contracts' %} active{% endif %}" title="계약서">
+          <i class="fas fa-file-signature"></i><span>계약서</span>
+        </a>
+        {% endif %}
       </div>
 
       <div class="nav-section-divider"></div>
@@ -61,14 +69,6 @@
         <a href="{{ url_for('org_chart') }}" class="nav-item{% if active_page == 'org' %} active{% endif %}" title="조직도">
           <i class="fas fa-sitemap"></i><span>조직도</span>
         </a>
-        <a href="{{ url_for('certificates_hub') }}" class="nav-item{% if active_page == 'certificates' %} active{% endif %}" title="증명서">
-          <i class="fas fa-folder-open"></i><span>증명서</span>
-        </a>
-        {% if session.user_role != 'guest' %}
-        <a href="{{ url_for('contracts_list') }}" class="nav-item{% if active_page == 'contracts' %} active{% endif %}" title="계약서">
-          <i class="fas fa-file-signature"></i><span>계약서</span>
-        </a>
-        {% endif %}
       </div>
 
       <!-- ── 팀 (매니저+) ──────────────────────────── -->
@@ -80,10 +80,10 @@
           <i class="fas fa-users"></i><span>팀원 관리</span>
         </a>
         <a href="{{ url_for('peer_assignments') }}" class="nav-item{% if active_page == 'peer_assignments' %} active{% endif %}" title="다면평가 배정">
-          <i class="fas fa-star"></i><span>다면평가 배정</span>
+          <i class="fas fa-comments"></i><span>다면평가 배정</span>
         </a>
         <a href="{{ url_for('succession') }}" class="nav-item{% if active_page == 'succession' %} active{% endif %}" title="후계자 계획">
-          <i class="fas fa-sitemap"></i><span>후계자 계획</span>
+          <i class="fas fa-chess-king"></i><span>후계자 계획</span>
         </a>
         <a href="{{ url_for('goal_templates') }}" class="nav-item{% if active_page == 'goal_templates' %} active{% endif %}" title="목표 템플릿">
           <i class="fas fa-clipboard-list"></i><span>목표 템플릿</span>
@@ -99,9 +99,6 @@
         {% if session.user_role == 'admin' %}
         <a href="{{ url_for('compensation') }}" class="nav-item{% if active_page in ('compensation','admin_payroll','salary_bands','acr','bulk_raise','bonus_pay') %} active{% endif %}" title="보상 관리">
           <i class="fas fa-coins"></i><span>보상 관리</span>
-        </a>
-        <a href="{{ url_for('admin_welfare_points') }}" class="nav-item{% if active_page == 'admin_welfare_points' %} active{% endif %}" title="복지포인트">
-          <i class="fas fa-coins"></i><span>복지포인트</span>
         </a>
         {% endif %}
         <!-- 채용 접이식 서브그룹 -->
@@ -127,10 +124,7 @@
         <a href="{{ url_for('people_analytics') }}" class="nav-item{% if active_page == 'analytics' %} active{% endif %}" title="분석·보고서">
           <i class="fas fa-chart-pie"></i><span>분석·보고서</span>
         </a>
-        <a href="{{ url_for('admin_schedules') }}" class="nav-item{% if active_page == 'schedules' %} active{% endif %}" title="근무 스케줄">
-          <i class="fas fa-calendar-alt"></i><span>근무 스케줄</span>
-        </a>
-        <a href="{{ url_for('admin_settings') }}" class="nav-item{% if active_page in ('settings','departments','holidays','benefits','overtime_monitor') %} active{% endif %}" title="설정">
+        <a href="{{ url_for('admin_settings') }}" class="nav-item{% if active_page in ('settings','departments','holidays','benefits','overtime_monitor','schedules','admin_welfare_points') %} active{% endif %}" title="설정">
           <i class="fas fa-cog"></i><span>설정</span>
         </a>
         {% endif %}
