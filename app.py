@@ -1383,6 +1383,34 @@ def life_event_add(emp_id):
         (emp_id, event_type, event_date, description, uid)
     )
     db.commit()
+
+    # 결혼·출산 시 복리후생 enrollment event 자동 생성
+    LIFE_BENEFIT_MAP = {
+        'marriage': ('marriage', '혼인 복리후생 선택', 30),
+        'birth':    ('birth',    '출산 복리후생 선택', 60),
+        'adoption': ('birth',    '입양 복리후생 선택', 60),
+    }
+    if event_type in LIFE_BENEFIT_MAP:
+        ev_key, ev_label, days = LIFE_BENEFIT_MAP[event_type]
+        existing = db.execute(
+            "SELECT 1 FROM benefit_enrollment_events WHERE user_id=? AND event_type=? AND status='pending'",
+            (emp_id, ev_key)
+        ).fetchone()
+        if not existing:
+            from datetime import date as _date, timedelta as _td
+            due = (_date.today() + _td(days=days)).isoformat()
+            db.execute(
+                'INSERT INTO benefit_enrollment_events (user_id, event_type, event_label, due_date) VALUES (?,?,?,?)',
+                (emp_id, ev_key, ev_label, due)
+            )
+            db.commit()
+            add_notification(
+                emp_id, 'action', 'benefit',
+                f'생애사건({ev_label}) 복리후생 선택 안내',
+                f'{due}까지 복리후생 항목을 선택해 주세요.',
+                url_for('me_benefits')
+            )
+
     flash('생애사건이 기록되었습니다.', 'success')
     return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-family')
 
@@ -4701,7 +4729,7 @@ def admin_payroll():
                     if db.execute('SELECT 1 FROM payslips WHERE user_id=? AND year=? AND month=?', (e['id'], year, month)).fetchone():
                         continue
 
-                    # 근태 수당 계산
+                    # 근태 수당 계산 (체크인 기반)
                     checkins = db.execute(
                         'SELECT * FROM checkins WHERE user_id=? AND date BETWEEN ? AND ?',
                         (e['id'], first_day, last_day)
@@ -4715,6 +4743,22 @@ def admin_payroll():
                             holiday_regular_min=c['regular_min'] if is_h else 0
                         )
                         total_ot_pay += res['total_extra_pay']
+
+                    # 승인된 OT 신청 추가 반영 (체크인이 없는 날의 OT 포함)
+                    ot_rows = db.execute(
+                        "SELECT ot_minutes, date FROM overtime_requests "
+                        "WHERE user_id=? AND status='approved' AND date BETWEEN ? AND ?",
+                        (e['id'], first_day, last_day)
+                    ).fetchall()
+                    # 이미 checkin에 반영된 날짜 제외 (중복 방지)
+                    checkin_dates = {c['date'] for c in checkins}
+                    for ot in ot_rows:
+                        if ot['date'] not in checkin_dates:
+                            ot_res = calc_extra_pay(
+                                ot['ot_minutes'], 0, e['base_salary'],
+                                is_holiday=(ot['date'] in month_holidays)
+                            )
+                            total_ot_pay += ot_res['total_extra_pay']
 
                     # 복리후생 항목 구성 (직원별 오버라이드 우선)
                     emp_overrides = {
@@ -8797,10 +8841,18 @@ def calibration():
             confirmed_count += 1
             grade_dist[r['final_grade']] = grade_dist.get(r['final_grade'], 0) + 1
 
+    total_count = len(rows)
+    publish_ready = confirmed_count > 0 and confirmed_count == total_count
+    active_acr = db.execute(
+        "SELECT id FROM compensation_review_cycles WHERE status='open' ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+
     return render_template('performance/calibration.html',
                            cycles=cycles, selected_cycle=selected_cycle,
                            cycle_id=cycle_id, rows=rows,
                            grade_dist=grade_dist, confirmed_count=confirmed_count,
+                           total_count=total_count, publish_ready=publish_ready,
+                           active_acr=active_acr,
                            active_page='performance')
 
 

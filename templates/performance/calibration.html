@@ -115,6 +115,16 @@
       </button>
     </form>
     {% endif %}
+    {% if publish_ready and not active_acr %}
+    <a href="{{ url_for('compensation') }}?tab=merit&from_cycle={{ selected_cycle.id }}"
+       class="btn btn-secondary" style="background:var(--green); color:#fff; border-color:var(--green);">
+      <i class="fas fa-coins"></i> 보상 검토 시작
+    </a>
+    {% elif publish_ready and active_acr %}
+    <a href="{{ url_for('compensation') }}?tab=merit" class="btn btn-ghost">
+      <i class="fas fa-coins"></i> 진행 중인 보상 검토 보기
+    </a>
+    {% endif %}
   </div>
 </div>
 
