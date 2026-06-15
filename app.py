@@ -3856,36 +3856,42 @@ def attendance_calendar():
 @app.route('/payroll')
 @login_required
 def payroll_list():
+    """내 문서 허브 — 카드 3개로 각 페이지 연결"""
     db  = get_db()
     uid = session['user_id']
 
-    # 급여명세서
+    slips_count = db.execute(
+        'SELECT COUNT(*) FROM payslips WHERE user_id=?', (uid,)
+    ).fetchone()[0]
+
+    contracts_count = db.execute(
+        "SELECT COUNT(*) FROM contracts WHERE employee_id=?", (uid,)
+    ).fetchone()[0]
+
+    pending_sign_count = db.execute(
+        "SELECT COUNT(*) FROM contracts WHERE employee_id=? AND status='sent'", (uid,)
+    ).fetchone()[0]
+
+    return render_template('payroll/list.html',
+                           slips_count=slips_count,
+                           contracts_count=contracts_count,
+                           pending_sign_count=pending_sign_count,
+                           active_page='my_docs')
+
+
+@app.route('/payroll/slips')
+@login_required
+def payroll_slips():
+    """급여명세서 목록"""
+    db  = get_db()
+    uid = session['user_id']
     slips = db.execute(
         'SELECT year, month, gross_pay, total_deduction, net_pay '
         'FROM payslips WHERE user_id=? ORDER BY year DESC, month DESC',
         (uid,)
     ).fetchall()
-
-    # 계약서 (본인 것만)
-    contracts = db.execute(
-        "SELECT c.*, i.name AS issuer_name "
-        "FROM contracts c "
-        "JOIN users i ON i.id = c.issued_by "
-        "WHERE c.employee_id=? ORDER BY c.created_at DESC",
-        (uid,)
-    ).fetchall()
-
-    # 증명서 신청 이력
-    cert_requests = db.execute(
-        'SELECT * FROM certificate_requests WHERE user_id=? ORDER BY created_at DESC',
-        (uid,)
-    ).fetchall()
-
-    return render_template('payroll/list.html',
+    return render_template('payroll/slips.html',
                            slips=slips,
-                           contracts=contracts,
-                           cert_requests=cert_requests,
-                           contract_type_labels=CONTRACT_TYPE_LABELS,
                            fmt_krw=fmt_krw,
                            active_page='my_docs')
 
