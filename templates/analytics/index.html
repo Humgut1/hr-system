@@ -248,8 +248,8 @@
         <span class="badge badge-pending" style="font-size:10px;">Medium ≥35</span>
       </div>
     </div>
-    <div style="padding:10px 16px 6px; background:#fffbeb; border-bottom:1px solid #fed7aa;">
-      <div style="font-size:12px; color:#92400e;">
+    <div style="padding:10px 16px 6px; background:var(--orange-bg); border-bottom:1px solid var(--orange);">
+      <div style="font-size:12px; color:var(--orange);">
         <i class="fas fa-info-circle" style="margin-right:6px;"></i>
         <strong>산출 기준 (Deloitte 모델 간소화):</strong>
         재직기간 · Compa-ratio · 성과등급 · 최근 6개월 휴가 사용 패턴
@@ -330,11 +330,11 @@
 </div>
 
 <!-- Maturity Note -->
-<div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:var(--r); padding:16px 20px; display:flex; gap:14px; align-items:flex-start;">
-  <i class="fas fa-chart-line" style="color:#0891b2; font-size:18px; margin-top:2px; flex-shrink:0;"></i>
+<div style="background:var(--info-bg); border:1px solid var(--info); border-radius:var(--r); padding:16px 20px; display:flex; gap:14px; align-items:flex-start;">
+  <i class="fas fa-chart-line" style="color:var(--info); font-size:18px; margin-top:2px; flex-shrink:0;"></i>
   <div>
-    <div style="font-size:13.5px; font-weight:700; color:#0c4a6e; margin-bottom:4px;">HR Maturity — Stage 1: Descriptive Analytics</div>
-    <div style="font-size:12.5px; color:#075985; line-height:1.6;">
+    <div style="font-size:13.5px; font-weight:700; color:var(--info); margin-bottom:4px;">HR Maturity — Stage 1: Descriptive Analytics</div>
+    <div style="font-size:12.5px; color:var(--tx-2); line-height:1.6;">
       현재 단계는 <strong>무슨 일이 벌어지고 있는가</strong>를 진단하는 기술적 분석(Descriptive)입니다.
       다음 단계(Predictive)로 발전하려면 데이터 축적과 HR팀의 D&A 역량 강화가 선행되어야 합니다.
       <em>(출처: Deloitte Workforce Intelligence, ElevateSeoul 2025)</em>
@@ -350,24 +350,24 @@
   <!-- 요약 카드 -->
   <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:24px;">
     <div class="card" style="padding:20px; text-align:center;">
-      <div style="font-size:28px; font-weight:800; color:#1e3a8a;">{{ pay_equity|length }}</div>
-      <div style="font-size:13px; color:#6b7280; margin-top:4px;">분석 대상 직원</div>
+      <div style="font-size:28px; font-weight:800; color:var(--info);">{{ pay_equity|length }}</div>
+      <div style="font-size:13px; color:var(--tx-3); margin-top:4px;">분석 대상 직원</div>
     </div>
     <div class="card" style="padding:20px; text-align:center;">
       <div style="font-size:28px; font-weight:800; color:{% if outliers|length > 10 %}#dc2626{% else %}#d97706{% endif %};">
         {{ outliers|length }}
       </div>
-      <div style="font-size:13px; color:#6b7280; margin-top:4px;">이상치 (밴드 ±15% 초과)</div>
+      <div style="font-size:13px; color:var(--tx-3); margin-top:4px;">이상치 (밴드 ±15% 초과)</div>
     </div>
     <div class="card" style="padding:20px; text-align:center;">
       {% set has_ratio = pay_equity|selectattr('compa_ratio')|list %}
       {% if has_ratio %}
         {% set avg_ratio = (has_ratio|map(attribute='compa_ratio')|list|sum) / has_ratio|length %}
-        <div style="font-size:28px; font-weight:800; color:#166534;">{{ '%.3f'|format(avg_ratio) }}</div>
+        <div style="font-size:28px; font-weight:800; color:var(--green);">{{ '%.3f'|format(avg_ratio) }}</div>
       {% else %}
-        <div style="font-size:28px; font-weight:800; color:#9ca3af;">-</div>
+        <div style="font-size:28px; font-weight:800; color:var(--tx-3);">-</div>
       {% endif %}
-      <div style="font-size:13px; color:#6b7280; margin-top:4px;">전사 평균 Compa-Ratio</div>
+      <div style="font-size:13px; color:var(--tx-3); margin-top:4px;">전사 평균 Compa-Ratio</div>
     </div>
   </div>
 
@@ -376,13 +376,13 @@
     <div class="card-header"><h3>부서별 평균 Compa-Ratio</h3></div>
     <div style="padding:16px 20px; display:flex; flex-wrap:wrap; gap:12px;">
       {% for dept, avg in dept_compa_avg.items()|sort(attribute='1') %}
-      <div style="background:#f9fafb; border-radius:8px; padding:10px 16px; min-width:140px;">
-        <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">{{ dept }}</div>
+      <div style="background:var(--surface-3); border-radius:8px; padding:10px 16px; min-width:140px;">
+        <div style="font-size:12px; color:var(--tx-3); margin-bottom:4px;">{{ dept }}</div>
         <div style="font-size:18px; font-weight:700;
              color:{% if avg < 0.9 %}#b45309{% elif avg > 1.1 %}#1d4ed8{% else %}#15803d{% endif %};">
           {{ avg }}
         </div>
-        <div style="font-size:10px; color:#9ca3af; margin-top:2px;">
+        <div style="font-size:10px; color:var(--tx-3); margin-top:2px;">
           {% if avg < 0.9 %}밴드 하단{% elif avg > 1.1 %}밴드 상단{% else %}정상{% endif %}
         </div>
       </div>
@@ -395,7 +395,7 @@
   <div class="card" style="margin-bottom:24px;">
     <div class="card-header">
       <h3>⚠️ Pay Equity 이상치 목록</h3>
-      <small style="color:#6b7280;">Compa-Ratio &lt; 0.85 또는 &gt; 1.15인 직원</small>
+      <small style="color:var(--tx-3);">Compa-Ratio &lt; 0.85 또는 &gt; 1.15인 직원</small>
     </div>
     <div style="overflow-x:auto;">
       <table class="data-table" style="font-size:13px;">
@@ -417,9 +417,9 @@
             <td>
               {% set r = e.compa_ratio %}
               {% if r < 0.85 %}
-                <span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:10px;font-weight:700;">{{ r }} ↓↓ 크게 하단</span>
+                <span style="background:var(--red-bg);color:var(--red);padding:2px 8px;border-radius:10px;font-weight:700;">{{ r }} ↓↓ 크게 하단</span>
               {% else %}
-                <span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:10px;font-weight:700;">{{ r }} ↑↑ 크게 상단</span>
+                <span style="background:var(--info-bg);color:var(--info);padding:2px 8px;border-radius:10px;font-weight:700;">{{ r }} ↑↑ 크게 상단</span>
               {% endif %}
             </td>
             <td>
@@ -458,9 +458,9 @@
             <td>{{ e.dept_name or '-' }}</td>
             <td>{{ e.pos_name or '-' }}</td>
             <td>{{ '{:,}'.format(e.base_salary) }}</td>
-            <td style="color:#1e40af;">{{ '{:,}'.format(e.min_salary) if e.min_salary else '-' }}</td>
-            <td style="color:#166534; font-weight:600;">{{ '{:,}'.format(e.mid_salary) if e.mid_salary else '-' }}</td>
-            <td style="color:#92400e;">{{ '{:,}'.format(e.max_salary) if e.max_salary else '-' }}</td>
+            <td style="color:var(--info);">{{ '{:,}'.format(e.min_salary) if e.min_salary else '-' }}</td>
+            <td style="color:var(--green); font-weight:600;">{{ '{:,}'.format(e.mid_salary) if e.mid_salary else '-' }}</td>
+            <td style="color:var(--orange);">{{ '{:,}'.format(e.max_salary) if e.max_salary else '-' }}</td>
             <td>
               {% if e.compa_ratio %}
                 {% set r = e.compa_ratio %}
@@ -469,7 +469,7 @@
                   color:{% if r < 0.9 %}#92400e{% elif r > 1.1 %}#1e40af{% else %}#166534{% endif %};">
                   {{ r }}
                 </span>
-              {% else %}<span style="color:#9ca3af;">-</span>{% endif %}
+              {% else %}<span style="color:var(--tx-3);">-</span>{% endif %}
             </td>
             <td style="font-weight:700; color:{% if e.perf_grade in ['S','A'] %}#16a34a{% elif e.perf_grade=='B' %}#d97706{% else %}#dc2626{% endif %};">
               {{ e.perf_grade or '-' }}
@@ -487,24 +487,24 @@
 
   <!-- 요약 카드 3개 -->
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px;">
-    <div class="card" style="padding:20px;border-left:4px solid #ef4444;">
+    <div class="card" style="padding:20px;border-left:4px solid var(--red);">
       <div style="font-size:.72rem;color:var(--tx-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">위반 (52h 초과)</div>
-      <div style="font-size:2rem;font-weight:800;color:#ef4444;">{{ ot_violations | length }}</div>
+      <div style="font-size:2rem;font-weight:800;color:var(--red);">{{ ot_violations | length }}</div>
       <div style="font-size:.78rem;color:var(--tx-3);margin-top:2px;">건 · 최근 8주 기준</div>
     </div>
-    <div class="card" style="padding:20px;border-left:4px solid #f59e0b;">
+    <div class="card" style="padding:20px;border-left:4px solid var(--orange);">
       <div style="font-size:.72rem;color:var(--tx-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">경고 (48h~52h)</div>
-      <div style="font-size:2rem;font-weight:800;color:#f59e0b;">{{ ot_warnings | length }}</div>
+      <div style="font-size:2rem;font-weight:800;color:var(--orange);">{{ ot_warnings | length }}</div>
       <div style="font-size:.78rem;color:var(--tx-3);margin-top:2px;">건</div>
     </div>
-    <div class="card" style="padding:20px;border-left:4px solid #22c55e;">
+    <div class="card" style="padding:20px;border-left:4px solid var(--green);">
       <div style="font-size:.72rem;color:var(--tx-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">정상 (48h 미만)</div>
-      <div style="font-size:2rem;font-weight:800;color:#22c55e;">{{ ot_safe_count }}</div>
+      <div style="font-size:2rem;font-weight:800;color:var(--green);">{{ ot_safe_count }}</div>
       <div style="font-size:.78rem;color:var(--tx-3);margin-top:2px;">주·직원 조합</div>
     </div>
   </div>
 
-  <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 18px;margin-bottom:24px;font-size:.82rem;color:#92400e;">
+  <div style="background:var(--orange-bg);border:1px solid var(--orange);border-radius:10px;padding:14px 18px;margin-bottom:24px;font-size:.82rem;color:var(--orange);">
     <i class="fas fa-balance-scale" style="margin-right:6px;"></i>
     <strong>근로기준법 §53</strong> — 1주 최대 근로시간: 법정 40시간 + 연장 12시간 = <strong>주 52시간</strong>
     (5인 이상 사업장). 위반 시 2년 이하 징역 또는 2,000만원 이하 벌금.
@@ -512,11 +512,11 @@
 
   {% if ot_violations %}
   <div class="card" style="padding:24px;margin-bottom:20px;">
-    <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px;color:#ef4444;">
+    <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px;color:var(--red);">
       <i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>52시간 초과 위반 ({{ ot_violations | length }}건)
     </h3>
     <table style="width:100%;border-collapse:collapse;font-size:.875rem;">
-      <thead><tr style="border-bottom:2px solid #fecaca;">
+      <thead><tr style="border-bottom:2px solid var(--red-bg);">
         <th style="text-align:left;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">직원</th>
         <th style="text-align:left;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">부서</th>
         <th style="text-align:center;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">해당 주</th>
@@ -525,12 +525,12 @@
       </tr></thead>
       <tbody>
         {% for v in ot_violations | sort(attribute='total_min', reverse=True) %}
-        <tr style="border-bottom:1px solid #fef2f2;">
+        <tr style="border-bottom:1px solid var(--red-bg);">
           <td style="padding:10px 0;"><div style="font-weight:600;">{{ v.name }}</div><div style="font-size:.75rem;color:var(--tx-3);">{{ v.emp_no or '' }}</div></td>
           <td style="padding:10px 0;color:var(--tx-2);">{{ v.dept_name or '—' }}</td>
           <td style="padding:10px 0;text-align:center;color:var(--tx-2);">{{ v.week_start }}</td>
-          <td style="padding:10px 0;text-align:right;"><span style="background:#fee2e2;color:#dc2626;font-weight:700;padding:3px 10px;border-radius:999px;">{{ v.total_h }}h</span></td>
-          <td style="padding:10px 0;text-align:right;font-weight:700;color:#ef4444;">+{{ v.over_h }}h</td>
+          <td style="padding:10px 0;text-align:right;"><span style="background:var(--red-bg);color:var(--red);font-weight:700;padding:3px 10px;border-radius:999px;">{{ v.total_h }}h</span></td>
+          <td style="padding:10px 0;text-align:right;font-weight:700;color:var(--red);">+{{ v.over_h }}h</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -540,11 +540,11 @@
 
   {% if ot_warnings %}
   <div class="card" style="padding:24px;margin-bottom:20px;">
-    <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px;color:#f59e0b;">
+    <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px;color:var(--orange);">
       <i class="fas fa-exclamation-circle" style="margin-right:6px;"></i>경고 (48h~52h, {{ ot_warnings | length }}건)
     </h3>
     <table style="width:100%;border-collapse:collapse;font-size:.875rem;">
-      <thead><tr style="border-bottom:2px solid #fde68a;">
+      <thead><tr style="border-bottom:2px solid var(--orange-bg);">
         <th style="text-align:left;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">직원</th>
         <th style="text-align:left;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">부서</th>
         <th style="text-align:center;padding:8px 0;color:var(--tx-3);font-weight:600;font-size:.75rem;text-transform:uppercase;">해당 주</th>
@@ -553,12 +553,12 @@
       </tr></thead>
       <tbody>
         {% for w in ot_warnings | sort(attribute='total_min', reverse=True) %}
-        <tr style="border-bottom:1px solid #fffbeb;">
+        <tr style="border-bottom:1px solid var(--orange-bg);">
           <td style="padding:10px 0;"><div style="font-weight:600;">{{ w.name }}</div><div style="font-size:.75rem;color:var(--tx-3);">{{ w.emp_no or '' }}</div></td>
           <td style="padding:10px 0;color:var(--tx-2);">{{ w.dept_name or '—' }}</td>
           <td style="padding:10px 0;text-align:center;color:var(--tx-2);">{{ w.week_start }}</td>
-          <td style="padding:10px 0;text-align:right;"><span style="background:#fef3c7;color:#d97706;font-weight:700;padding:3px 10px;border-radius:999px;">{{ w.total_h }}h</span></td>
-          <td style="padding:10px 0;text-align:right;font-weight:600;color:#d97706;">{{ (52 - w.total_h) | round(1) }}h 여유</td>
+          <td style="padding:10px 0;text-align:right;"><span style="background:var(--orange-bg);color:var(--orange);font-weight:700;padding:3px 10px;border-radius:999px;">{{ w.total_h }}h</span></td>
+          <td style="padding:10px 0;text-align:right;font-weight:600;color:var(--orange);">{{ (52 - w.total_h) | round(1) }}h 여유</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -568,7 +568,7 @@
 
   {% if not ot_violations and not ot_warnings %}
   <div class="card" style="padding:48px;text-align:center;">
-    <i class="fas fa-check-circle" style="font-size:40px;color:#22c55e;margin-bottom:16px;display:block;"></i>
+    <i class="fas fa-check-circle" style="font-size:40px;color:var(--green);margin-bottom:16px;display:block;"></i>
     <div style="font-size:1.1rem;font-weight:700;margin-bottom:8px;">최근 8주간 52시간 위반 없음</div>
     <div style="color:var(--tx-3);font-size:.875rem;">모든 직원이 법정 근로시간 내에서 근무하고 있습니다.</div>
   </div>
@@ -589,13 +589,13 @@
   <!-- 빠른 시작 -->
   <div style="margin-bottom:28px;">
     <div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--tx-3); margin-bottom:12px;">
-      <i class="fas fa-bolt" style="color:#f59e0b;"></i> 빠른 내보내기 — 자주 쓰는 보고서
+      <i class="fas fa-bolt" style="color:var(--orange);"></i> 빠른 내보내기 — 자주 쓰는 보고서
     </div>
     <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px;">
 
       <div class="card" style="margin:0;">
         <div class="card-body" style="display:flex;align-items:center;gap:12px;padding:12px 14px;">
-          <div style="width:36px;height:36px;border-radius:8px;background:#dbeafe;color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-users"></i></div>
+          <div style="width:36px;height:36px;border-radius:8px;background:var(--info-bg);color:var(--info);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-users"></i></div>
           <div style="flex:1;">
             <div style="font-weight:700;font-size:13px;">직원 명단</div>
             <div style="font-size:11px;color:var(--tx-3);">부서·직급·직군·입사일 포함</div>
@@ -607,7 +607,7 @@
       <div class="card" style="margin:0;">
         <div class="card-body" style="padding:12px 14px;">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-            <div style="width:36px;height:36px;border-radius:8px;background:#dcfce7;color:#16a34a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-won-sign"></i></div>
+            <div style="width:36px;height:36px;border-radius:8px;background:var(--green-bg);color:var(--green);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-won-sign"></i></div>
             <div><div style="font-weight:700;font-size:13px;">월별 급여 내역</div><div style="font-size:11px;color:var(--tx-3);">공제항목 포함 전 직원</div></div>
           </div>
           <form method="get" action="{{ url_for('export_payroll') }}" target="_blank" style="display:flex;gap:6px;align-items:center;">
@@ -621,7 +621,7 @@
       <div class="card" style="margin:0;">
         <div class="card-body" style="padding:12px 14px;">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-            <div style="width:36px;height:36px;border-radius:8px;background:#dcfce7;color:#16a34a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-chart-bar"></i></div>
+            <div style="width:36px;height:36px;border-radius:8px;background:var(--green-bg);color:var(--green);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-chart-bar"></i></div>
             <div><div style="font-weight:700;font-size:13px;">연간 급여 요약</div><div style="font-size:11px;color:var(--tx-3);">1인당 연간 총지급·세금 합산</div></div>
           </div>
           <form method="get" action="{{ url_for('export_payroll_annual') }}" target="_blank" style="display:flex;gap:6px;align-items:center;">
@@ -634,7 +634,7 @@
       <div class="card" style="margin:0;">
         <div class="card-body" style="padding:12px 14px;">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-            <div style="width:36px;height:36px;border-radius:8px;background:#ffedd5;color:#c2410c;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-clock"></i></div>
+            <div style="width:36px;height:36px;border-radius:8px;background:var(--orange-bg);color:var(--orange);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-clock"></i></div>
             <div><div style="font-weight:700;font-size:13px;">근태 신청 내역</div><div style="font-size:11px;color:var(--tx-3);">연차·반차·재택 등 월별/연간</div></div>
           </div>
           <form method="get" action="{{ url_for('export_attendance') }}" target="_blank" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -648,7 +648,7 @@
       <div class="card" style="margin:0;">
         <div class="card-body" style="padding:12px 14px;">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-            <div style="width:36px;height:36px;border-radius:8px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-business-time"></i></div>
+            <div style="width:36px;height:36px;border-radius:8px;background:var(--orange-bg);color:var(--orange);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-business-time"></i></div>
             <div><div style="font-weight:700;font-size:13px;">출퇴근 기록</div><div style="font-size:11px;color:var(--tx-3);">정규/연장/야간 근무분 · 출결상태</div></div>
           </div>
           <form method="get" action="{{ url_for('export_checkins') }}" target="_blank" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -662,7 +662,7 @@
       <div class="card" style="margin:0;">
         <div class="card-body" style="padding:12px 14px;">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-            <div style="width:36px;height:36px;border-radius:8px;background:#f3e8ff;color:#7c3aed;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-chart-line"></i></div>
+            <div style="width:36px;height:36px;border-radius:8px;background:var(--purple-bg);color:var(--purple);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-chart-line"></i></div>
             <div><div style="font-weight:700;font-size:13px;">성과 목표 현황</div><div style="font-size:11px;color:var(--tx-3);">평가주기별 목표·진행률·자기평가</div></div>
           </div>
           <form method="get" action="{{ url_for('export_performance') }}" target="_blank" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -674,7 +674,7 @@
 
       <div class="card" style="margin:0;">
         <div class="card-body" style="display:flex;align-items:center;gap:12px;padding:12px 14px;">
-          <div style="width:36px;height:36px;border-radius:8px;background:#ccfbf1;color:#0f766e;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-user-tie"></i></div>
+          <div style="width:36px;height:36px;border-radius:8px;background:var(--green-bg);color:var(--green);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-user-tie"></i></div>
           <div style="flex:1;">
             <div style="font-weight:700;font-size:13px;">지원자 현황</div>
             <div style="font-size:11px;color:var(--tx-3);">공고별 지원자 및 전형 단계</div>
