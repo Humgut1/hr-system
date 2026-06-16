@@ -1,4 +1,4 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 {% block title %}Dashboard{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 
@@ -18,10 +18,56 @@
       {% endif %}
     </div>
   </div>
-  <i class="fas fa-users welcome-icon"></i>
+  <div style="z-index:1; display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
+    <i class="fas fa-users welcome-icon" style="position:static; opacity:.15; font-size:48px;"></i>
+    <button onclick="toggleCustomize()" class="btn btn-ghost btn-sm" style="font-size:12px;">
+      <i class="fas fa-sliders-h"></i> Customize
+    </button>
+  </div>
+</div>
+
+<!-- Customize Panel -->
+<div id="customize-panel" style="display:none; margin-bottom:20px;">
+  <div class="card" style="padding:20px; border:2px solid var(--primary-soft);">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+      <div>
+        <div style="font-weight:700; font-size:14px; color:var(--tx-1);">
+          <i class="fas fa-sliders-h" style="color:var(--primary); margin-right:7px;"></i>Dashboard Widgets
+        </div>
+        <div style="font-size:12px; color:var(--tx-3); margin-top:3px;">보고 싶은 위젯만 선택하세요</div>
+      </div>
+      <button onclick="toggleCustomize()" class="btn btn-ghost btn-sm"><i class="fas fa-times"></i></button>
+    </div>
+    <form method="POST" action="{{ url_for('dashboard_widgets_save') }}">
+      <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; margin-bottom:16px;">
+        {% for w in widget_catalog %}
+        <label style="display:flex; align-items:center; gap:10px; padding:12px 14px;
+                      border:1.5px solid {% if w.key in enabled_widgets %}var(--primary){% else %}var(--line){% endif %};
+                      border-radius:12px; cursor:pointer; background:{% if w.key in enabled_widgets %}var(--primary-soft){% else %}var(--surface){% endif %};
+                      transition:all .15s;"
+               onmouseenter="this.style.borderColor='var(--primary)'"
+               onmouseleave="this.style.borderColor=this.querySelector('input').checked?'var(--primary)':'var(--line)'">
+          <input type="checkbox" name="w_{{ w.key }}"
+                 {% if w.key in enabled_widgets %}checked{% endif %}
+                 onchange="this.closest('label').style.background=this.checked?'var(--primary-soft)':'var(--surface)';
+                           this.closest('label').style.borderColor=this.checked?'var(--primary)':'var(--line)';"
+                 style="width:16px; height:16px; accent-color:var(--primary);">
+          <div>
+            <div style="font-size:13px; font-weight:600; color:var(--tx-1);">{{ w.label }}</div>
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button type="button" onclick="toggleCustomize()" class="btn btn-ghost">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- KPI Cards -->
+{% if 'kpi_cards' in enabled_widgets %}
 <div class="stat-grid" style="margin-bottom:24px;">
   <div class="stat-card">
     <div class="stat-ico ico-blue"><i class="fas fa-users"></i></div>
@@ -52,13 +98,14 @@
     </div>
   </a>
 </div>
+{% endif %}
 
 <div class="grid-dash">
 
-  <!-- Left: Inbox + Team Performance -->
+  <!-- Left -->
   <div class="stack">
 
-    <!-- Inbox -->
+    {% if 'inbox' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
         <span class="card-title">
@@ -101,8 +148,9 @@
         {% endif %}
       </div>
     </div>
+    {% endif %}
 
-    <!-- Team Performance -->
+    {% if 'team_performance' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
         <span class="card-title">Team Performance</span>
@@ -137,13 +185,14 @@
       </div>
       {% endif %}
     </div>
+    {% endif %}
 
   </div><!-- /left -->
 
-  <!-- Right: Quick Actions + Who's Out + Announcements -->
+  <!-- Right -->
   <div class="stack">
 
-    <!-- Quick Actions -->
+    {% if 'quick_actions' in enabled_widgets %}
     <div class="card" style="padding:20px;">
       <div class="label" style="margin-bottom:14px;">Quick Actions</div>
       <div class="quick-actions-grid">
@@ -165,8 +214,9 @@
         </a>
       </div>
     </div>
+    {% endif %}
 
-    <!-- Who's Out -->
+    {% if 'whos_out' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
         <span class="card-title">Who's Out Today</span>
@@ -188,8 +238,9 @@
       <div style="padding:24px 22px;" class="muted body-sm">Everyone is in today.</div>
       {% endif %}
     </div>
+    {% endif %}
 
-    <!-- Announcements -->
+    {% if 'announcements' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
         <span class="card-title">Announcements</span>
@@ -208,8 +259,18 @@
       <div style="padding:24px 22px;" class="muted body-sm">No announcements.</div>
       {% endfor %}
     </div>
+    {% endif %}
 
   </div><!-- /right -->
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleCustomize() {
+  var p = document.getElementById('customize-panel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+</script>
 {% endblock %}

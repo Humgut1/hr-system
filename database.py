@@ -1526,6 +1526,15 @@ def init_db(db_path: str = None):
             )
         ''')
 
+        # ── v0.81 Dashboard Widget Preferences ─────────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS dashboard_widgets (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            widget_key TEXT NOT NULL,
+            enabled    INTEGER NOT NULL DEFAULT 1,
+            UNIQUE(user_id, widget_key)
+        )''')
+
         conn.commit()
     finally:
         conn.close()

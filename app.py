@@ -752,6 +752,8 @@ def dashboard():
                 'link': url_for('termination_requests')
             })
         inbox_count = len(inbox_items)
+        enabled_widgets = get_widget_prefs(uid, 'admin')
+        widget_catalog  = WIDGET_CATALOG['admin']
         return render_template('dashboard/admin.html',
             greet=greet, today_str=today_str, first_name=first_name,
             total_employees=total_employees, total_departments=total_departments,
@@ -759,7 +761,8 @@ def dashboard():
             total_applicants=total_applicants, recent_employees=recent_employees,
             recent_posts=recent_posts, who_out=who_out,
             inbox_items=inbox_items, inbox_count=inbox_count,
-            labels=LEAVE_LABELS, active_page='home')
+            labels=LEAVE_LABELS, active_page='home',
+            enabled_widgets=enabled_widgets, widget_catalog=widget_catalog)
 
     if role == 'manager':
         dept_id = session.get('dept_id')
@@ -804,12 +807,15 @@ def dashboard():
             "AND lr.status='approved' AND lr.start_date<=? AND lr.end_date>=? "
             "ORDER BY u.name", (dept_id, today, today)
         ).fetchall()
+        enabled_widgets = get_widget_prefs(uid, 'manager')
+        widget_catalog  = WIDGET_CATALOG['manager']
         return render_template('dashboard/manager.html',
             greet=greet, today_str=today_str, first_name=first_name,
             team_count=team_count, pending_count=pending_count,
             today_leave=today_leave, inbox_items=inbox_items, inbox_count=inbox_count,
             team_goals=team_goals, recent_posts=recent_posts,
-            who_out=who_out, labels=LEAVE_LABELS, active_page='home')
+            who_out=who_out, labels=LEAVE_LABELS, active_page='home',
+            enabled_widgets=enabled_widgets, widget_catalog=widget_catalog)
 
     if role == 'recruiter':
         open_postings     = db.execute("SELECT COUNT(*) FROM job_postings WHERE status='open'").fetchone()[0]
@@ -864,13 +870,36 @@ def dashboard():
     ).fetchall()
     tenure_str = _tenure(hire_date_str)
     pct_used   = int(float(used_leave) / total_leave * 100) if total_leave else 0
+    enabled_widgets = get_widget_prefs(uid, 'employee')
+    widget_catalog  = WIDGET_CATALOG['employee']
     return render_template('dashboard/employee.html',
         greet=greet, today_str=today_str, first_name=first_name,
         total_leave=total_leave, used_leave=used_leave,
         remain_leave=remain_leave, pct_used=pct_used,
         recent_reqs=recent_reqs, upcoming_leave=upcoming_leave,
         recent_posts=recent_posts, tenure_str=tenure_str,
-        labels=LEAVE_LABELS, active_page='home')
+        labels=LEAVE_LABELS, active_page='home',
+        enabled_widgets=enabled_widgets, widget_catalog=widget_catalog)
+
+
+@app.route('/dashboard/widgets', methods=['POST'])
+@login_required
+def dashboard_widgets_save():
+    uid  = session['user_id']
+    role = session.get('user_role', 'employee')
+    catalog = WIDGET_CATALOG.get(role, [])
+    db = get_db()
+    for w in catalog:
+        key = w['key']
+        enabled = 1 if request.form.get(f'w_{key}') else 0
+        db.execute(
+            'INSERT INTO dashboard_widgets (user_id, widget_key, enabled) VALUES (?,?,?) '
+            'ON CONFLICT(user_id, widget_key) DO UPDATE SET enabled=excluded.enabled',
+            (uid, key, enabled)
+        )
+    db.commit()
+    flash('대시보드 설정이 저장되었습니다.', 'success')
+    return redirect(url_for('dashboard'))
 
 
 # ── Announcements ────────────────────────────────────────────
@@ -3012,6 +3041,51 @@ def admin_schedules():
 # deduct: 'annual' = 연차차감, 'none' = 비차감
 # fixed_days: None = 기간 선택, 숫자 = 고정일수
 # max_days: None = 제한없음(연차잔여 기준), 숫자 = 법정 최대일
+# ── Dashboard Widget Catalog ──────────────────────────────────────────────
+WIDGET_CATALOG = {
+    'admin': [
+        {'key': 'kpi_cards',        'label': 'KPI Cards',           'icon': 'fa-chart-bar'},
+        {'key': 'inbox',            'label': 'Inbox',               'icon': 'fa-inbox'},
+        {'key': 'recent_employees', 'label': 'Recent Employees',    'icon': 'fa-user-plus'},
+        {'key': 'quick_actions',    'label': 'Quick Actions',       'icon': 'fa-bolt'},
+        {'key': 'whos_out',         'label': "Who's Out Today",     'icon': 'fa-door-open'},
+        {'key': 'announcements',    'label': 'Announcements',       'icon': 'fa-bullhorn'},
+    ],
+    'manager': [
+        {'key': 'kpi_cards',        'label': 'KPI Cards',           'icon': 'fa-chart-bar'},
+        {'key': 'inbox',            'label': 'Inbox',               'icon': 'fa-inbox'},
+        {'key': 'team_performance', 'label': 'Team Performance',    'icon': 'fa-chart-line'},
+        {'key': 'quick_actions',    'label': 'Quick Actions',       'icon': 'fa-bolt'},
+        {'key': 'whos_out',         'label': "Who's Out Today",     'icon': 'fa-door-open'},
+        {'key': 'announcements',    'label': 'Announcements',       'icon': 'fa-bullhorn'},
+    ],
+    'employee': [
+        {'key': 'kpi_cards',        'label': 'KPI Cards',           'icon': 'fa-chart-bar'},
+        {'key': 'quick_actions',    'label': 'Quick Actions',       'icon': 'fa-bolt'},
+        {'key': 'leave_requests',   'label': 'Leave Requests',      'icon': 'fa-calendar-times'},
+        {'key': 'time_off_balance', 'label': 'Time Off Balance',    'icon': 'fa-calendar-check'},
+        {'key': 'upcoming_leave',   'label': 'Upcoming Leave',      'icon': 'fa-calendar-alt'},
+        {'key': 'announcements',    'label': 'Announcements',       'icon': 'fa-bullhorn'},
+    ],
+}
+
+def get_widget_prefs(uid, role):
+    """Return set of enabled widget keys for a user. Defaults: all enabled."""
+    catalog = WIDGET_CATALOG.get(role, [])
+    all_keys = {w['key'] for w in catalog}
+    db = get_db()
+    rows = db.execute(
+        'SELECT widget_key, enabled FROM dashboard_widgets WHERE user_id=?', (uid,)
+    ).fetchall()
+    if not rows:
+        return all_keys  # no prefs saved yet → show everything
+    saved = {r['widget_key']: r['enabled'] for r in rows}
+    enabled = set()
+    for key in all_keys:
+        if saved.get(key, 1):  # default on if not saved
+            enabled.add(key)
+    return enabled
+
 LEAVE_META = {
     # ── 연차 소진형 ──────────────────────────────────────────
     'annual': {
