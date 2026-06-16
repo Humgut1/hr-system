@@ -668,7 +668,7 @@ def dashboard():
     LEAVE_LABELS = {'annual':'Annual','half_am':'Half AM','half_pm':'Half PM','sick':'Sick','etc':'Other'}
 
     cfg = get_company_config()
-    if not cfg.get('setup_completed'):
+    if not cfg.get('setup_completed') and role == 'admin':
         return redirect(url_for('admin_setup'))
 
     if role == 'admin':

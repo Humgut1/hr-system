@@ -1,75 +1,235 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign In — TalentCore</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>로그인 — TalentCore</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+<style>
+body { background: var(--bg); }
+.sp-page { min-height: 100vh; display: flex; }
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+/* ---- Left brand panel ---- */
+.sp-left {
+  flex: 1; min-width: 0; position: relative; overflow: hidden;
+  background: var(--surface-2); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 48px 52px;
+}
+.sp-left::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 100% 0%, rgba(94,106,210,.10), transparent 70%),
+    radial-gradient(50% 40% at 0% 100%, rgba(94,106,210,.07), transparent 70%);
+}
+.sp-brand { display: flex; align-items: center; gap: 11px; position: relative; }
+.sp-brand .mk {
+  width: 34px; height: 34px; border-radius: 10px; background: var(--primary); color: #fff;
+  display: grid; place-items: center; font-weight: 800; font-size: 17px; letter-spacing: -.04em;
+}
+.sp-brand .nm { font-size: 18px; font-weight: 750; letter-spacing: -.02em; color: var(--tx-1); }
+
+.sp-mid { position: relative; max-width: 440px; }
+.sp-eyebrow {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px;
+  background: var(--primary-soft); color: var(--primary-tx);
+  border-radius: var(--r-full); font-size: 12px; font-weight: 700; margin-bottom: 22px;
+  white-space: nowrap;
+}
+.sp-eyebrow span { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
+.sp-headline {
+  font-size: 38px; line-height: 1.12; font-weight: 800; letter-spacing: -.03em; color: var(--tx-1);
+}
+.sp-headline em { color: var(--primary); font-style: normal; }
+.sp-lede { font-size: 15px; color: var(--tx-2); margin-top: 16px; line-height: 1.6; max-width: 400px; }
+
+.sp-feats { margin-top: 30px; display: flex; flex-direction: column; gap: 14px; }
+.sp-feat { display: flex; align-items: center; gap: 13px; }
+.sp-feat .ic {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+  background: var(--surface); border: 1px solid var(--line);
+  display: grid; place-items: center; color: var(--primary); box-shadow: var(--sh-xs);
+}
+.sp-feat .ic svg { width: 18px; height: 18px; }
+.sp-feat .tx { font-size: 14px; font-weight: 600; color: var(--tx-1); }
+.sp-feat .tx small { display: block; font-size: 12.5px; font-weight: 500; color: var(--tx-3); margin-top: 1px; }
+
+.sp-foot-l { position: relative; display: flex; align-items: center; gap: 20px; }
+.sp-stat .v { font-size: 22px; font-weight: 780; letter-spacing: -.03em; color: var(--tx-1); font-variant-numeric: tabular-nums; }
+.sp-stat .k { font-size: 12px; color: var(--tx-3); margin-top: 1px; }
+.sp-stat-div { width: 1px; height: 30px; background: var(--line); }
+
+/* ---- Right form panel ---- */
+.sp-right {
+  width: 480px; flex-shrink: 0; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; padding: 48px 56px;
+}
+.sp-form { width: 100%; max-width: 348px; }
+.sp-title { font-size: 26px; font-weight: 800; letter-spacing: -.025em; color: var(--tx-1); }
+.sp-sub { font-size: 13.5px; color: var(--tx-3); margin-top: 7px; margin-bottom: 30px; }
+
+.lc-field { margin-bottom: 17px; }
+.lc-field label { display: block; font-size: 12px; font-weight: 650; color: var(--tx-2); margin-bottom: 7px; }
+.lc-input-wrap { position: relative; display: flex; align-items: center; }
+.lc-input-wrap > svg.lead { position: absolute; left: 13px; width: 16px; height: 16px; color: var(--tx-3); pointer-events: none; }
+.lc-input {
+  width: 100%; background: var(--surface-3); border: 1px solid var(--line);
+  border-radius: 9px; padding: 11px 13px 11px 38px; font-size: 14px; color: var(--tx-1);
+  outline: 0; transition: border-color .12s, box-shadow .12s, background .12s;
+}
+.lc-input::placeholder { color: var(--tx-3); }
+.lc-input:focus { border-color: var(--primary); background: var(--surface); box-shadow: var(--ring); }
+.lc-input.has-toggle { padding-right: 42px; }
+.lc-eye { position: absolute; right: 8px; width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; color: var(--tx-3); }
+.lc-eye:hover { background: var(--hover); color: var(--tx-1); }
+.lc-eye svg { width: 17px; height: 17px; }
+
+.lc-row { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 22px; }
+.lc-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--tx-2); user-select: none; cursor: pointer; white-space: nowrap; }
+.lc-check input { position: absolute; opacity: 0; width: 0; height: 0; }
+.lc-box { width: 17px; height: 17px; border-radius: 5px; border: 1.5px solid var(--line); background: var(--surface-3); display: grid; place-items: center; transition: all .12s; }
+.lc-box svg { width: 11px; height: 11px; color: #fff; opacity: 0; transform: scale(.6); transition: all .12s; }
+.lc-check input:checked + .lc-box { background: var(--primary); border-color: var(--primary); }
+.lc-check input:checked + .lc-box svg { opacity: 1; transform: scale(1); }
+.lc-check input:focus-visible + .lc-box { box-shadow: var(--ring); }
+.lc-link { font-size: 13px; font-weight: 600; color: var(--primary); white-space: nowrap; }
+.lc-link:hover { color: var(--primary-press); text-decoration: underline; }
+
+.lc-btn { width: 100%; padding: 12px; background: var(--primary); color: #fff; border-radius: 9px; font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: background .14s, transform .08s; }
+.lc-btn:hover { background: var(--primary-press); }
+.lc-btn:active { transform: translateY(1px); }
+.lc-btn svg { width: 16px; height: 16px; }
+
+.lc-error {
+  display: flex; align-items: center; gap: 9px; padding: 11px 13px;
+  background: var(--red-bg); color: var(--red); border-radius: 9px;
+  font-size: 13px; font-weight: 600; margin-bottom: 18px;
+}
+.lc-error svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+.sp-foot { text-align: center; margin-top: 26px; font-size: 13px; color: var(--tx-3); }
+.sp-foot a { font-weight: 650; color: var(--primary); }
+.sp-foot a:hover { text-decoration: underline; }
+
+@media (max-width: 900px) { .sp-left { display: none; } .sp-right { width: 100%; } }
+</style>
 </head>
 <body>
-<div class="login-page">
+<div class="sp-page">
 
   <!-- Left brand panel -->
-  <div class="login-left">
-    <div style="z-index:1; text-align:center;">
-      <div class="login-brand">
-        <div class="brand-icon-wrap">
-          <div class="brand-mark" style="width:64px;height:64px;border-radius:20px;font-size:28px;">T</div>
-        </div>
-        <div class="login-brand-name">TalentCore</div>
-        <div class="brand-tagline">Your all-in-one HR platform<br>for smarter people management</div>
-      </div>
+  <aside class="sp-left">
+    <div class="sp-brand">
+      <div class="mk">T</div>
+      <div class="nm">TalentCore</div>
+    </div>
 
-      <div class="login-features">
-        <div class="login-feature">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          <span class="login-feature-text">People, org & attendance in one place</span>
+    <div class="sp-mid">
+      <div class="sp-eyebrow"><span></span>올인원 HR 플랫폼</div>
+      <h2 class="sp-headline">사람과 조직을<br /><em>한곳에서</em> 관리하세요</h2>
+      <p class="sp-lede">인사·근태·성과·채용을 하나의 흐름으로. 더 스마트한 피플 매니지먼트를 위한 TalentCore.</p>
+
+      <div class="sp-feats">
+        <div class="sp-feat">
+          <div class="ic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div class="tx">인사·조직·근태 통합<small>흩어진 데이터를 하나의 화면으로</small></div>
         </div>
-        <div class="login-feature">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-          <span class="login-feature-text">Real-time performance & payroll data</span>
+        <div class="sp-feat">
+          <div class="ic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+          </div>
+          <div class="tx">실시간 성과·급여 데이터<small>지표를 바로 확인하고 결정하세요</small></div>
         </div>
-        <div class="login-feature">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-          <span class="login-feature-text">Integrated recruiting pipeline</span>
+        <div class="sp-feat">
+          <div class="ic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+          </div>
+          <div class="tx">채용 파이프라인 연동<small>지원자 흐름을 끊김 없이 추적</small></div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Right login form -->
-  <div class="login-right">
-    <div class="login-form-box">
-      <h1 class="login-title">Welcome back</h1>
-      <p class="login-sub">Sign in to your account to continue</p>
+    <div class="sp-foot-l">
+      <div class="sp-stat"><div class="v">2,400+</div><div class="k">관리 중인 구성원</div></div>
+      <div class="sp-stat-div"></div>
+      <div class="sp-stat"><div class="v">99.9%</div><div class="k">서비스 가동률</div></div>
+      <div class="sp-stat-div"></div>
+      <div class="sp-stat"><div class="v">SOC 2</div><div class="k">보안 인증</div></div>
+    </div>
+  </aside>
+
+  <!-- Right form panel -->
+  <main class="sp-right">
+    <form class="sp-form" method="POST" action="{{ url_for('login') }}">
+      <h1 class="sp-title">로그인</h1>
+      <p class="sp-sub">TalentCore 계정으로 계속하세요</p>
 
       {% if error %}
-      <div class="login-error">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div class="lc-error">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         {{ error }}
       </div>
       {% endif %}
 
-      <form method="POST" action="{{ url_for('login') }}">
-        <div class="field" style="margin-bottom:16px;">
-          <label for="email">Email</label>
-          <input type="email" id="email" name="email" class="input"
-                 placeholder="you@company.com" required autocomplete="username">
+      <div class="lc-field">
+        <label for="email">이메일</label>
+        <div class="lc-input-wrap">
+          <svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+          <input class="lc-input" id="email" name="email" type="email"
+                 placeholder="you@company.com" required autocomplete="username" />
         </div>
-        <div class="field" style="margin-bottom:24px;">
-          <label for="password">Password</label>
-          <input type="password" id="password" name="password" class="input"
-                 placeholder="Enter your password" required autocomplete="current-password">
+      </div>
+
+      <div class="lc-field">
+        <label for="password">비밀번호</label>
+        <div class="lc-input-wrap">
+          <svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <input class="lc-input has-toggle" id="password" name="password" type="password"
+                 placeholder="비밀번호를 입력하세요" required autocomplete="current-password" />
+          <button type="button" class="lc-eye" data-target="password" aria-label="비밀번호 표시"></button>
         </div>
-        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
-          Sign In
-        </button>
-      </form>
-    </div>
-  </div>
+      </div>
+
+      <div class="lc-row">
+        <label class="lc-check">
+          <input type="checkbox" name="remember" checked />
+          <span class="lc-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          로그인 유지
+        </label>
+        <a class="lc-link" href="#">비밀번호 찾기</a>
+      </div>
+
+      <button class="lc-btn" type="submit">
+        로그인
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+
+      <p class="sp-foot">계정이 없으신가요? <a href="{{ url_for('signup') }}">관리자에게 문의</a></p>
+    </form>
+  </main>
 
 </div>
-<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+<script>
+(function () {
+  var EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c6.5 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.5 13.5 0 0 0 2 12s3.5 7 10 7a9.12 9.12 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>';
+  document.querySelectorAll('.lc-eye').forEach(function (btn) {
+    btn.innerHTML = EYE;
+    btn.addEventListener('click', function () {
+      var input = document.getElementById(btn.getAttribute('data-target'));
+      if (!input) return;
+      var show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.innerHTML = show ? EYE_OFF : EYE;
+      btn.setAttribute('aria-label', show ? '비밀번호 숨기기' : '비밀번호 표시');
+    });
+  });
+})();
+</script>
 </body>
 </html>
