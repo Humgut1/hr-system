@@ -1280,11 +1280,11 @@ def init_db(db_path: str = None):
 
         # Workday Job Architecture 5개 그룹 시드 (없으면 삽입)
         JFG_SEED = [
-            ('TECH',    '테크',           1),
-            ('PRODUCT', '프로덕트·디자인', 2),
-            ('GTM',     '영업·마케팅',    3),
-            ('CORP',    '경영지원',        4),
-            ('PEOPLE',  '인사',           5),
+            ('TECH',    'Technology',       1),
+            ('PRODUCT', 'Product & Design', 2),
+            ('GTM',     'Go-to-Market',     3),
+            ('CORP',    'Corporate',        4),
+            ('PEOPLE',  'People',           5),
         ]
         for gcode, gname, gsort in JFG_SEED:
             exists = c.execute('SELECT id FROM job_family_groups WHERE code=?', (gcode,)).fetchone()

@@ -1027,24 +1027,24 @@ def run():
         return c.lastrowid
 
     P = {
-        1: pos('CL1 · 어소시에이트', 1),
-        2: pos('CL2 · 주니어',       2),
-        3: pos('CL3 · 미드레벨',     3),
-        4: pos('CL4 · 시니어',       4),
-        5: pos('CL5 · 스태프',       5),
-        6: pos('CL6 · 매니저',       6),
-        7: pos('CL7 · 시니어 매니저',7),
-        8: pos('CL8 · 디렉터',       8),
-        9: pos('CL9 · VP/임원',      9),
+        1: pos('L1 · Associate',      1),
+        2: pos('L2 · Junior',         2),
+        3: pos('L3 · Mid-Level',      3),
+        4: pos('L4 · Senior',         4),
+        5: pos('L5 · Staff',          5),
+        6: pos('L6 · Manager',        6),
+        7: pos('L7 · Senior Manager', 7),
+        8: pos('L8 · Director',       8),
+        9: pos('L9 · VP / Executive', 9),
     }
 
     # ── Workday Job Family Groups 삽입 ────────────────────────
     JFG_SEED = [
-        ('TECH',    '테크',           1),
-        ('PRODUCT', '프로덕트·디자인', 2),
-        ('GTM',     '영업·마케팅',    3),
-        ('CORP',    '경영지원',        4),
-        ('PEOPLE',  '인사',           5),
+        ('TECH',    'Technology',        1),
+        ('PRODUCT', 'Product & Design',  2),
+        ('GTM',     'Go-to-Market',      3),
+        ('CORP',    'Corporate',         4),
+        ('PEOPLE',  'People',            5),
     ]
     JFG = {}
     for gcode, gname, gsort in JFG_SEED:
@@ -1054,34 +1054,34 @@ def run():
     # ── 직군 삽입 (Workday Job Architecture 23개) ─────────────
     jf_list = [
         # (code, name, group_code, sort_order)
-        # ── 테크 ──────────────────────────────────────────────
-        ('SWE',     '소프트웨어 엔지니어링', 'TECH',    1),
-        ('FE',      '프론트엔드 엔지니어링', 'TECH',    2),
-        ('DE',      '데이터 엔지니어링',     'TECH',    3),
-        ('ML',      'ML/AI 엔지니어링',      'TECH',    4),
-        ('INFRA',   '인프라/DevOps',         'TECH',    5),
-        ('SEC',     '보안',                  'TECH',    6),
-        ('QA',      '품질보증',              'TECH',    7),
-        # ── 프로덕트·디자인 ────────────────────────────────────
-        ('PM',      '프로덕트 매니지먼트',   'PRODUCT', 1),
-        ('UXR',     'UX리서치·디자인',       'PRODUCT', 2),
-        ('DESIGN',  '브랜드·시각 디자인',    'PRODUCT', 3),
-        ('TW',      '테크니컬 라이팅',       'PRODUCT', 4),
-        # ── 영업·마케팅 ────────────────────────────────────────
-        ('SALES',   '세일즈',                'GTM',     1),
-        ('BD',      '사업개발',              'GTM',     2),
-        ('CS',      '고객성공',              'GTM',     3),
-        ('MKT',     '마케팅',                'GTM',     4),
-        ('GROWTH',  '그로스',                'GTM',     5),
-        # ── 경영지원 ───────────────────────────────────────────
-        ('FIN',     '재무/회계',             'CORP',    1),
-        ('LEGAL',   '법무',                  'CORP',    2),
-        ('STRAT',   '경영전략',              'CORP',    3),
-        ('BIZ_OPS', '비즈니스 운영',         'CORP',    4),
-        # ── 인사 ───────────────────────────────────────────────
-        ('HR',      '인사/HR',               'PEOPLE',  1),
-        ('TA',      '채용/탤런트어퀴지션',   'PEOPLE',  2),
-        ('COMP',    '보상·HR테크',           'PEOPLE',  3),
+        # ── Technology ─────────────────────────────────────────
+        ('SWE',     'Software Engineering',    'TECH',    1),
+        ('FE',      'Frontend Engineering',    'TECH',    2),
+        ('DE',      'Data Engineering',        'TECH',    3),
+        ('ML',      'ML / AI Engineering',     'TECH',    4),
+        ('INFRA',   'Infrastructure & DevOps', 'TECH',    5),
+        ('SEC',     'Security',                'TECH',    6),
+        ('QA',      'Quality Assurance',       'TECH',    7),
+        # ── Product & Design ───────────────────────────────────
+        ('PM',      'Product Management',      'PRODUCT', 1),
+        ('UXR',     'UX Research & Design',    'PRODUCT', 2),
+        ('DESIGN',  'Brand & Visual Design',   'PRODUCT', 3),
+        ('TW',      'Technical Writing',       'PRODUCT', 4),
+        # ── Go-to-Market ───────────────────────────────────────
+        ('SALES',   'Sales',                   'GTM',     1),
+        ('BD',      'Business Development',    'GTM',     2),
+        ('CS',      'Customer Success',        'GTM',     3),
+        ('MKT',     'Marketing',               'GTM',     4),
+        ('GROWTH',  'Growth',                  'GTM',     5),
+        # ── Corporate ──────────────────────────────────────────
+        ('FIN',     'Finance & Accounting',    'CORP',    1),
+        ('LEGAL',   'Legal',                   'CORP',    2),
+        ('STRAT',   'Strategy',                'CORP',    3),
+        ('BIZ_OPS', 'Business Operations',     'CORP',    4),
+        # ── People ─────────────────────────────────────────────
+        ('HR',      'Human Resources',         'PEOPLE',  1),
+        ('TA',      'Talent Acquisition',      'PEOPLE',  2),
+        ('COMP',    'Compensation & HR Tech',  'PEOPLE',  3),
     ]
     JF = {}
     for code, name, gcode, sort in jf_list:
