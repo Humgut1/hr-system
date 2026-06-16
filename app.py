@@ -478,9 +478,9 @@ def admin_setup():
             enabled = 1 if key in selected_benefits else 0
             db.execute('''
                 INSERT INTO benefit_configs
-                    (benefit_key, enabled, amount, payment_type, annual_limit, platform)
+                    (key, enabled, amount, payment_type, annual_limit, platform)
                 VALUES (?,?,?,?,?,?)
-                ON CONFLICT(benefit_key) DO UPDATE SET
+                ON CONFLICT(key) DO UPDATE SET
                     enabled=excluded.enabled
             ''', (
                 key, enabled,
