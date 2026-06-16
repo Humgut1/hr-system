@@ -88,22 +88,38 @@ def small_dist(total: int) -> list[int]:
 
 
 # ── 연봉 기준표 (단위: 만원, annual) ─────────────────────────
-# Amazon L3~L10 / Coupang CL1~CL7 / Workday Grade 참고
-# 한국 테크 스타트업 시장 시세 기준
+# Workday Job Architecture 23개 직군 기준
+# levels.fyi + 블라인드 한국 테크 스타트업 시장 시세
 SALARY_TABLE: dict[str, list[int]] = {
-    #          CL1   CL2   CL3   CL4    CL5    CL6    CL7    CL8    CL9
-    'SWE':   [4000, 5500, 7000, 9000, 11500, 14000, 17000, 22000, 30000],
-    'DATA':  [4000, 5800, 7500, 9500, 12000, 15000, 18000, 24000, 30000],
-    'PM':    [4000, 5500, 7000, 9000, 11000, 14000, 17000, 22000, 28000],
-    'INFRA': [4000, 5500, 7000, 9000, 11500, 14000, 17000, 22000, 28000],
-    'DESIGN':[3800, 5000, 6500, 8000, 10000, 13000, 16000, 20000,     0],
-    'MKT':   [3500, 4800, 6000, 7500,  9500, 12000, 15000, 19000,     0],
-    'SALES': [3500, 5000, 6500, 8000, 10000, 13000, 16000, 20000,     0],
-    'OPS':   [3000, 4000, 5200, 6500,  8000, 10000, 13000, 17000,     0],
-    'FIN':   [3500, 4800, 6200, 7800,  9800, 12500, 15500, 19500,     0],
-    'HR':    [3500, 4600, 6000, 7500,  9500, 12000, 15000,     0,     0],
-    'LEGAL': [4500, 6000, 8000,10500, 13500, 17000, 21000,     0,     0],
-    'STRAT': [4000, 5500, 7000, 8800, 11000, 14000, 17000, 22000,     0],
+    #            CL1   CL2   CL3    CL4    CL5    CL6    CL7    CL8    CL9
+    # ── 테크 ──────────────────────────────────────────────────────
+    'SWE':    [4000, 5500, 7000,  9000, 11500, 14000, 17000, 22000, 30000],
+    'FE':     [3800, 5200, 6800,  8700, 11000, 13500, 16500, 21000, 28000],
+    'DE':     [4200, 5800, 7500,  9500, 12000, 15000, 18000, 24000, 31000],
+    'ML':     [4500, 6200, 8000, 10000, 12800, 16000, 20000, 26000, 35000],
+    'INFRA':  [4000, 5500, 7000,  9000, 11500, 14000, 17000, 22000, 28000],
+    'SEC':    [4200, 5800, 7500,  9500, 12000, 15000, 18500, 23000, 29000],
+    'QA':     [3500, 4800, 6200,  7800,  9800, 12000, 15000, 19000,     0],
+    # ── 프로덕트·디자인 ────────────────────────────────────────────
+    'PM':     [4000, 5500, 7000,  9000, 11000, 14000, 17000, 22000, 28000],
+    'UXR':    [3800, 5000, 6500,  8200, 10200, 12800, 16000, 20000,     0],
+    'DESIGN': [3600, 4800, 6200,  7800,  9800, 12300, 15300, 19000,     0],
+    'TW':     [3200, 4300, 5500,  6800,  8500, 10500, 13000,     0,     0],
+    # ── 영업·마케팅 ────────────────────────────────────────────────
+    'SALES':  [3500, 5000, 6500,  8000, 10000, 13000, 16000, 20000,     0],
+    'BD':     [3800, 5200, 6800,  8500, 10500, 13500, 16800, 21000,     0],
+    'CS':     [3000, 4000, 5200,  6500,  8000, 10000, 12500, 16000,     0],
+    'MKT':    [3500, 4800, 6000,  7500,  9500, 12000, 15000, 19000,     0],
+    'GROWTH': [3800, 5200, 6700,  8300, 10300, 13000, 16200, 20500,     0],
+    # ── 경영지원 ───────────────────────────────────────────────────
+    'FIN':    [3500, 4800, 6200,  7800,  9800, 12500, 15500, 19500,     0],
+    'LEGAL':  [4500, 6000, 8000, 10500, 13500, 17000, 21000,     0,     0],
+    'STRAT':  [4000, 5500, 7000,  8800, 11000, 14000, 17000, 22000,     0],
+    'BIZ_OPS':[3000, 4000, 5200,  6500,  8000, 10000, 13000, 17000,     0],
+    # ── 인사 ───────────────────────────────────────────────────────
+    'HR':     [3500, 4600, 6000,  7500,  9500, 12000, 15000,     0,     0],
+    'TA':     [3500, 4600, 6000,  7500,  9500, 12000, 14500,     0,     0],
+    'COMP':   [3800, 5000, 6500,  8200, 10200, 12800, 16000,     0,     0],
 }
 
 def monthly_base(jf_code: str, cl: int) -> int:
@@ -903,10 +919,18 @@ def run():
 
     # ── 새 테이블 생성 ─────────────────────────────────────────
     c.executescript('''
+        CREATE TABLE IF NOT EXISTS job_family_groups (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            code       TEXT UNIQUE NOT NULL,
+            name       TEXT NOT NULL,
+            sort_order INTEGER DEFAULT 0
+        );
         CREATE TABLE IF NOT EXISTS job_families (
-            id   INTEGER PRIMARY KEY AUTOINCREMENT,
-            code TEXT UNIQUE NOT NULL,
-            name TEXT NOT NULL
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            code       TEXT UNIQUE NOT NULL,
+            name       TEXT NOT NULL,
+            group_id   INTEGER REFERENCES job_family_groups(id),
+            sort_order INTEGER DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS salary_grades (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -930,7 +954,7 @@ def run():
         'leave_requests','applicant_logs','applicants','job_postings',
         'announcements','users',
         'departments','positions',
-        'salary_grades','job_families',
+        'salary_grades','job_families','job_family_groups',
     ]:
         c.execute(f"DELETE FROM {tbl}")
         c.execute(f"DELETE FROM sqlite_sequence WHERE name='{tbl}'")
@@ -993,6 +1017,7 @@ def run():
     D_ACCT_TEAM    = dept('회계팀',             D_FIN_DIV)
     D_HR_TEAM      = dept('인사팀',             D_HR_DIV)
     D_RECRUIT_TEAM = dept('채용팀',             D_HR_DIV)
+    D_COMP_TEAM    = dept('보상·HR테크팀',      D_HR_DIV)
     D_LEGAL_TEAM   = dept('법무팀',             D_LEGAL_DIV)
     D_STRAT_TEAM   = dept('전략기획팀',         D_STRAT_DIV)
 
@@ -1013,29 +1038,64 @@ def run():
         9: pos('CL9 · VP/임원',      9),
     }
 
-    # ── 직군 삽입 ──────────────────────────────────────────────
+    # ── Workday Job Family Groups 삽입 ────────────────────────
+    JFG_SEED = [
+        ('TECH',    '테크',           1),
+        ('PRODUCT', '프로덕트·디자인', 2),
+        ('GTM',     '영업·마케팅',    3),
+        ('CORP',    '경영지원',        4),
+        ('PEOPLE',  '인사',           5),
+    ]
+    JFG = {}
+    for gcode, gname, gsort in JFG_SEED:
+        c.execute("INSERT INTO job_family_groups (code, name, sort_order) VALUES (?,?,?)", (gcode, gname, gsort))
+        JFG[gcode] = c.lastrowid
+
+    # ── 직군 삽입 (Workday Job Architecture 23개) ─────────────
     jf_list = [
-        ('SWE',    '소프트웨어 엔지니어링'),
-        ('DATA',   '데이터/ML 엔지니어링'),
-        ('PM',     '프로덕트 매니지먼트'),
-        ('INFRA',  '인프라/DevOps'),
-        ('DESIGN', '디자인/UX'),
-        ('MKT',    '마케팅'),
-        ('SALES',  '영업/사업개발'),
-        ('OPS',    '운영/CS'),
-        ('FIN',    '재무/회계'),
-        ('HR',     '인사/HR'),
-        ('LEGAL',  '법무'),
-        ('STRAT',  '경영전략'),
+        # (code, name, group_code, sort_order)
+        # ── 테크 ──────────────────────────────────────────────
+        ('SWE',     '소프트웨어 엔지니어링', 'TECH',    1),
+        ('FE',      '프론트엔드 엔지니어링', 'TECH',    2),
+        ('DE',      '데이터 엔지니어링',     'TECH',    3),
+        ('ML',      'ML/AI 엔지니어링',      'TECH',    4),
+        ('INFRA',   '인프라/DevOps',         'TECH',    5),
+        ('SEC',     '보안',                  'TECH',    6),
+        ('QA',      '품질보증',              'TECH',    7),
+        # ── 프로덕트·디자인 ────────────────────────────────────
+        ('PM',      '프로덕트 매니지먼트',   'PRODUCT', 1),
+        ('UXR',     'UX리서치·디자인',       'PRODUCT', 2),
+        ('DESIGN',  '브랜드·시각 디자인',    'PRODUCT', 3),
+        ('TW',      '테크니컬 라이팅',       'PRODUCT', 4),
+        # ── 영업·마케팅 ────────────────────────────────────────
+        ('SALES',   '세일즈',                'GTM',     1),
+        ('BD',      '사업개발',              'GTM',     2),
+        ('CS',      '고객성공',              'GTM',     3),
+        ('MKT',     '마케팅',                'GTM',     4),
+        ('GROWTH',  '그로스',                'GTM',     5),
+        # ── 경영지원 ───────────────────────────────────────────
+        ('FIN',     '재무/회계',             'CORP',    1),
+        ('LEGAL',   '법무',                  'CORP',    2),
+        ('STRAT',   '경영전략',              'CORP',    3),
+        ('BIZ_OPS', '비즈니스 운영',         'CORP',    4),
+        # ── 인사 ───────────────────────────────────────────────
+        ('HR',      '인사/HR',               'PEOPLE',  1),
+        ('TA',      '채용/탤런트어퀴지션',   'PEOPLE',  2),
+        ('COMP',    '보상·HR테크',           'PEOPLE',  3),
     ]
     JF = {}
-    for code, name in jf_list:
-        c.execute("INSERT INTO job_families (code, name) VALUES (?,?)", (code, name))
+    for code, name, gcode, sort in jf_list:
+        c.execute(
+            "INSERT INTO job_families (code, name, group_id, sort_order) VALUES (?,?,?,?)",
+            (code, name, JFG[gcode], sort)
+        )
         JF[code] = c.lastrowid
 
     # ── 연봉 기준표 삽입 ──────────────────────────────────────
     for code, salaries in SALARY_TABLE.items():
-        fid = JF[code]
+        fid = JF.get(code)
+        if not fid:
+            continue
         for i, ann_만원 in enumerate(salaries):
             if ann_만원 > 0:
                 c.execute(
@@ -1043,34 +1103,40 @@ def run():
                     (fid, P[i + 1], ann_만원 * 10000)
                 )
 
-    # ── 직원 100명 생성 ────────────────────────────────────────
+    # ── 직원 147명 생성 (Workday 23개 직군 반영) ───────────────
     # 팀 설정: (dept_id, jf_code, count, dist_fn, base_role)
     TEAMS = [
-        (D_BE_TEAM,      'SWE',   11, ic_dist,   'employee'),
-        (D_FE_TEAM,      'SWE',    8, ic_dist,   'employee'),
-        (D_DE_TEAM,      'DATA',   6, ic_dist,   'employee'),
-        (D_ML_TEAM,      'DATA',   4, small_dist,'employee'),
-        (D_DEVOPS_TEAM,  'INFRA',  4, ic_dist,   'employee'),
-        (D_SEC_TEAM,     'INFRA',  2, small_dist,'employee'),
-        (D_PM_TEAM,      'PM',     6, ic_dist,   'employee'),
-        (D_UX_TEAM,      'DESIGN', 4, ic_dist,   'employee'),
-        (D_B2B_TEAM,     'SALES',  8, ic_dist,   'employee'),
-        (D_PARTNER_TEAM, 'SALES',  4, small_dist,'employee'),
-        (D_GLOBAL_TEAM,  'SALES',  4, small_dist,'employee'),
-        (D_BRAND_TEAM,   'MKT',    4, ic_dist,   'employee'),
-        (D_PERF_TEAM,    'MKT',    4, ic_dist,   'employee'),
-        (D_CONTENT_TEAM, 'MKT',    2, small_dist,'employee'),
-        (D_CS_TEAM,      'OPS',    6, ic_dist,   'employee'),
-        (D_QA_TEAM,      'OPS',    3, small_dist,'employee'),
-        (D_SVCOPS_TEAM,  'OPS',    4, ic_dist,   'employee'),
-        (D_FINPLAN_TEAM, 'FIN',    3, small_dist,'employee'),
-        (D_ACCT_TEAM,    'FIN',    3, small_dist,'employee'),
-        (D_HR_TEAM,      'HR',     4, ic_dist,   'employee'),   # i=0 → admin
-        (D_RECRUIT_TEAM, 'HR',     2, small_dist,'recruiter'),  # i=0 → recruiter
-        (D_LEGAL_TEAM,   'LEGAL',  2, small_dist,'employee'),
-        (D_STRAT_TEAM,   'STRAT',  2, small_dist,'employee'),
+        # 테크 (56명)
+        (D_BE_TEAM,      'SWE',     15, ic_dist,    'employee'),
+        (D_FE_TEAM,      'FE',      11, ic_dist,    'employee'),
+        (D_DE_TEAM,      'DE',       8, ic_dist,    'employee'),
+        (D_ML_TEAM,      'ML',       6, small_dist, 'employee'),
+        (D_DEVOPS_TEAM,  'INFRA',    6, ic_dist,    'employee'),
+        (D_SEC_TEAM,     'SEC',      4, small_dist, 'employee'),
+        (D_QA_TEAM,      'QA',       5, small_dist, 'employee'),
+        # 프로덕트·디자인 (21명)
+        (D_PM_TEAM,      'PM',       9, ic_dist,    'employee'),
+        (D_UX_TEAM,      'UXR',      5, ic_dist,    'employee'),
+        (D_BRAND_TEAM,   'DESIGN',   4, ic_dist,    'employee'),
+        (D_CONTENT_TEAM, 'TW',       3, small_dist, 'employee'),
+        # 영업·마케팅 (35명)
+        (D_B2B_TEAM,     'SALES',   10, ic_dist,    'employee'),
+        (D_PARTNER_TEAM, 'BD',       7, ic_dist,    'employee'),
+        (D_GLOBAL_TEAM,  'BD',       4, small_dist, 'employee'),
+        (D_CS_TEAM,      'CS',       9, ic_dist,    'employee'),
+        (D_PERF_TEAM,    'GROWTH',   5, ic_dist,    'employee'),
+        # 경영지원 (17명)
+        (D_FINPLAN_TEAM, 'FIN',      5, ic_dist,    'employee'),
+        (D_ACCT_TEAM,    'FIN',      3, small_dist, 'employee'),
+        (D_LEGAL_TEAM,   'LEGAL',    4, small_dist, 'employee'),
+        (D_STRAT_TEAM,   'STRAT',    5, small_dist, 'employee'),
+        # 인사 (18명)  i=0→admin, recruiter팀 i=0→recruiter
+        (D_HR_TEAM,      'HR',       7, ic_dist,    'employee'),
+        (D_RECRUIT_TEAM, 'TA',       4, small_dist, 'recruiter'),
+        (D_COMP_TEAM,    'COMP',     2, small_dist, 'employee'),
+        (D_SVCOPS_TEAM,  'BIZ_OPS',  5, ic_dist,    'employee'),
     ]
-    # 합계 확인: 11+8+6+4+4+2+6+4+8+4+4+4+4+2+6+3+4+3+3+4+2+2+2 = 100
+    # 합계: 15+11+8+6+6+4+5 + 9+5+4+3 + 10+7+4+9+5 + 5+3+4+5 + 7+4+2+5 = 151
 
     ALL_FEATURES = ('attendance,payroll,performance,peer_review,calibration,'
                     'recruiting,announcements,org_chart,certificates')

@@ -44,11 +44,18 @@
           {% endif %}
           {% endfor %}
         </select>
-        <select name="jf" class="input" style="width:130px; font-size:12px;">
+        <select name="jf" class="input" style="width:150px; font-size:12px;">
           <option value="">전체 직군</option>
+          {% set ns = namespace(cur_group='') %}
           {% for j in jfs %}
-          <option value="{{ j.id }}" {% if jf_id == j.id|string %}selected{% endif %}>{{ j.name }}</option>
+            {% if j.group_name and j.group_name != ns.cur_group %}
+              {% if ns.cur_group %}</optgroup>{% endif %}
+              <optgroup label="{{ j.group_name }}">
+              {% set ns.cur_group = j.group_name %}
+            {% endif %}
+            <option value="{{ j.id }}" {% if jf_id == j.id|string %}selected{% endif %}>{{ j.name }}</option>
           {% endfor %}
+          {% if ns.cur_group %}</optgroup>{% endif %}
         </select>
         <select name="pos" class="input" style="width:120px; font-size:12px;">
           <option value="">전체 직급</option>

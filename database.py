@@ -31,10 +31,19 @@ def init_db(db_path: str = None):
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS job_family_groups (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                code       TEXT UNIQUE NOT NULL,
+                name       TEXT NOT NULL,
+                sort_order INTEGER DEFAULT 0
+            );
+
             CREATE TABLE IF NOT EXISTS job_families (
-                id   INTEGER PRIMARY KEY AUTOINCREMENT,
-                code TEXT UNIQUE NOT NULL,
-                name TEXT NOT NULL
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                code       TEXT UNIQUE NOT NULL,
+                name       TEXT NOT NULL,
+                group_id   INTEGER REFERENCES job_family_groups(id),
+                sort_order INTEGER DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS salary_grades (
@@ -1259,22 +1268,56 @@ def init_db(db_path: str = None):
             conn.commit()
             conn.execute('PRAGMA foreign_keys = ON')
 
-        # salary_grades 밴드 데이터 전면 업데이트 (v0.60 — 리서치 기반 시장 연봉)
-        # Amazon Korea levels.fyi + 블라인드 데이터 기반 한국 테크 스타트업 기준
-        # (만원 단위 → ×10000)
+        # job_family_groups / job_families 컬럼 마이그레이션
+        _jfg_cols = {r[1] for r in c.execute("PRAGMA table_info(job_family_groups)")}
+        if not _jfg_cols:
+            pass  # 테이블은 CREATE TABLE IF NOT EXISTS로 이미 생성됨
+        _jf_cols = {r[1] for r in c.execute("PRAGMA table_info(job_families)")}
+        if 'group_id' not in _jf_cols:
+            c.execute("ALTER TABLE job_families ADD COLUMN group_id INTEGER REFERENCES job_family_groups(id)")
+        if 'sort_order' not in _jf_cols:
+            c.execute("ALTER TABLE job_families ADD COLUMN sort_order INTEGER DEFAULT 0")
+
+        # Workday Job Architecture 5개 그룹 시드 (없으면 삽입)
+        JFG_SEED = [
+            ('TECH',    '테크',           1),
+            ('PRODUCT', '프로덕트·디자인', 2),
+            ('GTM',     '영업·마케팅',    3),
+            ('CORP',    '경영지원',        4),
+            ('PEOPLE',  '인사',           5),
+        ]
+        for gcode, gname, gsort in JFG_SEED:
+            exists = c.execute('SELECT id FROM job_family_groups WHERE code=?', (gcode,)).fetchone()
+            if not exists:
+                c.execute('INSERT INTO job_family_groups (code, name, sort_order) VALUES (?,?,?)', (gcode, gname, gsort))
+
+        # 기존 job_families group_id/sort_order 보정 (코드 기반)
+        JF_GROUP_MAP = {
+            'SWE': ('TECH', 1), 'FE': ('TECH', 2), 'DE': ('TECH', 3),
+            'ML': ('TECH', 4),  'INFRA': ('TECH', 5), 'SEC': ('TECH', 6), 'QA': ('TECH', 7),
+            'PM': ('PRODUCT', 1), 'UXR': ('PRODUCT', 2), 'DESIGN': ('PRODUCT', 3), 'TW': ('PRODUCT', 4),
+            'SALES': ('GTM', 1), 'BD': ('GTM', 2), 'CS': ('GTM', 3), 'MKT': ('GTM', 4), 'GROWTH': ('GTM', 5),
+            'FIN': ('CORP', 1), 'LEGAL': ('CORP', 2), 'STRAT': ('CORP', 3), 'BIZ_OPS': ('CORP', 4),
+            'HR': ('PEOPLE', 1), 'TA': ('PEOPLE', 2), 'COMP': ('PEOPLE', 3),
+            # 구 코드 → 그룹 매핑 (레거시 호환)
+            'DATA': ('TECH', 3), 'OPS': ('GTM', 3),
+        }
+        for jf_code, (gcode, sort) in JF_GROUP_MAP.items():
+            grp = c.execute('SELECT id FROM job_family_groups WHERE code=?', (gcode,)).fetchone()
+            if grp:
+                c.execute('UPDATE job_families SET group_id=?, sort_order=? WHERE code=?', (grp[0], sort, jf_code))
+
+        # salary_grades 밴드 데이터 전면 업데이트 (v0.60 → v0.80 — Workday Job Architecture 기반)
+        # 23개 직군 코드 기반 배수 (IC_BANDS 기준값에 곱해서 계산)
         JF_MULT = {
-            1: 1.00,   # SWE
-            2: 1.05,   # DATA/ML
-            3: 1.00,   # PM
-            4: 1.00,   # INFRA/DevOps
-            5: 0.90,   # DESIGN
-            6: 0.85,   # MKT
-            7: 0.85,   # SALES
-            8: 0.75,   # OPS/CS
-            9: 0.85,   # FIN
-            10: 0.80,  # HR
-            11: 0.90,  # LEGAL
-            12: 0.95,  # STRAT
+            'SWE': 1.00, 'FE': 0.97,  'DE': 1.05,  'ML': 1.10,  'INFRA': 1.00,
+            'SEC': 1.05, 'QA': 0.92,
+            'PM': 1.00,  'UXR': 0.92, 'DESIGN': 0.90, 'TW': 0.82,
+            'SALES': 0.85, 'BD': 0.88, 'CS': 0.83, 'MKT': 0.85, 'GROWTH': 0.88,
+            'FIN': 0.85, 'LEGAL': 0.90, 'STRAT': 0.95, 'BIZ_OPS': 0.80,
+            'HR': 0.80, 'TA': 0.83, 'COMP': 0.88,
+            # 레거시 코드 호환
+            'DATA': 1.05, 'OPS': 0.75,
         }
         # IC 기준 밴드 (만원): {level: (min, mid, max)}
         IC_BANDS = {
@@ -1289,10 +1332,11 @@ def init_db(db_path: str = None):
             9: (25000, 35000, 50000),
         }
         # 기존 데이터 있는 경우도 업데이트 (UPSERT 효과)
-        for jf_id, mult in JF_MULT.items():
-            jf_exists = c.execute('SELECT 1 FROM job_families WHERE id=?', (jf_id,)).fetchone()
-            if not jf_exists:
+        for jf_code, mult in JF_MULT.items():
+            jf_row = c.execute('SELECT id FROM job_families WHERE code=?', (jf_code,)).fetchone()
+            if not jf_row:
                 continue
+            jf_id = jf_row[0]
             for level, (mn, md, mx) in IC_BANDS.items():
                 pos = c.execute('SELECT id FROM positions WHERE level=?', (level,)).fetchone()
                 if not pos:

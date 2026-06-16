@@ -84,9 +84,20 @@
 }
 .emp-type-card .etc-icon { font-size: 18px; display: block; margin-bottom: 4px; }
 
+/* 직군 그룹 탭 */
+.jf-group-tabs { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+.jf-group-tab {
+  padding: 5px 12px; border-radius: 20px; border: 1.5px solid var(--line);
+  background: var(--surface-container-low); font-size: 11px; font-weight: 600;
+  color: var(--on-surface-variant); cursor: pointer; transition: all .15s;
+}
+.jf-group-tab:hover { border-color: var(--primary); color: var(--primary); }
+.jf-group-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.jf-group-panel { display: none; grid-template-columns: repeat(4,1fr); gap: 8px; }
+.jf-group-panel.active { display: grid; }
+@media (max-width: 640px) { .jf-group-panel.active { grid-template-columns: repeat(3,1fr); } }
+
 /* 직군 카드 */
-.jf-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
-@media (max-width: 640px) { .jf-grid { grid-template-columns: repeat(3,1fr); } }
 .jf-card {
   padding: 10px 8px; border-radius: var(--radius-sm);
   background: var(--surface-container-low);
@@ -219,16 +230,38 @@
         <div class="field">
           <label>직군 (Job Family)</label>
           <input type="hidden" name="job_family_id" id="jf-hidden" value="{{ req.job_family_id if req else '' }}">
-          {% set jf_icons = {'SWE':'💻','DATA':'📊','PM':'🎯','INFRA':'🔧','DESIGN':'🎨','MKT':'📣','SALES':'🤝','OPS':'⚙️','FIN':'💰','HR':'👥','LEGAL':'⚖️','STRAT':'🗺️'} %}
-          <div class="jf-grid">
-            {% for jf in jfs %}
+          {% set jf_icons = {
+            'SWE':'💻','FE':'🖥️','DE':'📊','ML':'🤖','INFRA':'🔧','SEC':'🔒','QA':'🧪',
+            'PM':'🎯','UXR':'🔍','DESIGN':'🎨','TW':'📝',
+            'SALES':'🤝','BD':'🌐','CS':'🎧','MKT':'📣','GROWTH':'📈',
+            'FIN':'💰','LEGAL':'⚖️','STRAT':'🗺️','BIZ_OPS':'⚙️',
+            'HR':'👥','TA':'🎯','COMP':'💎'
+          } %}
+          {% set group_codes = [] %}
+          {% for jf in jfs %}{% if jf.group_name and jf.group_name not in group_codes %}{% if group_codes.append(jf.group_name) %}{% endif %}{% endif %}{% endfor %}
+          <!-- 그룹 탭 -->
+          <div class="jf-group-tabs" id="jfGroupTabs">
+            {% for grp in group_codes %}
+            <button type="button" class="jf-group-tab {% if loop.first %}active{% endif %}"
+                    onclick="switchJFGroup('{{ grp }}', this)">{{ grp }}</button>
+            {% endfor %}
+          </div>
+          <!-- 그룹별 직군 카드 패널 -->
+          {% set ns = namespace(cur_group='') %}
+          {% for jf in jfs %}
+            {% if jf.group_name and jf.group_name != ns.cur_group %}
+              {% if ns.cur_group %}</div>{% endif %}
+              {% set ns.cur_group = jf.group_name %}
+              <div class="jf-group-panel {% if loop.first %}active{% endif %}"
+                   data-group="{{ jf.group_name }}" id="jfPanel_{{ jf.group_name|replace(' ','_')|replace('·','_') }}">
+            {% endif %}
             <div class="jf-card {% if req and req.job_family_id == jf.id %}selected{% endif %}"
                  data-jf-id="{{ jf.id }}" onclick="selectJF(this)">
               <span class="jf-icon">{{ jf_icons.get(jf.code, '📁') }}</span>
-              {{ jf.name }}
+              <span style="font-size:10px;">{{ jf.name }}</span>
             </div>
-            {% endfor %}
-          </div>
+          {% endfor %}
+          {% if ns.cur_group %}</div>{% endif %}
         </div>
 
         <!-- 레벨 -->
@@ -404,6 +437,16 @@ function changeHC(delta) {
   el.value = v;
 }
 
+function switchJFGroup(groupName, btn) {
+  document.querySelectorAll('.jf-group-tab').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.jf-group-panel').forEach(function(p){ p.classList.remove('active'); });
+  btn.classList.add('active');
+  var panels = document.querySelectorAll('.jf-group-panel');
+  for (var i = 0; i < panels.length; i++) {
+    if (panels[i].dataset.group === groupName) { panels[i].classList.add('active'); break; }
+  }
+}
+
 function selectJF(el) {
   document.querySelectorAll('.jf-card').forEach(function(c){ c.classList.remove('selected'); });
   el.classList.add('selected');
@@ -411,6 +454,21 @@ function selectJF(el) {
   document.getElementById('jf-hidden').value = _jfId;
   if (_level) loadBand();
 }
+
+// 페이지 로드 시 선택된 직군이 있으면 해당 탭 활성화
+window.addEventListener('DOMContentLoaded', function() {
+  var selectedCard = document.querySelector('.jf-card.selected');
+  if (selectedCard) {
+    var panel = selectedCard.closest('.jf-group-panel');
+    if (panel) {
+      var groupName = panel.dataset.group;
+      var tab = Array.from(document.querySelectorAll('.jf-group-tab')).find(function(t){
+        return t.textContent.trim() === groupName;
+      });
+      if (tab) switchJFGroup(groupName, tab);
+    }
+  }
+});
 
 function selectLevel(el) {
   document.querySelectorAll('.level-card').forEach(function(c){ c.classList.remove('selected'); });

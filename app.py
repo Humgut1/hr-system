@@ -1050,7 +1050,7 @@ def employees():
     perf_grade   = request.args.get('grade', '')
 
     depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
-    jfs   = db.execute('SELECT * FROM job_families ORDER BY name').fetchall()
+    jfs   = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
     poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
 
     sql = (
@@ -1851,7 +1851,7 @@ def employee_new():
     db      = get_db()
     depts   = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
     poses   = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
-    jfs     = db.execute('SELECT * FROM job_families ORDER BY name').fetchall()
+    jfs     = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
     managers = db.execute(
         "SELECT id, name FROM users WHERE role IN ('admin','manager') AND status='active' ORDER BY name"
     ).fetchall()
@@ -1952,7 +1952,7 @@ def employee_edit(emp_id):
         abort(404)
     depts    = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
     poses    = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
-    jfs      = db.execute('SELECT * FROM job_families ORDER BY name').fetchall()
+    jfs      = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
     managers = db.execute(
         "SELECT id, name FROM users WHERE role IN ('admin','manager') AND status='active' AND id!=? ORDER BY name",
         (emp_id,)
@@ -4442,7 +4442,7 @@ def compensation():
                          if e['compa_ratio'] and (e['compa_ratio'] < 0.8 or e['compa_ratio'] > 1.2))
 
     positions    = db.execute('SELECT id, name, level FROM positions ORDER BY level').fetchall()
-    job_families = db.execute('SELECT id, name FROM job_families ORDER BY id').fetchall()
+    job_families = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
     band_rows    = db.execute(
         'SELECT sg.*, p.name pos_name, jf.name jf_name '
         'FROM salary_grades sg '
@@ -4604,7 +4604,7 @@ def salary_bands():
 
     # 직급·직군 목록
     positions   = db.execute('SELECT id, name, level FROM positions ORDER BY level').fetchall()
-    job_families = db.execute('SELECT id, name FROM job_families ORDER BY id').fetchall()
+    job_families = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
 
     # band_matrix: {(position_id, job_family_id): row}
     band_rows = db.execute(
@@ -5263,7 +5263,7 @@ def get_pay_equity_data(db):
 def salary_table():
     db = get_db()
     positions   = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
-    job_families = db.execute('SELECT * FROM job_families ORDER BY id').fetchall()
+    job_families = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
     grades_raw  = db.execute(
         'SELECT sg.job_family_id, sg.position_id, sg.annual_salary '
         'FROM salary_grades sg'
@@ -6425,7 +6425,7 @@ def requisition_new():
     db    = get_db()
     depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
     poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
-    jfs   = db.execute('SELECT * FROM job_families ORDER BY id').fetchall()
+    jfs   = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
 
     if request.method == 'POST':
         f = request.form

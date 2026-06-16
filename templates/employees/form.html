@@ -115,12 +115,19 @@
             <label class="form-label">직군</label>
             <select name="job_family_id" class="input">
               <option value="">직군 선택</option>
+              {% set ns = namespace(cur_group='') %}
               {% for jf in jfs %}
-              <option value="{{ jf.id }}"
-                {% if emp and emp.job_family_id == jf.id %}selected{% endif %}>
-                {{ jf.name }}
-              </option>
+                {% if jf.group_name and jf.group_name != ns.cur_group %}
+                  {% if ns.cur_group %}</optgroup>{% endif %}
+                  <optgroup label="{{ jf.group_name }}">
+                  {% set ns.cur_group = jf.group_name %}
+                {% endif %}
+                <option value="{{ jf.id }}"
+                  {% if emp and emp.job_family_id == jf.id %}selected{% endif %}>
+                  {{ jf.name }}
+                </option>
               {% endfor %}
+              {% if ns.cur_group %}</optgroup>{% endif %}
             </select>
           </div>
           <div class="field">
