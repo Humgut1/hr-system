@@ -181,6 +181,40 @@
   <!-- Right -->
   <div class="stack">
 
+    {% if 'my_goals' in enabled_widgets %}
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">My Goals</span>
+        <a href="{{ url_for('performance') }}" class="btn btn-ghost btn-sm">전체 보기</a>
+      </div>
+      {% if my_goals %}
+      <div>
+        {% for g in my_goals %}
+        <div style="padding:13px 22px; border-bottom:1px solid var(--line);">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:7px;">
+            <div class="body-sm" style="font-weight:600; color:var(--tx-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;">{{ g.title }}</div>
+            <span style="font-size:11px; color:var(--tx-3); flex-shrink:0; margin-left:8px;">가중치 {{ g.weight }}%</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="flex:1; height:6px; background:var(--bg); border-radius:99px; overflow:hidden;">
+              <div style="height:100%; width:{{ g.progress or 0 }}%;
+                           background:{% if (g.progress or 0) >= 80 %}var(--green){% elif (g.progress or 0) >= 40 %}var(--primary){% else %}var(--orange){% endif %};
+                           border-radius:99px;"></div>
+            </div>
+            <span style="font-size:11px; color:var(--tx-3); white-space:nowrap;">{{ g.progress or 0 }}%</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="padding:32px 22px; text-align:center;" class="muted body-sm">
+        <i class="fas fa-bullseye" style="font-size:24px; opacity:.3; display:block; margin-bottom:10px;"></i>
+        등록된 목표가 없습니다.
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
     {% if 'time_off_balance' in enabled_widgets %}
     <div class="card" style="padding:24px;">
       <div class="label">Time Off Balance</div>

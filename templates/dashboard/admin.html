@@ -151,6 +151,91 @@
     </div>
     {% endif %}
 
+    {% if 'payroll_summary' in enabled_widgets %}
+    <div class="card" style="padding:24px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <div class="label">이번 달 급여 현황</div>
+        <a href="{{ url_for('compensation') }}" class="btn btn-ghost btn-sm">급여관리</a>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div style="background:var(--bg); border-radius:12px; padding:16px;">
+          <div style="font-size:12px; color:var(--tx-3); margin-bottom:6px;">지급 인원</div>
+          <div style="font-size:28px; font-weight:700; color:var(--tx-1);">{{ payroll_summary.count }}<span style="font-size:14px; font-weight:500; color:var(--tx-3);">명</span></div>
+        </div>
+        <div style="background:var(--bg); border-radius:12px; padding:16px;">
+          <div style="font-size:12px; color:var(--tx-3); margin-bottom:6px;">총 지급액</div>
+          <div style="font-size:20px; font-weight:700; color:var(--primary);">
+            {% if payroll_summary.total >= 100000000 %}
+              {{ '%.1f'|format(payroll_summary.total / 100000000) }}억
+            {% elif payroll_summary.total >= 10000 %}
+              {{ '{:,.0f}'.format(payroll_summary.total // 10000) }}만
+            {% else %}
+              {{ '{:,}'.format(payroll_summary.total) }}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% if payroll_summary.count == 0 %}
+      <div style="margin-top:12px; padding:10px 14px; background:var(--amber-soft,#fef9ec); border-radius:10px; font-size:12px; color:var(--amber,#d97706);">
+        <i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>이번 달 급여가 아직 실행되지 않았습니다.
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if 'open_positions' in enabled_widgets %}
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">채용 중인 포지션</span>
+        <a href="{{ url_for('recruit_postings') }}" class="btn btn-ghost btn-sm">전체 보기</a>
+      </div>
+      {% if open_jobs %}
+      <div>
+        {% for job in open_jobs %}
+        <div style="padding:13px 22px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between;">
+          <div>
+            <div class="body-sm" style="font-weight:600; color:var(--tx-1);">{{ job.title }}</div>
+          </div>
+          <span class="chip" style="font-size:11px; white-space:nowrap;">지원자 {{ job.applicant_count }}명</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="padding:32px 22px; text-align:center;" class="muted body-sm">
+        <i class="fas fa-briefcase" style="font-size:24px; opacity:.3; display:block; margin-bottom:10px;"></i>
+        진행 중인 채용이 없습니다.
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if 'overtime_violations' in enabled_widgets %}
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">52시간 위반 (최근 7일)</span>
+        <a href="{{ url_for('overtime_monitor') }}" class="btn btn-ghost btn-sm">모니터링</a>
+      </div>
+      {% if ot_violations %}
+      <div>
+        {% for v in ot_violations %}
+        <div style="padding:12px 22px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px;">
+          <div class="avatar-xs" style="flex-shrink:0; background:var(--red-soft,#fee2e2); color:var(--red,#ef4444);">{{ v.name[0] }}</div>
+          <div style="flex:1; min-width:0;">
+            <div class="body-sm" style="font-weight:600;">{{ v.name }}</div>
+          </div>
+          <span style="font-size:12px; font-weight:700; color:var(--red,#ef4444);">{{ '%.0f'|format(v.ot_min / 60) }}h 초과</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="padding:32px 22px; text-align:center;" class="muted body-sm">
+        <i class="fas fa-check-circle" style="font-size:24px; color:var(--green); opacity:.5; display:block; margin-bottom:10px;"></i>
+        이번 주 위반 없음
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
     {% if 'recent_employees' in enabled_widgets %}
     <div class="card">
       <div class="card-head">

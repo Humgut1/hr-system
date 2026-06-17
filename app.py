@@ -4,7 +4,7 @@ import uuid
 import json
 import base64
 import urllib.request
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from functools import wraps
 
 from flask import (Flask, abort, flash, g, redirect, render_template,
@@ -752,6 +752,27 @@ def dashboard():
                 'link': url_for('termination_requests')
             })
         inbox_count = len(inbox_items)
+        # ── 신규 위젯 데이터 ─────────────────────────────────
+        this_year   = date.today().year
+        this_month_n = date.today().month
+        payroll_row = db.execute(
+            "SELECT COUNT(*) as cnt, COALESCE(SUM(net_pay),0) as total "
+            "FROM payslips WHERE year=? AND month=?", (this_year, this_month_n)
+        ).fetchone()
+        payroll_summary = {'count': payroll_row['cnt'], 'total': payroll_row['total']}
+        open_jobs = db.execute(
+            "SELECT jp.title, COUNT(a.id) as applicant_count "
+            "FROM job_postings jp LEFT JOIN applicants a ON jp.id=a.posting_id "
+            "WHERE jp.status='open' GROUP BY jp.id ORDER BY jp.created_at DESC LIMIT 5"
+        ).fetchall()
+        week_ago = (date.today() - timedelta(days=7)).isoformat()
+        ot_violations = db.execute(
+            "SELECT u.name, u.id as uid, SUM(c.overtime_min) as ot_min "
+            "FROM checkins c JOIN users u ON c.user_id=u.id "
+            "WHERE c.check_in >= ? AND u.status='active' "
+            "GROUP BY c.user_id HAVING SUM(c.overtime_min) > 720 "
+            "ORDER BY ot_min DESC LIMIT 5", (week_ago,)
+        ).fetchall()
         enabled_widgets = get_widget_prefs(uid, 'admin')
         widget_catalog  = WIDGET_CATALOG['admin']
         return render_template('dashboard/admin.html',
@@ -761,6 +782,8 @@ def dashboard():
             total_applicants=total_applicants, recent_employees=recent_employees,
             recent_posts=recent_posts, who_out=who_out,
             inbox_items=inbox_items, inbox_count=inbox_count,
+            payroll_summary=payroll_summary, open_jobs=open_jobs,
+            ot_violations=ot_violations,
             labels=LEAVE_LABELS, active_page='home',
             enabled_widgets=enabled_widgets, widget_catalog=widget_catalog)
 
@@ -807,6 +830,18 @@ def dashboard():
             "AND lr.status='approved' AND lr.start_date<=? AND lr.end_date>=? "
             "ORDER BY u.name", (dept_id, today, today)
         ).fetchall()
+        upcoming_reviews = db.execute(
+            "SELECT pc.name as cycle_name, pc.review_end, "
+            "COUNT(DISTINCT pg.user_id) as member_count, "
+            "COUNT(DISTINCT CASE WHEN pr.id IS NOT NULL THEN pg.user_id END) as reviewed_count "
+            "FROM performance_cycles pc "
+            "JOIN performance_goals pg ON pc.id=pg.cycle_id "
+            "JOIN users u ON pg.user_id=u.id "
+            "LEFT JOIN performance_reviews pr ON pg.id=pr.goal_id "
+            "WHERE u.department_id=? AND pc.review_end >= ? "
+            "GROUP BY pc.id ORDER BY pc.review_end ASC LIMIT 3",
+            (dept_id, today)
+        ).fetchall()
         enabled_widgets = get_widget_prefs(uid, 'manager')
         widget_catalog  = WIDGET_CATALOG['manager']
         return render_template('dashboard/manager.html',
@@ -814,7 +849,8 @@ def dashboard():
             team_count=team_count, pending_count=pending_count,
             today_leave=today_leave, inbox_items=inbox_items, inbox_count=inbox_count,
             team_goals=team_goals, recent_posts=recent_posts,
-            who_out=who_out, labels=LEAVE_LABELS, active_page='home',
+            who_out=who_out, upcoming_reviews=upcoming_reviews,
+            labels=LEAVE_LABELS, active_page='home',
             enabled_widgets=enabled_widgets, widget_catalog=widget_catalog)
 
     if role == 'recruiter':
@@ -870,6 +906,13 @@ def dashboard():
     ).fetchall()
     tenure_str = _tenure(hire_date_str)
     pct_used   = int(float(used_leave) / total_leave * 100) if total_leave else 0
+    my_goals = db.execute(
+        "SELECT pg.id, pg.title, pg.weight, pg.progress, pg.self_score, pc.name as cycle_name "
+        "FROM performance_goals pg "
+        "JOIN performance_cycles pc ON pg.cycle_id=pc.id "
+        "WHERE pg.user_id=? AND pc.status IN ('active','closed') "
+        "ORDER BY pc.start_date DESC, pg.weight DESC LIMIT 5", (uid,)
+    ).fetchall()
     enabled_widgets = get_widget_prefs(uid, 'employee')
     widget_catalog  = WIDGET_CATALOG['employee']
     return render_template('dashboard/employee.html',
@@ -878,6 +921,7 @@ def dashboard():
         remain_leave=remain_leave, pct_used=pct_used,
         recent_reqs=recent_reqs, upcoming_leave=upcoming_leave,
         recent_posts=recent_posts, tenure_str=tenure_str,
+        my_goals=my_goals,
         labels=LEAVE_LABELS, active_page='home',
         enabled_widgets=enabled_widgets, widget_catalog=widget_catalog)
 
@@ -3044,45 +3088,64 @@ def admin_schedules():
 # ── Dashboard Widget Catalog ──────────────────────────────────────────────
 WIDGET_CATALOG = {
     'admin': [
-        {'key': 'kpi_cards',        'label': 'KPI Cards',           'icon': 'fa-chart-bar'},
-        {'key': 'inbox',            'label': 'Inbox',               'icon': 'fa-inbox'},
-        {'key': 'recent_employees', 'label': 'Recent Employees',    'icon': 'fa-user-plus'},
-        {'key': 'quick_actions',    'label': 'Quick Actions',       'icon': 'fa-bolt'},
-        {'key': 'whos_out',         'label': "Who's Out Today",     'icon': 'fa-door-open'},
-        {'key': 'announcements',    'label': 'Announcements',       'icon': 'fa-bullhorn'},
+        {'key': 'kpi_cards',            'label': 'KPI Cards',           'icon': 'fa-chart-bar'},
+        {'key': 'inbox',                'label': 'Inbox',               'icon': 'fa-inbox'},
+        {'key': 'quick_actions',        'label': 'Quick Actions',       'icon': 'fa-bolt'},
+        {'key': 'payroll_summary',      'label': 'Payroll Summary',     'icon': 'fa-won-sign'},
+        {'key': 'open_positions',       'label': 'Open Positions',      'icon': 'fa-briefcase'},
+        {'key': 'overtime_violations',  'label': '52h 위반 현황',        'icon': 'fa-clock'},
+        {'key': 'recent_employees',     'label': 'Recent Employees',    'icon': 'fa-user-plus'},
+        {'key': 'whos_out',             'label': "Who's Out Today",     'icon': 'fa-door-open'},
+        {'key': 'announcements',        'label': 'Announcements',       'icon': 'fa-bullhorn'},
     ],
     'manager': [
         {'key': 'kpi_cards',        'label': 'KPI Cards',           'icon': 'fa-chart-bar'},
         {'key': 'inbox',            'label': 'Inbox',               'icon': 'fa-inbox'},
-        {'key': 'team_performance', 'label': 'Team Performance',    'icon': 'fa-chart-line'},
         {'key': 'quick_actions',    'label': 'Quick Actions',       'icon': 'fa-bolt'},
+        {'key': 'team_performance', 'label': 'Team Performance',    'icon': 'fa-chart-line'},
+        {'key': 'upcoming_reviews', 'label': 'Upcoming Reviews',    'icon': 'fa-calendar-check'},
         {'key': 'whos_out',         'label': "Who's Out Today",     'icon': 'fa-door-open'},
         {'key': 'announcements',    'label': 'Announcements',       'icon': 'fa-bullhorn'},
     ],
     'employee': [
         {'key': 'kpi_cards',        'label': 'KPI Cards',           'icon': 'fa-chart-bar'},
         {'key': 'quick_actions',    'label': 'Quick Actions',       'icon': 'fa-bolt'},
-        {'key': 'leave_requests',   'label': 'Leave Requests',      'icon': 'fa-calendar-times'},
+        {'key': 'my_goals',         'label': 'My Goals',            'icon': 'fa-bullseye'},
         {'key': 'time_off_balance', 'label': 'Time Off Balance',    'icon': 'fa-calendar-check'},
+        {'key': 'leave_requests',   'label': 'Leave Requests',      'icon': 'fa-calendar-times'},
         {'key': 'upcoming_leave',   'label': 'Upcoming Leave',      'icon': 'fa-calendar-alt'},
         {'key': 'announcements',    'label': 'Announcements',       'icon': 'fa-bullhorn'},
     ],
 }
 
+# 역할별 기본 활성 위젯 (처음 로그인 시 / 미설정 시 적용)
+DEFAULT_WIDGETS = {
+    'admin':    {'kpi_cards', 'inbox', 'quick_actions', 'payroll_summary',
+                 'open_positions', 'overtime_violations', 'whos_out', 'announcements'},
+    'manager':  {'kpi_cards', 'inbox', 'quick_actions', 'team_performance',
+                 'upcoming_reviews', 'whos_out', 'announcements'},
+    'employee': {'kpi_cards', 'quick_actions', 'my_goals', 'time_off_balance',
+                 'leave_requests', 'announcements'},
+}
+
 def get_widget_prefs(uid, role):
-    """Return set of enabled widget keys for a user. Defaults: all enabled."""
-    catalog = WIDGET_CATALOG.get(role, [])
+    """Return set of enabled widget keys for a user. Falls back to role default."""
+    catalog  = WIDGET_CATALOG.get(role, [])
     all_keys = {w['key'] for w in catalog}
     db = get_db()
     rows = db.execute(
         'SELECT widget_key, enabled FROM dashboard_widgets WHERE user_id=?', (uid,)
     ).fetchall()
     if not rows:
-        return all_keys  # no prefs saved yet → show everything
+        return DEFAULT_WIDGETS.get(role, all_keys)
     saved = {r['widget_key']: r['enabled'] for r in rows}
     enabled = set()
     for key in all_keys:
-        if saved.get(key, 1):  # default on if not saved
+        # 저장된 값 우선, 없으면 DEFAULT_WIDGETS 기준
+        if key in saved:
+            if saved[key]:
+                enabled.add(key)
+        elif key in DEFAULT_WIDGETS.get(role, all_keys):
             enabled.add(key)
     return enabled
 
