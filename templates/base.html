@@ -122,6 +122,9 @@
         <a href="{{ url_for('admin_settings') }}" class="nav-item{% if active_page in ('settings','departments','holidays','overtime_monitor','schedules','admin_welfare_points') %} active{% endif %}" title="설정">
           <i class="fas fa-cog"></i><span>설정</span>
         </a>
+        <a href="{{ url_for('admin_integrations') }}" class="nav-item{% if active_page == 'integrations' %} active{% endif %}" title="외부 연동">
+          <i class="fas fa-plug"></i><span>외부 연동</span>
+        </a>
         {% endif %}
       </div>
       {% endif %}

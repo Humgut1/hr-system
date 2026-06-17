@@ -1,0 +1,297 @@
+{% extends 'base.html' %}
+{% block title %}외부 서비스 연동{% endblock %}
+{% block page_title %}외부 서비스 연동{% endblock %}
+
+{% block content %}
+
+<!-- 헤더 -->
+<div class="welcome-banner" style="margin-bottom:24px;">
+  <div style="z-index:1;">
+    <div style="font-size:12px; font-weight:600; opacity:.6; text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px;">Integrations</div>
+    <div class="welcome-greeting" style="font-size:22px;">외부 서비스 연동</div>
+    <div class="welcome-sub">Slack · Jira · Confluence 연동 설정 및 실행 로그</div>
+  </div>
+  <div style="z-index:1;">
+    <i class="fas fa-plug welcome-icon" style="position:static; opacity:.15; font-size:48px;"></i>
+  </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="alert alert-{{ cat }}" style="margin-bottom:16px;">{{ msg }}</div>
+  {% endfor %}
+{% endwith %}
+
+<!-- 서비스 카드 -->
+<form method="POST">
+<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:20px; margin-bottom:32px;">
+
+  <!-- Slack -->
+  {% set slack_cfg = configs.get('slack', {}) %}
+  <div class="card" style="padding:28px; border:2px solid {% if slack_cfg.get('enabled') %}var(--primary){% else %}var(--line){% endif %};">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:44px; height:44px; background:#f5f0ff; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px;">💬</div>
+        <div>
+          <div style="font-size:16px; font-weight:700; color:var(--tx-1);">Slack</div>
+          <div style="font-size:12px; color:var(--tx-3);">워크스페이스 자동화</div>
+        </div>
+      </div>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" name="enable_slack" style="width:18px; height:18px; accent-color:var(--primary);"
+               {% if slack_cfg.get('enabled') %}checked{% endif %}>
+        <span style="font-size:13px; font-weight:600; color:var(--tx-2);">활성화</span>
+      </label>
+    </div>
+
+    <div style="font-size:13px; color:var(--tx-3); margin-bottom:16px; line-height:1.6;">
+      입사 시 워크스페이스 초대 + 팀 채널 자동 추가.<br>퇴직 시 계정 비활성화.
+    </div>
+
+    <!-- API 키 상태 -->
+    <div style="background:var(--bg); border-radius:10px; padding:14px; font-size:12px;">
+      <div style="font-weight:700; color:var(--tx-2); margin-bottom:8px;">환경변수 상태</div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+        <span style="color:var(--tx-3);">SLACK_BOT_TOKEN</span>
+        {% if env_status.slack_bot %}
+          <span style="color:var(--green); font-weight:600;">✓ 설정됨</span>
+        {% else %}
+          <span style="color:var(--orange);">⚠ 미설정 (데모 모드)</span>
+        {% endif %}
+      </div>
+      <div style="display:flex; justify-content:space-between;">
+        <span style="color:var(--tx-3);">SLACK_ADMIN_TOKEN</span>
+        {% if env_status.slack_admin %}
+          <span style="color:var(--green); font-weight:600;">✓ 설정됨</span>
+        {% else %}
+          <span style="color:var(--orange);">⚠ 미설정 (초대 불가)</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 데모 모드 배너 -->
+    {% if not env_status.slack_bot %}
+    <div style="margin-top:12px; padding:10px 14px; background:#fffbeb; border-radius:8px; font-size:12px; color:#92400e; border:1px solid #fde68a;">
+      <i class="fas fa-flask" style="margin-right:6px;"></i><strong>데모 모드</strong> — 실제 Slack 호출 없이 시뮬레이션
+    </div>
+    {% endif %}
+
+    <div style="margin-top:16px; font-size:12px; color:var(--tx-3);">
+      <strong>트리거:</strong> 직원 신규 등록, 부서 이동, 퇴직 처리
+    </div>
+  </div>
+
+  <!-- Jira -->
+  {% set jira_cfg = configs.get('jira', {}) %}
+  <div class="card" style="padding:28px; border:2px solid {% if jira_cfg.get('enabled') %}var(--primary){% else %}var(--line){% endif %};">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:44px; height:44px; background:#e6f0ff; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px;">🔵</div>
+        <div>
+          <div style="font-size:16px; font-weight:700; color:var(--tx-1);">Jira</div>
+          <div style="font-size:12px; color:var(--tx-3);">이슈 자동 생성</div>
+        </div>
+      </div>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" name="enable_jira" style="width:18px; height:18px; accent-color:var(--primary);"
+               {% if jira_cfg.get('enabled') %}checked{% endif %}>
+        <span style="font-size:13px; font-weight:600; color:var(--tx-2);">활성화</span>
+      </label>
+    </div>
+
+    <div style="font-size:13px; color:var(--tx-3); margin-bottom:16px; line-height:1.6;">
+      입사 시 온보딩 Epic + 태스크 8개 자동 생성.<br>퇴직 시 오프보딩 체크리스트 생성.
+    </div>
+
+    <div style="background:var(--bg); border-radius:10px; padding:14px; font-size:12px;">
+      <div style="font-weight:700; color:var(--tx-2); margin-bottom:8px;">환경변수 상태</div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+        <span style="color:var(--tx-3);">JIRA_API_TOKEN</span>
+        {% if env_status.jira_token %}
+          <span style="color:var(--green); font-weight:600;">✓ 설정됨</span>
+        {% else %}
+          <span style="color:var(--orange);">⚠ 미설정 (데모 모드)</span>
+        {% endif %}
+      </div>
+      <div style="display:flex; justify-content:space-between;">
+        <span style="color:var(--tx-3);">JIRA_BASE_URL</span>
+        {% if env_status.jira_url %}
+          <span style="color:var(--green); font-weight:600;">✓ 설정됨</span>
+        {% else %}
+          <span style="color:var(--orange);">⚠ 미설정</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if not env_status.jira_token %}
+    <div style="margin-top:12px; padding:10px 14px; background:#fffbeb; border-radius:8px; font-size:12px; color:#92400e; border:1px solid #fde68a;">
+      <i class="fas fa-flask" style="margin-right:6px;"></i><strong>데모 모드</strong> — 실제 Jira 호출 없이 시뮬레이션
+    </div>
+    {% endif %}
+
+    <div style="margin-top:16px; font-size:12px; color:var(--tx-3);">
+      <strong>트리거:</strong> 직원 신규 등록, 퇴직 처리
+    </div>
+  </div>
+
+  <!-- Confluence -->
+  {% set conf_cfg = configs.get('confluence', {}) %}
+  <div class="card" style="padding:28px; border:2px solid {% if conf_cfg.get('enabled') %}var(--primary){% else %}var(--line){% endif %};">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:44px; height:44px; background:#e6f5ff; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px;">📘</div>
+        <div>
+          <div style="font-size:16px; font-weight:700; color:var(--tx-1);">Confluence</div>
+          <div style="font-size:12px; color:var(--tx-3);">페이지 자동 업데이트</div>
+        </div>
+      </div>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" name="enable_confluence" style="width:18px; height:18px; accent-color:var(--primary);"
+               {% if conf_cfg.get('enabled') %}checked{% endif %}>
+        <span style="font-size:13px; font-weight:600; color:var(--tx-2);">활성화</span>
+      </label>
+    </div>
+
+    <div style="font-size:13px; color:var(--tx-3); margin-bottom:16px; line-height:1.6;">
+      입사 시 팀 페이지에 멤버 추가 + 프로필 페이지 생성.<br>퇴직 시 팀 페이지에서 자동 제거.
+    </div>
+
+    <div style="background:var(--bg); border-radius:10px; padding:14px; font-size:12px;">
+      <div style="font-weight:700; color:var(--tx-2); margin-bottom:8px;">환경변수 상태</div>
+      <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+        <span style="color:var(--tx-3);">CONFLUENCE_BASE_URL</span>
+        {% if env_status.confluence %}
+          <span style="color:var(--green); font-weight:600;">✓ 설정됨</span>
+        {% else %}
+          <span style="color:var(--orange);">⚠ 미설정 (데모 모드)</span>
+        {% endif %}
+      </div>
+      <div style="display:flex; justify-content:space-between;">
+        <span style="color:var(--tx-3);">JIRA_API_TOKEN (공유)</span>
+        {% if env_status.jira_token %}
+          <span style="color:var(--green); font-weight:600;">✓ 설정됨</span>
+        {% else %}
+          <span style="color:var(--orange);">⚠ 미설정</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if not env_status.confluence %}
+    <div style="margin-top:12px; padding:10px 14px; background:#fffbeb; border-radius:8px; font-size:12px; color:#92400e; border:1px solid #fde68a;">
+      <i class="fas fa-flask" style="margin-right:6px;"></i><strong>데모 모드</strong> — 실제 Confluence 호출 없이 시뮬레이션
+    </div>
+    {% endif %}
+
+    <div style="margin-top:16px; font-size:12px; color:var(--tx-3);">
+      <strong>트리거:</strong> 직원 신규 등록, 부서 이동, 퇴직 처리
+    </div>
+  </div>
+
+</div>
+
+<div style="display:flex; justify-content:flex-end; margin-bottom:40px;">
+  <button type="submit" class="btn btn-primary" style="padding:10px 28px;">
+    <i class="fas fa-save"></i> 설정 저장
+  </button>
+</div>
+</form>
+
+<!-- .env 가이드 -->
+<div class="card" style="margin-bottom:32px;">
+  <div class="card-head">
+    <span class="card-title"><i class="fas fa-key" style="color:var(--primary); margin-right:8px;"></i>.env 설정 가이드</span>
+    <button onclick="toggleEnvGuide()" class="btn btn-ghost btn-sm">펼치기</button>
+  </div>
+  <div id="env-guide" style="display:none; padding:20px 24px;">
+    <p style="font-size:13.5px; color:var(--tx-3); margin-bottom:16px;">프로젝트 루트의 <code>.env</code> 파일에 아래 값을 추가하면 데모 모드에서 실제 연동으로 자동 전환됩니다.</p>
+    <div style="background:#1e1e2e; color:#cdd6f4; border-radius:12px; padding:20px 24px; font-family:monospace; font-size:13px; line-height:2; overflow-x:auto;">
+      <span style="color:#6c7086;"># Slack</span><br>
+      SLACK_BOT_TOKEN=xoxb-...<br>
+      SLACK_ADMIN_TOKEN=xoxp-...<br>
+      SLACK_WORKSPACE_ID=T...<br><br>
+      <span style="color:#6c7086;"># Jira + Confluence (같은 토큰 사용)</span><br>
+      JIRA_BASE_URL=https://your-domain.atlassian.net<br>
+      JIRA_EMAIL=your@email.com<br>
+      JIRA_API_TOKEN=...<br>
+      JIRA_PROJECT_KEY=HR<br><br>
+      <span style="color:#6c7086;"># Confluence</span><br>
+      CONFLUENCE_BASE_URL=https://your-domain.atlassian.net/wiki<br>
+      CONFLUENCE_SPACE_KEY=TEAM
+    </div>
+    <div style="margin-top:14px; padding:12px 16px; background:var(--primary-soft); border-radius:10px; font-size:13px; color:var(--primary);">
+      <i class="fas fa-info-circle" style="margin-right:6px;"></i>
+      Atlassian API 토큰은 <strong>id.atlassian.com → 보안 → API 토큰</strong>에서 발급합니다. Jira와 Confluence가 같은 계정이면 토큰 하나로 둘 다 사용 가능합니다.
+    </div>
+  </div>
+</div>
+
+<!-- 연동 실행 로그 -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title"><i class="fas fa-history" style="color:var(--primary); margin-right:8px;"></i>연동 실행 로그</span>
+    <span class="muted body-sm">최근 50건</span>
+  </div>
+  {% if logs %}
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>시각</th>
+          <th>직원</th>
+          <th>이벤트</th>
+          <th>서비스</th>
+          <th>결과</th>
+          <th>상세</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td class="muted" style="font-size:12px; white-space:nowrap;">{{ log.created_at[:16] }}</td>
+          <td style="font-size:13px; font-weight:600;">{{ log.employee_name or '—' }}</td>
+          <td style="font-size:13px;">{{ log.event }}</td>
+          <td>
+            {% if log.service == 'slack' %}
+              <span style="font-size:13px;">💬 Slack</span>
+            {% elif log.service == 'jira' %}
+              <span style="font-size:13px;">🔵 Jira</span>
+            {% elif log.service == 'confluence' %}
+              <span style="font-size:13px;">📘 Confluence</span>
+            {% else %}
+              {{ log.service }}
+            {% endif %}
+          </td>
+          <td>
+            {% if log.status == 'demo' %}
+              <span class="badge badge-pending" style="font-size:11px; background:#f3f4f6; color:#6b7280;">데모</span>
+            {% elif log.status == 'success' %}
+              <span class="badge badge-active" style="font-size:11px;">성공</span>
+            {% else %}
+              <span class="badge badge-reject" style="font-size:11px;">오류</span>
+            {% endif %}
+          </td>
+          <td class="muted" style="font-size:12px;">{{ log.detail or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="padding:48px 24px; text-align:center;" class="muted">
+    <i class="fas fa-history" style="font-size:32px; opacity:.3; display:block; margin-bottom:12px;"></i>
+    아직 실행된 연동이 없습니다.<br>
+    <span style="font-size:13px;">서비스를 활성화한 후 직원을 등록하면 로그가 쌓입니다.</span>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleEnvGuide() {
+  var g = document.getElementById('env-guide');
+  g.style.display = g.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+{% endblock %}

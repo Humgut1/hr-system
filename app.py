@@ -573,6 +573,40 @@ def admin_setup():
                            benefit_catalog=BENEFIT_CATALOG)
 
 
+@app.route('/admin/integrations', methods=['GET', 'POST'])
+@admin_required
+def admin_integrations():
+    db = get_db()
+    if request.method == 'POST':
+        for svc in ('slack', 'jira', 'confluence'):
+            enabled = 1 if request.form.get(f'enable_{svc}') else 0
+            db.execute(
+                "UPDATE integration_configs SET enabled=?, updated_at=CURRENT_TIMESTAMP WHERE service=?",
+                (enabled, svc)
+            )
+        db.commit()
+        flash('연동 설정이 저장되었습니다.', 'success')
+        return redirect(url_for('admin_integrations'))
+
+    configs = {r['service']: r for r in db.execute("SELECT * FROM integration_configs").fetchall()}
+    logs    = db.execute(
+        "SELECT * FROM integration_logs ORDER BY created_at DESC LIMIT 50"
+    ).fetchall()
+
+    # 환경변수 상태 확인
+    import os as _os
+    env_status = {
+        'slack_bot':    bool(_os.environ.get('SLACK_BOT_TOKEN')),
+        'slack_admin':  bool(_os.environ.get('SLACK_ADMIN_TOKEN')),
+        'jira_token':   bool(_os.environ.get('JIRA_API_TOKEN')),
+        'jira_url':     bool(_os.environ.get('JIRA_BASE_URL')),
+        'confluence':   bool(_os.environ.get('CONFLUENCE_BASE_URL')),
+    }
+    return render_template('admin/integrations.html',
+                           configs=configs, logs=logs,
+                           env_status=env_status, active_page='integrations')
+
+
 @app.route('/admin/settings', methods=['GET', 'POST'])
 @admin_required
 def admin_settings():
@@ -1991,6 +2025,18 @@ def employee_new():
             ).fetchone()[0]
             update_peak_headcount(tid, active_count)
             flash(f'직원 {name}(TC-{new_id:05d})이 추가되었습니다.', 'success')
+            # ── 외부 서비스 연동 트리거 ───────────────────────
+            try:
+                from integrations.dispatcher import on_employee_created
+                dept_name = (db.execute("SELECT name FROM departments WHERE id=?", (dept_id,)).fetchone() or {}).get('name','') if dept_id else ''
+                pos_name  = (db.execute("SELECT name FROM positions WHERE id=?", (pos_id,)).fetchone() or {}).get('name','') if pos_id else ''
+                on_employee_created({
+                    'name': name, 'email': email,
+                    'dept': dept_name, 'pos': pos_name,
+                    'hire_date': hire_date or date.today().isoformat(),
+                })
+            except Exception as _ie:
+                app.logger.warning(f'Integration error on employee_created: {_ie}')
             return redirect(url_for('employees'))
 
     # 지원자→직원 전환 프리필 (기획서 P0: 오퍼 수락 시 /employees/new 프리필)
@@ -2586,6 +2632,21 @@ def termination_request_detail(req_id):
             create_offboarding_tasks(db, req_id, final_last_work_date)
             db.commit()
             flash('HR 승인이 완료되었습니다. 오프보딩 태스크가 생성되었습니다.', 'success')
+            # ── 외부 서비스 연동 트리거 ───────────────────────
+            try:
+                from integrations.dispatcher import on_employee_terminated
+                emp_row = db.execute(
+                    "SELECT u.name, u.email FROM users u "
+                    "JOIN termination_requests tr ON tr.user_id=u.id WHERE tr.id=?", (req_id,)
+                ).fetchone()
+                if emp_row:
+                    on_employee_terminated({
+                        'name':           emp_row['name'],
+                        'email':          emp_row['email'],
+                        'last_work_date': final_last_work_date,
+                    })
+            except Exception as _ie:
+                app.logger.warning(f'Integration error on employee_terminated: {_ie}')
             return redirect(url_for('termination_request_detail', req_id=req_id))
 
         if action == 'complete_task':

@@ -1535,6 +1535,30 @@ def init_db(db_path: str = None):
             UNIQUE(user_id, widget_key)
         )''')
 
+        # ── 외부 서비스 연동 ─────────────────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS integration_configs (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            service    TEXT NOT NULL UNIQUE,
+            enabled    INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT
+        )''')
+        for svc in ('slack', 'jira', 'confluence'):
+            c.execute(
+                "INSERT OR IGNORE INTO integration_configs (service, enabled) VALUES (?, 0)",
+                (svc,)
+            )
+
+        c.execute('''CREATE TABLE IF NOT EXISTS integration_logs (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            event         TEXT NOT NULL,
+            service       TEXT NOT NULL,
+            status        TEXT NOT NULL,
+            detail        TEXT,
+            employee_name TEXT,
+            raw_response  TEXT,
+            created_at    TEXT NOT NULL
+        )''')
+
         conn.commit()
     finally:
         conn.close()
