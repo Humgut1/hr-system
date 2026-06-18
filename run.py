@@ -47,10 +47,27 @@ def kill_port(port: int):
         print(f"[run.py] 프로세스 정리 중 오류: {e}")
 
 
+def load_dotenv(path='.env'):
+    """`.env` 파일을 읽어 환경변수로 등록."""
+    if not os.path.exists(path):
+        return
+    with open(path, encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            key, _, val = line.partition('=')
+            key = key.strip()
+            val = val.strip()
+            if key and val:
+                os.environ.setdefault(key, val)
+
+
 if __name__ == '__main__':
     print("=" * 50)
     print("[run.py] TalentCore 개발 서버 시작")
     print("=" * 50)
+    load_dotenv()
 
     kill_port(5000)
 
