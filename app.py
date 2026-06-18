@@ -588,7 +588,7 @@ def admin_integrations():
         flash('연동 설정이 저장되었습니다.', 'success')
         return redirect(url_for('admin_integrations'))
 
-    configs = {r['service']: r for r in db.execute("SELECT * FROM integration_configs").fetchall()}
+    configs = {r['service']: dict(r) for r in db.execute("SELECT * FROM integration_configs").fetchall()}
     logs    = db.execute(
         "SELECT * FROM integration_logs ORDER BY created_at DESC LIMIT 50"
     ).fetchall()
