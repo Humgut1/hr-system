@@ -69,7 +69,7 @@ def add_to_channels(email: str, dept: str) -> dict:
                 results.append({'channel': ch, 'ok': False, 'error': 'not found'})
                 continue
             # 사용자 ID 조회
-            users = _api(BOT_TOKEN, 'users.lookupByEmail', {'email': email})
+            users = _lookup_user_by_email(email)
             if not users.get('ok'):
                 results.append({'channel': ch, 'ok': False, 'error': 'user not found'})
                 continue
@@ -105,14 +105,23 @@ def post_welcome(employee: dict) -> dict:
         return {'ok': False, 'error': str(e)}
 
 
+def _lookup_user_by_email(email: str) -> dict:
+    """이메일로 Slack 유저 조회 (GET + query param)"""
+    import urllib.parse as _up
+    url = 'https://slack.com/api/users.lookupByEmail?' + _up.urlencode({'email': email})
+    req = urllib.request.Request(url, headers={'Authorization': f'Bearer {BOT_TOKEN}'})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read())
+
+
 def send_dm(email: str, text: str) -> dict:
     """특정 사용자에게 DM 발송"""
     if IS_DEMO:
         return {'ok': True, 'demo': True, 'action': 'send_dm', 'email': email, 'text': text[:80]}
     try:
-        users = _api(BOT_TOKEN, 'users.lookupByEmail', {'email': email})
+        users = _lookup_user_by_email(email)
         if not users.get('ok'):
-            return {'ok': False, 'error': 'user not found'}
+            return {'ok': False, 'error': f'user not found: {users.get("error")}'}
         uid = users['user']['id']
         open_dm = _api(BOT_TOKEN, 'conversations.open', {'users': uid})
         ch_id = open_dm['channel']['id']
@@ -126,7 +135,7 @@ def deactivate_user(email: str) -> dict:
     if IS_DEMO or not ADMIN_TOKEN:
         return {'ok': True, 'demo': True, 'action': 'deactivate', 'email': email}
     try:
-        users = _api(ADMIN_TOKEN, 'users.lookupByEmail', {'email': email})
+        users = _lookup_user_by_email(email)
         if not users.get('ok'):
             return {'ok': False, 'error': 'user not found'}
         uid = users['user']['id']
