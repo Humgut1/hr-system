@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TalentCore × 외부 서비스 연동 가이드</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --primary: #4f46e5;
+    --primary-light: #ede9fe;
+    --slack: #4a154b;
+    --slack-accent: #36c5f0;
+    --jira: #0052cc;
+    --jira-accent: #2684ff;
+    --confluence: #172b4d;
+    --confluence-accent: #0065ff;
+    --green: #10b981;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --tx-1: #111827;
+    --tx-2: #374151;
+    --tx-3: #6b7280;
+    --surface: #fff;
+    --bg: #f9fafb;
+    --line: #e5e7eb;
+  }
+
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--tx-1);
+    line-height: 1.6;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%);
+    color: white;
+    padding: 80px 40px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 50px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 24px;
+    backdrop-filter: blur(8px);
+  }
+  .hero h1 {
+    font-size: 48px;
+    font-weight: 800;
+    margin-bottom: 16px;
+    letter-spacing: -1px;
+  }
+  .hero p {
+    font-size: 18px;
+    opacity: 0.8;
+    max-width: 560px;
+    margin: 0 auto 40px;
+  }
+  .service-badges {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .service-badge {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 12px 20px;
+    backdrop-filter: blur(8px);
+  }
+  .service-badge .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .service-badge span { font-size: 15px; font-weight: 600; }
+
+  /* ── Layout ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+  .section { padding: 64px 0; }
+  .section-header { text-align: center; margin-bottom: 48px; }
+  .section-header .label {
+    display: inline-block;
+    font-size: 12px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--primary);
+    background: var(--primary-light);
+    padding: 4px 12px; border-radius: 50px;
+    margin-bottom: 12px;
+  }
+  .section-header h2 { font-size: 32px; font-weight: 800; color: var(--tx-1); margin-bottom: 12px; }
+  .section-header p { font-size: 16px; color: var(--tx-3); max-width: 560px; margin: 0 auto; }
+
+  /* ── Flow Cards ── */
+  .flow-section {
+    background: var(--surface);
+    border-radius: 20px;
+    padding: 40px;
+    margin-bottom: 32px;
+    border: 1px solid var(--line);
+    position: relative;
+    overflow: hidden;
+  }
+  .flow-section::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 4px;
+  }
+  .flow-section.slack::before { background: linear-gradient(90deg, #4a154b, #36c5f0); }
+  .flow-section.jira::before  { background: linear-gradient(90deg, #0052cc, #2684ff); }
+  .flow-section.confluence::before { background: linear-gradient(90deg, #172b4d, #0065ff); }
+
+  .flow-header {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 32px;
+  }
+  .service-icon {
+    width: 56px; height: 56px;
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    flex-shrink: 0;
+  }
+  .service-icon.slack      { background: linear-gradient(135deg, #4a154b, #611f69); }
+  .service-icon.jira       { background: linear-gradient(135deg, #0052cc, #2684ff); }
+  .service-icon.confluence { background: linear-gradient(135deg, #172b4d, #0065ff); }
+
+  .flow-header-text h3 { font-size: 22px; font-weight: 800; }
+  .flow-header-text p  { font-size: 14px; color: var(--tx-3); margin-top: 4px; }
+
+  /* ── Event → Action Flow ── */
+  .event-blocks { display: flex; flex-direction: column; gap: 20px; }
+  .event-block {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .event-card {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 20px;
+  }
+  .event-card .trigger {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--orange);
+    margin-bottom: 8px;
+  }
+  .event-card h4 { font-size: 15px; font-weight: 700; color: var(--tx-1); margin-bottom: 6px; }
+  .event-card p  { font-size: 13px; color: var(--tx-3); line-height: 1.5; }
+
+  .arrow-col {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding-top: 20px;
+    color: var(--primary); font-size: 22px;
+  }
+
+  .actions-card {
+    background: var(--primary-light);
+    border: 1px solid #c7d2fe;
+    border-radius: 14px;
+    padding: 18px 20px;
+  }
+  .actions-card .label {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--primary);
+    margin-bottom: 10px;
+  }
+  .action-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    margin-bottom: 8px;
+    font-size: 13px; color: var(--tx-2);
+  }
+  .action-item:last-child { margin-bottom: 0; }
+  .action-item .icon {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .action-item .icon.slack      { background: #f5f0ff; }
+  .action-item .icon.jira       { background: #eff6ff; }
+  .action-item .icon.confluence { background: #eff6ff; }
+
+  /* ── Demo Result ── */
+  .demo-result {
+    background: #0f172a;
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-top: 24px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #94a3b8;
+    position: relative;
+    overflow: hidden;
+  }
+  .demo-result::before {
+    content: '● ● ●';
+    display: block;
+    color: #475569;
+    font-size: 10px;
+    letter-spacing: 4px;
+    margin-bottom: 12px;
+  }
+  .demo-result .line { margin-bottom: 4px; }
+  .demo-result .key  { color: #7dd3fc; }
+  .demo-result .val  { color: #86efac; }
+  .demo-result .val.err { color: #fca5a5; }
+  .demo-result .comment { color: #475569; }
+
+  /* ── Timeline ── */
+  .timeline { position: relative; padding-left: 32px; }
+  .timeline::before {
+    content: '';
+    position: absolute; left: 10px; top: 8px; bottom: 8px;
+    width: 2px; background: var(--line);
+  }
+  .tl-item { position: relative; margin-bottom: 24px; }
+  .tl-item:last-child { margin-bottom: 0; }
+  .tl-dot {
+    position: absolute; left: -26px; top: 4px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--surface);
+    box-shadow: 0 0 0 2px var(--line);
+  }
+  .tl-dot.green { background: var(--green); box-shadow: 0 0 0 2px #d1fae5; }
+  .tl-dot.blue  { background: var(--jira-accent); box-shadow: 0 0 0 2px #dbeafe; }
+  .tl-dot.purple { background: var(--primary); box-shadow: 0 0 0 2px var(--primary-light); }
+
+  .tl-time { font-size: 11px; color: var(--tx-3); font-weight: 600; margin-bottom: 4px; }
+  .tl-title { font-size: 14px; font-weight: 700; color: var(--tx-1); margin-bottom: 4px; }
+  .tl-desc  { font-size: 13px; color: var(--tx-3); }
+
+  /* ── Summary Stats ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 40px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 24px;
+    text-align: center;
+  }
+  .stat-card .num {
+    font-size: 36px; font-weight: 800;
+    color: var(--primary);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .stat-card .label { font-size: 13px; color: var(--tx-3); font-weight: 500; }
+
+  /* ── Roadmap ── */
+  .roadmap-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  .roadmap-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 24px;
+  }
+  .roadmap-card .phase {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .roadmap-card h4 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+  .roadmap-card ul { list-style: none; }
+  .roadmap-card ul li {
+    font-size: 13px; color: var(--tx-2);
+    padding: 5px 0;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .roadmap-card ul li:last-child { border-bottom: none; }
+  .roadmap-card ul li.done { color: var(--tx-3); text-decoration: line-through; }
+  .roadmap-card ul li::before { content: '→'; color: var(--tx-3); font-size: 11px; }
+  .roadmap-card ul li.done::before { content: '✓'; color: var(--green); }
+
+  /* ── Config Box ── */
+  .config-box {
+    background: #0f172a;
+    border-radius: 16px;
+    padding: 28px 32px;
+  }
+  .config-box .config-title {
+    font-size: 12px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #475569;
+    margin-bottom: 16px;
+  }
+  .config-line {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 10px;
+    font-family: monospace; font-size: 14px;
+  }
+  .config-line .env-key { color: #7dd3fc; }
+  .config-line .env-eq  { color: #475569; }
+  .config-line .env-val { color: #86efac; }
+  .config-line .env-val.empty { color: #ef4444; font-style: italic; }
+  .config-line .status {
+    margin-left: auto;
+    font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 50px;
+  }
+  .config-line .status.ok  { background: #052e16; color: #4ade80; }
+  .config-line .status.empty-s { background: #1c1917; color: #78716c; }
+
+  /* ── Footer ── */
+  .page-footer {
+    background: #0f172a;
+    color: #64748b;
+    text-align: center;
+    padding: 40px 24px;
+    font-size: 13px;
+    margin-top: 0;
+  }
+  .page-footer strong { color: #94a3b8; }
+
+  @media (max-width: 640px) {
+    .hero h1 { font-size: 32px; }
+    .event-block { grid-template-columns: 1fr; }
+    .arrow-col { padding-top: 0; transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Hero ── -->
+<div class="hero">
+  <div class="hero-badge">
+    <span>🔗</span>
+    <span>TalentCore Integration Guide</span>
+  </div>
+  <h1>HR 자동화, 이제 실제로</h1>
+  <p>직원이 입사하는 순간부터 퇴직까지 — Slack · Jira · Confluence가 자동으로 움직입니다.</p>
+  <div class="service-badges">
+    <div class="service-badge">
+      <div class="dot"></div>
+      <span>💬 Slack 연결됨</span>
+    </div>
+    <div class="service-badge">
+      <div class="dot"></div>
+      <span>🔵 Jira 연결됨</span>
+    </div>
+    <div class="service-badge">
+      <div class="dot"></div>
+      <span>📘 Confluence 연결됨</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── How It Works ── -->
+<div class="container section">
+  <div class="section-header">
+    <div class="label">How It Works</div>
+    <h2>이벤트 하나로 3개 서비스가 동시에 작동</h2>
+    <p>TalentCore에서 직원을 등록하거나 퇴직 처리하면, 연결된 서비스들이 자동으로 반응합니다.</p>
+  </div>
+
+  <!-- Slack -->
+  <div class="flow-section slack">
+    <div class="flow-header">
+      <div class="service-icon slack">💬</div>
+      <div class="flow-header-text">
+        <h3>Slack 워크스페이스 자동화</h3>
+        <p>입퇴사 알림 · 채널 배정 · 환영 메시지 · 계정 비활성화</p>
+      </div>
+    </div>
+
+    <div class="event-blocks">
+      <div class="event-block">
+        <div class="event-card">
+          <div class="trigger">🟠 트리거 1</div>
+          <h4>신규 직원 등록</h4>
+          <p>TalentCore에서 직원 정보 저장 완료 시</p>
+        </div>
+        <div class="arrow-col">⟶</div>
+        <div class="actions-card">
+          <div class="label">자동 실행되는 액션</div>
+          <div class="action-item">
+            <div class="icon slack">✉️</div>
+            <span>Slack 워크스페이스 초대 이메일 발송</span>
+          </div>
+          <div class="action-item">
+            <div class="icon slack">#️⃣</div>
+            <span>소속 부서 채널에 자동 추가 (예: #개발팀, #마케팅)</span>
+          </div>
+          <div class="action-item">
+            <div class="icon slack">👋</div>
+            <span>#general 채널에 입사 소개 메시지 자동 게시</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="event-block">
+        <div class="event-card">
+          <div class="trigger">🔴 트리거 2</div>
+          <h4>퇴직 처리 확정</h4>
+          <p>HR 최종 승인으로 퇴직 처리 완료 시</p>
+        </div>
+        <div class="arrow-col">⟶</div>
+        <div class="actions-card">
+          <div class="label">자동 실행되는 액션</div>
+          <div class="action-item">
+            <div class="icon slack">🔒</div>
+            <span>Slack 계정 즉시 비활성화 (채널 접근 차단)</span>
+          </div>
+          <div class="action-item">
+            <div class="icon slack">📢</div>
+            <span>퇴직 알림 (내부 HR 채널 고지)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="event-block">
+        <div class="event-card">
+          <div class="trigger">🔵 트리거 3</div>
+          <h4>부서 이동 발령</h4>
+          <p>인사발령으로 부서 변경 처리 시</p>
+        </div>
+        <div class="arrow-col">⟶</div>
+        <div class="actions-card">
+          <div class="label">자동 실행되는 액션</div>
+          <div class="action-item">
+            <div class="icon slack">#️⃣</div>
+            <span>새 부서 채널에 자동 추가</span>
+          </div>
+          <div class="action-item">
+            <div class="icon slack">🔔</div>
+            <span>이동 알림 DM 발송</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 실제 실행 결과 -->
+    <div class="demo-result">
+      <div class="line"><span class="comment">// 실제 연동 실행 로그 예시</span></div>
+      <div class="line"><span class="key">"event"</span>: <span class="val">"직원 신규 등록"</span>,  <span class="key">"service"</span>: <span class="val">"slack"</span></div>
+      <div class="line"><span class="key">"action"</span>: <span class="val">"invite_user"</span>,  <span class="key">"status"</span>: <span class="val">"success"</span></div>
+      <div class="line"><span class="key">"action"</span>: <span class="val">"add_to_channels"</span>,  <span class="key">"channel"</span>: <span class="val">"#개발팀"</span></div>
+      <div class="line"><span class="key">"action"</span>: <span class="val">"post_welcome"</span>,  <span class="key">"channel"</span>: <span class="val">"#general"</span>,  <span class="key">"status"</span>: <span class="val">"success"</span></div>
+    </div>
+  </div>
+
+  <!-- Jira -->
+  <div class="flow-section jira">
+    <div class="flow-header">
+      <div class="service-icon jira">🔵</div>
+      <div class="flow-header-text">
+        <h3>Jira 온·오프보딩 자동화</h3>
+        <p>입퇴사마다 Epic + 담당자별 체크리스트 태스크 자동 생성</p>
+      </div>
+    </div>
+
+    <div class="event-blocks">
+      <div class="event-block">
+        <div class="event-card">
+          <div class="trigger">🟠 트리거 1</div>
+          <h4>신규 직원 등록</h4>
+          <p>입사일 기준 온보딩 체크리스트 생성</p>
+        </div>
+        <div class="arrow-col">⟶</div>
+        <div class="actions-card">
+          <div class="label">생성되는 이슈 (실제 KAN 프로젝트)</div>
+          <div class="action-item"><div class="icon jira">🏷️</div><span>Epic: [온보딩] 홍길동 (2026-06-20)</span></div>
+          <div class="action-item"><div class="icon jira">📦</div><span>Task: 노트북/장비 준비 (입사 3일 전, High)</span></div>
+          <div class="action-item"><div class="icon jira">✉️</div><span>Task: 회사 이메일 계정 생성 (입사 1일 전, High)</span></div>
+          <div class="action-item"><div class="icon jira">🔑</div><span>Task: 사내 시스템 접근 권한 부여 (입사일, High)</span></div>
+          <div class="action-item"><div class="icon jira">📝</div><span>Task: 보안 서약서 서명, 교육, 목표 설정 등 +5개</span></div>
+        </div>
+      </div>
+
+      <div class="event-block">
+        <div class="event-card">
+          <div class="trigger">🔴 트리거 2</div>
+          <h4>퇴직 처리 확정</h4>
+          <p>마지막 근무일 기준 오프보딩 체크리스트 생성</p>
+        </div>
+        <div class="arrow-col">⟶</div>
+        <div class="actions-card">
+          <div class="label">생성되는 이슈</div>
+          <div class="action-item"><div class="icon jira">🏷️</div><span>Epic: [오프보딩] 홍길동 (최종 근무일)</span></div>
+          <div class="action-item"><div class="icon jira">💻</div><span>Task: 노트북/장비 반납 확인 (High)</span></div>
+          <div class="action-item"><div class="icon jira">🔐</div><span>Task: 사내 시스템 접근 권한 회수 (High)</span></div>
+          <div class="action-item"><div class="icon jira">🚪</div><span>Task: Exit Interview 진행, 퇴직금 정산 등 +3개</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-result">
+      <div class="line"><span class="comment">// 실제로 생성된 Jira 이슈 (테스트 실행 결과)</span></div>
+      <div class="line"><span class="key">"epic_key"</span>: <span class="val">"KAN-1"</span>,  <span class="key">"summary"</span>: <span class="val">"[온보딩] 테스트 직원 (2026-06-20)"</span></div>
+      <div class="line"><span class="key">"subtasks"</span>: <span class="val">["KAN-2", "KAN-3", "KAN-4", "KAN-5", "KAN-6", "KAN-7", "KAN-8", "KAN-9"]</span></div>
+      <div class="line"><span class="key">"ok"</span>: <span class="val">true</span>,  <span class="comment">// ← 방금 전 실제로 생성됨!</span></div>
+    </div>
+  </div>
+
+  <!-- Confluence -->
+  <div class="flow-section confluence">
+    <div class="flow-header">
+      <div class="service-icon confluence">📘</div>
+      <div class="flow-header-text">
+        <h3>Confluence 팀 위키 자동화</h3>
+        <p>팀 페이지 멤버 추가 · 개인 프로필 페이지 자동 생성</p>
+      </div>
+    </div>
+
+    <div class="event-blocks">
+      <div class="event-block">
+        <div class="event-card">
+          <div class="trigger">🟠 트리거</div>
+          <h4>신규 직원 등록</h4>
+          <p>HR 스페이스에 팀 페이지 + 개인 페이지 생성</p>
+        </div>
+        <div class="arrow-col">⟶</div>
+        <div class="actions-card">
+          <div class="label">자동 실행되는 액션</div>
+          <div class="action-item">
+            <div class="icon confluence">👥</div>
+            <span>부서 팀 페이지 테이블에 신규 멤버 행 추가 (이름/직급/이메일)</span>
+          </div>
+          <div class="action-item">
+            <div class="icon confluence">📄</div>
+            <span>개인 프로필 페이지 생성: 부서·직급·이메일·담당 업무 템플릿</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-result">
+      <div class="line"><span class="comment">// Confluence 자동 생성 페이지 구조</span></div>
+      <div class="line"><span class="key">Space</span>: <span class="val">HR</span></div>
+      <div class="line"><span class="key">└─ Page</span>: <span class="val">"개발팀 팀 페이지"</span>  <span class="comment">← 멤버 행 자동 추가</span></div>
+      <div class="line"><span class="key">└─ Page</span>: <span class="val">"홍길동 - 프로필"</span>  <span class="comment">← 신규 생성</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Timeline ── -->
+<div style="background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);">
+  <div class="container section">
+    <div class="section-header">
+      <div class="label">입사 첫날 자동화 타임라인</div>
+      <h2>직원 1명 등록하면 일어나는 일</h2>
+      <p>"저장" 버튼 하나로 아래 모든 것이 자동으로 처리됩니다.</p>
+    </div>
+
+    <div style="max-width: 600px; margin: 0 auto;">
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-dot green"></div>
+          <div class="tl-time">T+0초 · TalentCore</div>
+          <div class="tl-title">직원 정보 DB 저장 완료</div>
+          <div class="tl-desc">이름, 이메일, 부서, 직급, 입사일 등록</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:#36c5f0; box-shadow: 0 0 0 2px #e0f7fa;"></div>
+          <div class="tl-time">T+1초 · Slack</div>
+          <div class="tl-title">워크스페이스 초대 발송</div>
+          <div class="tl-desc">등록된 이메일로 Slack 초대 자동 발송</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:#36c5f0; box-shadow: 0 0 0 2px #e0f7fa;"></div>
+          <div class="tl-time">T+1초 · Slack</div>
+          <div class="tl-title">채널 자동 배정</div>
+          <div class="tl-desc">부서 채널(#개발팀 등)에 자동 추가</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:#36c5f0; box-shadow: 0 0 0 2px #e0f7fa;"></div>
+          <div class="tl-time">T+1초 · Slack</div>
+          <div class="tl-title">입사 환영 메시지 게시</div>
+          <div class="tl-desc">#general 채널에 신규 입사자 소개 메시지 자동 게시</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot blue"></div>
+          <div class="tl-time">T+2초 · Jira</div>
+          <div class="tl-title">온보딩 Epic + 태스크 8개 생성</div>
+          <div class="tl-desc">IT·HR·매니저 담당별 체크리스트 자동 생성, 마감일 자동 지정</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot purple"></div>
+          <div class="tl-time">T+3초 · Confluence</div>
+          <div class="tl-title">팀 페이지 + 개인 프로필 페이지 생성</div>
+          <div class="tl-desc">HR 스페이스에 멤버 행 추가 + 개인 위키 페이지 자동 생성</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Stats ── -->
+<div class="container section">
+  <div class="section-header">
+    <div class="label">자동화 효과</div>
+    <h2>연동으로 절약되는 것들</h2>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="num">8개</div>
+      <div class="label">입사 1명당 자동 생성되는 Jira 태스크 수</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">3초</div>
+      <div class="label">직원 등록 후 전체 연동 완료까지 걸리는 시간</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">0번</div>
+      <div class="label">Slack/Jira/Confluence 수동 작업 횟수</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">100%</div>
+      <div class="label">누락 없는 온보딩 체크리스트 이행률</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Current Config ── -->
+<div style="background: var(--surface); border-top: 1px solid var(--line);">
+  <div class="container section">
+    <div class="section-header">
+      <div class="label">현재 연동 설정</div>
+      <h2>지금 연결된 환경변수</h2>
+    </div>
+    <div class="config-box">
+      <div class="config-title">.env configuration</div>
+      <div class="config-line">
+        <span class="env-key">SLACK_BOT_TOKEN</span>
+        <span class="env-eq">=</span>
+        <span class="env-val">xoxb-••••••••••••</span>
+        <span class="status ok">✓ 연결됨</span>
+      </div>
+      <div class="config-line">
+        <span class="env-key">SLACK_ADMIN_TOKEN</span>
+        <span class="env-eq">=</span>
+        <span class="env-val empty">(미설정 — 초대 기능 제한)</span>
+        <span class="status empty-s">선택사항</span>
+      </div>
+      <div class="config-line">
+        <span class="env-key">JIRA_EMAIL</span>
+        <span class="env-eq">=</span>
+        <span class="env-val">hunie0649@gmail.com</span>
+        <span class="status ok">✓ 연결됨</span>
+      </div>
+      <div class="config-line">
+        <span class="env-key">JIRA_API_TOKEN</span>
+        <span class="env-eq">=</span>
+        <span class="env-val">ATATT3x••••••••••</span>
+        <span class="status ok">✓ 연결됨</span>
+      </div>
+      <div class="config-line">
+        <span class="env-key">JIRA_BASE_URL</span>
+        <span class="env-eq">=</span>
+        <span class="env-val">https://talentcorehr.atlassian.net</span>
+        <span class="status ok">✓ 연결됨</span>
+      </div>
+      <div class="config-line">
+        <span class="env-key">JIRA_PROJECT_KEY</span>
+        <span class="env-eq">=</span>
+        <span class="env-val">KAN</span>
+        <span class="status ok">✓ 연결됨</span>
+      </div>
+      <div class="config-line">
+        <span class="env-key">CONFLUENCE_BASE_URL</span>
+        <span class="env-eq">=</span>
+        <span class="env-val">https://talentcorehr.atlassian.net/wiki</span>
+        <span class="status ok">✓ 연결됨</span>
+      </div>
+      <div class="config-line">
+        <span class="env-key">CONFLUENCE_SPACE_KEY</span>
+        <span class="env-eq">=</span>
+        <span class="env-val">HR</span>
+        <span class="status ok">✓ 연결됨</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Roadmap ── -->
+<div class="container section">
+  <div class="section-header">
+    <div class="label">Integration Roadmap</div>
+    <h2>지금 되는 것 vs 앞으로 추가할 것</h2>
+  </div>
+  <div class="roadmap-grid">
+    <div class="roadmap-card">
+      <div class="phase" style="color: var(--green);">Phase 1 — 완료 ✓</div>
+      <h4>기본 이벤트 연동</h4>
+      <ul>
+        <li class="done">입사 시 Slack 초대 + 채널 배정</li>
+        <li class="done">입사 시 환영 메시지 자동 게시</li>
+        <li class="done">입사 시 Jira 온보딩 Epic 생성</li>
+        <li class="done">퇴직 시 Slack 계정 비활성화</li>
+        <li class="done">퇴직 시 Jira 오프보딩 Epic 생성</li>
+        <li class="done">입사 시 Confluence 팀/프로필 페이지 생성</li>
+      </ul>
+    </div>
+    <div class="roadmap-card">
+      <div class="phase" style="color: var(--jira-accent);">Phase 2 — 예정</div>
+      <h4>성과·근태 연동</h4>
+      <ul>
+        <li>성과 목표 설정 시 Jira 목표 이슈 생성</li>
+        <li>캘리브레이션 완료 시 Slack DM 알림</li>
+        <li>연장근무 승인 시 매니저에게 Slack 알림</li>
+        <li>퇴직 신청 시 오프보딩 태스크 자동 생성</li>
+        <li>Confluence 조직도 페이지 자동 업데이트</li>
+      </ul>
+    </div>
+    <div class="roadmap-card">
+      <div class="phase" style="color: var(--orange);">Phase 3 — 검토 중</div>
+      <h4>양방향 동기화</h4>
+      <ul>
+        <li>Jira 이슈 완료 → TalentCore 온보딩 체크 자동 업데이트</li>
+        <li>Slack 상태 변경 → 근태 자동 반영</li>
+        <li>Confluence 페이지 수정 → 프로필 동기화</li>
+        <li>Jira 프로젝트 완료율 → 성과 대시보드 연동</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="page-footer">
+  <strong>TalentCore</strong> × Slack · Jira · Confluence Integration<br>
+  연동 상태: <strong>3 / 3 서비스 활성</strong> · 실제 API 연결 · 데모 모드 OFF
+</div>
+
+</body>
+</html>

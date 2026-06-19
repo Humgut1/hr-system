@@ -41,7 +41,7 @@ def _auth_header():
 
 
 def _post(path, payload):
-    url  = f'{BASE_URL}/rest/api/3/{path}'
+    url  = f'{BASE_URL}/rest/api/2/{path}'
     data = json.dumps(payload).encode('utf-8')
     req  = urllib.request.Request(url, data=data, headers=_auth_header())
     with urllib.request.urlopen(req, timeout=10) as resp:
@@ -72,12 +72,7 @@ def create_onboarding_epic(employee: dict) -> dict:
                 'project':     {'key': PROJECT_KEY},
                 'summary':     f'[온보딩] {name} ({hire_date})',
                 'issuetype':   {'name': 'Epic'},
-                'description': {
-                    'type': 'doc', 'version': 1,
-                    'content': [{'type': 'paragraph', 'content': [
-                        {'type': 'text', 'text': f'{name}님 온보딩 체크리스트 (입사일: {hire_date})'}
-                    ]}]
-                },
+                'description': f'{name}님 온보딩 체크리스트 (입사일: {hire_date})',
             }
         })
         epic_key = epic.get('key', '')
