@@ -10,8 +10,7 @@
 | | |
 |---|---|
 | **URL** | https://hr-system-production-5c51.up.railway.app |
-| **Guest** | `guest@talentcore.com` / `guest1234!` |
-| **Admin** | `admin@talentcore.com` / `admin1234!` |
+| **체험 계정** | `guest@talentcore.com` / `guest1234!` |
 
 ---
 
