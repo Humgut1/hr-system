@@ -7503,16 +7503,16 @@ def recruit_hire(applicant_id):
     log_recruit(applicant_id, 'hired', {'employee_id': new_user_id, 'emp_no': emp_no})
     db.commit()
 
-    # HR 알림
+    # 입사자에게 알림
     add_notification(
-        new_user_id, 'system',
-        f'환영합니다! TalentCore 임시 비밀번호: {temp_pw} — 첫 로그인 후 변경해주세요.',
+        new_user_id, 'info', 'onboarding', '환영합니다!',
+        f'TalentCore 임시 비밀번호: {temp_pw} — 첫 로그인 후 변경해주세요.',
         url_for('me_onboarding')
     )
     # HR 담당자에게 알림
     add_notification(
-        session['user_id'], 'system',
-        f'🎉 {name}({emp_no}) 직원 자동 등록 완료 — 버디·스케줄 배정을 완료해주세요.',
+        session['user_id'], 'action', 'action', f'{name} 직원 등록 완료',
+        f'{emp_no} — 버디·스케줄 배정을 완료해주세요.',
         url_for('employee_detail', emp_id=new_user_id)
     )
 
