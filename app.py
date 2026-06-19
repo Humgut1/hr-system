@@ -6092,6 +6092,12 @@ def me_onboarding():
     db  = get_db()
     uid = session['user_id']
 
+    # 행이 없으면 기본 체크리스트 생성 (기존 직원도 볼 수 있도록)
+    count = db.execute("SELECT COUNT(*) FROM onboarding_progress WHERE user_id=?", (uid,)).fetchone()[0]
+    if count == 0:
+        from integrations.dispatcher import ONBOARDING_TASKS, _seed_onboarding_tasks
+        _seed_onboarding_tasks(get_tenant_db_path(session.get('tenant_id', 1)), uid)
+
     tasks = db.execute(
         "SELECT * FROM onboarding_progress WHERE user_id=? ORDER BY sort_order",
         (uid,)
@@ -6400,6 +6406,13 @@ def profile():
             db.execute(
                 'UPDATE users SET phone=?, address=?, emergency_name=?, emergency_phone=?, emergency_relation=? WHERE id=?',
                 (phone, address, emergency_name, emergency_phone, emergency_relation, uid)
+            )
+            db.commit()
+            # 온보딩 체크리스트 'talentcore_login' 자동 완료
+            from datetime import datetime as _dt
+            db.execute(
+                "UPDATE onboarding_progress SET done=1, done_at=? WHERE user_id=? AND task_key='talentcore_login' AND done=0",
+                (_dt.now().isoformat(), uid)
             )
             db.commit()
             msg = '정보가 저장되었습니다.'
@@ -7391,42 +7404,133 @@ def recruit_offer_reject(applicant_id):
 @app.route('/recruit/applicants/<int:applicant_id>/hire', methods=['POST'])
 @recruiter_or_admin
 def recruit_hire(applicant_id):
-    """최종 합격 처리 — offer 단계 후보자에 한해 + 직원 전환 프리필 리다이렉트"""
-    db        = get_db()
+    """입사 확정 — 오퍼 데이터로 직원 레코드 자동 생성 + 온보딩 파이프라인 가동"""
+    db = get_db()
+
+    # 지원자 + 공고 + 오퍼 데이터 한 번에 조회
     applicant = db.execute(
-        'SELECT a.*, jp.title AS posting_title, jp.department_id '
-        'FROM applicants a JOIN job_postings jp ON a.posting_id = jp.id WHERE a.id=?',
+        '''SELECT a.*,
+                  jp.department_id, jp.title AS posting_title,
+                  jr.position_id, jr.job_family_id,
+                  o.salary AS offer_salary, o.start_date AS offer_start_date, o.id AS offer_id
+           FROM applicants a
+           JOIN job_postings jp ON a.posting_id = jp.id
+           LEFT JOIN job_requisitions jr ON jp.requisition_id = jr.id
+           LEFT JOIN offers o ON o.applicant_id = a.id
+                             AND o.status IN ('sent','negotiating','accepted')
+           WHERE a.id=?
+           ORDER BY o.id DESC LIMIT 1''',
         (applicant_id,)
     ).fetchone()
+
     if not applicant:
         abort(404)
-    if applicant['stage'] != 'offer':
-        flash('오퍼 단계의 후보자에게만 최종 합격 처리가 가능합니다.', 'warning')
+    if applicant['stage'] not in ('offer', 'accepted'):
+        flash('오퍼 단계의 후보자에게만 입사 확정이 가능합니다.', 'warning')
         return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
 
-    db.execute('UPDATE applicants SET stage=? WHERE id=?', ('accepted', applicant_id))
+    # 이미 직원으로 전환된 경우 방지
+    if applicant['hired_employee_id']:
+        flash('이미 직원으로 등록된 지원자입니다.', 'warning')
+        return redirect(url_for('employee_detail', emp_id=applicant['hired_employee_id']))
+
+    name       = applicant['name']
+    email      = applicant['email'] or ''
+    phone      = applicant['phone'] or ''
+    dept_id    = applicant['department_id']
+    pos_id     = applicant['position_id']
+    jf_id      = applicant['job_family_id']
+    base_salary= applicant['offer_salary'] or 0
+    hire_date  = applicant['offer_start_date'] or date.today().isoformat()
+
+    # 이메일 중복 체크
+    if email and db.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone():
+        flash(f'이미 등록된 이메일입니다: {email}', 'danger')
+        return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
+
+    # 임시 비밀번호 (첫 로그인 시 변경 안내)
+    import secrets as _sec
+    from werkzeug.security import generate_password_hash as _gph
+    temp_pw   = _sec.token_urlsafe(8)
+    pw_hash   = _gph(temp_pw)
+
+    # 사번 자동 생성
+    last_emp_no = db.execute("SELECT emp_no FROM users WHERE emp_no IS NOT NULL ORDER BY id DESC LIMIT 1").fetchone()
+    if last_emp_no and last_emp_no['emp_no']:
+        try:
+            next_no = int(last_emp_no['emp_no'].replace('TC-', '')) + 1
+        except Exception:
+            next_no = 1001
+    else:
+        next_no = 1001
+    emp_no = f'TC-{next_no:05d}'
+
+    # 직원 레코드 자동 생성
+    cur = db.execute(
+        '''INSERT INTO users
+           (name, email, phone, password_hash, role, department_id, position_id,
+            job_family_id, hire_date, employment_type, status, emp_no)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
+        (name, email, phone, pw_hash, 'employee',
+         dept_id, pos_id, jf_id, hire_date,
+         'full_time', 'active', emp_no)
+    )
+    new_user_id = cur.lastrowid
+
+    # 급여 초기 등록 (오퍼 급여 기준)
+    if base_salary:
+        today = date.today()
+        db.execute(
+            'INSERT OR IGNORE INTO payslips (user_id, year, month, base_salary, gross_pay, net_pay) VALUES (?,?,?,?,?,?)',
+            (new_user_id, today.year, today.month, base_salary, base_salary, int(base_salary * 0.897))
+        )
+
+    # 지원자 상태 업데이트
+    db.execute('UPDATE applicants SET stage=?, hired_employee_id=? WHERE id=?',
+               ('accepted', new_user_id, applicant_id))
     db.execute(
         'INSERT INTO applicant_logs (applicant_id, stage, note, changed_by) VALUES (?,?,?,?)',
-        (applicant_id, 'accepted', '최종 합격 처리', session['user_id'])
+        (applicant_id, 'accepted', f'입사 확정 — 직원 자동 등록 (ID:{new_user_id}, 사번:{emp_no})', session['user_id'])
     )
-    # 오퍼 상태 동기화
-    db.execute(
-        "UPDATE offers SET status='accepted', responded_at=CURRENT_TIMESTAMP "
-        "WHERE applicant_id=? AND status IN ('sent','negotiating')", (applicant_id,)
-    )
-    log_recruit(applicant_id, 'hired', {})
+
+    # 오퍼 상태 동기화 + hired_employee_id 연결
+    if applicant['offer_id']:
+        db.execute(
+            "UPDATE offers SET status='accepted', responded_at=CURRENT_TIMESTAMP, hired_employee_id=? WHERE id=?",
+            (new_user_id, applicant['offer_id'])
+        )
+
+    log_recruit(applicant_id, 'hired', {'employee_id': new_user_id, 'emp_no': emp_no})
     db.commit()
-    flash(f'🎉 {applicant["name"]} 님 최종 합격! 직원 등록을 완료해주세요.', 'success')
-    # 지원자 데이터 프리필해서 직원 신규 등록 폼으로 리다이렉트 (기획서 P0: 지원자→직원 전환)
-    from urllib.parse import urlencode
-    params = urlencode({
-        'from_applicant': applicant_id,
-        'name':  applicant['name'],
-        'email': applicant['email'] or '',
-        'phone': applicant['phone'] or '',
-        'dept':  applicant['department_id'] or '',
-    })
-    return redirect(url_for('employee_new') + '?' + params)
+
+    # HR 알림
+    add_notification(
+        new_user_id, 'system',
+        f'환영합니다! TalentCore 임시 비밀번호: {temp_pw} — 첫 로그인 후 변경해주세요.',
+        url_for('me_onboarding')
+    )
+    # HR 담당자에게 알림
+    add_notification(
+        session['user_id'], 'system',
+        f'🎉 {name}({emp_no}) 직원 자동 등록 완료 — 버디·스케줄 배정을 완료해주세요.',
+        url_for('employee_detail', emp_id=new_user_id)
+    )
+
+    # 온보딩 파이프라인 가동 (Jira 에픽 + Slack + 이메일 + 체크리스트)
+    try:
+        from integrations.dispatcher import on_employee_created
+        dept_name = (db.execute('SELECT name FROM departments WHERE id=?', (dept_id,)).fetchone() or {}).get('name', '')
+        pos_name  = (db.execute('SELECT name FROM positions WHERE id=?', (pos_id,)).fetchone() or {}).get('name', '')
+        on_employee_created({
+            'id': new_user_id, 'name': name, 'email': email,
+            'dept': dept_name, 'pos': pos_name,
+            'hire_date': hire_date,
+        }, db_path=get_tenant_db_path(session.get('tenant_id', 1)))
+    except Exception as e:
+        app.logger.warning(f'recruit_hire integration error: {e}')
+
+    flash(f'🎉 {name}({emp_no}) 입사 확정 완료! Jira·Slack·온보딩 체크리스트가 자동으로 준비됩니다.', 'success')
+    return redirect(url_for('employee_detail', emp_id=new_user_id))
 
 
 # ── 오퍼 관리 ─────────────────────────────────────────────────────────────────

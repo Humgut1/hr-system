@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATS→HRIS 자동화 기획 | TalentCore</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Pretendard', -apple-system, sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.6; }
+
+  .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: #fff; padding: 3rem 2rem; text-align: center; }
+  .header h1 { font-size: 2rem; font-weight: 800; margin-bottom: .5rem; }
+  .header p  { opacity: .85; font-size: 1.05rem; }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+
+  /* 섹션 */
+  .section { margin-bottom: 3rem; }
+  .section-title { font-size: 1.3rem; font-weight: 700; color: #1e293b; margin-bottom: 1.25rem; display: flex; align-items: center; gap: .5rem; }
+  .section-title::before { content: ''; display: block; width: 4px; height: 1.3rem; background: #4f46e5; border-radius: 2px; }
+
+  /* Before / After 비교 */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .compare-box { border-radius: 12px; padding: 1.5rem; }
+  .compare-box.before { background: #fff1f2; border: 1.5px solid #fca5a5; }
+  .compare-box.after  { background: #f0fdf4; border: 1.5px solid #86efac; }
+  .compare-box h3 { font-size: .95rem; font-weight: 700; margin-bottom: 1rem; }
+  .compare-box.before h3 { color: #dc2626; }
+  .compare-box.after  h3 { color: #16a34a; }
+  .compare-box .flow-item { display: flex; align-items: flex-start; gap: .6rem; font-size: .88rem; margin-bottom: .6rem; color: #475569; }
+  .compare-box .flow-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: .35rem; }
+  .compare-box.before .dot { background: #f87171; }
+  .compare-box.after  .dot { background: #4ade80; }
+  .pain { font-size: .8rem; color: #dc2626; margin-top: .25rem; }
+  .gain { font-size: .8rem; color: #16a34a; margin-top: .25rem; }
+
+  /* 메인 플로우 다이어그램 */
+  .flow-diagram { background: #fff; border-radius: 16px; padding: 2rem; border: 1px solid #e2e8f0; }
+
+  .phase-row { display: grid; grid-template-columns: 120px 1fr; gap: 0; margin-bottom: 0; }
+  .phase-label { display: flex; flex-direction: column; align-items: center; padding-top: .5rem; }
+  .phase-badge { font-size: .7rem; font-weight: 700; padding: .3rem .6rem; border-radius: 20px; text-align: center; white-space: nowrap; }
+  .phase-line { width: 2px; flex: 1; margin: .5rem auto 0; }
+
+  .phase-content { padding: .5rem 0 2rem 1rem; }
+  .phase-content h4 { font-size: .9rem; font-weight: 700; margin-bottom: .75rem; }
+
+  .step-cards { display: flex; flex-direction: column; gap: .6rem; }
+  .step-card { border-radius: 10px; padding: .9rem 1rem; border: 1px solid #e2e8f0; position: relative; }
+  .step-card .who { font-size: .7rem; font-weight: 700; padding: .15rem .45rem; border-radius: 10px; position: absolute; top: .75rem; right: .75rem; }
+  .step-card h5 { font-size: .88rem; font-weight: 700; margin-bottom: .3rem; padding-right: 4rem; }
+  .step-card p  { font-size: .8rem; color: #64748b; }
+  .step-card .auto-badge { display: inline-block; font-size: .7rem; font-weight: 700; background: #ede9fe; color: #7c3aed; padding: .1rem .4rem; border-radius: 6px; margin-bottom: .3rem; }
+
+  /* 색상 클래스 */
+  .c-purple { background: #f5f3ff; border-color: #c4b5fd; }
+  .c-blue   { background: #eff6ff; border-color: #93c5fd; }
+  .c-green  { background: #f0fdf4; border-color: #86efac; }
+  .c-orange { background: #fff7ed; border-color: #fdba74; }
+  .c-gray   { background: #f8fafc; border-color: #e2e8f0; }
+
+  .who-sys  { background: #ede9fe; color: #6d28d9; }
+  .who-hr   { background: #dbeafe; color: #1d4ed8; }
+  .who-emp  { background: #dcfce7; color: #166534; }
+  .who-mgr  { background: #fff7ed; color: #c2410c; }
+
+  /* 역할 구분 범례 */
+  .legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  .legend-item { display: flex; align-items: center; gap: .4rem; font-size: .82rem; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* 데이터 매핑 테이블 */
+  .data-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  .data-table th { background: #f1f5f9; padding: .6rem 1rem; text-align: left; font-weight: 700; font-size: .8rem; color: #475569; }
+  .data-table td { padding: .6rem 1rem; border-bottom: 1px solid #f1f5f9; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; font-size: .72rem; font-weight: 700; padding: .15rem .5rem; border-radius: 10px; }
+  .badge-auto   { background: #ede9fe; color: #7c3aed; }
+  .badge-hr     { background: #dbeafe; color: #1d4ed8; }
+  .badge-emp    { background: #dcfce7; color: #166534; }
+
+  /* 온보딩 체크리스트 목업 */
+  .checklist-mock { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
+  .checklist-header { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; padding: 1.25rem 1.5rem; }
+  .checklist-header h3 { font-size: 1rem; font-weight: 700; }
+  .checklist-header .sub { font-size: .82rem; opacity: .85; margin-top: .2rem; }
+  .progress-bar-wrap { margin-top: .75rem; }
+  .progress-bar-bg { height: 8px; background: rgba(255,255,255,.3); border-radius: 4px; }
+  .progress-bar-fill { height: 8px; background: #fff; border-radius: 4px; width: 33%; }
+  .progress-label { font-size: .75rem; opacity: .85; margin-top: .3rem; }
+
+  .checklist-body { padding: 1rem 1.5rem; }
+  .checklist-cat { font-size: .72rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .08em; margin: .75rem 0 .4rem; }
+  .checklist-item { display: flex; align-items: center; gap: .75rem; padding: .55rem .75rem; border-radius: 8px; margin-bottom: .3rem; cursor: pointer; transition: .15s; }
+  .checklist-item:hover { background: #f8fafc; }
+  .checklist-item.done { opacity: .6; }
+  .check-box { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #cbd5e1; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .check-box.checked { background: #4f46e5; border-color: #4f46e5; }
+  .check-box.checked::after { content: '✓'; color: #fff; font-size: .65rem; font-weight: 700; }
+  .checklist-item span { font-size: .88rem; }
+  .checklist-item.done span { text-decoration: line-through; color: #94a3b8; }
+  .checklist-item .link-icon { margin-left: auto; font-size: .75rem; color: #4f46e5; opacity: 0; transition: .15s; }
+  .checklist-item:hover .link-icon { opacity: 1; }
+  .profile-link { color: #4f46e5; font-size: .75rem; }
+
+  /* 구현 범위 */
+  .scope-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .scope-card { background: #fff; border-radius: 12px; padding: 1.25rem; border: 1px solid #e2e8f0; }
+  .scope-card h4 { font-size: .9rem; font-weight: 700; margin-bottom: .75rem; color: #475569; }
+  .scope-item { display: flex; align-items: flex-start; gap: .5rem; font-size: .85rem; margin-bottom: .5rem; }
+  .scope-item .icon { flex-shrink: 0; font-size: .9rem; }
+
+  /* 피드백 박스 */
+  .insight { background: #fff; border-left: 4px solid #4f46e5; border-radius: 0 12px 12px 0; padding: 1rem 1.25rem; margin: 1.5rem 0; font-size: .88rem; color: #475569; }
+  .insight strong { color: #4f46e5; }
+
+  @media (max-width: 640px) {
+    .compare, .scope-grid { grid-template-columns: 1fr; }
+    .phase-row { grid-template-columns: 80px 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>ATS → HRIS 자동화 플로우</h1>
+  <p>오퍼 수락 한 번으로 입사자 등록부터 온보딩까지 자동 처리</p>
+</div>
+
+<div class="container">
+
+  <!-- ① Before / After -->
+  <div class="section">
+    <div class="section-title">지금 vs 바꿀 것</div>
+    <div class="compare">
+      <div class="compare-box before">
+        <h3>❌ 현재 (수동)</h3>
+        <div class="flow-item"><div class="dot"></div><div>
+          오퍼 수락<div class="pain">→ 채용팀이 HR팀에 카톡/이메일로 전달</div>
+        </div></div>
+        <div class="flow-item"><div class="dot"></div><div>
+          HR 담당자가 직접 직원 등록 폼 작성<div class="pain">이름·이메일·부서·급여 다시 입력</div>
+        </div></div>
+        <div class="flow-item"><div class="dot"></div><div>
+          Jira 태스크 수동 생성<div class="pain">IT팀에 따로 연락</div>
+        </div></div>
+        <div class="flow-item"><div class="dot"></div><div>
+          입사 당일 종이 서류 작성<div class="pain">주소·비상연락처 손으로 받아서 시스템에 입력</div>
+        </div></div>
+      </div>
+      <div class="compare-box after">
+        <h3>✅ 바꿀 것 (자동)</h3>
+        <div class="flow-item"><div class="dot"></div><div>
+          오퍼 수락<div class="gain">→ 자동으로 직원 레코드 생성</div>
+        </div></div>
+        <div class="flow-item"><div class="dot"></div><div>
+          오퍼 데이터 그대로 이전<div class="gain">이름·이메일·부서·급여 재입력 없음</div>
+        </div></div>
+        <div class="flow-item"><div class="dot"></div><div>
+          Jira 에픽 + 태스크 자동 생성<div class="gain">IT·GA·HR·매니저 팀 동시 통보</div>
+        </div></div>
+        <div class="flow-item"><div class="dot"></div><div>
+          입사자가 온보딩 체크리스트에서 직접 입력<div class="gain">주소·비상연락처 본인이 TalentCore에 직접</div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② 메인 플로우 -->
+  <div class="section">
+    <div class="section-title">전체 플로우</div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div>시스템 자동</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#1d4ed8"></div>HR 담당자</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#166534"></div>입사자 본인</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#c2410c"></div>매니저</div>
+    </div>
+
+    <div class="flow-diagram">
+
+      <!-- Phase 1: ATS -->
+      <div class="phase-row">
+        <div class="phase-label">
+          <span class="phase-badge" style="background:#ede9fe;color:#6d28d9">📋 ATS</span>
+          <div class="phase-line" style="background:#c4b5fd"></div>
+        </div>
+        <div class="phase-content">
+          <div class="step-cards">
+            <div class="step-card c-gray">
+              <span class="who who-hr">HR</span>
+              <h5>채용 공고 → 지원서 접수 → 면접 → 오퍼 발송</h5>
+              <p>지금과 동일. 오퍼 레터에 입사일·부서·직급·기본급 확정.</p>
+            </div>
+            <div class="step-card c-purple">
+              <span class="who who-emp">입사자</span>
+              <h5>🖊️ 오퍼 전자서명 (수락)</h5>
+              <p>입사자가 오퍼 레터에 서명하는 순간 — 이 이벤트가 트리거 역할.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 2: 자동 전환 -->
+      <div class="phase-row">
+        <div class="phase-label">
+          <span class="phase-badge" style="background:#ede9fe;color:#6d28d9">⚡ 자동</span>
+          <div class="phase-line" style="background:#c4b5fd"></div>
+        </div>
+        <div class="phase-content">
+          <div class="step-cards">
+            <div class="step-card c-purple">
+              <span class="who who-sys">시스템</span>
+              <div class="auto-badge">자동 실행</div>
+              <h5>오퍼 데이터 → 직원 레코드 자동 생성</h5>
+              <p>이름 · 이메일 · 부서 · 직급 · 기본급 · 입사일 — 오퍼에 있던 그대로 복사.</p>
+            </div>
+            <div class="step-card c-purple">
+              <span class="who who-sys">시스템</span>
+              <div class="auto-badge">자동 실행</div>
+              <h5>온보딩 파이프라인 전체 가동</h5>
+              <p>Jira 에픽 + 10개 태스크 생성 · Slack 입사 소개 · 웰컴 이메일 · 온보딩 체크리스트 12개 생성</p>
+            </div>
+            <div class="step-card c-blue">
+              <span class="who who-hr">HR</span>
+              <div class="auto-badge">알림 수신</div>
+              <h5>HR 인박스에 "김신입 직원 등록 완료" 알림</h5>
+              <p>클릭하면 직원 프로필 → 사번 확인, 스케줄 배정, 버디 배정만 하면 됨.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 3: 입사 전 (D-7 ~ D-1) -->
+      <div class="phase-row">
+        <div class="phase-label">
+          <span class="phase-badge" style="background:#dbeafe;color:#1d4ed8">입사 전</span>
+          <div class="phase-line" style="background:#93c5fd"></div>
+        </div>
+        <div class="phase-content">
+          <div class="step-cards">
+            <div class="step-card c-blue">
+              <span class="who who-hr">HR</span>
+              <h5>버디 배정 · 근무 스케줄 설정</h5>
+              <p>직원 프로필에서 버디 선택 → 자동으로 버디에게 Slack DM 발송.</p>
+            </div>
+            <div class="step-card c-orange">
+              <span class="who who-mgr">매니저</span>
+              <h5>Jira 태스크 확인 · 팀 오리엔테이션 준비</h5>
+              <p>[매니저] 태스크 2개: 버디 배정 확인 · 30/90일 목표 설정 준비.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 4: Day 1 -->
+      <div class="phase-row">
+        <div class="phase-label">
+          <span class="phase-badge" style="background:#dcfce7;color:#166534">Day 1</span>
+          <div class="phase-line" style="background:#86efac"></div>
+        </div>
+        <div class="phase-content">
+          <div class="step-cards">
+            <div class="step-card c-green">
+              <span class="who who-emp">입사자</span>
+              <h5>TalentCore 첫 로그인 → 온보딩 대시보드</h5>
+              <p>임시 비밀번호로 로그인 → 사이드바 "온보딩" 클릭 → 체크리스트 시작.</p>
+            </div>
+            <div class="step-card c-green">
+              <span class="who who-emp">입사자</span>
+              <h5>📝 프로필 직접 작성 (주소 · 비상연락처 · 계좌번호)</h5>
+              <p>온보딩 "TalentCore 프로필 완성" 클릭 → /profile 페이지로 이동 → 직접 입력.</p>
+            </div>
+            <div class="step-card c-green">
+              <span class="who who-emp">입사자</span>
+              <h5>근로계약서 전자서명 · Slack 자기소개 · 앱 설치</h5>
+              <p>체크리스트 항목 하나씩 완료 → 진행률 바 채워짐.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 5: D+30/90 -->
+      <div class="phase-row">
+        <div class="phase-label">
+          <span class="phase-badge" style="background:#fff7ed;color:#c2410c">수습</span>
+          <div class="phase-line" style="background:transparent"></div>
+        </div>
+        <div class="phase-content">
+          <div class="step-cards">
+            <div class="step-card c-orange">
+              <span class="who who-mgr">매니저</span>
+              <h5>30일 · 90일 목표 설정 (1:1 미팅)</h5>
+              <p>성과 모듈에서 수습 목표 등록 → 자동으로 성과 사이클에 연결.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ③ 오퍼→직원 데이터 매핑 -->
+  <div class="section">
+    <div class="section-title">오퍼 데이터 → 직원 레코드 매핑</div>
+    <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>필드</th>
+            <th>오퍼에 있는 값</th>
+            <th>직원 레코드로</th>
+            <th>누가 채우나</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>이름</strong></td>
+            <td>지원서에서</td>
+            <td>users.name</td>
+            <td><span class="badge badge-auto">자동</span></td>
+          </tr>
+          <tr>
+            <td><strong>이메일</strong></td>
+            <td>지원서에서</td>
+            <td>users.email</td>
+            <td><span class="badge badge-auto">자동</span></td>
+          </tr>
+          <tr>
+            <td><strong>연락처</strong></td>
+            <td>지원서에서</td>
+            <td>users.phone</td>
+            <td><span class="badge badge-auto">자동</span></td>
+          </tr>
+          <tr>
+            <td><strong>부서</strong></td>
+            <td>요청서(Requisition)에서</td>
+            <td>users.department_id</td>
+            <td><span class="badge badge-auto">자동</span></td>
+          </tr>
+          <tr>
+            <td><strong>직급</strong></td>
+            <td>요청서에서</td>
+            <td>users.position_id</td>
+            <td><span class="badge badge-auto">자동</span></td>
+          </tr>
+          <tr>
+            <td><strong>기본급</strong></td>
+            <td>오퍼 base_salary</td>
+            <td>payslips 초기 등록</td>
+            <td><span class="badge badge-auto">자동</span></td>
+          </tr>
+          <tr>
+            <td><strong>입사일</strong></td>
+            <td>오퍼 hire_date</td>
+            <td>users.hire_date</td>
+            <td><span class="badge badge-auto">자동</span></td>
+          </tr>
+          <tr>
+            <td><strong>근무 스케줄</strong></td>
+            <td>—</td>
+            <td>user_schedule_assignments</td>
+            <td><span class="badge badge-hr">HR 배정</span></td>
+          </tr>
+          <tr>
+            <td><strong>버디</strong></td>
+            <td>—</td>
+            <td>users.buddy_id</td>
+            <td><span class="badge badge-hr">HR 배정</span></td>
+          </tr>
+          <tr>
+            <td><strong>주소</strong></td>
+            <td>—</td>
+            <td>users.address</td>
+            <td><span class="badge badge-emp">본인 입력</span></td>
+          </tr>
+          <tr>
+            <td><strong>비상연락처</strong></td>
+            <td>—</td>
+            <td>users.emergency_*</td>
+            <td><span class="badge badge-emp">본인 입력</span></td>
+          </tr>
+          <tr>
+            <td><strong>계좌번호</strong></td>
+            <td>—</td>
+            <td>(추후 급여계좌 테이블)</td>
+            <td><span class="badge badge-emp">본인 입력</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ④ 온보딩 체크리스트 목업 -->
+  <div class="section">
+    <div class="section-title">온보딩 대시보드 — 입사자 화면 목업</div>
+
+    <div class="insight">
+      <strong>핵심 변경:</strong> "TalentCore 프로필 완성" 항목을 클릭하면 /profile 페이지로 바로 이동해서 주소·비상연락처를 직접 입력. 완료 후 돌아오면 자동으로 체크.
+    </div>
+
+    <div class="checklist-mock">
+      <div class="checklist-header">
+        <h3>🎉 김신입님, 환영합니다!</h3>
+        <div class="sub">TalentCore 매니지먼트팀 · 입사일 2026-06-20</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-bg"><div class="progress-bar-fill"></div></div>
+          <div class="progress-label">4 / 12 완료 · 33%</div>
+        </div>
+      </div>
+      <div class="checklist-body">
+
+        <div class="checklist-cat">🔧 시스템 설정</div>
+
+        <div class="checklist-item done">
+          <div class="check-box checked"></div>
+          <span>Slack 프로필 완성 (사진·직함·상태 설정)</span>
+        </div>
+        <div class="checklist-item done">
+          <div class="check-box checked"></div>
+          <span>이메일 서명 설정</span>
+        </div>
+        <div class="checklist-item" style="background:#f0f4ff;border:1px solid #c7d2fe;border-radius:8px;">
+          <div class="check-box"></div>
+          <span><strong style="color:#4f46e5">TalentCore 프로필 완성</strong> <span style="font-size:.75rem;color:#7c3aed">← 주소·비상연락처 직접 입력</span></span>
+          <span class="link-icon">→ /profile</span>
+        </div>
+        <div class="checklist-item">
+          <div class="check-box"></div>
+          <span>필수 앱 설치 (Slack · Zoom · 1Password · Notion)</span>
+        </div>
+
+        <div class="checklist-cat">📚 학습 & 이해</div>
+
+        <div class="checklist-item done">
+          <div class="check-box checked"></div>
+          <span>Confluence 온보딩 가이드 필독</span>
+        </div>
+        <div class="checklist-item done">
+          <div class="check-box checked"></div>
+          <span>보안 설정 완료 (이메일 2FA · 화면잠금 · VPN)</span>
+        </div>
+
+        <div class="checklist-cat">📋 행정 처리</div>
+
+        <div class="checklist-item">
+          <div class="check-box"></div>
+          <span>근로계약서 전자서명 완료</span>
+        </div>
+        <div class="checklist-item">
+          <div class="check-box"></div>
+          <span>Jira 온보딩 태스크 확인</span>
+        </div>
+        <div class="checklist-item">
+          <div class="check-box"></div>
+          <span>사원증 사진 촬영 (GA 안내)</span>
+        </div>
+
+        <div class="checklist-cat">🤝 팀 문화</div>
+
+        <div class="checklist-item">
+          <div class="check-box"></div>
+          <span>Slack #general에 자기소개 올리기 🎉</span>
+        </div>
+        <div class="checklist-item">
+          <div class="check-box"></div>
+          <span>버디(Buddy)와 점심 약속 잡기</span>
+        </div>
+
+        <div class="checklist-cat">👥 팀 온보딩</div>
+
+        <div class="checklist-item">
+          <div class="check-box"></div>
+          <span>매니저와 첫 1:1 미팅 일정 잡기</span>
+        </div>
+
+        <div style="margin-top:1rem;padding:.75rem 1rem;background:#f8fafc;border-radius:8px;font-size:.8rem;color:#64748b">
+          🤝 내 버디: <strong>이버디</strong> (제품팀 · PM) — Slack @lebuddy 로 연락하세요
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑤ 구현 범위 -->
+  <div class="section">
+    <div class="section-title">구현 범위</div>
+    <div class="scope-grid">
+      <div class="scope-card">
+        <h4>🛠️ 코드 변경</h4>
+        <div class="scope-item"><span class="icon">📄</span><div><strong>app.py — recruit_hire()</strong><br><span style="font-size:.8rem;color:#64748b">리다이렉트 대신 직접 users INSERT + on_employee_created 호출</span></div></div>
+        <div class="scope-item"><span class="icon">📄</span><div><strong>app.py — profile 라우트</strong><br><span style="font-size:.8rem;color:#64748b">온보딩 "프로필 완성" 완료 시 task_key=talentcore_login 자동 체크</span></div></div>
+        <div class="scope-item"><span class="icon">📄</span><div><strong>templates/me/onboarding.html</strong><br><span style="font-size:.8rem;color:#64748b">"TalentCore 프로필 완성" 항목 → /profile 링크 연결</span></div></div>
+      </div>
+      <div class="scope-card">
+        <h4>✅ 이미 된 것</h4>
+        <div class="scope-item"><span class="icon">✅</span><div>on_employee_created() — Jira·Slack·이메일 트리거</div></div>
+        <div class="scope-item"><span class="icon">✅</span><div>onboarding_progress 테이블 + 체크리스트 12개</div></div>
+        <div class="scope-item"><span class="icon">✅</span><div>/me/onboarding 대시보드</div></div>
+        <div class="scope-item"><span class="icon">✅</span><div>/profile 셀프서비스 편집 (주소·비상연락처)</div></div>
+        <div class="scope-item"><span class="icon">✅</span><div>버디 배정 + Slack DM 자동 발송</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <strong>결론:</strong> 오퍼 수락 한 번이면 끝납니다. HR은 버디·스케줄만 배정하고, 입사자는 온보딩 체크리스트 보면서 본인 정보를 직접 채우면 됩니다. Workday가 하는 방식과 동일합니다.
+  </div>
+
+</div>
+</body>
+</html>
