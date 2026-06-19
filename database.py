@@ -707,6 +707,10 @@ def init_db(db_path: str = None):
             c.execute('ALTER TABLE users ADD COLUMN emergency_phone TEXT')
         if 'emergency_relation' not in existing:
             c.execute('ALTER TABLE users ADD COLUMN emergency_relation TEXT')
+        if 'buddy_id' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN buddy_id INTEGER REFERENCES users(id)')
+        if 'jira_epic_key' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN jira_epic_key TEXT')
 
         # benefit_configs 컬럼 마이그레이션
         bc_cols = {r[1] for r in c.execute('PRAGMA table_info(benefit_configs)').fetchall()}
@@ -1557,6 +1561,19 @@ def init_db(db_path: str = None):
             employee_name TEXT,
             raw_response  TEXT,
             created_at    TEXT NOT NULL
+        )''')
+
+        # ── 온보딩 체크리스트 ─────────────────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS onboarding_progress (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            task_key    TEXT NOT NULL,
+            task_label  TEXT NOT NULL,
+            category    TEXT NOT NULL DEFAULT 'general',
+            sort_order  INTEGER NOT NULL DEFAULT 0,
+            done        INTEGER NOT NULL DEFAULT 0,
+            done_at     TEXT,
+            UNIQUE(user_id, task_key)
         )''')
 
         conn.commit()

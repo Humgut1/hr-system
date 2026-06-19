@@ -1211,12 +1211,16 @@ def employee_detail(emp_id):
     db  = get_db()
     emp = db.execute(
         'SELECT u.*, d.name dept_name, p.name pos_name, '
-        '       jf.name jf_name, m.name manager_name '
+        '       jf.name jf_name, m.name manager_name, '
+        '       b.id buddy_id, b.name buddy_name, bd.name buddy_dept, bp.name buddy_pos '
         'FROM users u '
         'LEFT JOIN departments d  ON u.department_id = d.id '
         'LEFT JOIN positions   p  ON u.position_id   = p.id '
         'LEFT JOIN job_families jf ON u.job_family_id = jf.id '
         'LEFT JOIN users       m  ON u.manager_id    = m.id '
+        'LEFT JOIN users       b  ON u.buddy_id      = b.id '
+        'LEFT JOIN departments bd ON b.department_id = bd.id '
+        'LEFT JOIN positions   bp ON b.position_id   = bp.id '
         'WHERE u.id=?', (emp_id,)
     ).fetchone()
     if not emp:
@@ -1418,6 +1422,10 @@ def employee_detail(emp_id):
                            life_events=life_events,
                            relation_label=RELATION_LABEL,
                            life_event_label=LIFE_EVENT_LABEL,
+                           all_employees=db.execute(
+                               "SELECT id, name, department_id FROM users WHERE status='active' AND id!=? ORDER BY name",
+                               (emp_id,)
+                           ).fetchall(),
                            active_page='employees')
 
 
@@ -1952,6 +1960,37 @@ def cert_delete(emp_id, cert_id):
     return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-skills')
 
 
+@app.route('/employees/<int:emp_id>/assign-buddy', methods=['POST'])
+@login_required
+def assign_buddy(emp_id):
+    if session['user_role'] not in ('admin', 'manager'):
+        abort(403)
+    buddy_id = request.form.get('buddy_id', type=int)
+    db = get_db()
+    db.execute('UPDATE users SET buddy_id=? WHERE id=?', (buddy_id or None, emp_id))
+    db.commit()
+    if buddy_id:
+        try:
+            from integrations.dispatcher import on_buddy_assigned
+            emp  = dict(db.execute(
+                "SELECT u.name, u.email, d.name AS dept, p.name AS pos, u.hire_date "
+                "FROM users u LEFT JOIN departments d ON u.department_id=d.id "
+                "LEFT JOIN positions p ON u.position_id=p.id WHERE u.id=?", (emp_id,)
+            ).fetchone() or {})
+            bud  = dict(db.execute(
+                "SELECT u.name, u.email, d.name AS dept, p.name AS pos "
+                "FROM users u LEFT JOIN departments d ON u.department_id=d.id "
+                "LEFT JOIN positions p ON u.position_id=p.id WHERE u.id=?", (buddy_id,)
+            ).fetchone() or {})
+            on_buddy_assigned(emp, bud, db_path=get_tenant_db_path(session.get('tenant_id', 1)))
+        except Exception as e:
+            app.logger.warning(f'assign_buddy integration error: {e}')
+        flash('버디가 배정되었습니다.', 'success')
+    else:
+        flash('버디 배정이 해제되었습니다.', 'success')
+    return redirect(url_for('employee_detail', emp_id=emp_id))
+
+
 @app.route('/employees/new', methods=['GET', 'POST'])
 @admin_required
 def employee_new():
@@ -2031,10 +2070,11 @@ def employee_new():
                 dept_name = (db.execute("SELECT name FROM departments WHERE id=?", (dept_id,)).fetchone() or {}).get('name','') if dept_id else ''
                 pos_name  = (db.execute("SELECT name FROM positions WHERE id=?", (pos_id,)).fetchone() or {}).get('name','') if pos_id else ''
                 on_employee_created({
+                    'id': new_id,
                     'name': name, 'email': email,
                     'dept': dept_name, 'pos': pos_name,
                     'hire_date': hire_date or date.today().isoformat(),
-                })
+                }, db_path=get_tenant_db_path(session.get('tenant_id', 1)))
             except Exception as _ie:
                 app.logger.warning(f'Integration error on employee_created: {_ie}')
             return redirect(url_for('employees'))
@@ -6043,6 +6083,70 @@ def performance_cycle_activate(cycle_id):
     db.commit()
     flash(f'"{cycle["name"]}" 평가 주기가 활성화되었습니다.', 'success')
     return redirect(url_for('performance_cycles'))
+
+
+# ── Onboarding Dashboard ────────────────────────────────────
+@app.route('/me/onboarding')
+@login_required
+def me_onboarding():
+    db  = get_db()
+    uid = session['user_id']
+
+    tasks = db.execute(
+        "SELECT * FROM onboarding_progress WHERE user_id=? ORDER BY sort_order",
+        (uid,)
+    ).fetchall()
+    tasks = [dict(t) for t in tasks]
+
+    # 카테고리별 그룹핑
+    from collections import OrderedDict
+    CAT_LABEL = {
+        'setup':    '시스템 설정',
+        'learning': '학습 & 이해',
+        'admin':    '행정 처리',
+        'social':   '팀 문화',
+        'team':     '팀 온보딩',
+    }
+    grouped = OrderedDict()
+    for t in tasks:
+        cat = t['category']
+        grouped.setdefault(cat, {'label': CAT_LABEL.get(cat, cat), 'tasks': []})
+        grouped[cat]['tasks'].append(t)
+
+    total = len(tasks)
+    done  = sum(1 for t in tasks if t['done'])
+    pct   = int(done / total * 100) if total else 0
+
+    # 버디 정보
+    buddy = db.execute(
+        "SELECT u.name, u.email, d.name AS dept, p.name AS pos "
+        "FROM users u LEFT JOIN departments d ON u.department_id=d.id "
+        "LEFT JOIN positions p ON u.position_id=p.id "
+        "WHERE u.id=(SELECT buddy_id FROM users WHERE id=?)", (uid,)
+    ).fetchone()
+
+    # Jira 에픽 키
+    me = db.execute("SELECT jira_epic_key, hire_date FROM users WHERE id=?", (uid,)).fetchone()
+
+    return render_template('me/onboarding.html',
+        grouped=grouped, total=total, done=done, pct=pct,
+        buddy=buddy, jira_epic_key=me['jira_epic_key'] if me else None,
+        hire_date=me['hire_date'] if me else None)
+
+
+@app.route('/me/onboarding/<task_key>/done', methods=['POST'])
+@login_required
+def onboarding_task_done(task_key):
+    uid   = session['user_id']
+    is_done = request.form.get('done', '1') == '1'
+    db = get_db()
+    from datetime import datetime as _dt
+    db.execute(
+        "UPDATE onboarding_progress SET done=?, done_at=? WHERE user_id=? AND task_key=?",
+        (1 if is_done else 0, _dt.now().isoformat() if is_done else None, uid, task_key)
+    )
+    db.commit()
+    return ('', 204)
 
 
 # ── Profile ─────────────────────────────────────────────────
