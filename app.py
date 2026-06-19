@@ -7519,8 +7519,10 @@ def recruit_hire(applicant_id):
     # 온보딩 파이프라인 가동 (Jira 에픽 + Slack + 이메일 + 체크리스트)
     try:
         from integrations.dispatcher import on_employee_created
-        dept_name = (db.execute('SELECT name FROM departments WHERE id=?', (dept_id,)).fetchone() or {}).get('name', '')
-        pos_name  = (db.execute('SELECT name FROM positions WHERE id=?', (pos_id,)).fetchone() or {}).get('name', '')
+        _dr = db.execute('SELECT name FROM departments WHERE id=?', (dept_id,)).fetchone()
+        _pr = db.execute('SELECT name FROM positions WHERE id=?', (pos_id,)).fetchone()
+        dept_name = _dr['name'] if _dr else ''
+        pos_name  = _pr['name'] if _pr else ''
         on_employee_created({
             'id': new_user_id, 'name': name, 'email': email,
             'dept': dept_name, 'pos': pos_name,
