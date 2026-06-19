@@ -2342,6 +2342,19 @@ def personnel_action_approve(action_id):
         f"귀하에 대한 {ACTION_LABELS[a_type]} 처리가 승인 및 반영되었습니다.",
         url_for('employee_detail', emp_id=emp_id)
     )
+    # Slack DM: 본인에게 발령 확정 알림
+    _pa_user = db.execute('SELECT email, name FROM users WHERE id=?', (emp_id,)).fetchone()
+    if _pa_user and _pa_user['email']:
+        from integrations.dispatcher import notify_slack
+        notify_slack(
+            _pa_user['email'],
+            f"[TalentCore] 인사발령 확정\n"
+            f"{ACTION_LABELS.get(a_type, a_type)} 발령이 처리됐습니다.\n"
+            f"발령일: {pa['effective_date']}\n"
+            f"TalentCore > 내 정보에서 변경사항을 확인하세요.",
+            '인사발령 확정',
+            name=_pa_user['name']
+        )
 
     flash('인사발령이 최종 승인 및 반영되었습니다.', 'success')
     return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
@@ -2434,6 +2447,27 @@ def termination_my():
             )
         )
         db.commit()
+        # Slack DM: HR + 직속 매니저에게 퇴직 신청 알림
+        _term_emp = db.execute(
+            'SELECT u.name, u.manager_id, d.name AS dept_name FROM users u '
+            'LEFT JOIN departments d ON d.id=u.department_id WHERE u.id=?', (uid,)
+        ).fetchone()
+        if _term_emp:
+            from integrations.dispatcher import notify_slack_multi
+            _hr_rows2 = db.execute("SELECT email, name FROM users WHERE role='admin' AND status='active'").fetchall()
+            _targets2 = [(r['email'], r['name']) for r in _hr_rows2 if r['email']]
+            if _term_emp['manager_id']:
+                _mgr_row = db.execute('SELECT email, name FROM users WHERE id=?', (_term_emp['manager_id'],)).fetchone()
+                if _mgr_row and _mgr_row['email']:
+                    _targets2.append((_mgr_row['email'], _mgr_row['name']))
+            notify_slack_multi(
+                _targets2,
+                f"[TalentCore] 퇴직 신청 접수\n"
+                f"{_term_emp['name']}님({_term_emp['dept_name'] or ''})이 퇴직 신청서를 제출했습니다.\n"
+                f"마지막 근무 예정일: {requested_last_work_date}\n"
+                f"TalentCore > 퇴직 관리에서 확인 및 승인해주세요.",
+                '퇴직 신청 접수'
+            )
         flash('퇴직 신청이 접수되었습니다.', 'success')
         return redirect(url_for('termination_my'))
 
@@ -3894,6 +3928,19 @@ def attendance_approve(req_id):
                 f"신청하신 {req_meta.get('label','휴가')}이(가) 승인되었습니다.",
                 url_for('attendance_home', tab='leaves')
             )
+            # Slack DM
+            _req_user = db.execute('SELECT email, name FROM users WHERE id=?', (req['user_id'],)).fetchone()
+            if _req_user and _req_user['email']:
+                from integrations.dispatcher import notify_slack
+                _label = req_meta.get('label', '휴가')
+                notify_slack(
+                    _req_user['email'],
+                    f"[TalentCore] {_label} 신청이 승인됐습니다.\n"
+                    f"기간: {req['start_date']} ~ {req['end_date']} ({req['days']}일)\n"
+                    f"TalentCore > 근태에서 확인하세요.",
+                    '휴가 승인',
+                    name=_req_user['name']
+                )
             flash(f'{req_meta.get("label","휴가")} 승인이 완료되었습니다.', 'success')
         else:
             # manager_hr / hr_direct: 검토 완료 → HR 대기
@@ -3946,6 +3993,19 @@ def attendance_approve(req_id):
             f"신청하신 {req_meta.get('label','휴가')}이(가) HR 최종 승인됐습니다.",
             url_for('attendance_home', tab='leaves')
         )
+        # Slack DM
+        _req_user2 = db.execute('SELECT email, name FROM users WHERE id=?', (req['user_id'],)).fetchone()
+        if _req_user2 and _req_user2['email']:
+            from integrations.dispatcher import notify_slack
+            _label2 = req_meta.get('label', '휴가')
+            notify_slack(
+                _req_user2['email'],
+                f"[TalentCore] {_label2} 신청이 HR 최종 승인됐습니다.\n"
+                f"기간: {req['start_date']} ~ {req['end_date']} ({req['days']}일)\n"
+                f"TalentCore > 근태에서 확인하세요.",
+                '휴가 HR 승인',
+                name=_req_user2['name']
+            )
         flash('HR 최종 승인이 완료됐습니다.', 'success')
 
     return redirect(url_for('attendance_home', tab='approvals'))
@@ -3994,6 +4054,19 @@ def attendance_reject(req_id):
         f"신청하신 근태가 반려되었습니다. (사유: {reason or '미기재'})",
         url_for('leave_my')
     )
+    # Slack DM
+    _rej_user = db.execute('SELECT email, name FROM users WHERE id=?', (req['user_id'],)).fetchone()
+    if _rej_user and _rej_user['email']:
+        from integrations.dispatcher import notify_slack
+        notify_slack(
+            _rej_user['email'],
+            f"[TalentCore] 휴가/근태 신청이 반려됐습니다.\n"
+            f"기간: {req['start_date']} ~ {req['end_date']}\n"
+            f"사유: {reason or '미기재'}\n"
+            f"문의는 매니저에게 Slack DM으로 연락하세요.",
+            '휴가 반려',
+            name=_rej_user['name']
+        )
 
     flash('신청이 반려되었습니다.', 'warning')
     return redirect(url_for('attendance_home', tab='approvals'))
@@ -5091,6 +5164,18 @@ def admin_payroll():
                         f'실수령액 {fmt_krw(result["net_pay"])}원 · 명세서를 확인해보세요.',
                         link=f'/payroll/{year}/{month}'
                     )
+                    # Slack DM 발송
+                    emp_email_row = db.execute('SELECT email, name FROM users WHERE id=?', (e['id'],)).fetchone()
+                    if emp_email_row and emp_email_row['email']:
+                        from integrations.dispatcher import notify_slack
+                        notify_slack(
+                            emp_email_row['email'],
+                            f"{year}년 {month}월 급여명세서가 확정됐습니다.\n"
+                            f"실수령액: {fmt_krw(result['net_pay'])}원\n"
+                            f"TalentCore에서 명세서를 확인하세요.",
+                            '급여명세서 생성',
+                            name=emp_email_row['name']
+                        )
                     count += 1
                 db.commit()
                 msg = f'{year}년 {month}월 급여명세서 {count}건이 생성되었습니다. (근태 수당·복리후생 자동 포함)'
@@ -7406,6 +7491,18 @@ def recruit_offer_reject(applicant_id):
     )
     log_recruit(applicant_id, 'offer_rejected', {'note': note})
     db.commit()
+    # Slack DM: HR 전체 + 담당 리크루터에게 오퍼 거절 알림
+    from integrations.dispatcher import notify_slack_multi
+    _hr_rows = db.execute("SELECT email, name FROM users WHERE role='admin' AND status='active'").fetchall()
+    _targets = [(r['email'], r['name']) for r in _hr_rows if r['email']]
+    notify_slack_multi(
+        _targets,
+        f"[TalentCore] 오퍼 거절 알림\n"
+        f"지원자 {applicant['name']}님이 오퍼를 거절했습니다.\n"
+        f"사유: {note or '미입력'}\n"
+        f"후속 조치(재공고/파이프라인 재검토)가 필요합니다.",
+        '오퍼 거절'
+    )
     flash(f'{applicant["name"]} 님이 오퍼를 거절했습니다.', 'info')
     return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id))
 
@@ -7754,6 +7851,21 @@ def recruit_offer_send(offer_id):
                             offer['applicant_email'], subject, body)
     log_recruit(offer['applicant_id'], 'offer_sent', {'offer_id': offer_id})
     db.commit()
+    # Slack DM: 채용 담당자에게 오퍼 발송 완료 알림
+    _sender = db.execute('SELECT email, name FROM users WHERE id=?', (session['user_id'],)).fetchone()
+    if _sender and _sender['email']:
+        from integrations.dispatcher import notify_slack
+        _sal = f"{int(offer['salary']):,}" if offer.get('salary') else '협의'
+        notify_slack(
+            _sender['email'],
+            f"[TalentCore] 오퍼 발송 완료\n"
+            f"지원자: {offer['applicant_name']}\n"
+            f"포지션: {offer['posting_title']}\n"
+            f"연봉: {_sal}원\n"
+            f"입사예정: {offer.get('start_date') or '협의'}",
+            '오퍼 발송',
+            name=_sender['name']
+        )
     flash('오퍼가 발송 처리됐습니다. (이메일 기록 저장)', 'success')
     return redirect(url_for('recruit_applicant_detail', applicant_id=offer['applicant_id']))
 
@@ -8145,16 +8257,33 @@ def recruit_round_assign_interviewer(round_id):
             (round_id, interviewer_id, is_required, session['user_id'])
         )
         db.commit()
-        iv = db.execute('SELECT name FROM users WHERE id=?', (interviewer_id,)).fetchone()
+        iv = db.execute('SELECT name, email FROM users WHERE id=?', (interviewer_id,)).fetchone()
         log_recruit(r['applicant_id'], 'interviewer_assigned',
                     {'interviewer_id': interviewer_id,
                      'interviewer_name': iv['name'] if iv else ''},
                     round_id=round_id)
+        _ap_info = db.execute('SELECT name FROM applicants WHERE id=?', (r['applicant_id'],)).fetchone()
         add_notification(
-            interviewer_id,
-            f'{r["round_no"]}차 면접 인터뷰어로 배정되었습니다.',
+            interviewer_id, 'action', 'recruit',
+            f'{r["round_no"]}차 면접 인터뷰어 배정',
+            f'{_ap_info["name"] if _ap_info else "지원자"} — {r["scheduled_at"] or "일정 미정"}',
             url_for('recruit_applicant_detail', applicant_id=r['applicant_id'])
         )
+        # Slack DM
+        if iv and iv['email']:
+            from integrations.dispatcher import notify_slack
+            _sched = r['scheduled_at'] or '일정 미정'
+            _ap_nm = _ap_info['name'] if _ap_info else '지원자'
+            notify_slack(
+                iv['email'],
+                f"[TalentCore] 면접 배정 알림\n"
+                f"{r['round_no']}차 면접 인터뷰어로 배정됐습니다.\n"
+                f"지원자: {_ap_nm}\n"
+                f"일정: {_sched} ({r['planned_min']}분)\n"
+                f"TalentCore에서 지원자 정보를 확인하세요.",
+                '면접 배정',
+                name=iv['name']
+            )
     except Exception:
         flash('이미 배정된 인터뷰어입니다.', 'error')
     return redirect(url_for('recruit_applicant_detail', applicant_id=r['applicant_id']) + '#interviews')
@@ -11494,6 +11623,18 @@ def contract_issue():
                 f"서명 요청 — {title}",
                 '계약서 서명을 요청받았습니다. 확인 후 서명해 주세요.',
                 url_for('contracts_list'))
+            # Slack DM: 직원에게 서명 요청
+            _emp_row = db.execute('SELECT email, name FROM users WHERE id=?', (emp_id,)).fetchone()
+            if _emp_row and _emp_row['email']:
+                from integrations.dispatcher import notify_slack
+                notify_slack(
+                    _emp_row['email'],
+                    f"[TalentCore] 계약서 서명 요청\n"
+                    f"'{title}' 계약서 서명 요청이 도착했습니다.\n"
+                    f"TalentCore > 계약서에서 확인 후 서명해주세요.",
+                    '계약서 서명 요청',
+                    name=_emp_row['name']
+                )
             flash('계약서가 발송되었습니다.', 'success')
             return redirect(url_for('contracts_list'))
     employees = db.execute(
@@ -11553,6 +11694,18 @@ def contract_sign(cid):
         f"계약서 서명 완료 — {c['title']}",
         f"{session.get('user_name', '직원')}님이 서명했습니다.",
         url_for('contracts_list'))
+    # Slack DM: 발급자에게 서명 완료 알림
+    _issuer_row = db.execute('SELECT email, name FROM users WHERE id=?', (c['issued_by'],)).fetchone()
+    if _issuer_row and _issuer_row['email']:
+        from integrations.dispatcher import notify_slack
+        notify_slack(
+            _issuer_row['email'],
+            f"[TalentCore] 계약서 서명 완료\n"
+            f"'{c['title']}' 계약서에 {session.get('user_name', '직원')}님이 서명했습니다.\n"
+            f"TalentCore > 계약서에서 확인하세요.",
+            '계약서 서명 완료',
+            name=_issuer_row['name']
+        )
     flash('서명이 완료되었습니다.', 'success')
     return redirect(url_for('contract_view', cid=cid))
 

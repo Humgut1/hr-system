@@ -100,6 +100,28 @@ def _get_buddy(db_path: str, user_id: int) -> dict | None:
         return None
 
 
+def notify_slack(email: str, text: str, event: str, db_path: str = None, name: str = '') -> dict:
+    """Slack DM 발송 — enabled 체크 포함. app.py에서 직접 호출용."""
+    path = db_path or _db_path()
+    if not _enabled('slack'):
+        return {'ok': False, 'demo': True, 'reason': 'slack_disabled'}
+    r = slack.send_dm(email, text)
+    _log(path, event, 'slack', r, name)
+    return r
+
+
+def notify_slack_multi(emails_names: list, text: str, event: str, db_path: str = None):
+    """여러 명에게 동일 메시지 DM — [(email, name), ...]"""
+    path = db_path or _db_path()
+    if not _enabled('slack'):
+        return
+    for email, name in emails_names:
+        if not email:
+            continue
+        r = slack.send_dm(email, text)
+        _log(path, event, 'slack', r, name)
+
+
 def on_employee_created(employee: dict, db_path: str = None):
     """신규 직원 등록 시 트리거"""
     path    = db_path or _db_path()
