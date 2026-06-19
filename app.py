@@ -1422,9 +1422,18 @@ def employee_detail(emp_id):
                            life_events=life_events,
                            relation_label=RELATION_LABEL,
                            life_event_label=LIFE_EVENT_LABEL,
-                           all_employees=db.execute(
-                               "SELECT id, name, department_id FROM users WHERE status='active' AND id!=? ORDER BY name",
-                               (emp_id,)
+                           buddy_candidates=db.execute(
+                               """SELECT u.id, u.name,
+                                         p.name AS pos_name,
+                                         d.name AS dept_name
+                                  FROM users u
+                                  LEFT JOIN positions p ON u.position_id = p.id
+                                  LEFT JOIN departments d ON u.department_id = d.id
+                                  WHERE u.status='active'
+                                    AND u.id != ?
+                                    AND u.department_id = (SELECT department_id FROM users WHERE id=?)
+                                  ORDER BY u.name""",
+                               (emp_id, emp_id)
                            ).fetchall(),
                            active_page='employees')
 

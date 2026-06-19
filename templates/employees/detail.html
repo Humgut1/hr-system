@@ -352,12 +352,11 @@
       {% endif %}
     </div>
 
-    {% if session.user_role in ('admin', 'manager') or session.user_id == emp.id %}
     <div class="section-head" style="margin-top:0; border-top:1px solid var(--border);">
       버디 (Buddy)
       {% if session.user_role in ('admin', 'manager') %}
       <button type="button" onclick="document.getElementById('buddy-modal').style.display='flex'" class="btn btn-outline btn-sm" style="margin-left:auto;font-size:11px;">
-        <i class="fas fa-user-plus"></i> 배정
+        <i class="fas fa-user-plus"></i> {{ '변경' if emp.buddy_name else '배정' }}
       </button>
       {% endif %}
     </div>
@@ -375,7 +374,6 @@
       <p style="font-size:13px;color:var(--tx-2);margin:0">배정된 버디가 없습니다.</p>
       {% endif %}
     </div>
-    {% endif %}
 
     <div class="section-head" style="margin-top:0; border-top:1px solid var(--border);">
       인사발령 이력
@@ -1353,14 +1351,22 @@ function toggleOverride(key) {
   <div style="background:var(--surface);border-radius:12px;padding:1.5rem;width:min(420px,90vw);max-height:90vh;overflow-y:auto">
     <div style="font-weight:700;font-size:1.05rem;margin-bottom:1rem">버디 배정</div>
     <form method="POST" action="{{ url_for('assign_buddy', emp_id=emp.id) }}">
+      <div style="margin-bottom:.5rem;font-size:.8rem;color:var(--tx-2)">
+        같은 부서 직원 중에서 선택합니다. 버디는 신입사원이 적응하는 동안 곁에서 도와주는 동료입니다.
+      </div>
       <div style="margin-bottom:1rem">
-        <label style="font-size:.85rem;color:var(--tx-2);margin-bottom:.35rem;display:block">버디 직원 선택</label>
+        <label style="font-size:.85rem;color:var(--tx-2);margin-bottom:.35rem;display:block">버디 선택</label>
         <select name="buddy_id" class="form-control" style="width:100%">
           <option value="">— 배정 해제 —</option>
-          {% for e in all_employees %}
-          <option value="{{ e.id }}" {% if emp.buddy_id == e.id %}selected{% endif %}>{{ e.name }}</option>
+          {% for e in buddy_candidates %}
+          <option value="{{ e.id }}" {% if emp.buddy_id == e.id %}selected{% endif %}>
+            {{ e.name }} · {{ e.pos_name or '직급 미지정' }} ({{ e.dept_name or '부서 미지정' }})
+          </option>
           {% endfor %}
         </select>
+        {% if not buddy_candidates %}
+        <div style="font-size:.8rem;color:var(--tx-3);margin-top:.4rem">같은 부서 직원이 없습니다.</div>
+        {% endif %}
       </div>
       <div style="display:flex;gap:.5rem;justify-content:flex-end">
         <button type="button" onclick="document.getElementById('buddy-modal').style.display='none'" class="btn btn-outline">취소</button>
