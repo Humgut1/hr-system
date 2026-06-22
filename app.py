@@ -3741,6 +3741,24 @@ def leave_new():
                                 detail_url
                             )
 
+                # ── Slack 버튼 DM → 매니저 ──────────────────────────────
+                req_row = db.execute(
+                    'SELECT id FROM leave_requests WHERE user_id=? AND start_date=? AND end_date=? ORDER BY id DESC LIMIT 1',
+                    (uid, start_date, end_date)
+                ).fetchone()
+                if req_row and emp and emp['manager_id']:
+                    from integrations.slack import leave_approval_blocks, send_dm_blocks
+                    from integrations.dispatcher import notify_slack
+                    mgr = db.execute('SELECT email, name FROM users WHERE id=?', (emp['manager_id'],)).fetchone()
+                    if mgr and mgr['email']:
+                        blocks = leave_approval_blocks(
+                            req_row['id'], emp_name, meta['label'],
+                            start_date, end_date, int(days)
+                        )
+                        send_dm_blocks(mgr['email'],
+                                       f"[TalentCore] {emp_name}님 {meta['label']} 승인 요청",
+                                       blocks)
+
                 flash(f'{meta["label"]} 신청이 완료되었습니다.', 'success')
                 return redirect(url_for('attendance_home', tab='leaves'))
 
@@ -12508,6 +12526,193 @@ def billing_webhook():
     except Exception as e:
         app.logger.error(f'Toss webhook error: {e}')
         return '', 400
+
+    return '', 200
+
+
+# ══════════════════════════════════════════════════════════════
+#  Slack 슬래시 커맨드 / 인터랙티브 버튼
+# ══════════════════════════════════════════════════════════════
+
+@app.route('/slack/command', methods=['POST'])
+def slack_command():
+    """
+    /talentcore 슬래시 커맨드 핸들러
+    Slack이 application/x-www-form-urlencoded 로 POST 함
+    """
+    from integrations.slack import send_dm, IS_DEMO
+    text      = request.form.get('text', '').strip()
+    slack_uid = request.form.get('user_id', '')
+    resp_url  = request.form.get('response_url', '')
+
+    db = get_db()
+
+    # Slack UID → 내부 user 매핑
+    # (슬랙 UID를 이메일로 변환하는 방법: users.info API 사용)
+    def get_email_from_slack_uid(uid):
+        if IS_DEMO:
+            return None
+        try:
+            import urllib.request as _ur, json as _j
+            token = os.environ.get('SLACK_BOT_TOKEN', '')
+            import urllib.parse as _up
+            url = 'https://slack.com/api/users.info?' + _up.urlencode({'user': uid})
+            req = _ur.Request(url, headers={'Authorization': f'Bearer {token}'})
+            with _ur.urlopen(req, timeout=8) as r:
+                data = _j.loads(r.read())
+                return data.get('user', {}).get('profile', {}).get('email')
+        except Exception:
+            return None
+
+    cmd = text.lower().replace(' ', '')
+
+    # ── 내 연차 ──────────────────────────────────────────────
+    if cmd in ('내연차', '연차', 'leave', 'myannual'):
+        email = get_email_from_slack_uid(slack_uid)
+        if not email:
+            return jsonify({'response_type': 'ephemeral',
+                            'text': '이메일 조회 실패. TalentCore에 이 Slack 계정 이메일이 등록돼 있는지 확인해주세요.'})
+        user = db.execute('SELECT * FROM users WHERE email=? AND status="active"', (email,)).fetchone()
+        if not user:
+            return jsonify({'response_type': 'ephemeral', 'text': 'TalentCore에 등록된 계정을 찾을 수 없습니다.'})
+
+        # 연차 계산
+        from app import calc_annual_leave
+        total = calc_annual_leave(user['hire_date'])
+        used  = db.execute(
+            "SELECT COALESCE(SUM(days),0) AS s FROM leave_requests "
+            "WHERE user_id=? AND type='annual' AND status='approved' "
+            "AND strftime('%Y', start_date)=strftime('%Y','now')",
+            (user['id'],)
+        ).fetchone()['s']
+        remain = total - used
+
+        return jsonify({
+            'response_type': 'ephemeral',
+            'text': (
+                f"*{user['name']}님의 연차 현황*\n"
+                f"• 총 부여: {total}일\n"
+                f"• 사용: {used}일\n"
+                f"• 잔여: *{remain}일*"
+            ),
+        })
+
+    # ── 팀 출근 ──────────────────────────────────────────────
+    elif cmd in ('팀출근', '팀오늘출근', 'teamcheckin'):
+        email = get_email_from_slack_uid(slack_uid)
+        if not email:
+            return jsonify({'response_type': 'ephemeral', 'text': '이메일 조회 실패.'})
+        user = db.execute('SELECT * FROM users WHERE email=? AND status="active"', (email,)).fetchone()
+        if not user:
+            return jsonify({'response_type': 'ephemeral', 'text': '계정을 찾을 수 없습니다.'})
+
+        today = date.today().isoformat()
+        rows  = db.execute(
+            """SELECT u.name, c.check_in, c.check_out
+               FROM checkins c JOIN users u ON c.user_id = u.id
+               WHERE c.date=? AND u.department_id=?
+               ORDER BY c.check_in""",
+            (today, user['department_id'])
+        ).fetchall()
+
+        if not rows:
+            return jsonify({'response_type': 'ephemeral', 'text': f'오늘({today}) 팀 출근 기록이 없습니다.'})
+
+        lines = [f"*오늘 팀 출근 현황 ({today})*"]
+        for r in rows:
+            out = r['check_out'][:5] if r['check_out'] else '근무중'
+            lines.append(f"• {r['name']} — {r['check_in'][:5]} 출근 / {out}")
+        return jsonify({'response_type': 'ephemeral', 'text': '\n'.join(lines)})
+
+    # ── 도움말 ───────────────────────────────────────────────
+    else:
+        return jsonify({
+            'response_type': 'ephemeral',
+            'text': (
+                "*TalentCore 슬래시 커맨드 사용법*\n\n"
+                "• `/talentcore 내연차` — 나의 연차 잔여일수 조회\n"
+                "• `/talentcore 팀출근` — 오늘 우리 팀 출근 현황\n"
+            ),
+        })
+
+
+@app.route('/slack/interactive', methods=['POST'])
+def slack_interactive():
+    """
+    Slack 인터랙티브 버튼 핸들러
+    payload JSON에 action_id + value 포함
+    """
+    from integrations.slack import respond_to_interaction, send_dm
+    raw     = request.form.get('payload', '')
+    if not raw:
+        return '', 400
+    payload      = json.loads(raw)
+    actions      = payload.get('actions', [])
+    response_url = payload.get('response_url', '')
+    slack_uid    = payload.get('user', {}).get('id', '')
+
+    if not actions:
+        return '', 200
+
+    action    = actions[0]
+    action_id = action.get('action_id', '')
+    value     = action.get('value', '')
+
+    db = get_db()
+
+    # ── 휴가 승인 버튼 ────────────────────────────────────────
+    if action_id == 'leave_approve' and value.isdigit():
+        req_id = int(value)
+        req    = db.execute('SELECT * FROM leave_requests WHERE id=?', (req_id,)).fetchone()
+        if not req or req['status'] != 'pending':
+            respond_to_interaction(response_url, '이미 처리된 신청입니다.')
+            return '', 200
+
+        # 내부 처리 (manager_only 기준)
+        db.execute(
+            "UPDATE leave_requests SET status='approved', "
+            "manager_approved_at=CURRENT_TIMESTAMP WHERE id=?", (req_id,)
+        )
+        db.commit()
+        add_notification(
+            req['user_id'], 'info', 'leave', '휴가 승인 완료',
+            '슬랙에서 매니저가 승인했습니다.',
+            url_for('attendance_home', tab='leaves')
+        )
+        # 신청자에게 DM
+        emp = db.execute('SELECT email, name FROM users WHERE id=?', (req['user_id'],)).fetchone()
+        if emp and emp['email']:
+            send_dm(emp['email'],
+                    f"[TalentCore] {req['start_date']} ~ {req['end_date']} 휴가가 승인됐습니다.")
+        # 버튼 메시지 업데이트
+        respond_to_interaction(response_url,
+            f"✅ {emp['name'] if emp else ''}님 휴가 승인 완료 ({req['start_date']} ~ {req['end_date']})")
+        return '', 200
+
+    # ── 휴가 반려 버튼 ────────────────────────────────────────
+    elif action_id == 'leave_reject' and value.isdigit():
+        req_id = int(value)
+        req    = db.execute('SELECT * FROM leave_requests WHERE id=?', (req_id,)).fetchone()
+        if not req or req['status'] != 'pending':
+            respond_to_interaction(response_url, '이미 처리된 신청입니다.')
+            return '', 200
+
+        db.execute(
+            "UPDATE leave_requests SET status='rejected' WHERE id=?", (req_id,)
+        )
+        db.commit()
+        add_notification(
+            req['user_id'], 'info', 'leave', '휴가 반려',
+            '슬랙에서 매니저가 반려했습니다.',
+            url_for('attendance_home', tab='leaves')
+        )
+        emp = db.execute('SELECT email, name FROM users WHERE id=?', (req['user_id'],)).fetchone()
+        if emp and emp['email']:
+            send_dm(emp['email'],
+                    f"[TalentCore] {req['start_date']} ~ {req['end_date']} 휴가 신청이 반려됐습니다.")
+        respond_to_interaction(response_url,
+            f"❌ {emp['name'] if emp else ''}님 휴가 반려 ({req['start_date']} ~ {req['end_date']})")
+        return '', 200
 
     return '', 200
 
