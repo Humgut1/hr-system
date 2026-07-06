@@ -20,7 +20,19 @@
       .tc-landing .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
       .tc-landing .ai-grid, .tc-landing .metrics-grid { grid-template-columns: 1fr !important; }
       .tc-landing h1.hero { font-size: 40px !important; }
+      .tc-landing .tour-stage { grid-template-columns: 1fr !important; }
+      .tc-landing .tour-sticky { position: relative !important; height: 260px !important; margin-top: 24px; }
     }
+    .tc-landing .tour-stage { display: grid; grid-template-columns: 1fr 1fr; gap: 52px; align-items: start; }
+    .tc-landing .tour-step { padding: 52px 0 52px 28px; border-left: 2px solid #edeef4; opacity: .35; transition: opacity .3s; }
+    .tc-landing .tour-step.active { opacity: 1; border-left: 2px solid #4f46e5; }
+    .tc-landing .tour-step .num { font-size: 12px; font-weight: 800; color: #4f46e5; letter-spacing: .06em; }
+    .tc-landing .tour-step h3 { font-size: 24px; font-weight: 800; margin: 8px 0 10px; letter-spacing: -0.02em; }
+    .tc-landing .tour-step p { font-size: 15px; color: #565b6e; line-height: 1.7; margin: 0 0 12px; max-width: 400px; }
+    .tc-landing .tour-step ul { margin: 0; padding-left: 18px; color: #565b6e; font-size: 14px; line-height: 1.85; }
+    .tc-landing .tour-sticky { position: sticky; top: 96px; height: 500px; border-radius: 20px; overflow: hidden; background: linear-gradient(160deg,#f2f1fb,#fbfbff); border: 1px solid #edeef4; box-shadow: 0 24px 60px rgba(20,16,60,.10); }
+    .tc-landing .tour-sticky img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity .35s; display: block; }
+    .tc-landing .tour-sticky img.on { opacity: 1; }
   </style>
 </head>
 <body class="tc-landing">
@@ -34,6 +46,7 @@
       </div>
       <nav style="display: flex; align-items: center; gap: 30px;">
         <a href="#features" style="font-size: 14.5px; font-weight: 600; color: #4b5060;">기능</a>
+        <a href="#tour" style="font-size: 14.5px; font-weight: 600; color: #4b5060;">제품 둘러보기</a>
         <a href="#ai" style="font-size: 14.5px; font-weight: 600; color: #4b5060;">AI 연동</a>
         <a href="#metrics" style="font-size: 14.5px; font-weight: 600; color: #4b5060;">현황</a>
         <div style="display: flex; align-items: center; gap: 10px; margin-left: 6px;">
@@ -131,6 +144,20 @@
     </div>
   </section>
 
+  <!-- PRODUCT TOUR -->
+  <section id="tour" style="padding: 20px 0 100px;">
+    <div class="wrap">
+      <div style="text-align: center; margin-bottom: 40px;">
+        <span style="font-size: 14px; font-weight: 800; color: #4f46e5; letter-spacing: 0.02em;">PRODUCT TOUR</span>
+        <h2 style="font-size: 38px; font-weight: 800; letter-spacing: -0.03em; margin: 12px 0 0;">스크롤하며 화면으로 직접 확인하세요</h2>
+      </div>
+      <div class="tour-stage">
+        <div id="tourSteps"></div>
+        <div class="tour-sticky" id="tourSticky"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- AI / MCP -->
   <section id="ai" style="padding: 0 0 96px;">
     <div class="wrap">
@@ -199,6 +226,46 @@
       <span style="font-size: 13px; color: #9096a6;">© 2026 TalentCore. All rights reserved.</span>
     </div>
   </footer>
+
+  <script>
+    const TOUR_MODULES = [
+      { t: '근태관리', d: '출퇴근부터 연차, 초과근무까지 하나의 화면에서.', img: "{{ url_for('static', filename='img/product/attendance.png') }}", items: ['체크인/체크아웃 원클릭 기록', '법정 근로시간 자동 감시(52시간)', '연차 신청부터 승인까지 한 화면'] },
+      { t: '급여·보상', d: '복잡한 급여 계산과 보상 체계를 자동화.', img: "{{ url_for('static', filename='img/product/compensation.png') }}", items: ['4대보험 자동 계산 급여명세서', '직급×직군 연봉 밴드 관리', '성과 등급 연동 인상률 자동 제안'] },
+      { t: '성과관리', d: '목표 설정부터 캘리브레이션까지 전 과정 지원.', img: "{{ url_for('static', filename='img/product/performance.png') }}", items: ['SMART 목표 + AI 어시스턴트', 'Start/Stop/Continue 다면평가', '9박스 캘리브레이션으로 등급 확정'] },
+      { t: '채용', d: '파이프라인 관리부터 오퍼 발송까지 한 번에.', img: "{{ url_for('static', filename='img/product/recruitment.png') }}", items: ['드래그앤드롭 채용 파이프라인', '면접 라운드별 피드백 수집', '오퍼 발송부터 입사까지 자동 연동'] },
+      { t: '조직도', d: '조직 구조를 인터랙티브하게 탐색.', img: "{{ url_for('static', filename='img/product/org.png') }}", items: ['클릭 한 번으로 팀 구조 탐색', '리포팅 라인 실시간 반영', '부서·직급 체계 한눈에 보기'] },
+      { t: '분석·보고서', d: '데이터 기반 HR 의사결정을 지원.', img: "{{ url_for('static', filename='img/product/analytics.png') }}", items: ['헤드카운트·이직률 추이', 'Pay Equity·Compa-Ratio 분석', '엑셀 내보내기 및 커스텀 리포트'] },
+    ];
+
+    const tourSteps = document.getElementById('tourSteps');
+    const tourSticky = document.getElementById('tourSticky');
+
+    TOUR_MODULES.forEach((m, i) => {
+      const step = document.createElement('div');
+      step.className = 'tour-step' + (i === 0 ? ' active' : '');
+      step.dataset.i = i;
+      step.innerHTML = `<div class="num">MODULE ${String(i + 1).padStart(2, '0')}</div><h3>${m.t}</h3><p>${m.d}</p><ul>${m.items.map(x => `<li>${x}</li>`).join('')}</ul>`;
+      tourSteps.appendChild(step);
+
+      const img = document.createElement('img');
+      img.src = m.img;
+      img.alt = m.t;
+      if (i === 0) img.classList.add('on');
+      tourSticky.appendChild(img);
+    });
+
+    const tourObserver = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const i = e.target.dataset.i;
+          [...tourSteps.children].forEach(s => s.classList.remove('active'));
+          e.target.classList.add('active');
+          [...tourSticky.children].forEach((img, idx) => img.classList.toggle('on', String(idx) === i));
+        }
+      });
+    }, { threshold: 0.6 });
+    [...tourSteps.children].forEach(s => tourObserver.observe(s));
+  </script>
 
 </body>
 </html>
