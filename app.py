@@ -428,6 +428,44 @@ def logout():
     return redirect(url_for('login'))
 
 
+@app.route('/demo')
+def demo_login():
+    """랜딩 '체험하기' 버튼 — 게스트 계정으로 즉시 로그인 (조회 전용)"""
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+
+    tenant_id = 1  # 데모 테넌트
+    db_path = get_tenant_db_path(tenant_id)
+    _db = sqlite3.connect(db_path)
+    _db.row_factory = sqlite3.Row
+    user = _db.execute(
+        'SELECT u.*, d.name AS dept_name, p.name AS pos_name '
+        'FROM users u '
+        'LEFT JOIN departments d ON u.department_id = d.id '
+        'LEFT JOIN positions   p ON u.position_id   = p.id '
+        "WHERE u.role = 'guest' AND u.status = 'active' "
+        'ORDER BY u.id LIMIT 1',
+        ()
+    ).fetchone()
+    _db.close()
+
+    if not user:
+        flash('데모 계정을 찾을 수 없습니다. 관리자에게 문의하세요.', 'error')
+        return redirect(url_for('login'))
+
+    session.clear()
+    session['tenant_id']  = tenant_id
+    session['user_id']    = user['id']
+    session['user_name']  = user['name']
+    session['user_role']  = user['role']
+    session['user_email'] = user['email']
+    session['dept_name']  = user['dept_name'] or ''
+    session['pos_name']   = user['pos_name']  or ''
+    session['dept_id']    = user['department_id'] or 0
+    session['onboarded']  = 1
+    return redirect(url_for('dashboard'))
+
+
 @app.route('/admin/setup', methods=['GET', 'POST'])
 @login_required
 def admin_setup():
