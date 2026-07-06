@@ -33,22 +33,22 @@
       <!-- ── 나 ─────────────────────────────────────── -->
       <div class="nav-section-body">
         <div class="nav-category-btn" style="cursor:default;"><span>나</span></div>
-        <a href="{{ url_for('dashboard') }}" class="nav-item{% if active_page == 'home' %} active{% endif %}" title="홈">
+        <a href="{{ url_for('dashboard') }}" class="nav-item{% if active_page == 'home' %} active{% endif %}" title="홈" data-tour="home">
           <i class="fas fa-home"></i><span>홈</span>
         </a>
-        <a href="{{ url_for('attendance_home') }}" class="nav-item{% if active_page == 'attendance_home' %} active{% endif %}" title="근태">
+        <a href="{{ url_for('attendance_home') }}" class="nav-item{% if active_page == 'attendance_home' %} active{% endif %}" title="근태" data-tour="attendance">
           <i class="fas fa-clock"></i><span>근태</span>
         </a>
-        <a href="{{ url_for('payroll_list') }}" class="nav-item{% if active_page == 'my_docs' %} active{% endif %}" title="내 문서">
+        <a href="{{ url_for('payroll_list') }}" class="nav-item{% if active_page == 'my_docs' %} active{% endif %}" title="내 문서" data-tour="mydocs">
           <i class="fas fa-folder-open"></i><span>내 문서</span>
         </a>
-        <a href="{{ url_for('performance') }}" class="nav-item{% if active_page in ('performance','peer') %} active{% endif %}" title="성과">
+        <a href="{{ url_for('performance') }}" class="nav-item{% if active_page in ('performance','peer') %} active{% endif %}" title="성과" data-tour="performance">
           <i class="fas fa-chart-line"></i><span>성과</span>
         </a>
-        <a href="{{ url_for('me_onboarding') }}" class="nav-item{% if active_page == 'me_onboarding' %} active{% endif %}" title="온보딩">
+        <a href="{{ url_for('me_onboarding') }}" class="nav-item{% if active_page == 'me_onboarding' %} active{% endif %}" title="온보딩" data-tour="onboarding">
           <i class="fas fa-rocket"></i><span>온보딩</span>
         </a>
-        <a href="{{ url_for('me_benefits') }}" class="nav-item{% if active_page == 'me_benefits' %} active{% endif %}" title="복리후생">
+        <a href="{{ url_for('me_benefits') }}" class="nav-item{% if active_page == 'me_benefits' %} active{% endif %}" title="복리후생" data-tour="benefits-me">
           <i class="fas fa-gift"></i><span>복리후생</span>
         </a>
       </div>
@@ -58,10 +58,10 @@
       <!-- ── 회사 ────────────────────────────────────── -->
       <div class="nav-section-body">
         <div class="nav-category-btn" style="cursor:default;"><span>회사</span></div>
-        <a href="{{ url_for('announcements') }}" class="nav-item{% if active_page == 'announcements' %} active{% endif %}" title="공지사항">
+        <a href="{{ url_for('announcements') }}" class="nav-item{% if active_page == 'announcements' %} active{% endif %}" title="공지사항" data-tour="announcements">
           <i class="fas fa-bullhorn"></i><span>공지사항</span>
         </a>
-        <a href="{{ url_for('org_chart') }}" class="nav-item{% if active_page == 'org' %} active{% endif %}" title="조직도">
+        <a href="{{ url_for('org_chart') }}" class="nav-item{% if active_page == 'org' %} active{% endif %}" title="조직도" data-tour="org">
           <i class="fas fa-sitemap"></i><span>조직도</span>
         </a>
       </div>
@@ -71,16 +71,16 @@
       <div class="nav-section-divider"></div>
       <div class="nav-section-body">
         <div class="nav-category-btn" style="cursor:default;"><span>팀</span></div>
-        <a href="{{ url_for('employees') }}" class="nav-item{% if active_page in ('employees','termination_requests') %} active{% endif %}" title="팀원 관리">
+        <a href="{{ url_for('employees') }}" class="nav-item{% if active_page in ('employees','termination_requests') %} active{% endif %}" title="팀원 관리" data-tour="team">
           <i class="fas fa-users"></i><span>팀원 관리</span>
         </a>
-        <a href="{{ url_for('peer_assignments') }}" class="nav-item{% if active_page == 'peer_assignments' %} active{% endif %}" title="다면평가 배정">
+        <a href="{{ url_for('peer_assignments') }}" class="nav-item{% if active_page == 'peer_assignments' %} active{% endif %}" title="다면평가 배정" data-tour="peer-assign">
           <i class="fas fa-comments"></i><span>다면평가 배정</span>
         </a>
-        <a href="{{ url_for('succession') }}" class="nav-item{% if active_page == 'succession' %} active{% endif %}" title="후계자 계획">
+        <a href="{{ url_for('succession') }}" class="nav-item{% if active_page == 'succession' %} active{% endif %}" title="후계자 계획" data-tour="succession">
           <i class="fas fa-chess-king"></i><span>후계자 계획</span>
         </a>
-        <a href="{{ url_for('goal_templates') }}" class="nav-item{% if active_page == 'goal_templates' %} active{% endif %}" title="목표 템플릿">
+        <a href="{{ url_for('goal_templates') }}" class="nav-item{% if active_page == 'goal_templates' %} active{% endif %}" title="목표 템플릿" data-tour="goal-templates">
           <i class="fas fa-clipboard-list"></i><span>목표 템플릿</span>
         </a>
       </div>
@@ -92,14 +92,14 @@
       <div class="nav-section-body">
         <div class="nav-category-btn" style="cursor:default;"><span>관리자</span></div>
         {% if session.user_role == 'admin' %}
-        <a href="{{ url_for('compensation') }}" class="nav-item{% if active_page in ('compensation','admin_payroll','salary_bands','acr','bulk_raise','bonus_pay') %} active{% endif %}" title="보상 관리">
+        <a href="{{ url_for('compensation') }}" class="nav-item{% if active_page in ('compensation','admin_payroll','salary_bands','acr','bulk_raise','bonus_pay') %} active{% endif %}" title="보상 관리" data-tour="compensation">
           <i class="fas fa-coins"></i><span>보상 관리</span>
         </a>
         {% endif %}
         <!-- 채용 접이식 서브그룹 -->
         {% set recruit_active = active_page in ('requisition','recruit_dashboard','recruit','recruit_pipeline','recruiter') %}
         <button class="nav-subgroup-btn{% if recruit_active %} open active-group{% endif %}"
-                onclick="toggleSubgroup(this,'sg-recruit')" title="채용">
+                onclick="toggleSubgroup(this,'sg-recruit')" title="채용" data-tour="recruit">
           <i class="fas fa-user-tie sg-icon"></i>
           <span class="sg-label">채용</span>
           <i class="fas fa-chevron-down sg-arrow"></i>
@@ -116,16 +116,16 @@
           </a>
         </div>
         {% if session.user_role == 'admin' %}
-        <a href="{{ url_for('people_analytics') }}" class="nav-item{% if active_page == 'analytics' %} active{% endif %}" title="분석·보고서">
+        <a href="{{ url_for('people_analytics') }}" class="nav-item{% if active_page == 'analytics' %} active{% endif %}" title="분석·보고서" data-tour="analytics">
           <i class="fas fa-chart-pie"></i><span>분석·보고서</span>
         </a>
-        <a href="{{ url_for('admin_benefits') }}" class="nav-item{% if active_page == 'benefits' %} active{% endif %}" title="복리후생 설정">
+        <a href="{{ url_for('admin_benefits') }}" class="nav-item{% if active_page == 'benefits' %} active{% endif %}" title="복리후생 설정" data-tour="benefits-admin">
           <i class="fas fa-gift"></i><span>복리후생</span>
         </a>
-        <a href="{{ url_for('admin_settings') }}" class="nav-item{% if active_page in ('settings','departments','holidays','overtime_monitor','schedules','admin_welfare_points') %} active{% endif %}" title="설정">
+        <a href="{{ url_for('admin_settings') }}" class="nav-item{% if active_page in ('settings','departments','holidays','overtime_monitor','schedules','admin_welfare_points') %} active{% endif %}" title="설정" data-tour="settings">
           <i class="fas fa-cog"></i><span>설정</span>
         </a>
-        <a href="{{ url_for('admin_integrations') }}" class="nav-item{% if active_page == 'integrations' %} active{% endif %}" title="외부 연동">
+        <a href="{{ url_for('admin_integrations') }}" class="nav-item{% if active_page == 'integrations' %} active{% endif %}" title="외부 연동" data-tour="integrations">
           <i class="fas fa-plug"></i><span>외부 연동</span>
         </a>
         {% endif %}
@@ -136,6 +136,10 @@
 
     <div class="sidebar-footer" style="padding:8px;">
       <div style="height:1px; background:var(--border); margin-bottom:8px;"></div>
+      <a href="#" onclick="startTour(); return false;" class="nav-item" title="가이드 투어 다시보기" style="justify-content:center; padding:8px 0;">
+        <i class="fas fa-circle-question" style="width:28px; text-align:center; flex-shrink:0;"></i>
+        <span class="sidebar-footer-label" style="font-size:13px;">가이드 투어</span>
+      </a>
       <a href="{{ url_for('profile') }}" class="nav-item{% if active_page == 'profile' %} active{% endif %}" title="My Profile" style="justify-content:center; padding:8px 0;">
         <div class="user-avatar" style="width:28px; height:28px; font-size:12px; flex-shrink:0;">{{ session.user_name[0] if session.user_name else 'U' }}</div>
         <span class="sidebar-footer-label" style="font-size:13px;">{{ session.user_name }}</span>
@@ -453,6 +457,180 @@ function toggleSubgroup(btn, bodyId) {
     } else if (e.key === 'Enter' && items.length > 0) {
       e.preventDefault();
       (focused || items[0]).click();
+    }
+  });
+}());
+</script>
+
+<!-- ══ 온보딩 가이드 투어 ══════════════════════════ -->
+<style>
+.tour-overlay { position: fixed; inset: 0; z-index: 9000; display: none; }
+.tour-overlay.active { display: block; }
+.tour-dim {
+  position: fixed; inset: 0;
+  box-shadow: 0 0 0 9999px rgba(15, 20, 30, 0.55);
+  border-radius: 10px;
+  transition: top .25s ease, left .25s ease, width .25s ease, height .25s ease;
+  pointer-events: none;
+}
+.tour-card {
+  position: fixed;
+  width: 300px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg, 12px);
+  box-shadow: 0 12px 32px rgba(0,0,0,.22);
+  padding: 18px 18px 14px;
+  transition: top .25s ease, left .25s ease;
+}
+.tour-card .tour-step { font-size: 11.5px; font-weight: 700; color: var(--primary); margin-bottom: 6px; letter-spacing: .02em; }
+.tour-card .tour-title { font-size: 14.5px; font-weight: 750; color: var(--tx-1); margin-bottom: 6px; }
+.tour-card .tour-desc { font-size: 13px; color: var(--tx-3); line-height: 1.5; margin-bottom: 14px; }
+.tour-card .tour-actions { display: flex; align-items: center; justify-content: space-between; }
+.tour-card .tour-skip { font-size: 12.5px; color: var(--tx-3); background: none; border: none; cursor: pointer; }
+.tour-card .tour-skip:hover { color: var(--tx-1); }
+.tour-card .tour-next { font-size: 13px; font-weight: 700; color: #fff; background: var(--primary); border: none; border-radius: 8px; padding: 7px 16px; cursor: pointer; }
+.tour-card .tour-next:hover { opacity: .9; }
+</style>
+
+<div class="tour-overlay" id="tourOverlay">
+  <div class="tour-dim" id="tourDim"></div>
+  <div class="tour-card" id="tourCard">
+    <div class="tour-step" id="tourStepLabel">1 / 5</div>
+    <div class="tour-title" id="tourTitle"></div>
+    <div class="tour-desc" id="tourDesc"></div>
+    <div class="tour-actions">
+      <button class="tour-skip" onclick="skipTour()">건너뛰기</button>
+      <button class="tour-next" id="tourNextBtn" onclick="nextTourStep()">다음</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ── 1) 최초 진입 시: 사이드바 구조만 짧게 설명 ──
+  var GLOBAL_TOUR = [
+    { sel: '#appSidebar', title: '사이드바 구조', desc: '메뉴는 나 / 회사 / 팀 / 관리자 4개 카테고리로 나뉘어 있습니다. 역할에 따라 보이는 항목이 다릅니다.' },
+    { sel: '#globalSearchWrap', title: '글로벌 검색', desc: '직원 이름이나 메뉴명을 입력하면 바로 검색됩니다. 어디서든 "/" 키를 누르면 검색창으로 바로 이동해요.' },
+    { sel: 'a[title="알림"]', title: '알림', desc: '휴가 승인, 인사발령 등 처리가 필요한 항목이 생기면 여기로 알려드립니다.' },
+    { sel: '#userPill', title: '내 계정', desc: '프로필 수정, 회사 설정, 로그아웃은 이 메뉴에서 할 수 있습니다.' },
+    { sel: '.page-content', title: '메뉴별 상세 안내', desc: '각 메뉴에 처음 들어가면 그 화면에서 할 수 있는 기능을 별도로 안내해드립니다. 사이드바 하단의 "가이드 투어"로 언제든 다시 볼 수 있어요.' }
+  ];
+
+  // ── 2) 각 메뉴 첫 진입 시: 그 화면의 기능 설명 ──
+  var PAGE_TOURS = {
+    attendance_home: [
+      { sel: '[data-tab="home"]', title: '근태 홈', desc: '출퇴근 체크인/체크아웃, 이번 주 근무시간, 잔여 연차를 확인합니다.' },
+      { sel: '[data-tab="leaves"]', title: '휴가', desc: '휴가를 신청하고 신청 내역·승인 상태를 확인합니다.' },
+      { sel: '[data-tab="ot"]', title: '초과근무', desc: '연장근무를 사전/사후로 신청하고 승인 상태를 확인합니다.' },
+      { sel: '[data-tab="calendar"]', title: '캘린더', desc: '한 달 단위로 출퇴근·휴가 현황을 달력으로 확인합니다.' },
+      { sel: '[data-tab="approvals"]', title: '승인', desc: '팀원의 근태·휴가·초과근무 신청을 검토하고 승인/반려합니다.' }
+    ],
+    performance: [
+      { sel: '[data-tour-page="perf-goals"]', title: '내 목표', desc: '이번 사이클 목표를 등록하고 진행률·자기평가를 입력합니다.' },
+      { sel: '[data-tour-page="perf-peer"]', title: '다면평가', desc: 'Start/Stop/Continue 형식으로 동료를 평가합니다.' },
+      { sel: '[data-tour-page="perf-result"]', title: '평가 결과', desc: '최종 등급과 등급별 인상률·상여 배수를 확인합니다.' },
+      { sel: '[data-tour-page="perf-team"]', title: '팀원 목표 현황', desc: '팀원별 목표 진행률과 자기평가 완료 여부를 확인합니다.' },
+      { sel: '[data-tour-page="perf-admin-peer"]', title: '다면평가 관리', desc: '응답자 배정 현황과 진행률을 관리합니다.' },
+      { sel: '[data-tour-page="perf-calibration"]', title: '캘리브레이션', desc: '팀 전체 점수를 비교해 등급을 조정하고 확정합니다.' }
+    ],
+    compensation: [
+      { sel: '[data-tour-page="comp-ops"]', title: '급여 운영', desc: '월별 급여를 생성하고 개인별 급여를 수정합니다.' },
+      { sel: '[data-tour-page="comp-structure"]', title: '급여 구조', desc: '직급별 급여 밴드와 Merit Matrix(등급×Compa-Ratio 인상률표)를 설정합니다.' },
+      { sel: '[data-tour-page="comp-acr"]', title: '성과 연동 급여 검토', desc: '캘리브레이션 등급을 반영한 인상안을 검토하고 일괄 반영합니다.' },
+      { sel: '[data-tour-page="comp-analysis"]', title: '보상 분석', desc: 'Compa-Ratio 분포와 이상치를 분석합니다.' }
+    ],
+    recruit_pipeline: [
+      { sel: '#pipeBoard', title: '채용 파이프라인', desc: '지원자 카드를 드래그해서 서류/면접/오퍼 등 단계를 이동시킬 수 있습니다. 카드를 클릭하면 상세 정보로 이동합니다.' }
+    ]
+  };
+
+  var curTour = [];
+  var curStep = 0;
+  var curKey = null; // localStorage 키 (페이지 투어일 때만 설정)
+
+  function placeTour(idx) {
+    var step = curTour[idx];
+    var target = document.querySelector(step.sel);
+    var dim = document.getElementById('tourDim');
+    var card = document.getElementById('tourCard');
+    var rect = target ? target.getBoundingClientRect() : { top: 20, left: 20, width: 200, height: 40 };
+    var pad = 6;
+
+    dim.style.top = (rect.top - pad) + 'px';
+    dim.style.left = (rect.left - pad) + 'px';
+    dim.style.width = (rect.width + pad * 2) + 'px';
+    dim.style.height = (rect.height + pad * 2) + 'px';
+
+    document.getElementById('tourStepLabel').textContent = (idx + 1) + ' / ' + curTour.length;
+    document.getElementById('tourTitle').textContent = step.title;
+    document.getElementById('tourDesc').textContent = step.desc;
+    document.getElementById('tourNextBtn').textContent = (idx === curTour.length - 1) ? '완료' : '다음';
+
+    var cardTop = rect.bottom + pad + 14;
+    var cardLeft = rect.left;
+    if (cardTop + 160 > window.innerHeight) cardTop = Math.max(20, rect.top - pad - 190);
+    if (cardLeft + 300 > window.innerWidth) cardLeft = window.innerWidth - 320;
+    card.style.top = cardTop + 'px';
+    card.style.left = cardLeft + 'px';
+
+    if (target) target.scrollIntoView({ block: 'nearest' });
+  }
+
+  function runTour(steps, storageKey) {
+    curTour = steps.filter(function (s) { return document.querySelector(s.sel); });
+    if (!curTour.length) return;
+    curStep = 0;
+    curKey = storageKey || null;
+    document.getElementById('tourOverlay').classList.add('active');
+    placeTour(curStep);
+  }
+
+  // 사이드바 "가이드 투어 다시보기" 클릭 시: 현재 페이지에 전용 투어가 있으면 그것을, 없으면 개요 투어를 재생
+  window.startTour = function () {
+    var pageSteps = PAGE_TOURS['{{ active_page }}'];
+    if (pageSteps) {
+      runTour(pageSteps, 'tourPageSeen_{{ active_page }}');
+    } else {
+      runTour(GLOBAL_TOUR, null);
+    }
+  };
+
+  window.nextTourStep = function () {
+    curStep++;
+    if (curStep >= curTour.length) {
+      endTour();
+      return;
+    }
+    placeTour(curStep);
+  };
+
+  window.skipTour = function () { endTour(); };
+
+  function endTour() {
+    document.getElementById('tourOverlay').classList.remove('active');
+    if (curKey) {
+      try { localStorage.setItem(curKey, '1'); } catch (e) {}
+    } else {
+      fetch('{{ url_for("tour_complete") }}', { method: 'POST' }).catch(function () {});
+    }
+  }
+
+  window.addEventListener('resize', function () {
+    if (document.getElementById('tourOverlay').classList.contains('active')) placeTour(curStep);
+  });
+
+  window.addEventListener('DOMContentLoaded', function () {
+    {% if session.get('show_tour') and active_page == 'home' %}
+    runTour(GLOBAL_TOUR, null);
+    return;
+    {% endif %}
+    var pageSteps = PAGE_TOURS['{{ active_page }}'];
+    if (pageSteps) {
+      var key = 'tourPageSeen_{{ active_page }}';
+      var seen = false;
+      try { seen = !!localStorage.getItem(key); } catch (e) {}
+      if (!seen) runTour(pageSteps, key);
     }
   });
 }());

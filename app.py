@@ -427,6 +427,7 @@ def login():
                 session['pos_name']   = user['pos_name']  or ''
                 session['dept_id']    = user['department_id'] or 0
                 session['onboarded']  = 1 if user['onboarded'] else 0
+                session['show_tour']  = not bool(user['tour_completed'])
 
                 # ── 구독 만료 체크 (guest/demo 제외) ────────────
                 if user['role'] != 'guest' and tenant_row:
@@ -487,7 +488,19 @@ def demo_login():
     session['dept_id']    = user['department_id'] or 0
     session['onboarded']  = 1
     session['demo_mode']  = True
+    session['show_tour']  = True
     return redirect(url_for('dashboard'))
+
+
+@app.route('/tour/complete', methods=['POST'])
+def tour_complete():
+    """온보딩 투어 완료/스킵 — 데모 세션은 세션 플래그만, 실사용자는 DB에도 영구 저장"""
+    session['show_tour'] = False
+    if 'user_id' in session and not session.get('demo_mode'):
+        db = get_db()
+        db.execute('UPDATE users SET tour_completed = 1 WHERE id = ?', (session['user_id'],))
+        db.commit()
+    return ('', 204)
 
 
 # ── SaaS 관리 (운영자 전용, 테넌트와 무관한 별도 로그인) ─────────────
@@ -4971,7 +4984,7 @@ def compensation():
         sug_pct = merit_from_matrix(db, r['perf_grade'] or 'B', ratio)
         # Flight Risk 자동 감지
         fr_reasons = []
-        if ratio < 0.85:
+        if ratio is not None and ratio < 0.85:
             fr_reasons.append(f'Compa {ratio:.2f}')
         if r['perf_grade'] in ('C', 'D'):
             fr_reasons.append(f'성과 {r["perf_grade"]}')

@@ -711,6 +711,8 @@ def init_db(db_path: str = None):
             c.execute('ALTER TABLE users ADD COLUMN buddy_id INTEGER REFERENCES users(id)')
         if 'jira_epic_key' not in existing:
             c.execute('ALTER TABLE users ADD COLUMN jira_epic_key TEXT')
+        if 'tour_completed' not in existing:
+            c.execute('ALTER TABLE users ADD COLUMN tour_completed INTEGER NOT NULL DEFAULT 0')
 
         # benefit_configs 컬럼 마이그레이션
         bc_cols = {r[1] for r in c.execute('PRAGMA table_info(benefit_configs)').fetchall()}

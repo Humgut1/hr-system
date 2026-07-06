@@ -211,17 +211,17 @@
 
 <!-- 탭 -->
 <div class="perf-tabs">
-  <button class="perf-tab active" onclick="switchTab('goals', this)">
+  <button class="perf-tab active" onclick="switchTab('goals', this)" data-tour-page="perf-goals">
     <i class="fas fa-bullseye"></i> 내 목표
     {% set undone = goals|selectattr('self_score', 'none')|list|length %}
     {% if undone > 0 %}<span class="tab-badge">{{ undone }}</span>{% endif %}
   </button>
-  <button class="perf-tab" onclick="switchTab('peer', this)">
+  <button class="perf-tab" onclick="switchTab('peer', this)" data-tour-page="perf-peer">
     <i class="fas fa-star"></i> 다면평가
     {% set peer_undone = peer_assignments_mine|selectattr('done_id', 'none')|list|length %}
     {% if peer_undone > 0 %}<span class="tab-badge">{{ peer_undone }}</span>{% endif %}
   </button>
-  <button class="perf-tab" onclick="switchTab('result', this)">
+  <button class="perf-tab" onclick="switchTab('result', this)" data-tour-page="perf-result">
     <i class="fas fa-trophy"></i> 평가 결과
   </button>
 </div>
@@ -468,14 +468,14 @@
 
 <!-- 탭: 팀원 목표 / 다면평가 배정 (admin) -->
 <div class="perf-tabs">
-  <button class="perf-tab active" onclick="switchTab('team', this)">
+  <button class="perf-tab active" onclick="switchTab('team', this)" data-tour-page="perf-team">
     <i class="fas fa-users"></i> 팀원 목표 현황
   </button>
   {% if session.user_role == 'admin' %}
-  <button class="perf-tab" onclick="switchTab('admin_peer', this)">
+  <button class="perf-tab" onclick="switchTab('admin_peer', this)" data-tour-page="perf-admin-peer">
     <i class="fas fa-star"></i> 다면평가 관리
   </button>
-  <button class="perf-tab" onclick="switchTab('calibration', this)">
+  <button class="perf-tab" onclick="switchTab('calibration', this)" data-tour-page="perf-calibration">
     <i class="fas fa-balance-scale"></i> 캘리브레이션
   </button>
   {% endif %}
