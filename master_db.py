@@ -102,16 +102,14 @@ def init_master_db():
 
 # ── SaaS 관리자(운영자) ─────────────────────────────────────────
 def seed_default_superadmin():
-    """superadmins 테이블이 비어 있으면 기본 운영자 계정 생성 (멱등)."""
+    """superadmins 테이블에 기본 운영자 계정이 없으면 생성 (멱등, 워커 동시 기동에도 안전)."""
     from werkzeug.security import generate_password_hash
     conn = get_master_db()
-    exists = conn.execute('SELECT 1 FROM superadmins LIMIT 1').fetchone()
-    if not exists:
-        conn.execute(
-            'INSERT INTO superadmins (username, password_hash) VALUES (?,?)',
-            ('hunie0709', generate_password_hash('1234'))
-        )
-        conn.commit()
+    conn.execute(
+        'INSERT OR IGNORE INTO superadmins (username, password_hash) VALUES (?,?)',
+        ('hunie0709', generate_password_hash('1234'))
+    )
+    conn.commit()
     conn.close()
 
 
