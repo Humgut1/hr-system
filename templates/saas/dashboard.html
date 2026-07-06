@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SaaS 관리 — TalentCore</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+<style>
+body { background: var(--bg); }
+.sa-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 28px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.sa-brand { display: flex; align-items: center; gap: 10px; }
+.sa-brand .mk { width: 30px; height: 30px; border-radius: 8px; background: var(--tx-1); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 14px; }
+.sa-brand .nm { font-size: 15px; font-weight: 700; color: var(--tx-1); }
+.sa-main { max-width: 1180px; margin: 0 auto; padding: 28px; }
+.sa-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+.sa-kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px 18px; }
+.sa-kpi .v { font-size: 24px; font-weight: 800; color: var(--tx-1); }
+.sa-kpi .k { font-size: 12.5px; color: var(--tx-3); margin-top: 3px; }
+table.sa-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+.sa-table th { text-align: left; font-size: 12px; font-weight: 700; color: var(--tx-3); padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.sa-table td { padding: 12px 16px; font-size: 13.5px; color: var(--tx-1); border-bottom: 1px solid var(--line); }
+.sa-table tr:last-child td { border-bottom: none; }
+.sa-table tr:hover td { background: var(--hover); }
+.sa-badge { display: inline-block; padding: 3px 9px; border-radius: var(--r-full); font-size: 11.5px; font-weight: 700; }
+.b-trial { background: var(--primary-soft); color: var(--primary-tx); }
+.b-active { background: var(--green-bg); color: var(--green); }
+.b-suspended { background: var(--red-bg); color: var(--red); }
+.b-cancelled { background: var(--surface-3); color: var(--tx-3); }
+a.sa-row-link { color: inherit; text-decoration: none; display: block; }
+.sa-logout { font-size: 13px; color: var(--tx-3); }
+</style>
+</head>
+<body>
+<div class="sa-header">
+  <div class="sa-brand"><div class="mk">T</div><div class="nm">TalentCore SaaS 관리</div></div>
+  <form method="POST" action="{{ url_for('saas_logout') }}">
+    <button type="submit" class="sa-logout">{{ session.superadmin_name }} · 로그아웃</button>
+  </form>
+</div>
+
+<div class="sa-main">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div style="padding:10px 14px; border-radius:8px; margin-bottom:14px; font-size:13.5px; font-weight:600;
+          background: {{ 'var(--red-bg)' if category=='error' else 'var(--green-bg)' }};
+          color: {{ 'var(--red)' if category=='error' else 'var(--green)' }};">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="sa-kpis">
+    <div class="sa-kpi"><div class="v">{{ tenants|length }}</div><div class="k">전체 가입 회사</div></div>
+    <div class="sa-kpi"><div class="v">{{ tenants|selectattr('sub_status','equalto','trialing')|list|length }}</div><div class="k">체험 중</div></div>
+    <div class="sa-kpi"><div class="v">{{ tenants|selectattr('sub_status','equalto','active')|list|length }}</div><div class="k">유료 구독 중</div></div>
+    <div class="sa-kpi"><div class="v">{{ tenants|selectattr('tenant_status','equalto','suspended')|list|length }}</div><div class="k">정지됨</div></div>
+  </div>
+
+  <table class="sa-table">
+    <thead>
+      <tr>
+        <th>회사명</th><th>관리자 이메일</th><th>상태</th><th>구독</th><th>피크 인원</th><th>체험 종료일</th><th>가입일</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tenants %}
+      <tr>
+        <td colspan="7" style="padding:0;">
+          <a class="sa-row-link" href="{{ url_for('saas_tenant_detail', tenant_id=t.id) }}">
+            <div style="display:grid; grid-template-columns: 2fr 2fr 1fr 1fr 1fr 1fr 1fr; align-items:center; padding:12px 16px;">
+              <div style="font-weight:650;">{{ t.company_name }}</div>
+              <div style="color:var(--tx-3);">{{ t.admin_email }}</div>
+              <div><span class="sa-badge b-{{ t.tenant_status }}">{{ t.tenant_status }}</span></div>
+              <div>{{ t.sub_status or '-' }}</div>
+              <div>{{ t.peak_headcount or 0 }}명</div>
+              <div>{{ t.trial_ends_at or '-' }}</div>
+              <div>{{ t.created_at[:10] if t.created_at else '-' }}</div>
+            </div>
+          </a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" style="text-align:center; color:var(--tx-3); padding:32px;">가입된 회사가 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+</body>
+</html>

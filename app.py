@@ -26,6 +26,8 @@ from master_db import (
     save_billing_key, log_billing, update_billing_log,
     compute_sub_state, start_grace_period, lock_tenant,
     PRICE_PER_SEAT, TRIAL_DAYS,
+    seed_default_superadmin, get_superadmin_by_username,
+    list_tenants_with_state, set_tenant_status,
 )
 
 app = Flask(__name__)
@@ -61,6 +63,7 @@ TOSS_SECRET_KEY = os.environ.get(
 from database import init_db
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
+seed_default_superadmin() # SaaS 운영자 기본 계정 시드
 init_db()               # hr_system.db (테넌트 1 기본 스키마)
 
 # 체크인=체크아웃 동일 시각 오염 데이터 정리 (check_in == check_out → 분=0)
@@ -266,13 +269,19 @@ def inject_sub_state():
     return {'sub_state': None}
 
 
+def _demo_write_blocked():
+    """데모 모드(체험하기)에서는 role과 무관하게 모든 쓰기 요청을 차단한다."""
+    if session.get('demo_mode') and request.method == 'POST':
+        flash('데모 체험 모드에서는 저장·수정·삭제가 제한됩니다.', 'error')
+        return True
+    return False
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'user_id' not in session:
             return redirect(url_for('login'))
-        if session.get('user_role') == 'guest' and request.method == 'POST':
-            flash('게스트 계정은 조회만 가능합니다.', 'error')
+        if _demo_write_blocked():
             return redirect(request.referrer or url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated
@@ -284,6 +293,8 @@ def admin_required(f):
             return redirect(url_for('login'))
         if session.get('user_role') != 'admin':
             abort(403)
+        if _demo_write_blocked():
+            return redirect(request.referrer or url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated
 
@@ -294,6 +305,8 @@ def manager_or_admin(f):
             return redirect(url_for('login'))
         if session.get('user_role') not in ('admin', 'manager'):
             abort(403)
+        if _demo_write_blocked():
+            return redirect(request.referrer or url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated
 
@@ -304,6 +317,16 @@ def recruiter_or_admin(f):
             return redirect(url_for('login'))
         if session.get('user_role') not in ('admin', 'recruiter'):
             abort(403)
+        if _demo_write_blocked():
+            return redirect(request.referrer or url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated
+
+def superadmin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'superadmin_id' not in session:
+            return redirect(url_for('saas_login'))
         return f(*args, **kwargs)
     return decorated
 
@@ -430,9 +453,9 @@ def logout():
 
 @app.route('/demo')
 def demo_login():
-    """랜딩 '체험하기' 버튼 — 게스트 계정으로 즉시 로그인 (조회 전용)"""
+    """랜딩 '체험하기' 버튼 — 데모 테넌트 admin 계정으로 즉시 로그인 (전체 기능 열람 가능, 저장/수정/삭제는 차단)"""
     if 'user_id' in session:
-        return redirect(url_for('dashboard'))
+        session.clear()
 
     tenant_id = 1  # 데모 테넌트
     db_path = get_tenant_db_path(tenant_id)
@@ -443,7 +466,7 @@ def demo_login():
         'FROM users u '
         'LEFT JOIN departments d ON u.department_id = d.id '
         'LEFT JOIN positions   p ON u.position_id   = p.id '
-        "WHERE u.role = 'guest' AND u.status = 'active' "
+        "WHERE u.role = 'admin' AND u.status = 'active' "
         'ORDER BY u.id LIMIT 1',
         ()
     ).fetchone()
@@ -463,7 +486,82 @@ def demo_login():
     session['pos_name']   = user['pos_name']  or ''
     session['dept_id']    = user['department_id'] or 0
     session['onboarded']  = 1
+    session['demo_mode']  = True
     return redirect(url_for('dashboard'))
+
+
+# ── SaaS 관리 (운영자 전용, 테넌트와 무관한 별도 로그인) ─────────────
+@app.route('/saas/login', methods=['GET', 'POST'])
+def saas_login():
+    if 'superadmin_id' in session:
+        return redirect(url_for('saas_dashboard'))
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        admin = get_superadmin_by_username(username)
+        if admin and check_password_hash(admin['password_hash'], password):
+            session.clear()
+            session['superadmin_id'] = admin['id']
+            session['superadmin_name'] = admin['username']
+            return redirect(url_for('saas_dashboard'))
+        error = '아이디 또는 비밀번호가 올바르지 않습니다.'
+    return render_template('saas/login.html', error=error)
+
+
+@app.route('/saas/logout', methods=['GET', 'POST'])
+def saas_logout():
+    session.pop('superadmin_id', None)
+    session.pop('superadmin_name', None)
+    return redirect(url_for('saas_login'))
+
+
+@app.route('/saas')
+@superadmin_required
+def saas_dashboard():
+    tenants = list_tenants_with_state()
+    today = date.today().isoformat()
+    return render_template('saas/dashboard.html', tenants=tenants, today=today)
+
+
+@app.route('/saas/tenants/<int:tenant_id>')
+@superadmin_required
+def saas_tenant_detail(tenant_id):
+    tenant = get_tenant(tenant_id)
+    if not tenant:
+        abort(404)
+    db_path = get_tenant_db_path(tenant_id)
+    _db = sqlite3.connect(db_path)
+    _db.row_factory = sqlite3.Row
+    headcount = _db.execute(
+        "SELECT COUNT(*) FROM users WHERE status='active' AND role NOT IN ('guest')"
+    ).fetchone()[0]
+    users = _db.execute(
+        "SELECT id, name, email, role, status FROM users WHERE role NOT IN ('guest') ORDER BY id LIMIT 200"
+    ).fetchall()
+    _db.close()
+    billing_conn = get_master_db()
+    billing_logs = billing_conn.execute(
+        'SELECT * FROM billing_logs WHERE tenant_id=? ORDER BY created_at DESC LIMIT 24',
+        (tenant_id,)
+    ).fetchall()
+    billing_conn.close()
+    return render_template(
+        'saas/tenant_detail.html',
+        tenant=tenant, headcount=headcount, users=users, billing_logs=billing_logs
+    )
+
+
+@app.route('/saas/tenants/<int:tenant_id>/status', methods=['POST'])
+@superadmin_required
+def saas_tenant_status(tenant_id):
+    new_status = request.form.get('status')
+    if new_status not in ('trial', 'active', 'suspended', 'cancelled'):
+        flash('올바르지 않은 상태값입니다.', 'error')
+        return redirect(url_for('saas_tenant_detail', tenant_id=tenant_id))
+    set_tenant_status(tenant_id, new_status)
+    flash(f'테넌트 상태가 "{new_status}"로 변경되었습니다.', 'success')
+    return redirect(url_for('saas_tenant_detail', tenant_id=tenant_id))
 
 
 @app.route('/admin/setup', methods=['GET', 'POST'])

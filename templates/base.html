@@ -182,7 +182,8 @@
           <div class="user-info-wrap">
             <span class="user-fullname">{{ session.user_name }}</span>
             <span class="user-rolelabel">
-              {% if session.user_role == 'admin' %}HR Admin
+              {% if session.demo_mode %}HR Admin (Demo)
+              {% elif session.user_role == 'admin' %}HR Admin
               {% elif session.user_role == 'manager' %}Manager
               {% elif session.user_role == 'recruiter' %}Recruiter
               {% elif session.user_role == 'guest' %}Guest
@@ -219,7 +220,21 @@
     </header>
 
     <main class="page-content">
-      {% if session.user_role == 'guest' %}
+      {% if session.demo_mode %}
+      <div style="
+        background: linear-gradient(90deg, var(--purple) 0%, var(--purple) 100%);
+        color: var(--surface); padding: 10px 20px;
+        display: flex; align-items: center; justify-content: space-between;
+        font-size: 13px; font-weight: 600;
+        border-radius: var(--r); margin-bottom: 16px; gap: 12px;
+      ">
+        <span>
+          <i class="fas fa-eye" style="margin-right:7px; opacity:.85;"></i>
+          체험 모드 — 관리자 권한으로 모든 메뉴를 둘러볼 수 있습니다. 데이터 변경(저장·수정·삭제)은 제한됩니다.
+        </span>
+        <span style="opacity:.7; font-size:12px; white-space:nowrap;">{{ session.user_email }}</span>
+      </div>
+      {% elif session.user_role == 'guest' %}
       <div style="
         background: linear-gradient(90deg, var(--purple) 0%, var(--purple) 100%);
         color: var(--surface); padding: 10px 20px;

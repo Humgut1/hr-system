@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ tenant.company_name }} — SaaS 관리</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+<style>
+body { background: var(--bg); }
+.sa-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 28px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.sa-brand { display: flex; align-items: center; gap: 10px; }
+.sa-brand .mk { width: 30px; height: 30px; border-radius: 8px; background: var(--tx-1); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 14px; }
+.sa-brand .nm { font-size: 15px; font-weight: 700; color: var(--tx-1); }
+.sa-main { max-width: 980px; margin: 0 auto; padding: 28px; }
+.sa-back { font-size: 13px; color: var(--tx-3); margin-bottom: 14px; display: inline-block; }
+.sa-panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 22px; margin-bottom: 18px; }
+.sa-panel h2 { font-size: 15px; font-weight: 750; color: var(--tx-1); margin-bottom: 14px; }
+.sa-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.sa-item .k { font-size: 12px; color: var(--tx-3); }
+.sa-item .v { font-size: 14px; font-weight: 650; color: var(--tx-1); margin-top: 3px; }
+table.sa-table { width: 100%; border-collapse: collapse; }
+.sa-table th { text-align: left; font-size: 12px; font-weight: 700; color: var(--tx-3); padding: 9px 10px; border-bottom: 1px solid var(--line); }
+.sa-table td { padding: 9px 10px; font-size: 13px; color: var(--tx-1); border-bottom: 1px solid var(--line); }
+.sa-badge { display: inline-block; padding: 3px 9px; border-radius: var(--r-full); font-size: 11.5px; font-weight: 700; }
+.b-trial { background: var(--primary-soft); color: var(--primary-tx); }
+.b-active { background: var(--green-bg); color: var(--green); }
+.b-suspended { background: var(--red-bg); color: var(--red); }
+.b-cancelled { background: var(--surface-3); color: var(--tx-3); }
+.sa-status-form { display: flex; gap: 8px; align-items: center; }
+.sa-select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
+.sa-btn { padding: 8px 14px; background: var(--tx-1); color: #fff; border-radius: 8px; font-size: 13px; font-weight: 700; }
+.sa-btn:hover { opacity: .88; }
+</style>
+</head>
+<body>
+<div class="sa-header">
+  <div class="sa-brand"><div class="mk">T</div><div class="nm">TalentCore SaaS 관리</div></div>
+  <form method="POST" action="{{ url_for('saas_logout') }}">
+    <button type="submit" style="font-size:13px; color:var(--tx-3);">{{ session.superadmin_name }} · 로그아웃</button>
+  </form>
+</div>
+
+<div class="sa-main">
+  <a class="sa-back" href="{{ url_for('saas_dashboard') }}">← 전체 목록</a>
+
+  <div class="sa-panel">
+    <h2>{{ tenant.company_name }} <span class="sa-badge b-{{ tenant.status }}">{{ tenant.status }}</span></h2>
+    <div class="sa-grid">
+      <div class="sa-item"><div class="k">관리자 이메일</div><div class="v">{{ tenant.admin_email }}</div></div>
+      <div class="sa-item"><div class="k">슬러그</div><div class="v">{{ tenant.slug }}</div></div>
+      <div class="sa-item"><div class="k">가입일</div><div class="v">{{ tenant.created_at[:10] if tenant.created_at else '-' }}</div></div>
+      <div class="sa-item"><div class="k">구독 상태</div><div class="v">{{ tenant.sub_status or '-' }}</div></div>
+      <div class="sa-item"><div class="k">피크 인원</div><div class="v">{{ tenant.peak_headcount or 0 }}명</div></div>
+      <div class="sa-item"><div class="k">체험 종료일</div><div class="v">{{ tenant.trial_ends_at or '-' }}</div></div>
+      <div class="sa-item"><div class="k">현재 청구 기간</div><div class="v">{{ tenant.current_period_start or '-' }} ~ {{ tenant.current_period_end or '-' }}</div></div>
+      <div class="sa-item"><div class="k">토스 빌링키 등록</div><div class="v">{{ '등록됨' if tenant.toss_billing_key else '미등록' }}</div></div>
+      <div class="sa-item"><div class="k">현재 활성 인원</div><div class="v">{{ headcount }}명</div></div>
+    </div>
+  </div>
+
+  <div class="sa-panel">
+    <h2>테넌트 상태 변경</h2>
+    <form class="sa-status-form" method="POST" action="{{ url_for('saas_tenant_status', tenant_id=tenant.id) }}">
+      <select class="sa-select" name="status">
+        <option value="trial" {{ 'selected' if tenant.status=='trial' }}>trial</option>
+        <option value="active" {{ 'selected' if tenant.status=='active' }}>active</option>
+        <option value="suspended" {{ 'selected' if tenant.status=='suspended' }}>suspended</option>
+        <option value="cancelled" {{ 'selected' if tenant.status=='cancelled' }}>cancelled</option>
+      </select>
+      <button class="sa-btn" type="submit">변경 적용</button>
+    </form>
+  </div>
+
+  <div class="sa-panel">
+    <h2>직원 목록 (최대 200명)</h2>
+    <table class="sa-table">
+      <thead><tr><th>이름</th><th>이메일</th><th>역할</th><th>상태</th></tr></thead>
+      <tbody>
+        {% for u in users %}
+        <tr><td>{{ u.name }}</td><td>{{ u.email }}</td><td>{{ u.role }}</td><td>{{ u.status }}</td></tr>
+        {% else %}
+        <tr><td colspan="4" style="text-align:center; color:var(--tx-3); padding:20px;">등록된 직원이 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sa-panel">
+    <h2>결제 내역 (최근 24건)</h2>
+    <table class="sa-table">
+      <thead><tr><th>일시</th><th>금액</th><th>인원</th><th>상태</th></tr></thead>
+      <tbody>
+        {% for b in billing_logs %}
+        <tr><td>{{ b.created_at }}</td><td>₩{{ '{:,}'.format(b.amount) }}</td><td>{{ b.headcount }}명</td><td>{{ b.status }}</td></tr>
+        {% else %}
+        <tr><td colspan="4" style="text-align:center; color:var(--tx-3); padding:20px;">결제 내역이 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>

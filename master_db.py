@@ -88,7 +88,62 @@ def init_master_db():
             tenant_id   INTEGER NOT NULL REFERENCES tenants(id),
             PRIMARY KEY (email, tenant_id)
         );
+
+        CREATE TABLE IF NOT EXISTS superadmins (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            username        TEXT UNIQUE NOT NULL,
+            password_hash   TEXT NOT NULL,
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
     ''')
+    conn.commit()
+    conn.close()
+
+
+# ── SaaS 관리자(운영자) ─────────────────────────────────────────
+def seed_default_superadmin():
+    """superadmins 테이블이 비어 있으면 기본 운영자 계정 생성 (멱등)."""
+    from werkzeug.security import generate_password_hash
+    conn = get_master_db()
+    exists = conn.execute('SELECT 1 FROM superadmins LIMIT 1').fetchone()
+    if not exists:
+        conn.execute(
+            'INSERT INTO superadmins (username, password_hash) VALUES (?,?)',
+            ('hunie0709', generate_password_hash('1234'))
+        )
+        conn.commit()
+    conn.close()
+
+
+def get_superadmin_by_username(username: str):
+    conn = get_master_db()
+    row = conn.execute(
+        'SELECT * FROM superadmins WHERE username = ?', (username,)
+    ).fetchone()
+    conn.close()
+    return row
+
+
+def list_tenants_with_state():
+    """전체 테넌트 목록 + 구독/헤드카운트 요약 (SaaS 관리 페이지용)"""
+    conn = get_master_db()
+    rows = conn.execute(
+        '''SELECT t.id, t.slug, t.company_name, t.admin_email, t.status AS tenant_status,
+                  t.trial_ends_at, t.created_at,
+                  s.status AS sub_status, s.peak_headcount,
+                  s.current_period_start, s.current_period_end, s.toss_billing_key
+           FROM tenants t
+           LEFT JOIN subscriptions s ON s.tenant_id = t.id
+           ORDER BY t.created_at DESC'''
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def set_tenant_status(tenant_id: int, status: str):
+    """SaaS 운영자가 테넌트 상태를 수동으로 변경 (active/suspended/cancelled 등)"""
+    conn = get_master_db()
+    conn.execute('UPDATE tenants SET status=? WHERE id=?', (status, tenant_id))
     conn.commit()
     conn.close()
 

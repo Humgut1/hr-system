@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SaaS 관리자 로그인 — TalentCore</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+<style>
+body { background: var(--bg); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.sa-card { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 36px 32px; box-shadow: var(--sh-xs); }
+.sa-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 26px; }
+.sa-brand .mk { width: 30px; height: 30px; border-radius: 8px; background: var(--tx-1); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 14px; }
+.sa-brand .nm { font-size: 15px; font-weight: 700; color: var(--tx-1); }
+.sa-title { font-size: 20px; font-weight: 800; color: var(--tx-1); }
+.sa-sub { font-size: 13px; color: var(--tx-3); margin: 6px 0 22px; }
+.sa-field { margin-bottom: 14px; }
+.sa-field label { display: block; font-size: 12px; font-weight: 650; color: var(--tx-2); margin-bottom: 6px; }
+.sa-input { width: 100%; background: var(--surface-3); border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; font-size: 14px; color: var(--tx-1); outline: 0; }
+.sa-input:focus { border-color: var(--primary); box-shadow: var(--ring); }
+.sa-btn { width: 100%; padding: 11px; margin-top: 6px; background: var(--tx-1); color: #fff; border-radius: 9px; font-size: 14px; font-weight: 700; }
+.sa-btn:hover { opacity: .88; }
+.sa-error { padding: 10px 12px; background: var(--red-bg); color: var(--red); border-radius: 8px; font-size: 13px; font-weight: 600; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<div class="sa-card">
+  <div class="sa-brand"><div class="mk">T</div><div class="nm">TalentCore SaaS 관리</div></div>
+  <div class="sa-title">운영자 로그인</div>
+  <p class="sa-sub">가입 회사(테넌트) 관리 전용 페이지입니다.</p>
+
+  {% if error %}<div class="sa-error">{{ error }}</div>{% endif %}
+
+  <form method="POST" action="{{ url_for('saas_login') }}">
+    <div class="sa-field">
+      <label for="username">아이디</label>
+      <input class="sa-input" id="username" name="username" type="text" required autocomplete="username" />
+    </div>
+    <div class="sa-field">
+      <label for="password">비밀번호</label>
+      <input class="sa-input" id="password" name="password" type="password" required autocomplete="current-password" />
+    </div>
+    <button class="sa-btn" type="submit">로그인</button>
+  </form>
+</div>
+</body>
+</html>
