@@ -12,7 +12,8 @@
 
 - **완료된 마지막 버전:** `v0.89.0`
 - **다음 작업:** v1 잔여 항목 — 에러 스윕, UI 스윕, 문서 기능 스코핑, 온보딩 투어 개념 설명·확인
-- **배포 대기:** v0.89.0 로컬 완료 + GitHub Release 완료, **Oracle Cloud VM 배포는 아직 안 됨** (이 세션 환경에 SSH 키 없음 — 승헌씨가 직접 `deploy/update.sh` 실행 또는 키 위치 확인 필요)
+- **배포 완료:** v0.89.0 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`)
+- **배포 중 버그 수정:** `seed_default_superadmin()`이 gunicorn 멀티 워커 동시 기동 시 UNIQUE constraint 에러로 부팅 실패 → `INSERT OR IGNORE`로 수정 (재배포로 반영 완료)
 - **현재 논의 중인 내용:**
   - v0.89.0 체험하기(/demo)를 guest → admin 권한으로 전환 (모든 기능 체험 가능, `session['demo_mode']`로 쓰기만 차단) + SaaS 운영자 관리 페이지(`/saas`, 계정 hunie0709/1234) 신규
   - 도메인 설정은 승헌씨가 직접 진행 (보류)
