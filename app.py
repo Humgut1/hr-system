@@ -12423,8 +12423,8 @@ def contract_cancel(cid):
 
 @app.route('/')
 def landing():
-    """랜딩 페이지 — 로그인 상태면 대시보드로"""
-    if 'user_id' in session:
+    """랜딩 페이지 — 로그인 상태면 대시보드로 (단, 체험 모드는 예외)"""
+    if 'user_id' in session and not session.get('demo_mode'):
         return redirect(url_for('dashboard'))
     return render_template('landing/index.html', price_per_seat=1000)
 

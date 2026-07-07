@@ -236,7 +236,12 @@
           <i class="fas fa-eye" style="margin-right:7px; opacity:.85;"></i>
           체험 모드 — 관리자 권한으로 모든 메뉴를 둘러볼 수 있습니다. 데이터 변경(저장·수정·삭제)은 제한됩니다.
         </span>
-        <span style="opacity:.7; font-size:12px; white-space:nowrap;">{{ session.user_email }}</span>
+        <span style="display:flex; align-items:center; gap:14px; white-space:nowrap;">
+          <a href="{{ url_for('landing') }}" style="color:var(--surface); opacity:.9; font-size:12px; font-weight:700; text-decoration:underline;">
+            <i class="fas fa-arrow-up-right-from-square" style="margin-right:4px;"></i>웹사이트 보기
+          </a>
+          <span style="opacity:.7; font-size:12px;">{{ session.user_email }}</span>
+        </span>
       </div>
       {% elif session.user_role == 'guest' %}
       <div style="
