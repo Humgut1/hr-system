@@ -10,18 +10,19 @@
 
 ### 현재 진행 상태 (마지막 업데이트: 2026-07-09)
 
-- **완료된 마지막 버전:** `v0.94.0`
-- **배포 완료:** v0.94.0까지 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart)
+- **완료된 마지막 버전:** `v0.95.0`
+- **배포 완료:** v0.94.0까지 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart). **v0.95.0은 아직 미배포 — 다음 세션에서 배포 필요**
 - **다음 작업 (우선순위 순):**
-  1. **웹훅 서명 검증 추가** — `/billing/webhook`(토스), `/slack/command`, `/slack/interactive` 3곳 모두 페이로드 서명 검증 없음. 정식 운영 전 토스 웹훅 시크릿·Slack signing secret 확보 후 검증 로직 추가 필요
-  2. **v1 잔여 항목** — 에러 스윕, UI 스윕, 문서 기능 스코핑
+  1. **v0.95.0 Oracle Cloud 배포** — 로컬 커밋/태그/릴리즈까지 완료, VM 반영 아직 안 됨
+  2. **웹훅 서명 검증 추가** — `/billing/webhook`(토스), `/slack/command`, `/slack/interactive` 3곳 모두 페이로드 서명 검증 없음. 정식 운영 전 토스 웹훅 시크릿·Slack signing secret 확보 후 검증 로직 추가 필요
   3. **온보딩 투어 확장 여부 결정** — 근태/성과/보상관리/채용 파이프라인만 적용된 상태, 나머지 메뉴(팀원 관리/채용 대시보드/분석·보고서 등) 확장할지 결정 필요
   4. **도메인 설정** — 승헌씨가 직접 진행 예정 (보류)
-- **v0.91~v0.94 완료 내역 요약:**
+- **v0.91~v0.95 완료 내역 요약:**
   - v0.91.0 — (버전 번호만 존재, 상세 내역 CLAUDE.md 미기록 상태 — 확인 필요)
   - v0.92.0 — 데모 배너에 "웹사이트 보기" 링크 추가, `landing()`이 데모 세션이면 대시보드 자동 리다이렉트 안 되도록 예외 처리
   - v0.93.0 — **로그인/회원가입 데모세션 버그 수정**: `login()`/`signup()`도 `landing()`처럼 데모 세션이면 clear 후 폼을 정상 표시하도록 수정 (기존엔 데모 세션 있으면 로그인 버튼 눌러도 무조건 대시보드로 튕김). 로그인 페이지 죽은 "비밀번호 찾기" 링크 제거, "관리자에게 문의"→"회원가입" 문구 수정. 전체 190개 라우트 인증 데코레이터 감사 + `employee_detail()` IDOR 감사(문제 없음 확인) 완료
   - v0.94.0 — 랜딩페이지 Product Tour 스크린샷 6종 → 실제 HTML/CSS 목업으로 전면 교체, 스크롤 연동(IntersectionObserver) 버그 수정(급여·보상 탭 선택 안 되던 문제), 채용 지원자 상세 UX 정리
+  - v0.95.0 — **v1 잔여 항목 완료**: 89개 GET 라우트 전수 에러 스윕(6건 500 에러 수정: export_calibration/salary_history/skills의 `u.position` 컬럼 오참조, export_contracts의 `c.contract_type`/`issued_at`/`expires_at` 오참조, admin_bonus_pay의 `performance_reviews`→`calibration_results` 오참조 + Row 직렬화 오류), UI 스윕(카드 배경 hex→CSS 변수), **직원 문서함 신규 기능**(`employee_documents` 테이블, 본인·직속매니저·admin만 접근하는 업로드/다운로드/삭제, IDOR 방지 소유권 검증), README를 Oracle Cloud 운영 주소로 갱신
 - **배포 중 과거 버그 수정 이력:** `seed_default_superadmin()`이 gunicorn 멀티 워커 동시 기동 시 UNIQUE constraint 에러로 부팅 실패 → `INSERT OR IGNORE`로 수정 (반영 완료)
 - **핵심 설계 결정:**
   - 체험하기(/demo)는 guest가 아닌 admin 권한으로 로그인 (모든 기능 체험 가능, `session['demo_mode']`로 쓰기(POST)만 차단), 재진입마다 세션 초기화
