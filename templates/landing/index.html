@@ -33,6 +33,15 @@
     .tc-landing .tour-sticky { position: sticky; top: 96px; height: 500px; border-radius: 20px; overflow: hidden; background: linear-gradient(160deg,#f2f1fb,#fbfbff); border: 1px solid #edeef4; box-shadow: 0 24px 60px rgba(20,16,60,.10); }
     .tc-landing .tour-sticky img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity .35s; display: block; }
     .tc-landing .tour-sticky img.on { opacity: 1; }
+    .tc-landing .tour-mock { position: absolute; inset: 0; opacity: 0; transition: opacity .35s; display: flex; flex-direction: column; background: #fff; }
+    .tc-landing .tour-mock.on { opacity: 1; }
+    .tc-landing .tour-mock .mk-bar { display: flex; align-items: center; gap: 7px; padding: 13px 18px; border-bottom: 1px solid #f0eefb; background: #fbfaff; flex-shrink: 0; }
+    .tc-landing .tour-mock .mk-bar .mk-logo { width: 22px; height: 22px; border-radius: 7px; background: linear-gradient(135deg,#4f46e5,#7c3aed); }
+    .tc-landing .tour-mock .mk-bar .mk-title { font-size: 13px; font-weight: 800; color: #26293a; }
+    .tc-landing .tour-mock .mk-bar .mk-sub { font-size: 11px; color: #9aa0b2; margin-left: auto; }
+    .tc-landing .tour-mock .mk-body { flex: 1; padding: 22px; overflow: hidden; }
+    .tc-landing .tour-mock .mk-card { background: #fdfdff; border: 1px solid #eae7f7; border-radius: 12px; }
+    .tc-landing .tour-mock .mk-pill { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
   </style>
 </head>
 <body class="tc-landing">
@@ -229,12 +238,173 @@
 
   <script>
     const TOUR_MODULES = [
-      { t: '근태관리', d: '출퇴근부터 연차, 초과근무까지 하나의 화면에서.', img: "{{ url_for('static', filename='img/product/attendance.png') }}", items: ['체크인/체크아웃 원클릭 기록', '법정 근로시간 자동 감시(52시간)', '연차 신청부터 승인까지 한 화면'] },
-      { t: '급여·보상', d: '복잡한 급여 계산과 보상 체계를 자동화.', img: "{{ url_for('static', filename='img/product/compensation.png') }}", items: ['4대보험 자동 계산 급여명세서', '직급×직군 연봉 밴드 관리', '성과 등급 연동 인상률 자동 제안'] },
-      { t: '성과관리', d: '목표 설정부터 캘리브레이션까지 전 과정 지원.', img: "{{ url_for('static', filename='img/product/performance.png') }}", items: ['SMART 목표 + AI 어시스턴트', 'Start/Stop/Continue 다면평가', '9박스 캘리브레이션으로 등급 확정'] },
-      { t: '채용', d: '파이프라인 관리부터 오퍼 발송까지 한 번에.', img: "{{ url_for('static', filename='img/product/recruitment.png') }}", items: ['드래그앤드롭 채용 파이프라인', '면접 라운드별 피드백 수집', '오퍼 발송부터 입사까지 자동 연동'] },
-      { t: '조직도', d: '조직 구조를 인터랙티브하게 탐색.', img: "{{ url_for('static', filename='img/product/org.png') }}", items: ['클릭 한 번으로 팀 구조 탐색', '리포팅 라인 실시간 반영', '부서·직급 체계 한눈에 보기'] },
-      { t: '분석·보고서', d: '데이터 기반 HR 의사결정을 지원.', img: "{{ url_for('static', filename='img/product/analytics.png') }}", items: ['헤드카운트·이직률 추이', 'Pay Equity·Compa-Ratio 분석', '엑셀 내보내기 및 커스텀 리포트'] },
+      {
+        t: '근태관리', d: '출퇴근부터 연차, 초과근무까지 하나의 화면에서.',
+        items: ['체크인/체크아웃 원클릭 기록', '법정 근로시간 자동 감시(52시간)', '연차 신청부터 승인까지 한 화면'],
+        mock: `
+          <div class="mk-bar"><div class="mk-logo"></div><span class="mk-title">근태 홈</span><span class="mk-sub">2026.07.07 (월)</span></div>
+          <div class="mk-body" style="display:flex; flex-direction:column; gap:16px;">
+            <div class="mk-card" style="padding:18px; display:flex; align-items:center; justify-content:space-between;">
+              <div>
+                <div style="font-size:12px; color:#9aa0b2; font-weight:700; margin-bottom:4px;">오늘 근무</div>
+                <div style="font-size:22px; font-weight:800; color:#26293a;">09:02 <span style="color:#c7c9d6; font-weight:600;">→</span> 근무중</div>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <div style="background:#4f46e5; color:#fff; font-size:12.5px; font-weight:700; padding:9px 16px; border-radius:9px;">체크아웃</div>
+              </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+              <div class="mk-card" style="padding:16px;">
+                <div style="font-size:12px; color:#9aa0b2; font-weight:700; margin-bottom:10px;">이번 주 근로시간</div>
+                <div style="height:8px; border-radius:99px; background:#f0eefb; overflow:hidden;"><div style="width:74%; height:100%; background:linear-gradient(90deg,#4f46e5,#7c3aed);"></div></div>
+                <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:12px; color:#6b7085;"><span>38.5h</span><span>정상</span></div>
+              </div>
+              <div class="mk-card" style="padding:16px;">
+                <div style="font-size:12px; color:#9aa0b2; font-weight:700; margin-bottom:10px;">연차 잔여</div>
+                <div style="height:8px; border-radius:99px; background:#f0eefb; overflow:hidden;"><div style="width:55%; height:100%; background:linear-gradient(90deg,#22c58b,#4f46e5);"></div></div>
+                <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:12px; color:#6b7085;"><span>8.5일 사용</span><span>총 15일</span></div>
+              </div>
+            </div>
+            <div class="mk-card" style="padding:16px 18px;">
+              <div style="font-size:12px; color:#9aa0b2; font-weight:700; margin-bottom:12px;">승인 대기 (3)</div>
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;"><span style="font-weight:700; color:#33384a;">김도윤 · 연차 1일</span><span class="mk-pill" style="background:#fdeede; color:#b45309;">대기</span></div>
+                <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;"><span style="font-weight:700; color:#33384a;">이서연 · 반차(오후)</span><span class="mk-pill" style="background:#fdeede; color:#b45309;">대기</span></div>
+              </div>
+            </div>
+          </div>`
+      },
+      {
+        t: '급여·보상', d: '복잡한 급여 계산과 보상 체계를 자동화.',
+        items: ['4대보험 자동 계산 급여명세서', '직급×직군 연봉 밴드 관리', '성과 등급 연동 인상률 자동 제안'],
+        mock: `
+          <div class="mk-bar"><div class="mk-logo"></div><span class="mk-title">보상 관리</span><span class="mk-sub">2026년 6월 귀속</span></div>
+          <div class="mk-body" style="display:flex; flex-direction:column; gap:16px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+              <div class="mk-card" style="padding:14px;"><div style="font-size:11.5px; color:#9aa0b2; font-weight:700;">지급 총액</div><div style="font-size:18px; font-weight:800; margin-top:4px;">₩412,600,000</div></div>
+              <div class="mk-card" style="padding:14px;"><div style="font-size:11.5px; color:#9aa0b2; font-weight:700;">4대보험 공제</div><div style="font-size:18px; font-weight:800; margin-top:4px;">₩38,214,500</div></div>
+              <div class="mk-card" style="padding:14px;"><div style="font-size:11.5px; color:#9aa0b2; font-weight:700;">평균 Compa-Ratio</div><div style="font-size:18px; font-weight:800; margin-top:4px; color:#15803d;">1.02</div></div>
+            </div>
+            <div class="mk-card" style="padding:16px 18px;">
+              <div style="font-size:12px; color:#9aa0b2; font-weight:700; margin-bottom:12px;">직급별 연봉 밴드</div>
+              <div style="display:flex; flex-direction:column; gap:12px;">
+                <div>
+                  <div style="display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; color:#33384a; margin-bottom:5px;"><span>CL4 · 백엔드 엔지니어</span><span style="color:#6b7085; font-weight:600;">₩68M – ₩92M</span></div>
+                  <div style="height:7px; border-radius:99px; background:#f0eefb; position:relative;"><div style="position:absolute; left:61%; top:-3px; width:13px; height:13px; border-radius:99px; background:#4f46e5; border:2px solid #fff; box-shadow:0 0 0 1px #4f46e5;"></div></div>
+                </div>
+                <div>
+                  <div style="display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; color:#33384a; margin-bottom:5px;"><span>CL5 · 프로덕트 매니저</span><span style="color:#6b7085; font-weight:600;">₩82M – ₩110M</span></div>
+                  <div style="height:7px; border-radius:99px; background:#f0eefb; position:relative;"><div style="position:absolute; left:44%; top:-3px; width:13px; height:13px; border-radius:99px; background:#7c3aed; border:2px solid #fff; box-shadow:0 0 0 1px #7c3aed;"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="mk-card" style="padding:14px 18px; display:flex; align-items:center; justify-content:space-between;">
+              <span style="font-size:13px; font-weight:700; color:#33384a;">S등급 인상률 자동 제안</span>
+              <span class="mk-pill" style="background:#e7f6ec; color:#15803d;">+8.0%</span>
+            </div>
+          </div>`
+      },
+      {
+        t: '성과관리', d: '목표 설정부터 캘리브레이션까지 전 과정 지원.',
+        items: ['SMART 목표 + AI 어시스턴트', 'Start/Stop/Continue 다면평가', '9박스 캘리브레이션으로 등급 확정'],
+        mock: `
+          <div class="mk-bar"><div class="mk-logo"></div><span class="mk-title">캘리브레이션 · 9박스</span><span class="mk-sub">2026 상반기</span></div>
+          <div class="mk-body" style="display:flex; flex-direction:column; gap:14px;">
+            <div class="mk-card" style="padding:16px; flex:1; display:flex; flex-direction:column;">
+              <div style="font-size:12px; color:#9aa0b2; font-weight:700; margin-bottom:10px;">성과 × 잠재력</div>
+              <div style="display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); gap:5px; flex:1; min-height:190px;">
+                <div style="background:#f4f3fb; border-radius:6px;"></div><div style="background:#efeafb; border-radius:6px; position:relative;"></div><div style="background:#e7f6ec; border-radius:6px; display:flex; align-items:center; justify-content:center;"><div style="width:24px; height:24px; border-radius:99px; background:#4f46e5; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.15);"></div></div>
+                <div style="background:#f4f3fb; border-radius:6px;"></div><div style="background:#efeafb; border-radius:6px; display:flex; align-items:center; justify-content:center;"><div style="width:24px; height:24px; border-radius:99px; background:#7c3aed; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.15);"></div></div><div style="background:#e7f6ec; border-radius:6px;"></div>
+                <div style="background:#fdeced; border-radius:6px;"></div><div style="background:#f4f3fb; border-radius:6px; display:flex; align-items:center; justify-content:center;"><div style="width:24px; height:24px; border-radius:99px; background:#b45309; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.15);"></div></div><div style="background:#efeafb; border-radius:6px;"></div>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:#9aa0b2; font-weight:700;"><span>← 성과 낮음</span><span>성과 높음 →</span></div>
+            </div>
+            <div class="mk-card" style="padding:14px 18px; display:flex; align-items:center; gap:12px;">
+              <span class="mk-pill" style="background:#efeafb; color:#6d4ec9;">Start</span>
+              <span class="mk-pill" style="background:#fdeced; color:#b91c1c;">Stop</span>
+              <span class="mk-pill" style="background:#e7f6ec; color:#15803d;">Continue</span>
+              <span style="margin-left:auto; font-size:12px; color:#9aa0b2; font-weight:600;">응답자 5명 · 익명 공개</span>
+            </div>
+          </div>`
+      },
+      {
+        t: '채용', d: '파이프라인 관리부터 오퍼 발송까지 한 번에.',
+        items: ['드래그앤드롭 채용 파이프라인', '면접 라운드별 피드백 수집', '오퍼 발송부터 입사까지 자동 연동'],
+        mock: `
+          <div class="mk-bar"><div class="mk-logo"></div><span class="mk-title">채용 파이프라인</span><span class="mk-sub">백엔드 엔지니어 · 8명</span></div>
+          <div class="mk-body" style="display:flex; gap:12px; height:100%;">
+            <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+              <div style="font-size:11px; font-weight:800; color:#9aa0b2;">서류심사 · 3</div>
+              <div class="mk-card" style="padding:11px; font-size:12px; font-weight:700; color:#33384a;">박지훈</div>
+              <div class="mk-card" style="padding:11px; font-size:12px; font-weight:700; color:#33384a;">최유나</div>
+              <div class="mk-card" style="padding:11px; font-size:12px; font-weight:700; color:#33384a;">한소희</div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+              <div style="font-size:11px; font-weight:800; color:#9aa0b2;">면접 · 2</div>
+              <div class="mk-card" style="padding:11px; border:1.5px solid #4f46e5;"><div style="font-size:12px; font-weight:700; color:#33384a;">정민재</div><div style="font-size:10.5px; color:#9aa0b2; margin-top:3px;">2차 면접 예정</div></div>
+              <div class="mk-card" style="padding:11px;"><div style="font-size:12px; font-weight:700; color:#33384a;">오세훈</div><div style="font-size:10.5px; color:#9aa0b2; margin-top:3px;">피드백 대기</div></div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+              <div style="font-size:11px; font-weight:800; color:#9aa0b2;">오퍼 · 2</div>
+              <div class="mk-card" style="padding:11px;"><div style="font-size:12px; font-weight:700; color:#33384a;">윤서준</div><span class="mk-pill" style="background:#e7f6ec; color:#15803d; margin-top:6px;">발송됨</span></div>
+              <div class="mk-card" style="padding:11px;"><div style="font-size:12px; font-weight:700; color:#33384a;">강하은</div><span class="mk-pill" style="background:#fdeede; color:#b45309; margin-top:6px;">작성중</span></div>
+            </div>
+          </div>`
+      },
+      {
+        t: '조직도', d: '조직 구조를 인터랙티브하게 탐색.',
+        items: ['클릭 한 번으로 팀 구조 탐색', '리포팅 라인 실시간 반영', '부서·직급 체계 한눈에 보기'],
+        mock: `
+          <div class="mk-bar"><div class="mk-logo"></div><span class="mk-title">조직도</span><span class="mk-sub">엔지니어링 본부</span></div>
+          <div class="mk-body" style="display:flex; flex-direction:column; align-items:center; gap:22px; padding-top:26px;">
+            <div class="mk-card" style="padding:12px 20px; text-align:center;"><div style="font-size:12.5px; font-weight:800; color:#26293a;">이한결</div><div style="font-size:11px; color:#9aa0b2;">CTO</div></div>
+            <div style="width:1px; height:18px; background:#e4e2fb;"></div>
+            <div style="display:flex; gap:26px;">
+              <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+                <div class="mk-card" style="padding:10px 16px; text-align:center; border-color:#4f46e5;"><div style="font-size:12px; font-weight:800; color:#26293a;">서지우</div><div style="font-size:10.5px; color:#9aa0b2;">백엔드 팀장</div></div>
+                <div style="display:flex; gap:8px;">
+                  <div class="mk-card" style="width:64px; height:36px;"></div>
+                  <div class="mk-card" style="width:64px; height:36px;"></div>
+                  <div class="mk-card" style="width:64px; height:36px;"></div>
+                </div>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+                <div class="mk-card" style="padding:10px 16px; text-align:center;"><div style="font-size:12px; font-weight:800; color:#26293a;">배수아</div><div style="font-size:10.5px; color:#9aa0b2;">프론트 팀장</div></div>
+                <div style="display:flex; gap:8px;">
+                  <div class="mk-card" style="width:64px; height:36px;"></div>
+                  <div class="mk-card" style="width:64px; height:36px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>`
+      },
+      {
+        t: '분석·보고서', d: '데이터 기반 HR 의사결정을 지원.',
+        items: ['헤드카운트·이직률 추이', 'Pay Equity·Compa-Ratio 분석', '엑셀 내보내기 및 커스텀 리포트'],
+        mock: `
+          <div class="mk-bar"><div class="mk-logo"></div><span class="mk-title">People Analytics</span><span class="mk-sub">전사 기준</span></div>
+          <div class="mk-body" style="display:flex; flex-direction:column; gap:14px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div class="mk-card" style="padding:14px;"><div style="font-size:11.5px; color:#9aa0b2; font-weight:700;">전체 헤드카운트</div><div style="font-size:20px; font-weight:800; margin-top:4px;">214명</div></div>
+              <div class="mk-card" style="padding:14px;"><div style="font-size:11.5px; color:#9aa0b2; font-weight:700;">연간 이직률</div><div style="font-size:20px; font-weight:800; margin-top:4px; color:#b45309;">8.4%</div></div>
+            </div>
+            <div class="mk-card" style="padding:16px 18px; flex:1;">
+              <div style="font-size:12px; color:#9aa0b2; font-weight:700; margin-bottom:12px;">월별 헤드카운트 추이</div>
+              <div style="display:flex; align-items:flex-end; gap:9px; height:110px;">
+                <div style="flex:1; background:linear-gradient(180deg,#8b93e0,#4f46e5); border-radius:5px 5px 0 0; height:55%;"></div>
+                <div style="flex:1; background:linear-gradient(180deg,#8b93e0,#4f46e5); border-radius:5px 5px 0 0; height:62%;"></div>
+                <div style="flex:1; background:linear-gradient(180deg,#8b93e0,#4f46e5); border-radius:5px 5px 0 0; height:68%;"></div>
+                <div style="flex:1; background:linear-gradient(180deg,#8b93e0,#4f46e5); border-radius:5px 5px 0 0; height:74%;"></div>
+                <div style="flex:1; background:linear-gradient(180deg,#8b93e0,#4f46e5); border-radius:5px 5px 0 0; height:83%;"></div>
+                <div style="flex:1; background:linear-gradient(180deg,#7c3aed,#4f46e5); border-radius:5px 5px 0 0; height:100%;"></div>
+              </div>
+            </div>
+            <div class="mk-card" style="padding:12px 18px; display:flex; align-items:center; justify-content:space-between;">
+              <span style="font-size:12.5px; font-weight:700; color:#33384a;">엑셀 내보내기 — 인사·급여·근태 등 7종</span>
+              <span class="mk-pill" style="background:#217346; color:#fff;">.xlsx</span>
+            </div>
+          </div>`
+      },
     ];
 
     const tourSteps = document.getElementById('tourSteps');
@@ -247,11 +417,10 @@
       step.innerHTML = `<div class="num">MODULE ${String(i + 1).padStart(2, '0')}</div><h3>${m.t}</h3><p>${m.d}</p><ul>${m.items.map(x => `<li>${x}</li>`).join('')}</ul>`;
       tourSteps.appendChild(step);
 
-      const img = document.createElement('img');
-      img.src = m.img;
-      img.alt = m.t;
-      if (i === 0) img.classList.add('on');
-      tourSticky.appendChild(img);
+      const mock = document.createElement('div');
+      mock.className = 'tour-mock' + (i === 0 ? ' on' : '');
+      mock.innerHTML = m.mock;
+      tourSticky.appendChild(mock);
     });
 
     const tourObserver = new IntersectionObserver((entries) => {
@@ -260,10 +429,10 @@
           const i = e.target.dataset.i;
           [...tourSteps.children].forEach(s => s.classList.remove('active'));
           e.target.classList.add('active');
-          [...tourSticky.children].forEach((img, idx) => img.classList.toggle('on', String(idx) === i));
+          [...tourSticky.children].forEach((mock, idx) => mock.classList.toggle('on', String(idx) === i));
         }
       });
-    }, { threshold: 0.6 });
+    }, { threshold: 0, rootMargin: '-45% 0px -45% 0px' });
     [...tourSteps.children].forEach(s => tourObserver.observe(s));
   </script>
 

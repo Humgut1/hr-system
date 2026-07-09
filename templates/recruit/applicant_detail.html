@@ -135,11 +135,11 @@
         </div>
         {% endif %}
 
-        <!-- 합격자: 직원 등록 연결 -->
-        {% if applicant.stage == 'accepted' and not applicant.hired_employee_id %}
-        <a href="{{ url_for('employee_new', from_applicant=applicant.id, name=applicant.name, email=applicant.email or '', phone=applicant.phone or '') }}"
-           class="btn btn-primary btn-sm" style="width:100%;text-align:center;">
-          <i class="fas fa-user-plus"></i> 직원으로 등록
+        <!-- 합격자: 직원 프로필로 이동 (자동 등록 완료 상태) -->
+        {% if applicant.stage == 'accepted' and applicant.hired_employee_id %}
+        <a href="{{ url_for('employee_detail', emp_id=applicant.hired_employee_id) }}"
+           class="btn btn-outline btn-sm" style="width:100%;text-align:center;">
+          <i class="fas fa-user"></i> 직원 프로필 보기
         </a>
         {% endif %}
 
@@ -174,8 +174,8 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:2px;">
           <form action="{{ url_for('recruit_hire', applicant_id=applicant.id) }}" method="POST">
             <button type="submit" class="btn btn-sm" style="width:100%;background:var(--green);color:var(--surface);border:none;"
-                    onclick="return confirm('최종 합격 처리할까요? 직원 등록 페이지로 이동합니다.')">
-              🎉 합격 처리
+                    onclick="return confirm('입사자가 오퍼를 수락했나요?\n확인 시 직원이 자동 등록됩니다.')">
+              ✅ 입사 확정
             </button>
           </form>
           <button type="button" onclick="document.getElementById('offer-reject-modal').style.display='flex'"
