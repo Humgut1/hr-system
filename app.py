@@ -386,7 +386,10 @@ def build_reporting_tree(users, manager_id=None, seen=None):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if 'user_id' in session:
-        return redirect(url_for('dashboard'))
+        if session.get('demo_mode'):
+            session.clear()
+        else:
+            return redirect(url_for('dashboard'))
     error = None
     if request.method == 'POST':
         email    = request.form.get('email', '').strip()
@@ -12433,7 +12436,10 @@ def landing():
 def signup():
     """회사 가입 — 새 테넌트 생성 + 관리자 계정 생성"""
     if 'user_id' in session:
-        return redirect(url_for('dashboard'))
+        if session.get('demo_mode'):
+            session.clear()
+        else:
+            return redirect(url_for('dashboard'))
 
     error = None
     if request.method == 'POST':
