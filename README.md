@@ -9,8 +9,10 @@
 
 | | |
 |---|---|
-| **URL** | https://hr-system-production-5c51.up.railway.app |
-| **체험 계정** | `guest@talentcore.com` / `guest1234!` |
+| **URL (Oracle Cloud, 운영 배포)** | http://161.33.39.127 |
+| **체험 방법** | 랜딩 페이지에서 "체험하기" 클릭 → 관리자 권한으로 즉시 로그인 (모든 기능 열람 가능, 데이터 저장/수정은 차단) |
+
+> 별도 계정 없이 "체험하기" 버튼만으로 HR Admin 권한의 모든 화면을 둘러볼 수 있습니다. 재접속 시마다 세션이 초기화됩니다.
 
 ---
 
@@ -32,6 +34,7 @@ HR 담당자 1명이 200명 조직을 운영할 수 있도록 설계했습니다
 - 인사발령 이력 + 미래 발령 예약 (발령일에 자동 반영)
 - 조직도 — 매니저 기반 리포팅 라인, 슬라이드 패널
 - 스킬 & 자격증 관리 (레벨 4단계, 만료일 알림)
+- 직원 문서함 (신분증 / 통장 사본 등 개인서류 업로드, 본인·직속매니저·HR만 접근)
 - 퇴직 마법사 3단계 + 퇴직금 자동 계산 (근로기준법 §34)
 
 ### 근태 관리
@@ -125,7 +128,7 @@ HR 담당자 1명이 200명 조직을 운영할 수 있도록 설계했습니다
 | Database | SQLite (sqlite3 직접 쿼리, ORM 없음) |
 | Frontend | HTML · Vanilla JS · 커스텀 CSS (Pretendard) |
 | 외부 연동 | Slack Bot API · Jira REST API · Confluence REST API · SMTP |
-| 배포 | Railway (git push 자동 배포) |
+| 배포 | Oracle Cloud VM (Nginx + Gunicorn, SSH 배포) |
 | 인증 | Session 기반 · 역할별 접근제어 |
 
 ---

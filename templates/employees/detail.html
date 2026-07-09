@@ -259,6 +259,7 @@
   <button class="tab-btn" data-tab="leave">근태/휴가</button>
   <button class="tab-btn" data-tab="perf">성과</button>
   <button class="tab-btn" data-tab="benefits">복리후생</button>
+  <button class="tab-btn" data-tab="documents">문서</button>
   {% endif %}
   <button class="tab-btn" data-tab="family">가족·생애사건</button>
 </div>
@@ -961,6 +962,67 @@
   {% endif %}
 {% endif %}{# can_see_sensitive #}
 </div>
+
+<!-- ══════════════════ 문서 탭 ══════════════════ -->
+{% if can_see_sensitive %}
+<div class="tab-panel" id="tab-documents">
+  <div class="card">
+    <div class="section-head">서류 업로드</div>
+    <form method="POST" action="{{ url_for('employee_doc_upload', emp_id=emp.id) }}" enctype="multipart/form-data"
+          style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;padding:4px 0 16px;">
+      <div>
+        <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">문서 종류</label>
+        <select name="doc_type" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:.85rem;">
+          {% for key, label in emp_doc_type_label.items() %}
+          <option value="{{ key }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.72rem;color:var(--tx-3);font-weight:600;display:block;margin-bottom:4px;">파일</label>
+        <input type="file" name="file" required
+               style="font-size:.82rem;">
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">업로드</button>
+    </form>
+
+    <div class="section-head" style="border-top:1px solid var(--border);">업로드된 서류</div>
+    {% if emp_documents %}
+    <div class="info-grid" style="display:flex;flex-direction:column;gap:0;">
+      {% for doc in emp_documents %}
+      <div class="info-row" style="justify-content:space-between;">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <span class="val">
+            <span class="badge" style="margin-right:6px;">{{ emp_doc_type_label.get(doc.doc_type, doc.doc_type) }}</span>
+            {{ doc.original_name }}
+          </span>
+          <span style="font-size:.75rem;color:var(--tx-3);">
+            {{ doc.uploaded_by_name or '—' }} · {{ doc.uploaded_at }} · {{ (doc.file_size / 1024) | round(1) }}KB
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <a href="{{ url_for('employee_doc_file', doc_id=doc.id) }}" class="btn btn-ghost btn-sm">
+            <i class="fas fa-download"></i> 다운로드
+          </a>
+          <form method="POST" action="{{ url_for('employee_doc_delete', doc_id=doc.id) }}"
+                onsubmit="return confirm('이 서류를 삭제하시겠습니까?');">
+            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--red);">
+              <i class="fas fa-trash"></i> 삭제
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:40px 20px;color:var(--tx-3);">
+      <i class="fas fa-folder-open" style="font-size:2.2rem;margin-bottom:10px;display:block;"></i>
+      <p style="font-size:.85rem;">업로드된 서류가 없습니다.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}{# can_see_sensitive #}
 
 <!-- ══════════════════ 가족·생애사건 탭 ══════════════════ -->
 <div class="tab-panel" id="tab-family">

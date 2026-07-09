@@ -1157,6 +1157,18 @@ def init_db(db_path: str = None):
             uploaded_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
 
+        # ── v0.95.0 직원 문서함 ──────────────────────────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS employee_documents (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            doc_type      TEXT NOT NULL DEFAULT 'other',
+            original_name TEXT NOT NULL,
+            stored_name   TEXT NOT NULL,
+            file_size     INTEGER DEFAULT 0,
+            uploaded_by   INTEGER REFERENCES users(id),
+            uploaded_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
         # ── v0.64.0 오퍼 관리 + 이메일 이력 ─────────────────────────────────
         c.execute('''CREATE TABLE IF NOT EXISTS offers (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,

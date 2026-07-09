@@ -501,7 +501,7 @@ function switchBenefitTab(tab) {
             </div>
           </div>
           <div style="height:6px;background:var(--bg-2);border-radius:3px;overflow:hidden;">
-            <div style="height:100%;width:{{ (d.total / max_dept * 100) | round(0) | int }}%;background:var(--primary);border-radius:3px;"></div>
+            <div style="height:100%;width:{{ (d.total / max_dept * 100) | round(0) | int if max_dept else 0 }}%;background:var(--primary);border-radius:3px;"></div>
           </div>
         </div>
         {% endfor %}

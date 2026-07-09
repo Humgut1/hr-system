@@ -51,6 +51,18 @@ DOC_TYPE_LABEL = {
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTS
 
+# ── 직원 문서함 업로드 설정 ────────────────────────────────────
+EMP_DOC_UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'employee_docs')
+os.makedirs(EMP_DOC_UPLOAD_FOLDER, exist_ok=True)
+
+EMP_DOC_TYPE_LABEL = {
+    'id_card':    '신분증 사본',
+    'bankbook':   '통장 사본',
+    'diploma':    '졸업·자격증명서',
+    'contract':   '계약 관련 서류',
+    'other':      '기타',
+}
+
 # ── 토스페이먼츠 키 ─────────────────────────────────────────
 TOSS_CLIENT_KEY = os.environ.get(
     'TOSS_CLIENT_KEY', 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq'
@@ -1566,6 +1578,12 @@ def employee_detail(emp_id):
                            salary_history=salary_history,
                            skills=db.execute('SELECT * FROM employee_skills WHERE user_id=? ORDER BY level DESC, skill_name', (emp_id,)).fetchall(),
                            certs=db.execute('SELECT * FROM employee_certs WHERE user_id=? ORDER BY expiry_date ASC', (emp_id,)).fetchall(),
+                           emp_documents=db.execute(
+                               'SELECT ed.*, u.name uploaded_by_name FROM employee_documents ed '
+                               'LEFT JOIN users u ON ed.uploaded_by = u.id '
+                               'WHERE ed.user_id=? ORDER BY ed.uploaded_at DESC', (emp_id,)
+                           ).fetchall(),
+                           emp_doc_type_label=EMP_DOC_TYPE_LABEL,
                            skill_levels=SKILL_LEVELS,
                            today=date.today().isoformat(),
                            leave_labels=LEAVE_LABELS,
@@ -2119,6 +2137,87 @@ def cert_delete(emp_id, cert_id):
     db.execute('DELETE FROM employee_certs WHERE id=? AND user_id=?', (cert_id, emp_id))
     db.commit()
     return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-skills')
+
+
+def _can_access_emp_docs(emp_id):
+    role = session['user_role']
+    uid  = session['user_id']
+    if role == 'admin' or uid == emp_id:
+        return True
+    if role == 'manager':
+        db = get_db()
+        row = db.execute('SELECT manager_id FROM users WHERE id=?', (emp_id,)).fetchone()
+        return bool(row and row['manager_id'] == uid)
+    return False
+
+
+@app.route('/employees/<int:emp_id>/documents/upload', methods=['POST'])
+@login_required
+def employee_doc_upload(emp_id):
+    if not _can_access_emp_docs(emp_id):
+        abort(403)
+    db = get_db()
+    f = request.files.get('file')
+    doc_type = request.form.get('doc_type', 'other')
+    if doc_type not in EMP_DOC_TYPE_LABEL:
+        doc_type = 'other'
+    if not f or not f.filename:
+        flash('파일을 선택해주세요.', 'warning')
+        return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-documents')
+    if not allowed_file(f.filename):
+        flash('허용되지 않는 파일 형식입니다.', 'danger')
+        return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-documents')
+    content = f.read()
+    if len(content) > MAX_FILE_SIZE_MB * 1024 * 1024:
+        flash(f'파일 크기는 {MAX_FILE_SIZE_MB}MB 이하여야 합니다.', 'danger')
+        return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-documents')
+    ext = f.filename.rsplit('.', 1)[1].lower()
+    stored_name = f'{uuid.uuid4().hex}.{ext}'
+    save_path = os.path.join(EMP_DOC_UPLOAD_FOLDER, stored_name)
+    with open(save_path, 'wb') as out:
+        out.write(content)
+    db.execute(
+        'INSERT INTO employee_documents (user_id, doc_type, original_name, stored_name, file_size, uploaded_by) '
+        'VALUES (?, ?, ?, ?, ?, ?)',
+        (emp_id, doc_type, f.filename, stored_name, len(content), session['user_id'])
+    )
+    db.commit()
+    flash('서류가 업로드됐습니다.', 'success')
+    return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-documents')
+
+
+@app.route('/employees/documents/<int:doc_id>/file')
+@login_required
+def employee_doc_file(doc_id):
+    db = get_db()
+    doc = db.execute('SELECT * FROM employee_documents WHERE id=?', (doc_id,)).fetchone()
+    if not doc:
+        abort(404)
+    if not _can_access_emp_docs(doc['user_id']):
+        abort(403)
+    from flask import send_from_directory
+    return send_from_directory(EMP_DOC_UPLOAD_FOLDER, doc['stored_name'],
+                               download_name=doc['original_name'])
+
+
+@app.route('/employees/documents/<int:doc_id>/delete', methods=['POST'])
+@login_required
+def employee_doc_delete(doc_id):
+    db = get_db()
+    doc = db.execute('SELECT * FROM employee_documents WHERE id=?', (doc_id,)).fetchone()
+    if not doc:
+        abort(404)
+    if not _can_access_emp_docs(doc['user_id']):
+        abort(403)
+    emp_id = doc['user_id']
+    try:
+        os.remove(os.path.join(EMP_DOC_UPLOAD_FOLDER, doc['stored_name']))
+    except OSError:
+        pass
+    db.execute('DELETE FROM employee_documents WHERE id=?', (doc_id,))
+    db.commit()
+    flash('서류가 삭제됐습니다.', 'info')
+    return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-documents')
 
 
 @app.route('/employees/<int:emp_id>/assign-buddy', methods=['POST'])
@@ -11033,7 +11132,7 @@ def export_calibration():
     params = (cycle_id,) if cycle_id else ()
     rows = db.execute(
         f'''SELECT pc.name cycle_name,
-               u.name emp_name, u.emp_no, d.name dept, u.position,
+               u.name emp_name, u.emp_no, d.name dept, p.name position,
                cr.suggested_grade, cr.final_grade, cr.downgrade_reason,
                cr.self_avg, cr.peer_avg, cr.mgr_avg,
                cr.potential_score, cr.retention_risk, cr.loss_impact,
@@ -11042,6 +11141,7 @@ def export_calibration():
         JOIN users u ON u.id = cr.user_id
         JOIN performance_cycles pc ON pc.id = cr.cycle_id
         LEFT JOIN departments d ON d.id = u.department_id
+        LEFT JOIN positions p ON p.id = u.position_id
         {where}
         ORDER BY pc.id DESC, d.name, u.name''', params
     ).fetchall()
@@ -11078,13 +11178,14 @@ def export_salary_history():
     db = get_db()
     year = request.args.get('year', date.today().year)
     rows = db.execute(
-        '''SELECT sh.changed_at, u.name emp_name, u.emp_no, d.name dept, u.position,
+        '''SELECT sh.changed_at, u.name emp_name, u.emp_no, d.name dept, p.name position,
                sh.old_base_salary, sh.new_base_salary,
                sh.old_base_salary - sh.new_base_salary change_amt,
                sh.reason, cb.name changed_by_name
         FROM salary_history sh
         JOIN users u ON u.id = sh.user_id
         LEFT JOIN departments d ON d.id = u.department_id
+        LEFT JOIN positions p ON p.id = u.position_id
         LEFT JOIN users cb ON cb.id = sh.changed_by
         WHERE strftime('%Y', sh.changed_at) = ?
         ORDER BY sh.changed_at DESC''', (str(year),)
@@ -11297,19 +11398,21 @@ def export_succession():
 def export_skills():
     db = get_db()
     skill_rows = db.execute(
-        '''SELECT u.name emp_name, u.emp_no, d.name dept, u.position,
+        '''SELECT u.name emp_name, u.emp_no, d.name dept, p.name position,
                es.skill_name, es.level, es.created_at
         FROM employee_skills es
         JOIN users u ON u.id = es.user_id
         LEFT JOIN departments d ON d.id = u.department_id
+        LEFT JOIN positions p ON p.id = u.position_id
         ORDER BY u.name, es.skill_name'''
     ).fetchall()
     cert_rows = db.execute(
-        '''SELECT u.name emp_name, u.emp_no, d.name dept, u.position,
+        '''SELECT u.name emp_name, u.emp_no, d.name dept, p.name position,
                ec.cert_name, ec.issued_by, ec.issued_date, ec.expiry_date
         FROM employee_certs ec
         JOIN users u ON u.id = ec.user_id
         LEFT JOIN departments d ON d.id = u.department_id
+        LEFT JOIN positions p ON p.id = u.position_id
         ORDER BY u.name, ec.cert_name'''
     ).fetchall()
 
@@ -11344,14 +11447,14 @@ def export_skills():
 def export_contracts():
     db = get_db()
     rows = db.execute(
-        '''SELECT c.id, ct.name template_name, c.contract_type,
+        '''SELECT c.id, ct.name template_name, ct.contract_type,
                u.name emp_name, u.emp_no, d.name dept,
-               c.status, c.issued_at, c.signed_at, c.expires_at
+               c.status, c.created_at, c.signed_at
         FROM contracts c
         JOIN users u ON u.id = c.employee_id
         LEFT JOIN departments d ON d.id = u.department_id
         LEFT JOIN contract_templates ct ON ct.id = c.template_id
-        ORDER BY c.issued_at DESC'''
+        ORDER BY c.created_at DESC'''
     ).fetchall()
 
     STATUS_KO = {'draft':'초안','sent':'발송','signed':'서명완료',
@@ -11361,7 +11464,7 @@ def export_contracts():
 
     wb, ws = make_wb("전자계약")
     headers = ['계약ID','템플릿','계약유형','직원명','사번','부서',
-               '상태','발행일','서명일','만료일']
+               '상태','발행일','서명일']
     write_header(ws, headers)
     for i, r in enumerate(rows, 2):
         write_row(ws, i, [
@@ -11369,9 +11472,8 @@ def export_contracts():
             TYPE_KO.get(r['contract_type'], r['contract_type'] or ''),
             r['emp_name'], r['emp_no'] or '', r['dept'] or '',
             STATUS_KO.get(r['status'], r['status'] or ''),
-            (r['issued_at'] or '')[:10],
+            (r['created_at'] or '')[:10],
             (r['signed_at'] or '')[:10],
-            (r['expires_at'] or '')[:10],
         ])
     auto_width(ws); freeze_header(ws)
     fname = urllib.parse.quote("전자계약.xlsx")
@@ -12260,18 +12362,19 @@ def admin_bonus_pay():
         "WHERE u.status='active' AND u.role NOT IN ('admin','recruiter') "
         "ORDER BY d.name, u.name"
     ).fetchall()
+    employees_preview = [dict(r) for r in employees_preview]
 
-    # 각 직원의 최근 성과등급 매핑
+    # 각 직원의 최근 성과등급 매핑 (캘리브레이션 확정 등급 기준)
     grade_map_all = {}
     for row in db.execute(
-        """SELECT reviewee_id, overall_grade
-           FROM performance_reviews pr
-           WHERE submitted_at = (
-               SELECT MAX(submitted_at) FROM performance_reviews
-               WHERE reviewee_id = pr.reviewee_id
+        """SELECT cr.user_id, cr.final_grade
+           FROM calibration_results cr
+           WHERE cr.decided_at = (
+               SELECT MAX(decided_at) FROM calibration_results
+               WHERE user_id = cr.user_id
            )"""
     ).fetchall():
-        grade_map_all[row['reviewee_id']] = row['overall_grade']
+        grade_map_all[row['user_id']] = row['final_grade']
 
     # 활성화된 benefit_configs 로드
     active_configs = {
