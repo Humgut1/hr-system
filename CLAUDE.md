@@ -11,14 +11,16 @@
 
 ### 현재 진행 상태 (마지막 업데이트: 2026-07-13)
 
-- **완료된 마지막 버전:** `v0.95.0`
-- **배포 완료:** v0.95.0까지 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart, 정상 기동 + 200 응답 확인)
+- **완료된 마지막 버전:** `v0.96.0`
+- **배포 완료:** v0.95.0까지 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart). v0.96.0은 로컬 완료, VM 배포는 Phase A 묶어서 진행 예정
 - **다음 작업: `saas_plan.md` §6 실행 순서를 따를 것 (Phase A부터 순서대로)**
-  1. Phase A-1: 웹훅 서명 검증 (토스/Slack) ← 다음 작업
-  2. Phase A-2~5: CSRF 전면 적용 → 감사 로그 → DB 백업 → 비밀번호 정책
+  1. ~~Phase A-1: 웹훅 서명 검증~~ ✅ v0.96.0 완료
+  2. Phase A-2: CSRF 토큰 전면 적용 ← 다음 작업
+  3. Phase A-3~5: 감사 로그 → DB 백업 → 비밀번호 정책
   3. 이후 Phase B(CSV 임포트·요금제 3계층·연차촉진), C(성과 재개편·입사예정자), D — 상세는 saas_plan.md
   - (보류) 온보딩 투어 확장 여부, 도메인 설정(승헌씨 직접)
-- **v0.91~v0.95 완료 내역 요약:**
+- **v0.91~v0.96 완료 내역 요약:**
+  - v0.96.0 — **웹훅 서명 검증 (Phase A-1)**: Slack `/slack/command`·`/slack/interactive`에 공식 v0 서명 검증(`SLACK_SIGNING_SECRET`, HMAC-SHA256 + 타임스탬프 5분 리플레이 방지, 실패 시 401), 토스 `/billing/webhook`은 서명 헤더가 없어 공식 권장 방식인 결제 재조회 검증(`TOSS_SECRET_KEY`로 GET /v1/payments/{paymentKey}, 재조회 실패 시 400 + 페이로드 무시). 시크릿 미설정 시 경고 로그만 남기고 통과(개발 모드). 테스트 클라이언트로 7개 시나리오 검증 완료
   - v0.91.0 — (버전 번호만 존재, 상세 내역 CLAUDE.md 미기록 상태 — 확인 필요)
   - v0.92.0 — 데모 배너에 "웹사이트 보기" 링크 추가, `landing()`이 데모 세션이면 대시보드 자동 리다이렉트 안 되도록 예외 처리
   - v0.93.0 — **로그인/회원가입 데모세션 버그 수정**: `login()`/`signup()`도 `landing()`처럼 데모 세션이면 clear 후 폼을 정상 표시하도록 수정 (기존엔 데모 세션 있으면 로그인 버튼 눌러도 무조건 대시보드로 튕김). 로그인 페이지 죽은 "비밀번호 찾기" 링크 제거, "관리자에게 문의"→"회원가입" 문구 수정. 전체 190개 라우트 인증 데코레이터 감사 + `employee_detail()` IDOR 감사(문제 없음 확인) 완료

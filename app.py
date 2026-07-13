@@ -3,6 +3,9 @@ import sqlite3
 import uuid
 import json
 import base64
+import hmac
+import hashlib
+import time
 import urllib.request
 from datetime import datetime, date, timedelta
 from functools import wraps
@@ -12761,11 +12764,67 @@ def billing_charge():
     return redirect(url_for('billing_dashboard'))
 
 
+# ══════════════════════════════════════════════════════════════
+#  웹훅 검증 헬퍼 (Phase A-1 보안 기준선)
+# ══════════════════════════════════════════════════════════════
+
+def _verify_slack_signature():
+    """
+    Slack 공식 서명 검증 (v0 방식).
+    - SLACK_SIGNING_SECRET 설정 시: X-Slack-Signature = HMAC-SHA256("v0:{ts}:{body}") 비교
+      + 타임스탬프 5분 초과(리플레이 공격) 거부
+    - 미설정 시: 경고 로그만 남기고 통과 (개발/데모 모드)
+    """
+    secret = os.environ.get('SLACK_SIGNING_SECRET', '')
+    if not secret:
+        app.logger.warning('SLACK_SIGNING_SECRET 미설정 — Slack 웹훅 서명 검증 생략 중 (운영 배포 전 필수 설정)')
+        return True
+
+    ts  = request.headers.get('X-Slack-Request-Timestamp', '')
+    sig = request.headers.get('X-Slack-Signature', '')
+    if not ts or not sig:
+        return False
+    try:
+        if abs(time.time() - int(ts)) > 60 * 5:
+            return False
+    except ValueError:
+        return False
+
+    basestring = f'v0:{ts}:'.encode() + request.get_data()
+    expected   = 'v0=' + hmac.new(secret.encode(), basestring, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, sig)
+
+
+def _verify_toss_payment(payment_key):
+    """
+    토스 웹훅 검증 — 토스는 서명 헤더를 제공하지 않으므로,
+    공식 권장 방식대로 시크릿 키로 결제를 재조회해서 실제 상태를 확인한다.
+    - TOSS_SECRET_KEY 설정 시: GET /v1/payments/{paymentKey} 응답의 status 반환 (조회 실패 → None)
+    - 미설정 시: 경고 로그 + None 반환 (호출부에서 페이로드 값 사용)
+    """
+    secret_key = os.environ.get('TOSS_SECRET_KEY', '')
+    if not secret_key:
+        app.logger.warning('TOSS_SECRET_KEY 미설정 — 토스 웹훅 재조회 검증 생략 중 (운영 배포 전 필수 설정)')
+        return None
+    try:
+        credential = base64.b64encode(f'{secret_key}:'.encode()).decode()
+        req = urllib.request.Request(
+            f'https://api.tosspayments.com/v1/payments/{payment_key}',
+            headers={'Authorization': f'Basic {credential}'},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read()).get('status', '')
+    except Exception as e:
+        app.logger.error(f'Toss payment verify failed: {e}')
+        return ''
+
+
 @app.route('/billing/webhook', methods=['POST'])
 def billing_webhook():
     """
     토스 웹훅 수신 — 결제 상태 동기화.
     (토스 대시보드에서 웹훅 URL을 /billing/webhook 으로 설정)
+    페이로드는 신뢰하지 않고, 시크릿 키로 결제를 재조회한 상태를 사용한다.
     """
     try:
         payload     = json.loads(request.data)
@@ -12776,6 +12835,13 @@ def billing_webhook():
         status      = data.get('status', '')
 
         if event_type == 'PAYMENT_STATUS_CHANGED':
+            verified = _verify_toss_payment(payment_key)
+            if verified is not None:
+                if verified == '':
+                    # 시크릿은 있는데 재조회 실패 → 위조 가능성, 반영하지 않음
+                    app.logger.warning(f'Toss webhook 검증 실패 — 무시함 (orderId={order_id})')
+                    return '', 400
+                status = verified  # 페이로드 대신 재조회된 실제 상태 사용
             if status == 'DONE':
                 update_billing_log(order_id, payment_key, 'paid')
             elif status in ('ABORTED', 'EXPIRED'):
@@ -12798,6 +12864,9 @@ def slack_command():
     /talentcore 슬래시 커맨드 핸들러
     Slack이 application/x-www-form-urlencoded 로 POST 함
     """
+    if not _verify_slack_signature():
+        app.logger.warning('Slack command 서명 검증 실패 — 요청 거부')
+        return '', 401
     from integrations.slack import send_dm, IS_DEMO
     text      = request.form.get('text', '').strip()
     slack_uid = request.form.get('user_id', '')
@@ -12900,6 +12969,9 @@ def slack_interactive():
     Slack 인터랙티브 버튼 핸들러
     payload JSON에 action_id + value 포함
     """
+    if not _verify_slack_signature():
+        app.logger.warning('Slack interactive 서명 검증 실패 — 요청 거부')
+        return '', 401
     from integrations.slack import respond_to_interaction, send_dm
     raw     = request.form.get('payload', '')
     if not raw:
