@@ -5,17 +5,19 @@
 새 세션이 시작됐다면 아래 순서로 파일을 읽고 시작할 것:
 
 1. **이 파일 (CLAUDE.md)** — 전체 규칙 + 완료 이력 + 로드맵 확인
-2. **`C:\Users\lg\hr-system\talentcore_plan.html`** — 6개 모듈 전체 기획안 (Workday 기반)
-3. **`C:\Users\lg\hr-system\performance_plan.html`** — 성과관리 모듈 상세 기획안
+2. **`C:\Users\lg\hr-system\saas_plan.md`** — ★ 국내 HR SaaS 재포지셔닝 플랜 (2026-07-13 확정) — **v1.0까지 모든 작업의 기준 문서, 반드시 읽을 것**
+3. **`C:\Users\lg\hr-system\talentcore_plan.html`** — 6개 모듈 전체 기획안 (Workday 기반, 참고용)
+4. **`C:\Users\lg\hr-system\performance_plan.html`** — 성과관리 모듈 상세 기획안 (참고용 — 재개편안은 saas_plan.md §4가 우선)
 
 ### 현재 진행 상태 (마지막 업데이트: 2026-07-13)
 
 - **완료된 마지막 버전:** `v0.95.0`
 - **배포 완료:** v0.95.0까지 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart, 정상 기동 + 200 응답 확인)
-- **다음 작업 (우선순위 순):**
-  1. **웹훅 서명 검증 추가** — `/billing/webhook`(토스), `/slack/command`, `/slack/interactive` 3곳 모두 페이로드 서명 검증 없음. 정식 운영 전 토스 웹훅 시크릿·Slack signing secret 확보 후 검증 로직 추가 필요
-  2. **온보딩 투어 확장 여부 결정** — 근태/성과/보상관리/채용 파이프라인만 적용된 상태, 나머지 메뉴(팀원 관리/채용 대시보드/분석·보고서 등) 확장할지 결정 필요
-  3. **도메인 설정** — 승헌씨가 직접 진행 예정 (보류)
+- **다음 작업: `saas_plan.md` §6 실행 순서를 따를 것 (Phase A부터 순서대로)**
+  1. Phase A-1: 웹훅 서명 검증 (토스/Slack) ← 다음 작업
+  2. Phase A-2~5: CSRF 전면 적용 → 감사 로그 → DB 백업 → 비밀번호 정책
+  3. 이후 Phase B(CSV 임포트·요금제 3계층·연차촉진), C(성과 재개편·입사예정자), D — 상세는 saas_plan.md
+  - (보류) 온보딩 투어 확장 여부, 도메인 설정(승헌씨 직접)
 - **v0.91~v0.95 완료 내역 요약:**
   - v0.91.0 — (버전 번호만 존재, 상세 내역 CLAUDE.md 미기록 상태 — 확인 필요)
   - v0.92.0 — 데모 배너에 "웹사이트 보기" 링크 추가, `landing()`이 데모 세션이면 대시보드 자동 리다이렉트 안 되도록 예외 처리
