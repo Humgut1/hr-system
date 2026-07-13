@@ -11,7 +11,8 @@ sudo mkdir -p /var/log/talentcore
 sudo chown ubuntu:ubuntu /var/log/talentcore
 
 # 중복 등록 방지 후 crontab에 추가
-( crontab -l 2>/dev/null | grep -v 'backup_db.py' ; echo "$CRON_LINE" ) | crontab -
+# (crontab이 비어 있으면 grep이 exit 1을 내므로 || true 필수 — set -e에 서브셸이 죽는 것 방지)
+( { crontab -l 2>/dev/null | grep -v 'backup_db.py'; } || true ; echo "$CRON_LINE" ) | crontab -
 
 echo "완료! 등록된 크론탭:"
 crontab -l | grep backup_db.py
