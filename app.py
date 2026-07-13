@@ -295,6 +295,24 @@ def _do_apply_action(db, pa):
 
 
 
+def validate_password(pw):
+    """
+    비밀번호 정책 (Phase A-5, KISA 가이드 기준):
+    8자 이상 + 영문/숫자/특수문자 중 2종 이상 조합.
+    통과하면 None, 실패하면 에러 메시지 반환.
+    """
+    if len(pw) < 8:
+        return '비밀번호는 8자 이상이어야 합니다.'
+    kinds = sum([
+        any(c.isalpha() for c in pw),
+        any(c.isdigit() for c in pw),
+        any(not c.isalnum() for c in pw),
+    ])
+    if kinds < 2:
+        return '비밀번호는 영문/숫자/특수문자 중 2종 이상을 조합해야 합니다.'
+    return None
+
+
 def log_audit(action, category, target_user_id=None, detail=''):
     """
     감사 로그 기록 (Phase A-3).
@@ -2355,6 +2373,8 @@ def employee_new():
 
         if not name or not email or not password:
             error = '이름, 이메일, 비밀번호는 필수입니다.'
+        elif validate_password(password):
+            error = validate_password(password)
         elif db.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone():
             error = '이미 사용 중인 이메일입니다.'
         else:
@@ -2473,6 +2493,8 @@ def employee_edit(emp_id):
 
         if not name or not email:
             error = '이름과 이메일은 필수입니다.'
+        elif new_pw and validate_password(new_pw):
+            error = validate_password(new_pw)
         elif db.execute('SELECT id FROM users WHERE email=? AND id!=?', (email, emp_id)).fetchone():
             error = '이미 사용 중인 이메일입니다.'
         else:
@@ -6874,8 +6896,8 @@ def profile():
             confirm_pw  = request.form.get('confirm_password', '')
             if not check_password_hash(user['password_hash'], current_pw):
                 error = '현재 비밀번호가 올바르지 않습니다.'
-            elif len(new_pw) < 8:
-                error = '새 비밀번호는 8자 이상이어야 합니다.'
+            elif validate_password(new_pw):
+                error = validate_password(new_pw)
             elif new_pw != confirm_pw:
                 error = '새 비밀번호와 확인 비밀번호가 일치하지 않습니다.'
             else:
@@ -12695,8 +12717,8 @@ def signup():
             error = '모든 항목을 입력해주세요.'
         elif password != password2:
             error = '비밀번호가 일치하지 않습니다.'
-        elif len(password) < 8:
-            error = '비밀번호는 8자 이상이어야 합니다.'
+        elif validate_password(password):
+            error = validate_password(password)
         else:
             # 이미 가입된 이메일인지 확인
             existing = get_tenant_by_email(email)
