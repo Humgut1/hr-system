@@ -18,9 +18,11 @@
   <button class="ana-tab-btn" onclick="switchAnaTab('attrition', this)">
     <i class="fas fa-door-open"></i> 퇴직자 분석
   </button>
+  {% if 'data_wizard' in plan_features %}
   <button class="ana-tab-btn" onclick="switchAnaTab('wizard', this)">
     <i class="fas fa-magic"></i> HR 데이터 마법사
   </button>
+  {% endif %}
 </div>
 <style>
 .ana-tab-btn {
@@ -749,6 +751,7 @@
 </div>
 
 <!-- HR 데이터 마법사 탭 -->
+{% if 'data_wizard' in plan_features %}
 <div id="ana-panel-wizard" class="ana-panel">
 
   <!-- 빠른 시작 -->
@@ -1011,6 +1014,7 @@
     </div>
   </div>
 </div>
+{% endif %}{# /data_wizard #}
 
 
 {% endblock %}

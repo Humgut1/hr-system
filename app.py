@@ -29,6 +29,8 @@ from master_db import (
     save_billing_key, log_billing, update_billing_log,
     compute_sub_state, start_grace_period, lock_tenant,
     PRICE_PER_SEAT, TRIAL_DAYS,
+    PLAN_PRICES, PLAN_LABELS, DEFAULT_PLAN, get_plan_price,
+    get_tenant_plan, set_tenant_plan,
     seed_default_superadmin, get_superadmin_by_username,
     list_tenants_with_state, set_tenant_status,
 )
@@ -212,6 +214,42 @@ def _get_csrf_token():
 @app.context_processor
 def inject_csrf_token():
     return {'csrf_token': _get_csrf_token}
+
+
+# ══════════════════════════════════════════════════════════════
+#  요금제 3계층 기능 게이팅 (Phase B-7, saas_plan.md §2)
+#  Core   — 인사·근태·급여·증명서·전자결재·문서함 (기본, 게이트 없음)
+#  Growth — + 성과·채용·온보딩·복지포인트·다면평가
+#  Enterprise — + 승계·Talent Card·급여 구조(밴드/Merit/ACR)·데이터 마법사
+# ══════════════════════════════════════════════════════════════
+
+_GROWTH_FEATURES     = {'performance', 'recruiting', 'onboarding', 'welfare', 'peer_review'}
+_ENTERPRISE_FEATURES = _GROWTH_FEATURES | {'succession', 'talent_advanced', 'comp_advanced', 'data_wizard'}
+
+PLAN_FEATURES = {
+    'core':       set(),
+    'growth':     _GROWTH_FEATURES,
+    'enterprise': _ENTERPRISE_FEATURES,
+}
+
+
+def _current_plan():
+    """요청 단위 캐시된 테넌트 요금제."""
+    if not hasattr(g, '_tenant_plan'):
+        g._tenant_plan = get_tenant_plan(session.get('tenant_id', 1))
+    return g._tenant_plan
+
+
+@app.context_processor
+def inject_plan():
+    if 'user_id' not in session:
+        return {'tenant_plan': None, 'plan_label': '', 'plan_features': _ENTERPRISE_FEATURES}
+    plan = _current_plan()
+    return {
+        'tenant_plan':   plan,
+        'plan_label':    PLAN_LABELS.get(plan, plan),
+        'plan_features': PLAN_FEATURES.get(plan, _ENTERPRISE_FEATURES),
+    }
 
 
 @app.before_request
@@ -663,8 +701,22 @@ def saas_tenant_detail(tenant_id):
     billing_conn.close()
     return render_template(
         'saas/tenant_detail.html',
-        tenant=tenant, headcount=headcount, users=users, billing_logs=billing_logs
+        tenant=tenant, headcount=headcount, users=users, billing_logs=billing_logs,
+        plan_prices=PLAN_PRICES, plan_labels=PLAN_LABELS,
+        tenant_plan=get_tenant_plan(tenant_id),
     )
+
+
+@app.route('/saas/tenants/<int:tenant_id>/plan', methods=['POST'])
+@superadmin_required
+def saas_tenant_plan(tenant_id):
+    new_plan = request.form.get('plan')
+    if new_plan not in PLAN_PRICES:
+        flash('올바르지 않은 요금제입니다.', 'error')
+        return redirect(url_for('saas_tenant_detail', tenant_id=tenant_id))
+    set_tenant_plan(tenant_id, new_plan)
+    flash(f'요금제가 "{PLAN_LABELS[new_plan]}"(으)로 변경되었습니다.', 'success')
+    return redirect(url_for('saas_tenant_detail', tenant_id=tenant_id))
 
 
 @app.route('/saas/tenants/<int:tenant_id>/status', methods=['POST'])
@@ -13082,13 +13134,14 @@ def billing():
         "SELECT COUNT(*) FROM users WHERE status='active' AND role!='guest'"
     ).fetchone()[0]
     mdb.close()
-    monthly_amount = (tenant['peak_headcount'] or active_count) * PRICE_PER_SEAT
+    seat_price     = get_plan_price(_current_plan())
+    monthly_amount = (tenant['peak_headcount'] or active_count) * seat_price
     return render_template('billing/dashboard.html',
                            tenant=tenant,
                            logs=logs,
                            active_count=active_count,
                            monthly_amount=monthly_amount,
-                           price_per_seat=PRICE_PER_SEAT)
+                           price_per_seat=seat_price)
 
 
 @app.route('/billing/charge', methods=['POST'])
@@ -13110,7 +13163,7 @@ def billing_charge():
         "SELECT COUNT(*) FROM users WHERE status='active' AND role!='guest'"
     ).fetchone()[0]
     peak         = max(tenant['peak_headcount'] or 0, active_count)
-    amount       = peak * PRICE_PER_SEAT
+    amount       = peak * get_plan_price(_current_plan())
 
     if amount == 0:
         flash('청구 금액이 0원입니다.', 'info')

@@ -20,8 +20,23 @@ from datetime import date, timedelta
 _db_dir = os.environ.get('DB_DIR', '')
 MASTER_DB = os.path.join(_db_dir, 'master.db') if _db_dir else 'master.db'
 
-PRICE_PER_SEAT = 1000   # 원/인/월
+PRICE_PER_SEAT = 1000   # 원/인/월 (레거시 — 요금제 미지정 테넌트 폴백)
 TRIAL_DAYS     = 14
+
+# ── 요금제 3계층 (Phase B-7, saas_plan.md §2) ────────────────
+PLAN_PRICES = {
+    'core':       2500,   # 인사·근태·급여·증명서·전자결재·문서함
+    'growth':     4500,   # + 성과·채용·온보딩·복지포인트·다면평가
+    'enterprise': 7000,   # + 9박스·승계·Merit Matrix·ACR·Talent Card·데이터 마법사
+}
+PLAN_LABELS = {
+    'core': 'Core', 'growth': 'Growth', 'enterprise': 'Enterprise',
+}
+DEFAULT_PLAN = 'growth'   # 신규 가입(트라이얼) 기본 — 체험 기간엔 Growth 기능까지 개방
+
+
+def get_plan_price(plan):
+    return PLAN_PRICES.get(plan, PRICE_PER_SEAT)
 
 
 # ── 경로 헬퍼 ────────────────────────────────────────────────
@@ -374,6 +389,32 @@ def migrate_subscriptions():
     ]:
         if col not in existing:
             conn.execute(f'ALTER TABLE subscriptions ADD COLUMN {col} {definition}')
+    # tenants.plan (Phase B-7 요금제 3계층)
+    t_cols = [row[1] for row in conn.execute('PRAGMA table_info(tenants)')]
+    if 'plan' not in t_cols:
+        conn.execute("ALTER TABLE tenants ADD COLUMN plan TEXT NOT NULL DEFAULT 'growth'")
+        # 데모 테넌트(1)는 전체 기능 시연용 → enterprise
+        conn.execute("UPDATE tenants SET plan='enterprise' WHERE id=1")
+    conn.commit()
+    conn.close()
+
+
+def get_tenant_plan(tenant_id):
+    """테넌트 요금제 조회 (없으면 기본 plan)."""
+    conn = get_master_db()
+    try:
+        row = conn.execute('SELECT plan FROM tenants WHERE id=?', (tenant_id,)).fetchone()
+    except sqlite3.OperationalError:   # plan 컬럼 미마이그레이션
+        row = None
+    conn.close()
+    return (row['plan'] if row and row['plan'] else DEFAULT_PLAN)
+
+
+def set_tenant_plan(tenant_id, plan):
+    if plan not in PLAN_PRICES:
+        raise ValueError(f'unknown plan: {plan}')
+    conn = get_master_db()
+    conn.execute('UPDATE tenants SET plan=? WHERE id=?', (plan, tenant_id))
     conn.commit()
     conn.close()
 

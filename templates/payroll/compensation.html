@@ -110,8 +110,10 @@
 <!-- ── 탭 네비 ── -->
 <div class="cp-tabs">
   <button class="cp-tab {% if active_tab == 'ops' %}active{% endif %}" onclick="switchCpTab('ops',this)" data-tour-page="comp-ops">급여 운영</button>
+  {% if 'comp_advanced' in plan_features %}
   <button class="cp-tab {% if active_tab == 'structure' %}active{% endif %}" onclick="switchCpTab('structure',this)" data-tour-page="comp-structure">급여 구조</button>
   <button class="cp-tab {% if active_tab == 'acr' %}active{% endif %}" onclick="switchCpTab('acr',this)" data-tour-page="comp-acr">성과 연동 급여 검토</button>
+  {% endif %}
   <button class="cp-tab {% if active_tab == 'analysis' %}active{% endif %}" onclick="switchCpTab('analysis',this)" data-tour-page="comp-analysis">보상 분석</button>
 </div>
 
@@ -213,6 +215,7 @@
 </div>
 
 
+{% if 'comp_advanced' in plan_features %}
 <!-- ════════════════════════════════
      TAB 2: 급여 구조
 ════════════════════════════════ -->
@@ -552,6 +555,7 @@
   </div>
 
 </div>
+{% endif %}{# /comp_advanced #}
 
 
 <!-- ════════════════════════════════

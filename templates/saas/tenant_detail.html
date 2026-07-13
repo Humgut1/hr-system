@@ -74,6 +74,18 @@ table.sa-table { width: 100%; border-collapse: collapse; }
   </div>
 
   <div class="sa-panel">
+    <h2>요금제 (현재: {{ plan_labels.get(tenant_plan, tenant_plan) }} — ₩{{ '{:,}'.format(plan_prices.get(tenant_plan, 0)) }}/인/월)</h2>
+    <form class="sa-status-form" method="POST" action="{{ url_for('saas_tenant_plan', tenant_id=tenant.id) }}">
+      <select class="sa-select" name="plan">
+        {% for key, price in plan_prices.items() %}
+        <option value="{{ key }}" {{ 'selected' if tenant_plan == key }}>{{ plan_labels[key] }} — ₩{{ '{:,}'.format(price) }}/인/월</option>
+        {% endfor %}
+      </select>
+      <button class="sa-btn" type="submit">요금제 변경</button>
+    </form>
+  </div>
+
+  <div class="sa-panel">
     <h2>직원 목록 (최대 200명)</h2>
     <table class="sa-table">
       <thead><tr><th>이름</th><th>이메일</th><th>역할</th><th>상태</th></tr></thead>

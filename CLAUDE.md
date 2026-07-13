@@ -11,7 +11,7 @@
 
 ### 현재 진행 상태 (마지막 업데이트: 2026-07-13)
 
-- **완료된 마지막 버전:** `v0.99.2`
+- **완료된 마지막 버전:** `v0.99.3`
 - **배포 완료:** v0.95.0까지 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart). v0.96.0은 로컬 완료, VM 배포는 Phase A 묶어서 진행 예정
 - **다음 작업: `saas_plan.md` §6 실행 순서를 따를 것 (Phase A부터 순서대로)**
   1. ~~Phase A-1: 웹훅 서명 검증~~ ✅ v0.96.0 완료
@@ -21,11 +21,13 @@
   5. ~~Phase A-5: 비밀번호 정책~~ ✅ v0.99.1 완료 — Phase A(보안 기준선) 전체 완료
   6. ~~Phase A 전체 VM 배포 + setup_backup.sh~~ ✅ 완료 (2026-07-13, 백업 cron 등록 + 즉시 1회 백업 확인)
   7. ~~Phase B-6: CSV 직원 임포트~~ ✅ v0.99.2 완료
-  8. Phase B-7: 요금제 3계층 + 사이드바/메뉴 다이어트 ← 다음 작업
-  9. Phase B-8: 연차촉진 알림 + 급여명세 발송, B-9: 테넌트 온보딩 셀프서비스 점검
+  8. ~~Phase B-7: 요금제 3계층 + 메뉴 다이어트~~ ✅ v0.99.3 완료
+  9. Phase B-8: 연차촉진 알림 + 급여명세 발송 ← 다음 작업
+  10. Phase B-9: 테넌트 온보딩 셀프서비스 점검
   3. 이후 Phase B(CSV 임포트·요금제 3계층·연차촉진), C(성과 재개편·입사예정자), D — 상세는 saas_plan.md
   - (보류) 온보딩 투어 확장 여부, 도메인 설정(승헌씨 직접)
-- **v0.91~v0.99.2 완료 내역 요약:**
+- **v0.91~v0.99.3 완료 내역 요약:**
+  - v0.99.3 — **요금제 3계층 + 메뉴 다이어트 (Phase B-7)**: master.db `tenants.plan` 컬럼(core/growth/enterprise, 기본 growth, 데모 테넌트=enterprise). `PLAN_PRICES`(2,500/4,500/7,000원), `PLAN_FEATURES` 게이팅 — Growth: performance/recruiting/onboarding/welfare/peer_review, Enterprise: +succession/talent_advanced/comp_advanced/data_wizard. `inject_plan` context processor(`plan_features` set)로 사이드바 메뉴 + 보상관리 급여구조·ACR 탭 + 분석 데이터마법사 탭(버튼+패널 모두) 게이팅. 청구 금액이 요금제 단가 기반으로 변경(`get_plan_price`). SaaS 슈퍼어드민 테넌트 상세에 요금제 변경 폼(`/saas/tenants/<id>/plan`). 랜딩에 3계층 요금제 섹션 신규. 주의: 로그인(`session.clear()`) 후 CSRF 토큰 재발급 — 테스트 시 로그인 후 토큰 재취득 필요
   - v0.99.2 — **CSV 직원 일괄 임포트 (Phase B-6, 실고객 진입로)**: `/employees/import` 2단계 플로우(업로드→검증 미리보기→초기 비밀번호 지정 후 확정). UTF-8(BOM)+CP949 모두 지원, 검증(필수값/이메일 형식·중복(DB+파일 내)/부서·직급·직군 이름 매칭/고용형태/날짜 정규화/급여 콤마 파싱), 오류 행은 제외하고 유효 행만 등록, 매니저이메일 2차 매핑(같은 파일 내 상호참조 가능), 사번 자동생성+employee_salary+master.db 테넌트 유저 등록+peak headcount 갱신, 감사 로그 기록. 템플릿 CSV는 실제 등록된 부서/직급/직군 이름으로 동적 생성. 직원 목록에 'CSV 임포트' 버튼. 임시 검증 데이터는 `static/uploads/imports/`(gitignore)에 토큰 파일로 저장 후 확정 시 삭제
   - v0.99.1 — **비밀번호 정책 (Phase A-5, Phase A 완결)**: `validate_password()` — KISA 기준 8자 이상 + 영문/숫자/특수문자 중 2종 이상. 적용 4지점: 회원가입, 직원 등록, 직원 수정(비번 변경 시), 프로필 비밀번호 변경. 폼 힌트 문구 갱신. 통합 테스트 시 주의: 로그인하면 `session.clear()`로 CSRF 토큰이 재발급되므로 로그인 후 토큰을 다시 받아야 함
   - v0.99.0 — **테넌트 DB 자동 백업 (Phase A-4)**: `backup_db.py` 신규 (sqlite3 온라인 백업 API로 무중단 스냅샷, master.db+hr_system.db+tenant_*.db 전체, 최근 14개 보관 자동 정리, `--list`/`--restore` 지원, 복원 시 기존 파일 `.pre-restore` 보존). 로컬은 run.py APScheduler 매일 03:00, 운영은 `deploy/setup_backup.sh`로 cron 등록(미실행 상태 — 다음 배포 때 1회 실행). `backups/` gitignore. 참고: `tenant_None.db` 파일 발견 — 어딘가 tenant_id=None으로 DB를 만든 버그 흔적, 추후 조사 필요

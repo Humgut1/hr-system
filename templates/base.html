@@ -44,15 +44,21 @@
         <a href="{{ url_for('payroll_list') }}" class="nav-item{% if active_page == 'my_docs' %} active{% endif %}" title="내 문서" data-tour="mydocs">
           <i class="fas fa-folder-open"></i><span>내 문서</span>
         </a>
+        {% if 'performance' in plan_features %}
         <a href="{{ url_for('performance') }}" class="nav-item{% if active_page in ('performance','peer') %} active{% endif %}" title="성과" data-tour="performance">
           <i class="fas fa-chart-line"></i><span>성과</span>
         </a>
+        {% endif %}
+        {% if 'onboarding' in plan_features %}
         <a href="{{ url_for('me_onboarding') }}" class="nav-item{% if active_page == 'me_onboarding' %} active{% endif %}" title="온보딩" data-tour="onboarding">
           <i class="fas fa-rocket"></i><span>온보딩</span>
         </a>
+        {% endif %}
+        {% if 'welfare' in plan_features %}
         <a href="{{ url_for('me_benefits') }}" class="nav-item{% if active_page == 'me_benefits' %} active{% endif %}" title="복리후생" data-tour="benefits-me">
           <i class="fas fa-gift"></i><span>복리후생</span>
         </a>
+        {% endif %}
       </div>
 
       <div class="nav-section-divider"></div>
@@ -76,15 +82,21 @@
         <a href="{{ url_for('employees') }}" class="nav-item{% if active_page in ('employees','termination_requests') %} active{% endif %}" title="팀원 관리" data-tour="team">
           <i class="fas fa-users"></i><span>팀원 관리</span>
         </a>
+        {% if 'peer_review' in plan_features %}
         <a href="{{ url_for('peer_assignments') }}" class="nav-item{% if active_page == 'peer_assignments' %} active{% endif %}" title="다면평가 배정" data-tour="peer-assign">
           <i class="fas fa-comments"></i><span>다면평가 배정</span>
         </a>
+        {% endif %}
+        {% if 'succession' in plan_features %}
         <a href="{{ url_for('succession') }}" class="nav-item{% if active_page == 'succession' %} active{% endif %}" title="후계자 계획" data-tour="succession">
           <i class="fas fa-chess-king"></i><span>후계자 계획</span>
         </a>
+        {% endif %}
+        {% if 'performance' in plan_features %}
         <a href="{{ url_for('goal_templates') }}" class="nav-item{% if active_page == 'goal_templates' %} active{% endif %}" title="목표 템플릿" data-tour="goal-templates">
           <i class="fas fa-clipboard-list"></i><span>목표 템플릿</span>
         </a>
+        {% endif %}
       </div>
       {% endif %}
 
@@ -99,6 +111,7 @@
         </a>
         {% endif %}
         <!-- 채용 접이식 서브그룹 -->
+        {% if 'recruiting' in plan_features %}
         {% set recruit_active = active_page in ('requisition','recruit_dashboard','recruit','recruit_pipeline','recruiter') %}
         <button class="nav-subgroup-btn{% if recruit_active %} open active-group{% endif %}"
                 onclick="toggleSubgroup(this,'sg-recruit')" title="채용" data-tour="recruit">
@@ -117,13 +130,16 @@
             <i class="fas fa-file-alt"></i><span>채용 요청서</span>
           </a>
         </div>
+        {% endif %}
         {% if session.user_role == 'admin' %}
         <a href="{{ url_for('people_analytics') }}" class="nav-item{% if active_page == 'analytics' %} active{% endif %}" title="분석·보고서" data-tour="analytics">
           <i class="fas fa-chart-pie"></i><span>분석·보고서</span>
         </a>
+        {% if 'welfare' in plan_features %}
         <a href="{{ url_for('admin_benefits') }}" class="nav-item{% if active_page == 'benefits' %} active{% endif %}" title="복리후생 설정" data-tour="benefits-admin">
           <i class="fas fa-gift"></i><span>복리후생</span>
         </a>
+        {% endif %}
         <a href="{{ url_for('admin_settings') }}" class="nav-item{% if active_page in ('settings','departments','holidays','overtime_monitor','schedules','admin_welfare_points') %} active{% endif %}" title="설정" data-tour="settings">
           <i class="fas fa-cog"></i><span>설정</span>
         </a>
