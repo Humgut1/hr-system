@@ -207,8 +207,17 @@ def start_scheduler():
         scheduler.add_job(job_peer_review_reminder, 'cron', hour=10, minute=0,
                           id='peer_review_reminder')
 
+        # 매일 03:00 — DB 자동 백업 (Phase A-4)
+        def job_db_backup():
+            try:
+                from backup_db import run_backup
+                run_backup()
+            except Exception as e:
+                print(f"[scheduler] db_backup 오류: {e}")
+        scheduler.add_job(job_db_backup, 'cron', hour=3, minute=0, id='db_backup')
+
         scheduler.start()
-        print("[scheduler] APScheduler 시작 완료 (면접리마인드/급여일/피어리뷰 D-3)")
+        print("[scheduler] APScheduler 시작 완료 (면접리마인드/급여일/피어리뷰 D-3/DB백업)")
         return scheduler
     except ImportError:
         print("[scheduler] APScheduler 미설치 — pip install APScheduler==3.10.4")
