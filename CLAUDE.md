@@ -9,10 +9,10 @@
 3. **`C:\Users\lg\hr-system\talentcore_plan.html`** — 6개 모듈 전체 기획안 (Workday 기반, 참고용)
 4. **`C:\Users\lg\hr-system\performance_plan.html`** — 성과관리 모듈 상세 기획안 (참고용 — 재개편안은 saas_plan.md §4가 우선)
 
-### 현재 진행 상태 (마지막 업데이트: 2026-07-13)
+### 현재 진행 상태 (마지막 업데이트: 2026-07-14)
 
 - **완료된 마지막 버전:** `v0.99.4`
-- **배포 완료:** v0.95.0까지 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart). v0.96.0은 로컬 완료, VM 배포는 Phase A 묶어서 진행 예정
+- **배포 완료:** v0.99.4(Phase B 전체)까지 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart)
 - **다음 작업: `saas_plan.md` §6 실행 순서를 따를 것 (Phase A부터 순서대로)**
   1. ~~Phase A-1: 웹훅 서명 검증~~ ✅ v0.96.0 완료
   2. ~~Phase A-2: CSRF 토큰 전면 적용~~ ✅ v0.97.0 완료
@@ -23,7 +23,8 @@
   7. ~~Phase B-6: CSV 직원 임포트~~ ✅ v0.99.2 완료
   8. ~~Phase B-7: 요금제 3계층 + 메뉴 다이어트~~ ✅ v0.99.3 완료
   9. ~~Phase B-8: 연차촉진 알림 + 급여명세 발송~~ ✅ v0.99.4 완료
-  10. ~~Phase B-9: 테넌트 온보딩 셀프서비스 점검~~ ✅ 완료 (2026-07-14, 코드 변경 없음 — 가입→로그인→설정 마법사→CSV 임포트(매니저 체인 포함)→직원 로그인→근태 접속까지 신규 테넌트로 전수 검증, 전부 정상. 유일한 404는 구버전 라우트(/onboarding, 제거된 것)로 정상) — **Phase B 전체 완료. 다음: Phase B 배포(v0.99.2~0.99.4) 후 Phase C-10: 성과관리 재개편 (saas_plan.md §4)**
+  10. ~~Phase B-9: 테넌트 온보딩 셀프서비스 점검~~ ✅ 완료 (2026-07-14, 코드 변경 없음 — 가입→로그인→설정 마법사→CSV 임포트(매니저 체인 포함)→직원 로그인→근태 접속까지 신규 테넌트로 전수 검증, 전부 정상. 유일한 404는 구버전 라우트(/onboarding, 제거된 것)로 정상) — Phase B 전체 완료
+  11. ~~Phase B 배포 (v0.99.2~0.99.4)~~ ✅ 완료 (2026-07-14, `deploy/update.sh` 실행 — git pull(이미 최신 상태였음)+migrate+재시작, 운영 DB에 `leave_promotion_logs`·`audit_logs` 테이블 + master.db `tenants.plan` 컬럼(데모 테넌트=enterprise) 확인, 랜딩/로그인 200 OK + 랜딩 요금제 섹션 노출 확인, gunicorn 에러 로그 깨끗) — **다음: Phase C-10: 성과관리 재개편 (saas_plan.md §4)**
   3. 이후 Phase B(CSV 임포트·요금제 3계층·연차촉진), C(성과 재개편·입사예정자), D — 상세는 saas_plan.md
   - (보류) 온보딩 투어 확장 여부, 도메인 설정(승헌씨 직접)
 - **v0.91~v0.99.4 완료 내역 요약:**
