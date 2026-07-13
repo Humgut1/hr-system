@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}CSV 직원 임포트{% endblock %}
+{% block page_title %}CSV 직원 일괄 등록{% endblock %}
+
+{% block content %}
+
+{% if step == 'upload' %}
+<!-- ── 1단계: 업로드 ─────────────────────────────────────── -->
+<div style="display:grid; grid-template-columns:1fr 340px; gap:20px; align-items:start;">
+
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title"><i class="fas fa-file-csv" style="color:var(--primary); margin-right:7px;"></i>CSV 파일 업로드</span>
+    </div>
+    <form method="POST" enctype="multipart/form-data" style="padding:20px;">
+      <div style="border:2px dashed var(--line); border-radius:10px; padding:36px; text-align:center; margin-bottom:16px;">
+        <i class="fas fa-cloud-upload-alt" style="font-size:34px; color:var(--tx-3);"></i>
+        <div style="margin:10px 0 14px;" class="muted">직원 명단 CSV 파일을 선택하세요 (UTF-8 / Excel 저장본 모두 가능)</div>
+        <input type="file" name="file" accept=".csv" required class="form-control" style="max-width:340px; margin:0 auto;">
+      </div>
+      <button type="submit" class="btn btn-primary"><i class="fas fa-check" style="margin-right:6px;"></i>업로드 및 검증</button>
+      <a href="{{ url_for('employee_import_template') }}" class="btn btn-outline" style="margin-left:8px;">
+        <i class="fas fa-download" style="margin-right:6px;"></i>템플릿 CSV 다운로드
+      </a>
+    </form>
+  </div>
+
+  <div class="card" style="padding:18px;">
+    <div style="font-weight:700; margin-bottom:10px;"><i class="fas fa-info-circle" style="color:var(--primary); margin-right:6px;"></i>작성 안내</div>
+    <ul class="muted" style="font-size:13px; line-height:1.9; padding-left:18px; margin:0;">
+      <li><b>이름, 이메일</b>은 필수입니다</li>
+      <li>부서/직급/직군은 시스템에 등록된 이름과 정확히 일치해야 합니다</li>
+      <li>고용형태: 정규직 / 계약직 / 인턴 / 파트타임</li>
+      <li>날짜: 2026-01-02 형식 (점·슬래시도 허용)</li>
+      <li>매니저이메일: 같은 파일 안의 직원도 지정 가능</li>
+      <li>업로드 후 <b>미리보기에서 검증 결과를 확인</b>한 뒤 등록됩니다 — 바로 저장되지 않으니 안심하세요</li>
+    </ul>
+  </div>
+</div>
+
+{% else %}
+<!-- ── 2단계: 검증 미리보기 ─────────────────────────────────── -->
+<div style="display:flex; gap:12px; margin-bottom:18px;">
+  <div class="card" style="padding:14px 20px; flex:1;">
+    <div class="muted" style="font-size:12px;">등록 가능</div>
+    <div style="font-size:24px; font-weight:700; color:var(--green);">{{ valid_count }}명</div>
+  </div>
+  <div class="card" style="padding:14px 20px; flex:1;">
+    <div class="muted" style="font-size:12px;">오류 (제외됨)</div>
+    <div style="font-size:24px; font-weight:700; color:{{ 'var(--red)' if error_count else 'var(--tx-2)' }};">{{ error_count }}건</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-head">
+    <span class="card-title">검증 결과</span>
+    <span class="muted" style="font-size:12px;">오류 행은 등록에서 제외됩니다. 수정 후 다시 업로드해도 됩니다.</span>
+  </div>
+  <div class="tbl-wrap" style="max-height:420px; overflow-y:auto;">
+    <table>
+      <thead>
+        <tr><th>행</th><th>상태</th><th>이름</th><th>이메일</th><th>부서</th><th>직급</th><th>입사일</th><th>오류 내용</th></tr>
+      </thead>
+      <tbody>
+        {% for r in results %}
+        <tr {% if r.errors %}style="background:color-mix(in srgb, var(--red) 6%, transparent);"{% endif %}>
+          <td class="muted" style="font-size:12px;">{{ r.line }}</td>
+          <td>
+            {% if r.errors %}<span class="badge badge-danger" style="font-size:11px;">오류</span>
+            {% else %}<span class="badge badge-success" style="font-size:11px;">OK</span>{% endif %}
+          </td>
+          <td style="font-weight:600;">{{ r.raw['이름'] }}</td>
+          <td style="font-size:13px;">{{ r.raw['이메일'] }}</td>
+          <td style="font-size:13px;">{{ r.raw['부서'] }}</td>
+          <td style="font-size:13px;">{{ r.raw['직급'] }}</td>
+          <td style="font-size:13px;">{{ r.raw['입사일'] }}</td>
+          <td style="font-size:12.5px; color:var(--red);">{{ r.errors | join(' · ') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if valid_count %}
+<form method="POST" action="{{ url_for('employee_import_confirm') }}" class="card" style="padding:20px; display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;">
+  <input type="hidden" name="token" value="{{ token }}">
+  <div>
+    <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">전 직원 공통 초기 비밀번호 <span style="color:var(--red);">*</span></label>
+    <input type="text" name="initial_password" required minlength="8" class="form-control"
+           placeholder="8자 이상, 영문/숫자/특수문자 2종 조합" style="width:280px;">
+    <div class="muted" style="font-size:11.5px; margin-top:4px;">등록된 직원에게 이 비밀번호를 전달하고, 첫 로그인 후 변경하도록 안내하세요.</div>
+  </div>
+  <button type="submit" class="btn btn-primary" onclick="return confirm('{{ valid_count }}명을 등록합니다. 진행할까요?')">
+    <i class="fas fa-user-plus" style="margin-right:6px;"></i>{{ valid_count }}명 등록 확정
+  </button>
+  <a href="{{ url_for('employee_import') }}" class="btn btn-ghost">다시 업로드</a>
+</form>
+{% else %}
+<div class="card" style="padding:20px; text-align:center;">
+  <div class="muted">등록 가능한 행이 없습니다. 오류를 수정한 뒤 다시 업로드해주세요.</div>
+  <a href="{{ url_for('employee_import') }}" class="btn btn-primary" style="margin-top:12px;">다시 업로드</a>
+</div>
+{% endif %}
+
+{% endif %}
+
+{% endblock %}

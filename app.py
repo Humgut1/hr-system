@@ -2458,6 +2458,242 @@ def employee_new():
                            prefill=prefill,
                            active_page='employees')
 
+# ══════════════════════════════════════════════════════════════
+#  CSV 직원 일괄 임포트 (Phase B-6 — 실고객 진입로)
+# ══════════════════════════════════════════════════════════════
+
+IMPORT_TMP_DIR = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'imports')
+os.makedirs(IMPORT_TMP_DIR, exist_ok=True)
+
+IMPORT_COLUMNS = ['이름', '이메일', '부서', '직급', '직군', '고용형태',
+                  '입사일', '생년월일', '전화', '기본급(월)', '매니저이메일']
+
+EMP_TYPE_MAP = {
+    '정규직': 'full_time', '계약직': 'contract', '인턴': 'intern', '파트타임': 'part_time',
+    'full_time': 'full_time', 'contract': 'contract', 'intern': 'intern', 'part_time': 'part_time',
+}
+
+
+def _read_csv_rows(raw_bytes):
+    """CSV 파싱 — UTF-8(BOM 포함)과 한국 Excel 기본 인코딩(CP949) 모두 지원."""
+    import csv, io
+    for enc in ('utf-8-sig', 'cp949'):
+        try:
+            text = raw_bytes.decode(enc)
+            return list(csv.DictReader(io.StringIO(text)))
+        except (UnicodeDecodeError, csv.Error):
+            continue
+    return None
+
+
+def _norm_date(s):
+    """YYYY-MM-DD / YYYY.MM.DD / YYYY/MM/DD → ISO. 빈값은 None, 오류는 False."""
+    s = (s or '').strip()
+    if not s:
+        return None
+    for sep in ('-', '.', '/'):
+        parts = s.split(sep)
+        if len(parts) == 3:
+            try:
+                return date(int(parts[0]), int(parts[1]), int(parts[2])).isoformat()
+            except ValueError:
+                return False
+    return False
+
+
+@app.route('/employees/import/template')
+@admin_required
+def employee_import_template():
+    """샘플 CSV 다운로드 (Excel 호환 UTF-8 BOM) — 부서/직급/직군 예시는 실제 등록된 이름 사용."""
+    import io
+    from flask import Response
+    db = get_db()
+    dept = (db.execute('SELECT name FROM departments ORDER BY id LIMIT 1').fetchone() or {'name': ''})['name']
+    pos  = (db.execute('SELECT name FROM positions ORDER BY id LIMIT 1').fetchone() or {'name': ''})['name']
+    jf   = (db.execute('SELECT name FROM job_families ORDER BY id LIMIT 1').fetchone() or {'name': ''})['name']
+    out = io.StringIO()
+    out.write(','.join(IMPORT_COLUMNS) + '\n')
+    out.write(f'홍길동,hong@example.com,{dept},{pos},{jf},정규직,2026-01-02,1995-03-15,010-1234-5678,3200000,kim@example.com\n')
+    out.write(f'김철수,kim@example.com,{dept},{pos},{jf},계약직,2026-02-01,,,,\n')
+    return Response('﻿' + out.getvalue(),
+                    mimetype='text/csv; charset=utf-8',
+                    headers={'Content-Disposition': 'attachment; filename=employee_import_template.csv'})
+
+
+@app.route('/employees/import', methods=['GET', 'POST'])
+@admin_required
+def employee_import():
+    """1단계: CSV 업로드 → 검증 → 미리보기."""
+    db = get_db()
+    if request.method == 'GET':
+        return render_template('employees/import.html', step='upload',
+                               columns=IMPORT_COLUMNS, active_page='employees')
+
+    f = request.files.get('file')
+    if not f or not f.filename:
+        flash('CSV 파일을 선택해주세요.', 'warning')
+        return redirect(url_for('employee_import'))
+
+    rows = _read_csv_rows(f.read())
+    if rows is None:
+        flash('CSV를 읽을 수 없습니다. UTF-8 또는 Excel(CP949)로 저장했는지 확인해주세요.', 'danger')
+        return redirect(url_for('employee_import'))
+    if not rows:
+        flash('데이터 행이 없습니다. 템플릿을 참고해 작성해주세요.', 'warning')
+        return redirect(url_for('employee_import'))
+
+    # 이름 매칭용 사전
+    depts = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM departments').fetchall()}
+    poses = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM positions').fetchall()}
+    jfs   = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM job_families').fetchall()}
+    existing_emails = {r['email'] for r in db.execute('SELECT email FROM users').fetchall()}
+
+    seen_emails = set()
+    results = []
+    for i, row in enumerate(rows, start=2):  # CSV 2행부터 (1행 = 헤더)
+        r = {k: (row.get(k) or '').strip() for k in IMPORT_COLUMNS}
+        errors = []
+
+        if not r['이름']:
+            errors.append('이름 누락')
+        email = r['이메일'].lower()
+        if not email:
+            errors.append('이메일 누락')
+        elif '@' not in email or '.' not in email.split('@')[-1]:
+            errors.append('이메일 형식 오류')
+        elif email in existing_emails:
+            errors.append('이미 등록된 이메일')
+        elif email in seen_emails:
+            errors.append('파일 내 중복 이메일')
+        seen_emails.add(email)
+
+        dept_id = pos_id = jf_id = None
+        if r['부서']:
+            dept_id = depts.get(r['부서'])
+            if not dept_id:
+                errors.append(f"부서 없음: {r['부서']}")
+        if r['직급']:
+            pos_id = poses.get(r['직급'])
+            if not pos_id:
+                errors.append(f"직급 없음: {r['직급']}")
+        if r['직군']:
+            jf_id = jfs.get(r['직군'])
+            if not jf_id:
+                errors.append(f"직군 없음: {r['직군']}")
+
+        emp_type = 'full_time'
+        if r['고용형태']:
+            emp_type = EMP_TYPE_MAP.get(r['고용형태'])
+            if not emp_type:
+                errors.append(f"고용형태 오류: {r['고용형태']} (정규직/계약직/인턴/파트타임)")
+
+        hire_date  = _norm_date(r['입사일'])
+        birth_date = _norm_date(r['생년월일'])
+        if hire_date is False:
+            errors.append(f"입사일 형식 오류: {r['입사일']}")
+        if birth_date is False:
+            errors.append(f"생년월일 형식 오류: {r['생년월일']}")
+
+        salary = None
+        if r['기본급(월)']:
+            try:
+                salary = int(r['기본급(월)'].replace(',', '').replace('원', ''))
+            except ValueError:
+                errors.append(f"기본급 숫자 아님: {r['기본급(월)']}")
+
+        results.append({
+            'line': i, 'raw': r, 'errors': errors,
+            'data': None if errors else {
+                'name': r['이름'], 'email': email,
+                'dept_id': dept_id, 'pos_id': pos_id, 'jf_id': jf_id,
+                'employment_type': emp_type,
+                'hire_date': hire_date, 'birth_date': birth_date,
+                'phone': r['전화'] or None, 'salary': salary,
+                'manager_email': r['매니저이메일'].lower() or None,
+            },
+        })
+
+    valid = [x['data'] for x in results if not x['errors']]
+    token = uuid.uuid4().hex
+    if valid:
+        with open(os.path.join(IMPORT_TMP_DIR, f'{token}.json'), 'w', encoding='utf-8') as fp:
+            json.dump(valid, fp, ensure_ascii=False)
+
+    return render_template('employees/import.html', step='preview',
+                           results=results, valid_count=len(valid),
+                           error_count=len(results) - len(valid),
+                           token=token, columns=IMPORT_COLUMNS,
+                           active_page='employees')
+
+
+@app.route('/employees/import/confirm', methods=['POST'])
+@admin_required
+def employee_import_confirm():
+    """2단계: 검증 통과분 일괄 등록 + 매니저 이메일 2차 매핑."""
+    token      = request.form.get('token', '')
+    initial_pw = request.form.get('initial_password', '').strip()
+
+    if not token.isalnum():
+        abort(400)
+    pw_error = validate_password(initial_pw)
+    if pw_error:
+        flash(f'초기 비밀번호 오류: {pw_error}', 'danger')
+        return redirect(url_for('employee_import'))
+
+    tmp_path = os.path.join(IMPORT_TMP_DIR, f'{token}.json')
+    if not os.path.exists(tmp_path):
+        flash('임포트 세션이 만료됐습니다. 파일을 다시 업로드해주세요.', 'warning')
+        return redirect(url_for('employee_import'))
+    with open(tmp_path, encoding='utf-8') as fp:
+        rows = json.load(fp)
+
+    db = get_db()
+    pw_hash = generate_password_hash(initial_pw)
+    email_to_id = {}
+    for r in rows:
+        cur = db.execute(
+            'INSERT INTO users (name, email, password_hash, role, department_id, position_id, '
+            '  job_family_id, phone, hire_date, birth_date, employment_type) '
+            "VALUES (?,?,?,'employee',?,?,?,?,?,?,?)",
+            (r['name'], r['email'], pw_hash, r['dept_id'], r['pos_id'], r['jf_id'],
+             r['phone'], r['hire_date'], r['birth_date'], r['employment_type'])
+        )
+        new_id = cur.lastrowid
+        db.execute("UPDATE users SET emp_no = 'TC-' || printf('%05d', id) WHERE id=?", (new_id,))
+        if r['salary']:
+            db.execute('INSERT INTO employee_salary (user_id, base_salary) VALUES (?,?)',
+                       (new_id, r['salary']))
+        email_to_id[r['email']] = new_id
+        register_tenant_user(r['email'], session.get('tenant_id', 1))
+
+    # 매니저 이메일 2차 매핑 (같은 파일 안의 직원도 매니저로 지정 가능)
+    unmatched_managers = []
+    for r in rows:
+        if not r['manager_email']:
+            continue
+        mid = email_to_id.get(r['manager_email'])
+        if not mid:
+            m = db.execute('SELECT id FROM users WHERE email=?', (r['manager_email'],)).fetchone()
+            mid = m['id'] if m else None
+        if mid:
+            db.execute('UPDATE users SET manager_id=? WHERE id=?', (mid, email_to_id[r['email']]))
+        else:
+            unmatched_managers.append(f"{r['name']}({r['manager_email']})")
+    db.commit()
+
+    # peak headcount 갱신
+    active_count = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
+    update_peak_headcount(session.get('tenant_id', 1), active_count)
+
+    os.remove(tmp_path)
+    log_audit('create', 'personal_info', None, f'CSV 직원 일괄 임포트 — {len(rows)}명')
+    msg = f'{len(rows)}명 등록 완료.'
+    if unmatched_managers:
+        msg += f' (매니저 매핑 실패 {len(unmatched_managers)}건: {", ".join(unmatched_managers[:5])})'
+    flash(msg, 'success' if not unmatched_managers else 'warning')
+    return redirect(url_for('employees'))
+
+
 @app.route('/employees/<int:emp_id>/edit', methods=['GET', 'POST'])
 @admin_required
 def employee_edit(emp_id):
