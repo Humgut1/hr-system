@@ -11,16 +11,18 @@
 
 ### 현재 진행 상태 (마지막 업데이트: 2026-07-13)
 
-- **완료된 마지막 버전:** `v0.97.0`
+- **완료된 마지막 버전:** `v0.98.0`
 - **배포 완료:** v0.95.0까지 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart). v0.96.0은 로컬 완료, VM 배포는 Phase A 묶어서 진행 예정
 - **다음 작업: `saas_plan.md` §6 실행 순서를 따를 것 (Phase A부터 순서대로)**
   1. ~~Phase A-1: 웹훅 서명 검증~~ ✅ v0.96.0 완료
   2. ~~Phase A-2: CSRF 토큰 전면 적용~~ ✅ v0.97.0 완료
-  3. Phase A-3: 감사 로그 ← 다음 작업
-  4. Phase A-4~5: DB 백업 → 비밀번호 정책
+  3. ~~Phase A-3: 감사 로그~~ ✅ v0.98.0 완료
+  4. Phase A-4: 테넌트 DB 자동 백업 ← 다음 작업
+  5. Phase A-5: 비밀번호 정책
   3. 이후 Phase B(CSV 임포트·요금제 3계층·연차촉진), C(성과 재개편·입사예정자), D — 상세는 saas_plan.md
   - (보류) 온보딩 투어 확장 여부, 도메인 설정(승헌씨 직접)
-- **v0.91~v0.97 완료 내역 요약:**
+- **v0.91~v0.98 완료 내역 요약:**
+  - v0.98.0 — **감사 로그 (Phase A-3)**: `audit_logs` 테이블 + `log_audit()` 헬퍼(best-effort, 실패해도 본 요청 안 막음). 계측 지점: 로그인 성공/실패, 타인 프로필 민감정보 열람, 급여 변경 6곳(개별수정 2·일괄인상 2·성과연동·ACR), 직원 문서함 업/다운/삭제, 직원정보 수정, 캘리브레이션 등급 확정, Excel 내보내기 전수(`before_request`로 export_* 엔드포인트 일괄). `/admin/audit-logs` 조회 화면(카테고리/행위/기간/검색 필터 + 요약 카드), 사이드바 관리자 섹션에 링크. 로컬 admin 비번은 `admin1234!`로 재설정됨(로컬 한정)
   - v0.97.0 — **CSRF 방어 전면 적용 (Phase A-2)**: 세션별 토큰(`secrets.token_hex(32)`) + `before_request` 전역 검증(웹훅 3곳만 예외, 실패 시 403). 템플릿 149개 폼을 개별 수정하지 않고 `static/js/csrf.js`가 3중 자동 주입 — ①submit 이벤트 캡처 ②`form.submit()` 프로토타입 패치(프로그래매틱 제출 9곳 커버) ③fetch 래핑(X-CSRF-Token 헤더). base.html 미상속 독립 템플릿 6곳(login/signup/saas 3종/admin setup)에도 meta+스크립트 삽입. 테스트 7종 + 브라우저 실검증 완료
   - v0.96.0 — **웹훅 서명 검증 (Phase A-1)**: Slack `/slack/command`·`/slack/interactive`에 공식 v0 서명 검증(`SLACK_SIGNING_SECRET`, HMAC-SHA256 + 타임스탬프 5분 리플레이 방지, 실패 시 401), 토스 `/billing/webhook`은 서명 헤더가 없어 공식 권장 방식인 결제 재조회 검증(`TOSS_SECRET_KEY`로 GET /v1/payments/{paymentKey}, 재조회 실패 시 400 + 페이로드 무시). 시크릿 미설정 시 경고 로그만 남기고 통과(개발 모드). 테스트 클라이언트로 7개 시나리오 검증 완료
   - v0.91.0 — (버전 번호만 존재, 상세 내역 CLAUDE.md 미기록 상태 — 확인 필요)

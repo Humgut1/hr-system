@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}감사 로그{% endblock %}
+{% block page_title %}감사 로그{% endblock %}
+
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:12px;">
+  <div class="muted body-sm">급여·성과·개인정보·문서에 대한 열람/변경/다운로드와 인증 이벤트가 자동 기록됩니다. (최대 500건 표시)</div>
+</div>
+
+<!-- 카테고리 요약 카드 -->
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:12px; margin-bottom:20px;">
+  {% for s in stats %}
+  <div class="card" style="padding:14px 16px;">
+    <div class="muted" style="font-size:12px;">{{ cat_labels.get(s.category, s.category) }}</div>
+    <div style="font-size:22px; font-weight:700; margin-top:2px;">{{ s.cnt }}</div>
+    <div class="muted" style="font-size:11px;">최근 {{ days }}일</div>
+  </div>
+  {% endfor %}
+  {% if not stats %}
+  <div class="card" style="padding:14px 16px;">
+    <div class="muted" style="font-size:13px;">최근 {{ days }}일 기록 없음</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- 필터 바 -->
+<form method="GET" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; align-items:center;">
+  <select name="category" class="form-control" style="width:130px; padding:7px 10px; font-size:13px;">
+    <option value="">전체 분류</option>
+    {% for k, v in cat_labels.items() %}
+    <option value="{{ k }}" {{ 'selected' if k == category }}>{{ v }}</option>
+    {% endfor %}
+  </select>
+  <select name="action" class="form-control" style="width:130px; padding:7px 10px; font-size:13px;">
+    <option value="">전체 행위</option>
+    {% for k, v in act_labels.items() %}
+    <option value="{{ k }}" {{ 'selected' if k == action }}>{{ v }}</option>
+    {% endfor %}
+  </select>
+  <select name="days" class="form-control" style="width:110px; padding:7px 10px; font-size:13px;">
+    {% for d in [7, 30, 90, 365] %}
+    <option value="{{ d }}" {{ 'selected' if d == days }}>최근 {{ d }}일</option>
+    {% endfor %}
+  </select>
+  <input type="text" name="q" value="{{ q }}" placeholder="이름·내용 검색"
+         class="form-control" style="width:200px; padding:7px 10px; font-size:13px;">
+  <button type="submit" class="btn btn-outline btn-sm">조회</button>
+  {% if category or action or q %}
+  <a href="{{ url_for('admin_audit_logs') }}" class="btn btn-sm" style="font-size:12px;">초기화</a>
+  {% endif %}
+</form>
+
+<!-- 로그 테이블 -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title"><i class="fas fa-clipboard-list" style="color:var(--primary); margin-right:7px;"></i>감사 기록</span>
+    <span class="badge badge-info" style="font-size:11px;">{{ logs|length }}건</span>
+  </div>
+  {% if logs %}
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>일시</th><th>행위자</th><th>행위</th><th>분류</th><th>대상</th><th>내용</th><th>IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in logs %}
+        <tr>
+          <td style="font-size:12.5px; white-space:nowrap;">{{ l.created_at }}</td>
+          <td style="font-size:13px; font-weight:600;">
+            {{ l.actor_name or '—' }}
+            {% if l.actor_role %}<span class="muted" style="font-size:11px;">({{ l.actor_role }})</span>{% endif %}
+          </td>
+          <td style="white-space:nowrap;">
+            <span class="badge {{ 'badge-danger' if l.action in ('delete', 'login_failed') else ('badge-warning' if l.action in ('update',) else 'badge-info') }}"
+                  style="font-size:11px; white-space:nowrap;">{{ act_labels.get(l.action, l.action) }}</span>
+          </td>
+          <td style="font-size:12.5px; white-space:nowrap;">{{ cat_labels.get(l.category, l.category) }}</td>
+          <td style="font-size:13px;">{{ l.target_name or '—' }}</td>
+          <td style="font-size:12.5px; max-width:360px;">{{ l.detail }}</td>
+          <td style="font-size:12px;" class="muted">{{ l.ip }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="padding:40px; text-align:center;" class="muted">조건에 맞는 감사 기록이 없습니다.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

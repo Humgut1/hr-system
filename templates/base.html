@@ -130,6 +130,9 @@
         <a href="{{ url_for('admin_integrations') }}" class="nav-item{% if active_page == 'integrations' %} active{% endif %}" title="외부 연동" data-tour="integrations">
           <i class="fas fa-plug"></i><span>외부 연동</span>
         </a>
+        <a href="{{ url_for('admin_audit_logs') }}" class="nav-item{% if active_page == 'audit_logs' %} active{% endif %}" title="감사 로그">
+          <i class="fas fa-clipboard-list"></i><span>감사 로그</span>
+        </a>
         {% endif %}
       </div>
       {% endif %}

@@ -1169,6 +1169,22 @@ def init_db(db_path: str = None):
             uploaded_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
 
+        # ── v0.98.0 감사 로그 (Phase A-3 보안 기준선) ─────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS audit_logs (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            actor_id       INTEGER,
+            actor_name     TEXT,
+            actor_role     TEXT,
+            action         TEXT NOT NULL CHECK(action IN ('view','create','update','delete','download','login','login_failed')),
+            category       TEXT NOT NULL CHECK(category IN ('salary','performance','personal_info','document','export','auth')),
+            target_user_id INTEGER,
+            detail         TEXT,
+            ip             TEXT,
+            created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_logs(target_user_id)')
+
         # ── v0.64.0 오퍼 관리 + 이메일 이력 ─────────────────────────────────
         c.execute('''CREATE TABLE IF NOT EXISTS offers (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,

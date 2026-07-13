@@ -227,6 +227,14 @@ def csrf_protect():
         abort(403, description='CSRF 토큰이 유효하지 않습니다. 페이지를 새로고침한 뒤 다시 시도해주세요.')
 
 
+@app.before_request
+def audit_exports():
+    """Excel 내보내기 전수 감사 기록 (export_hub 화면 제외, 실제 다운로드만)."""
+    ep = request.endpoint or ''
+    if ep.startswith('export_') and ep != 'export_hub' and session.get('user_id'):
+        log_audit('download', 'export', None, f'데이터 내보내기 ({request.path})')
+
+
 # ── 미래발령 자동 적용 (서버 기동 후 첫 요청 시 1회 실행) ──────────
 _scheduled_check_done = False
 
@@ -285,6 +293,26 @@ def _do_apply_action(db, pa):
         else:
             db.execute('INSERT INTO employee_salary (user_id, base_salary) VALUES (?,?)', (emp_id, new_sal))
 
+
+
+def log_audit(action, category, target_user_id=None, detail=''):
+    """
+    감사 로그 기록 (Phase A-3).
+    민감 데이터(급여/성과/개인정보/문서) 열람·변경, 내보내기, 인증 이벤트를 남긴다.
+    실패해도 본 요청을 막지 않는다 (best-effort).
+    """
+    try:
+        db = get_db()
+        db.execute(
+            'INSERT INTO audit_logs (actor_id, actor_name, actor_role, action, category, target_user_id, detail, ip) '
+            'VALUES (?,?,?,?,?,?,?,?)',
+            (session.get('user_id'), session.get('user_name'), session.get('user_role'),
+             action, category, target_user_id, detail,
+             request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip())
+        )
+        db.commit()
+    except Exception as e:
+        app.logger.error(f'audit log failed: {e}')
 
 
 def add_notification(user_id, n_type, category, title, content, link=None):
@@ -496,7 +524,9 @@ def login():
                     else:
                         session.pop('subscription_expired', None)
 
+                log_audit('login', 'auth', user['id'], f'로그인 성공 ({email})')
                 return redirect(url_for('dashboard'))
+            log_audit('login_failed', 'auth', None, f'로그인 실패 ({email})')
             error = '이메일 또는 비밀번호가 올바르지 않습니다.'
     return render_template('login.html', error=error)
 
@@ -1433,6 +1463,10 @@ def employee_detail(emp_id):
     if role == 'manager' and emp['manager_id'] == uid:
         can_see_sensitive = True
 
+    # 타인의 민감정보(급여/성과/개인정보) 열람 감사 기록 (본인 조회는 제외)
+    if can_see_sensitive and emp_id != uid:
+        log_audit('view', 'personal_info', emp_id, f'직원 프로필 민감정보 열람 ({emp["name"]})')
+
     payslips = db.execute(
         'SELECT year, month, gross_pay, net_pay, base_salary '
         'FROM payslips WHERE user_id=? ORDER BY year DESC, month DESC LIMIT 6',
@@ -2221,6 +2255,7 @@ def employee_doc_upload(emp_id):
         (emp_id, doc_type, f.filename, stored_name, len(content), session['user_id'])
     )
     db.commit()
+    log_audit('create', 'document', emp_id, f'서류 업로드 ({EMP_DOC_TYPE_LABEL.get(doc_type, doc_type)}: {f.filename})')
     flash('서류가 업로드됐습니다.', 'success')
     return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-documents')
 
@@ -2234,6 +2269,7 @@ def employee_doc_file(doc_id):
         abort(404)
     if not _can_access_emp_docs(doc['user_id']):
         abort(403)
+    log_audit('download', 'document', doc['user_id'], f'서류 다운로드 ({doc["original_name"]})')
     from flask import send_from_directory
     return send_from_directory(EMP_DOC_UPLOAD_FOLDER, doc['stored_name'],
                                download_name=doc['original_name'])
@@ -2255,6 +2291,7 @@ def employee_doc_delete(doc_id):
         pass
     db.execute('DELETE FROM employee_documents WHERE id=?', (doc_id,))
     db.commit()
+    log_audit('delete', 'document', emp_id, f'서류 삭제 ({doc["original_name"]})')
     flash('서류가 삭제됐습니다.', 'info')
     return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-documents')
 
@@ -2465,6 +2502,7 @@ def employee_edit(emp_id):
             old_email = emp['email']
             if old_email != email:
                 update_tenant_user_email(old_email, email, tid)
+            log_audit('update', 'personal_info', emp_id, f'직원 정보 수정 ({emp["name"]})')
             flash('직원 정보가 저장되었습니다.', 'success')
             return redirect(url_for('employee_detail', emp_id=emp_id))
 
@@ -4765,6 +4803,7 @@ def payroll_bulk_raise():
             count += 1
         db.commit()
         label = 'Merit 등급별 인상' if mode == 'merit' else f'{pct}% 일괄 인상'
+        log_audit('update', 'salary', None, f'{label} 적용 — {count}명')
         flash(f'{count}명 기본급 {label} 완료했습니다.', 'success')
         return redirect(url_for('payroll_bulk_raise'))
 
@@ -4850,6 +4889,7 @@ def compensation():
                 (uid, base, meal, trans)
             )
             db.commit()
+            log_audit('update', 'salary', uid, f'개별 급여 수정 (기본급 {base:,}원)')
             flash('급여가 저장되었습니다.' if mw['ok'] else
                   f'급여 저장 완료 — ⚠️ 최저임금 미달 (부족 {fmt_krw(mw["shortage"])}원)',
                   'success' if mw['ok'] else 'warning')
@@ -4996,6 +5036,7 @@ def compensation():
                 db.execute('UPDATE employee_salary SET base_salary=? WHERE user_id=?', (new_base, e['id']))
                 count += 1
             db.commit()
+            log_audit('update', 'salary', None, f'{"Merit" if mode == "merit" else "일괄"} 인상 적용 — {count}명')
             flash(f'인상 완료 — {count}명 적용', 'success')
             _tab = 'analysis'
 
@@ -5025,6 +5066,7 @@ def compensation():
                 )
                 count += 1
             db.commit()
+            log_audit('update', 'salary', None, f'성과 연동 급여 반영 — {count}명')
             flash(f'급여 반영 완료 — {count}명', 'success')
             _tab = 'acr'
 
@@ -5324,6 +5366,7 @@ def admin_payroll():
                 (uid, base, meal, trans)
             )
             db.commit()
+            log_audit('update', 'salary', uid, f'개별 급여 수정 (기본급 {base:,}원)')
             if not mw['ok']:
                 msg = (f'급여가 저장되었으나 ⚠️ 최저임금 미달입니다. '
                        f'(기본급 {fmt_krw(base)}원 < 최저임금 {fmt_krw(mw["min_monthly"])}원, '
@@ -5773,6 +5816,7 @@ def acr_approve(cycle_id):
         approved += 1
 
     db.commit()
+    log_audit('update', 'salary', None, f'ACR 급여 인상 승인·반영 — {approved}명')
     flash(f'{approved}명 급여 인상이 승인되고 반영되었습니다.', 'success')
     return redirect(url_for('acr_detail', cycle_id=cycle_id))
 
@@ -9647,6 +9691,8 @@ def calibration():
                       suggested, final_grade, summary, note, downgrade_reason,
                       potential_score, session['user_id']))
                 db.commit()
+                log_audit('update', 'performance', uid,
+                          f'캘리브레이션 등급 확정 ({final_grade}' + (f', 하향사유: {downgrade_reason}' if downgrade_reason else '') + ')')
                 flash('등급이 확정되었습니다.', 'success')
 
         # 직원에게 공개
@@ -12074,6 +12120,59 @@ def admin_holidays():
         'SELECT * FROM public_holidays WHERE year=? ORDER BY date', (year,)
     ).fetchall()
     return render_template('admin/holidays.html', holidays=holidays, year=year, active_page='holidays')
+
+
+AUDIT_CATEGORY_LABEL = {
+    'salary':        '급여',
+    'performance':   '성과',
+    'personal_info': '개인정보',
+    'document':      '문서',
+    'export':        '내보내기',
+    'auth':          '인증',
+}
+AUDIT_ACTION_LABEL = {
+    'view': '열람', 'create': '생성', 'update': '변경', 'delete': '삭제',
+    'download': '다운로드', 'login': '로그인', 'login_failed': '로그인 실패',
+}
+
+
+@app.route('/admin/audit-logs')
+@admin_required
+def admin_audit_logs():
+    """감사 로그 조회 (Phase A-3) — 카테고리/행위/대상/기간 필터."""
+    db       = get_db()
+    category = request.args.get('category', '')
+    action   = request.args.get('action', '')
+    q        = request.args.get('q', '').strip()
+    days     = int(request.args.get('days', 30))
+
+    sql    = ('SELECT a.*, u.name target_name FROM audit_logs a '
+              'LEFT JOIN users u ON a.target_user_id = u.id '
+              "WHERE a.created_at >= datetime('now', ?)")
+    params = [f'-{days} days']
+    if category:
+        sql += ' AND a.category=?'
+        params.append(category)
+    if action:
+        sql += ' AND a.action=?'
+        params.append(action)
+    if q:
+        sql += ' AND (a.actor_name LIKE ? OR u.name LIKE ? OR a.detail LIKE ?)'
+        params += [f'%{q}%'] * 3
+    sql += ' ORDER BY a.created_at DESC LIMIT 500'
+    logs = db.execute(sql, params).fetchall()
+
+    stats = db.execute(
+        "SELECT category, COUNT(*) cnt FROM audit_logs "
+        "WHERE created_at >= datetime('now', ?) GROUP BY category", (f'-{days} days',)
+    ).fetchall()
+
+    return render_template('admin/audit_logs.html',
+                           logs=logs, stats=stats,
+                           category=category, action=action, q=q, days=days,
+                           cat_labels=AUDIT_CATEGORY_LABEL,
+                           act_labels=AUDIT_ACTION_LABEL,
+                           active_page='audit_logs')
 
 
 # ── 복리후생 설정 ────────────────────────────────────────────────
