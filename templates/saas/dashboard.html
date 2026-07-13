@@ -29,6 +29,8 @@ table.sa-table { width: 100%; border-collapse: collapse; background: var(--surfa
 a.sa-row-link { color: inherit; text-decoration: none; display: block; }
 .sa-logout { font-size: 13px; color: var(--tx-3); }
 </style>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <script src="{{ url_for('static', filename='js/csrf.js') }}"></script>
 </head>
 <body>
 <div class="sa-header">

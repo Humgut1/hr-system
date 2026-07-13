@@ -11,15 +11,17 @@
 
 ### 현재 진행 상태 (마지막 업데이트: 2026-07-13)
 
-- **완료된 마지막 버전:** `v0.96.0`
+- **완료된 마지막 버전:** `v0.97.0`
 - **배포 완료:** v0.95.0까지 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart). v0.96.0은 로컬 완료, VM 배포는 Phase A 묶어서 진행 예정
 - **다음 작업: `saas_plan.md` §6 실행 순서를 따를 것 (Phase A부터 순서대로)**
   1. ~~Phase A-1: 웹훅 서명 검증~~ ✅ v0.96.0 완료
-  2. Phase A-2: CSRF 토큰 전면 적용 ← 다음 작업
-  3. Phase A-3~5: 감사 로그 → DB 백업 → 비밀번호 정책
+  2. ~~Phase A-2: CSRF 토큰 전면 적용~~ ✅ v0.97.0 완료
+  3. Phase A-3: 감사 로그 ← 다음 작업
+  4. Phase A-4~5: DB 백업 → 비밀번호 정책
   3. 이후 Phase B(CSV 임포트·요금제 3계층·연차촉진), C(성과 재개편·입사예정자), D — 상세는 saas_plan.md
   - (보류) 온보딩 투어 확장 여부, 도메인 설정(승헌씨 직접)
-- **v0.91~v0.96 완료 내역 요약:**
+- **v0.91~v0.97 완료 내역 요약:**
+  - v0.97.0 — **CSRF 방어 전면 적용 (Phase A-2)**: 세션별 토큰(`secrets.token_hex(32)`) + `before_request` 전역 검증(웹훅 3곳만 예외, 실패 시 403). 템플릿 149개 폼을 개별 수정하지 않고 `static/js/csrf.js`가 3중 자동 주입 — ①submit 이벤트 캡처 ②`form.submit()` 프로토타입 패치(프로그래매틱 제출 9곳 커버) ③fetch 래핑(X-CSRF-Token 헤더). base.html 미상속 독립 템플릿 6곳(login/signup/saas 3종/admin setup)에도 meta+스크립트 삽입. 테스트 7종 + 브라우저 실검증 완료
   - v0.96.0 — **웹훅 서명 검증 (Phase A-1)**: Slack `/slack/command`·`/slack/interactive`에 공식 v0 서명 검증(`SLACK_SIGNING_SECRET`, HMAC-SHA256 + 타임스탬프 5분 리플레이 방지, 실패 시 401), 토스 `/billing/webhook`은 서명 헤더가 없어 공식 권장 방식인 결제 재조회 검증(`TOSS_SECRET_KEY`로 GET /v1/payments/{paymentKey}, 재조회 실패 시 400 + 페이로드 무시). 시크릿 미설정 시 경고 로그만 남기고 통과(개발 모드). 테스트 클라이언트로 7개 시나리오 검증 완료
   - v0.91.0 — (버전 번호만 존재, 상세 내역 CLAUDE.md 미기록 상태 — 확인 필요)
   - v0.92.0 — 데모 배너에 "웹사이트 보기" 링크 추가, `landing()`이 데모 세션이면 대시보드 자동 리다이렉트 안 되도록 예외 처리

@@ -21,6 +21,8 @@ body { background: var(--bg); min-height: 100vh; display: flex; align-items: cen
 .sa-btn:hover { opacity: .88; }
 .sa-error { padding: 10px 12px; background: var(--red-bg); color: var(--red); border-radius: 8px; font-size: 13px; font-weight: 600; margin-bottom: 16px; }
 </style>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <script src="{{ url_for('static', filename='js/csrf.js') }}"></script>
 </head>
 <body>
 <div class="sa-card">

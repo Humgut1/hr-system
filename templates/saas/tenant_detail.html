@@ -31,6 +31,8 @@ table.sa-table { width: 100%; border-collapse: collapse; }
 .sa-btn { padding: 8px 14px; background: var(--tx-1); color: #fff; border-radius: 8px; font-size: 13px; font-weight: 700; }
 .sa-btn:hover { opacity: .88; }
 </style>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <script src="{{ url_for('static', filename='js/csrf.js') }}"></script>
 </head>
 <body>
 <div class="sa-header">

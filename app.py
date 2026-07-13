@@ -191,6 +191,42 @@ def close_connection(exception):
         db.close()
 
 
+# ══════════════════════════════════════════════════════════════
+#  CSRF 방어 (Phase A-2 보안 기준선)
+#  - 세션별 토큰 발급 → 템플릿 meta 태그 → static/js/csrf.js가
+#    모든 폼/fetch에 자동 주입 → 아래 before_request가 전역 검증
+# ══════════════════════════════════════════════════════════════
+
+# 외부 서비스가 직접 호출하는 엔드포인트 (자체 서명 검증으로 보호됨)
+CSRF_EXEMPT_ENDPOINTS = {'billing_webhook', 'slack_command', 'slack_interactive'}
+
+
+def _get_csrf_token():
+    """세션에 CSRF 토큰이 없으면 생성 후 반환."""
+    if 'csrf_token' not in session:
+        import secrets
+        session['csrf_token'] = secrets.token_hex(32)
+    return session['csrf_token']
+
+
+@app.context_processor
+def inject_csrf_token():
+    return {'csrf_token': _get_csrf_token}
+
+
+@app.before_request
+def csrf_protect():
+    if request.method != 'POST':
+        return
+    if request.endpoint in CSRF_EXEMPT_ENDPOINTS:
+        return
+    sent = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token', '')
+    saved = session.get('csrf_token', '')
+    if not saved or not sent or not hmac.compare_digest(saved, sent):
+        app.logger.warning(f'CSRF 검증 실패 — {request.method} {request.path} (endpoint={request.endpoint})')
+        abort(403, description='CSRF 토큰이 유효하지 않습니다. 페이지를 새로고침한 뒤 다시 시도해주세요.')
+
+
 # ── 미래발령 자동 적용 (서버 기동 후 첫 요청 시 1회 실행) ──────────
 _scheduled_check_done = False
 
