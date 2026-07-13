@@ -1185,6 +1185,17 @@ def init_db(db_path: str = None):
         c.execute('CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_logs(target_user_id)')
 
+        # ── v0.99.4 연차촉진 통보 이력 (Phase B-8, 근로기준법 §61) ────────
+        c.execute('''CREATE TABLE IF NOT EXISTS leave_promotion_logs (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            year        INTEGER NOT NULL,
+            round_no    INTEGER NOT NULL CHECK(round_no IN (1, 2)),
+            remain_days REAL NOT NULL,
+            sent_by     INTEGER REFERENCES users(id),
+            sent_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
         # ── v0.64.0 오퍼 관리 + 이메일 이력 ─────────────────────────────────
         c.execute('''CREATE TABLE IF NOT EXISTS offers (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,

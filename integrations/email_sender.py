@@ -294,3 +294,84 @@ def send_welcome_email(employee: dict, buddy: dict = None) -> dict:
         return {'ok': True, 'to': to_email, 'subject': subject}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
+
+
+# ══════════════════════════════════════════════════════════════
+#  Phase B-8: 급여명세 발송 + 연차촉진 통보
+# ══════════════════════════════════════════════════════════════
+
+def _send_simple(to_email, subject, html_body, text_body):
+    """공통 발송 헬퍼 — SMTP 미설정 시 데모 모드."""
+    if not to_email:
+        return {'ok': False, 'error': '이메일 주소 없음'}
+    if IS_DEMO:
+        return {'ok': True, 'demo': True, 'to': to_email, 'subject': subject,
+                'note': 'SMTP 미설정 — 데모 모드 (실제 발송 안 됨)'}
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From']    = f'{FROM_NAME} <{SMTP_USER}>'
+        msg['To']      = to_email
+        msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
+        msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.sendmail(SMTP_USER, to_email, msg.as_string())
+        return {'ok': True, 'to': to_email, 'subject': subject}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+
+def send_payslip_email(employee: dict, payslip: dict) -> dict:
+    """급여명세서 확정 안내 이메일 (교부 의무 대응 — 상세는 링크로, 금액 요약 포함)."""
+    name  = employee.get('name', '')
+    year  = payslip.get('year')
+    month = payslip.get('month')
+    link  = f"{TALENTCORE_URL}/payroll/{year}/{month}"
+    subject = f'[TalentCore] {year}년 {month}월 급여명세서가 확정되었습니다'
+    fmt = lambda n: f'{int(n or 0):,}'
+    html = f"""
+    <div style="font-family:'Apple SD Gothic Neo',sans-serif;max-width:520px;margin:0 auto;border:1px solid #eee;border-radius:12px;overflow:hidden;">
+      <div style="background:#4f46e5;color:#fff;padding:20px 24px;font-size:17px;font-weight:700;">{year}년 {month}월 급여명세서</div>
+      <div style="padding:24px;">
+        <p style="font-size:14px;">{name}님, 이번 달 급여가 확정되었습니다.</p>
+        <table style="width:100%;font-size:14px;border-collapse:collapse;">
+          <tr><td style="padding:8px 0;color:#666;">지급 총액</td><td style="text-align:right;font-weight:700;">{fmt(payslip.get('gross_pay'))}원</td></tr>
+          <tr><td style="padding:8px 0;color:#666;">공제 합계</td><td style="text-align:right;">-{fmt(payslip.get('total_deduction'))}원</td></tr>
+          <tr><td style="padding:10px 0;border-top:2px solid #333;font-weight:700;">실수령액</td><td style="text-align:right;border-top:2px solid #333;font-weight:800;color:#4f46e5;">{fmt(payslip.get('net_pay'))}원</td></tr>
+        </table>
+        <a href="{link}" style="display:block;text-align:center;background:#4f46e5;color:#fff;padding:12px;border-radius:8px;text-decoration:none;font-weight:700;margin-top:18px;">상세 명세서 보기</a>
+        <p style="font-size:11.5px;color:#999;margin-top:16px;">본 메일은 근로기준법 제48조(임금명세서 교부)에 따라 발송되었습니다.</p>
+      </div>
+    </div>"""
+    text = (f"{name}님, {year}년 {month}월 급여가 확정되었습니다.\n"
+            f"지급 총액: {fmt(payslip.get('gross_pay'))}원 / 공제: {fmt(payslip.get('total_deduction'))}원 / "
+            f"실수령액: {fmt(payslip.get('net_pay'))}원\n상세: {link}")
+    return _send_simple(employee.get('email', ''), subject, html, text)
+
+
+def send_leave_promotion_email(employee: dict, remain_days: float, round_no: int, year: int) -> dict:
+    """연차사용촉진 통보 이메일 (근로기준법 §61)."""
+    name = employee.get('name', '')
+    if round_no == 1:
+        subject = f'[TalentCore] {year}년 잔여 연차 사용계획 제출 안내 (1차 촉진)'
+        body_msg = (f'{year}년 귀하의 잔여 연차는 <b>{remain_days}일</b>입니다. '
+                    f'근로기준법 제61조에 따라 잔여 연차의 사용 시기를 지정하여 10일 이내에 회사에 통보해 주시기 바랍니다. '
+                    f'기한 내 미통보 시 회사가 사용 시기를 지정할 수 있으며, 미사용 연차는 보상 없이 소멸될 수 있습니다.')
+    else:
+        subject = f'[TalentCore] {year}년 잔여 연차 사용시기 지정 통보 (2차 촉진)'
+        body_msg = (f'{year}년 귀하의 잔여 연차 <b>{remain_days}일</b>에 대해 사용계획이 제출되지 않아, '
+                    f'근로기준법 제61조에 따라 회사가 사용 시기를 지정하여 통보합니다. '
+                    f'세부 일정은 인사팀 안내를 확인해 주세요. 지정된 시기에 사용하지 않은 연차는 보상 없이 소멸됩니다.')
+    html = f"""
+    <div style="font-family:'Apple SD Gothic Neo',sans-serif;max-width:520px;margin:0 auto;border:1px solid #eee;border-radius:12px;overflow:hidden;">
+      <div style="background:#0ea5e9;color:#fff;padding:20px 24px;font-size:17px;font-weight:700;">연차사용촉진 통보 ({round_no}차)</div>
+      <div style="padding:24px;font-size:14px;line-height:1.7;">
+        <p>{name}님,</p><p>{body_msg}</p>
+        <a href="{TALENTCORE_URL}/attendance/home?tab=leaves" style="display:block;text-align:center;background:#0ea5e9;color:#fff;padding:12px;border-radius:8px;text-decoration:none;font-weight:700;margin-top:18px;">연차 신청하러 가기</a>
+      </div>
+    </div>"""
+    import re as _re
+    text = f"{name}님, " + _re.sub('<[^>]+>', '', body_msg)
+    return _send_simple(employee.get('email', ''), subject, html, text)

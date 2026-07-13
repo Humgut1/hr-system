@@ -5278,6 +5278,19 @@ def compensation():
                         f'{year}년 {month}월 급여명세서가 확정되었습니다',
                         f'실수령액 {fmt_krw(result["net_pay"])}원',
                         link=f'/payroll/{year}/{month}')
+                    # 급여명세 이메일 발송 (근로기준법 §48 교부 의무, SMTP 미설정 시 데모)
+                    try:
+                        from integrations.email_sender import send_payslip_email
+                        _er = db.execute('SELECT email, name FROM users WHERE id=?', (e['id'],)).fetchone()
+                        if _er and _er['email']:
+                            send_payslip_email(dict(_er), {
+                                'year': year, 'month': month,
+                                'gross_pay': result['gross_pay'],
+                                'total_deduction': result['total_deduction'],
+                                'net_pay': result['net_pay'],
+                            })
+                    except Exception as _ee:
+                        app.logger.warning(f'payslip email failed: {_ee}')
                     count += 1
                 db.commit()
                 flash(f'{year}년 {month}월 급여 {count}건 생성 완료', 'success')
@@ -5837,6 +5850,17 @@ def admin_payroll():
                             '급여명세서 생성',
                             name=emp_email_row['name']
                         )
+                        # 급여명세 이메일 발송 (근로기준법 §48 교부 의무, SMTP 미설정 시 데모)
+                        try:
+                            from integrations.email_sender import send_payslip_email
+                            send_payslip_email(dict(emp_email_row), {
+                                'year': year, 'month': month,
+                                'gross_pay': result['gross_pay'],
+                                'total_deduction': result['total_deduction'],
+                                'net_pay': result['net_pay'],
+                            })
+                        except Exception as _ee:
+                            app.logger.warning(f'payslip email failed: {_ee}')
                     count += 1
                 db.commit()
                 msg = f'{year}년 {month}월 급여명세서 {count}건이 생성되었습니다. (근태 수당·복리후생 자동 포함)'
@@ -12430,6 +12454,90 @@ def admin_holidays():
         'SELECT * FROM public_holidays WHERE year=? ORDER BY date', (year,)
     ).fetchall()
     return render_template('admin/holidays.html', holidays=holidays, year=year, active_page='holidays')
+
+
+# ══════════════════════════════════════════════════════════════
+#  연차사용촉진 (Phase B-8, 근로기준법 §61)
+# ══════════════════════════════════════════════════════════════
+
+@app.route('/admin/leave-promotion', methods=['GET', 'POST'])
+@admin_required
+def admin_leave_promotion():
+    db   = get_db()
+    year = date.today().year
+
+    if request.method == 'POST':
+        round_no = int(request.form.get('round_no', 1))
+        user_ids = [int(x) for x in request.form.getlist('user_id')]
+        if round_no not in (1, 2) or not user_ids:
+            flash('발송 대상을 선택해주세요.', 'warning')
+            return redirect(url_for('admin_leave_promotion'))
+
+        from integrations.email_sender import send_leave_promotion_email
+        sent = 0
+        for uid in user_ids:
+            u = db.execute("SELECT * FROM users WHERE id=? AND status='active'", (uid,)).fetchone()
+            if not u:
+                continue
+            total  = calc_annual_leave(u['hire_date'])
+            used   = db.execute(
+                "SELECT COALESCE(SUM(days),0) s FROM leave_requests "
+                "WHERE user_id=? AND type='annual' AND status='approved' "
+                "AND strftime('%Y', start_date)=?", (uid, str(year))
+            ).fetchone()['s']
+            remain = total - used
+            if remain <= 0:
+                continue
+            db.execute(
+                'INSERT INTO leave_promotion_logs (user_id, year, round_no, remain_days, sent_by) '
+                'VALUES (?,?,?,?,?)', (uid, year, round_no, remain, session['user_id'])
+            )
+            add_notification(
+                uid, 'action', 'leave',
+                f'{year}년 연차사용촉진 통보 ({round_no}차)',
+                (f'잔여 연차 {remain}일 — 사용 계획을 10일 이내 제출해주세요. 미사용 연차는 소멸될 수 있습니다.'
+                 if round_no == 1 else
+                 f'잔여 연차 {remain}일의 사용 시기가 회사 지정으로 통보되었습니다. 인사팀 안내를 확인하세요.'),
+                url_for('attendance_home', tab='leaves')
+            )
+            try:
+                send_leave_promotion_email(dict(u), remain, round_no, year)
+            except Exception as e:
+                app.logger.warning(f'leave promotion email failed: {e}')
+            sent += 1
+        db.commit()
+        log_audit('create', 'personal_info', None, f'연차촉진 {round_no}차 통보 발송 — {sent}명 ({year}년)')
+        flash(f'{round_no}차 촉진 통보 {sent}건 발송 완료 (인앱 알림 + 이메일).', 'success')
+        return redirect(url_for('admin_leave_promotion'))
+
+    # GET — 잔여 연차 현황 + 발송 이력
+    rows = []
+    for u in db.execute(
+        "SELECT id, name, email, hire_date, department_id FROM users "
+        "WHERE status='active' AND role != 'guest' ORDER BY name"
+    ).fetchall():
+        total = calc_annual_leave(u['hire_date'])
+        used  = db.execute(
+            "SELECT COALESCE(SUM(days),0) s FROM leave_requests "
+            "WHERE user_id=? AND type='annual' AND status='approved' "
+            "AND strftime('%Y', start_date)=?", (u['id'], str(year))
+        ).fetchone()['s']
+        remain = total - used
+        if remain <= 0:
+            continue
+        logs = db.execute(
+            'SELECT round_no, sent_at FROM leave_promotion_logs WHERE user_id=? AND year=? ORDER BY round_no',
+            (u['id'], year)
+        ).fetchall()
+        rows.append({
+            'id': u['id'], 'name': u['name'], 'hire_date': u['hire_date'],
+            'total': total, 'used': used, 'remain': remain,
+            'r1_sent': next((l['sent_at'] for l in logs if l['round_no'] == 1), None),
+            'r2_sent': next((l['sent_at'] for l in logs if l['round_no'] == 2), None),
+        })
+    rows.sort(key=lambda x: -x['remain'])
+    return render_template('admin/leave_promotion.html', rows=rows, year=year,
+                           active_page='leave_promotion')
 
 
 AUDIT_CATEGORY_LABEL = {

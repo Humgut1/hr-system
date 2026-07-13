@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}연차사용촉진{% endblock %}
+{% block page_title %}연차사용촉진 통보{% endblock %}
+
+{% block content %}
+
+<div class="card" style="padding:16px 20px; margin-bottom:18px; border-left:4px solid var(--primary);">
+  <div style="font-weight:700; margin-bottom:6px;">근로기준법 제61조 — 연차사용촉진제도</div>
+  <div class="muted" style="font-size:13px; line-height:1.7;">
+    ① <b>1차 촉진</b> (연차 소멸 6개월 전, 통상 7월 초): 잔여 연차 일수를 서면 통보하고 사용 시기 지정을 요구합니다.<br>
+    ② <b>2차 촉진</b> (소멸 2개월 전, 통상 10월): 직원이 시기를 정하지 않으면 회사가 사용 시기를 지정해 통보합니다.<br>
+    적법한 촉진 절차를 모두 거치면 미사용 연차에 대한 금전 보상 의무가 면제됩니다. 발송 이력은 아래에 기록됩니다.
+  </div>
+</div>
+
+<form method="POST" id="promo-form">
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title"><i class="fas fa-calendar-check" style="color:var(--primary); margin-right:7px;"></i>{{ year }}년 잔여 연차 보유자</span>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <label style="font-size:12.5px;" class="muted"><input type="checkbox" onclick="document.querySelectorAll('.pr-chk').forEach(c=>c.checked=this.checked)"> 전체 선택</label>
+        <select name="round_no" class="form-control" style="width:130px; padding:6px 10px; font-size:13px;">
+          <option value="1">1차 촉진</option>
+          <option value="2">2차 촉진</option>
+        </select>
+        <button type="submit" class="btn btn-primary btn-sm"
+                onclick="return confirm('선택한 직원에게 촉진 통보(인앱 알림 + 이메일)를 발송합니다. 발송 이력이 법적 증빙으로 기록됩니다. 진행할까요?')">
+          <i class="fas fa-paper-plane" style="margin-right:5px;"></i>촉진 통보 발송
+        </button>
+      </div>
+    </div>
+    {% if rows %}
+    <div class="tbl-wrap" style="max-height:520px; overflow-y:auto;">
+      <table>
+        <thead>
+          <tr><th></th><th>이름</th><th>입사일</th><th>부여</th><th>사용</th><th>잔여</th><th>1차 발송</th><th>2차 발송</th></tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td><input type="checkbox" class="pr-chk" name="user_id" value="{{ r.id }}"></td>
+            <td style="font-weight:600;">{{ r.name }}</td>
+            <td style="font-size:13px;">{{ r.hire_date }}</td>
+            <td>{{ r.total }}일</td>
+            <td>{{ r.used }}일</td>
+            <td><span class="badge {{ 'badge-danger' if r.remain >= 10 else 'badge-warning' }}" style="font-size:11.5px;">{{ r.remain }}일</span></td>
+            <td style="font-size:12px;" class="muted">{{ r.r1_sent or '—' }}</td>
+            <td style="font-size:12px;" class="muted">{{ r.r2_sent or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding:40px; text-align:center;" class="muted">잔여 연차가 있는 직원이 없습니다.</div>
+    {% endif %}
+  </div>
+</form>
+
+{% endblock %}
