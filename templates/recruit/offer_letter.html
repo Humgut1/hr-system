@@ -224,10 +224,21 @@
             <span style="color:var(--tx-3)">최대 <span id="display-bonus">₩{{ '{:,}'.format((offer.salary * (offer.bonus_pct or 20) // 100)) if offer.salary else '협의' }}</span></span>
           </td>
         </tr>
-        {% if offer.rsu_total and offer.rsu_total > 0 %}
+        {% if offer.equity_type == 'stock_option' and offer.option_qty and offer.option_qty > 0 %}
         <tr class="ol-tc-row">
           <td class="ol-tc-cell">
-            <div class="ol-tc-name">RSU (주식보상)</div>
+            <div class="ol-tc-name">스톡옵션 (주식매수선택권)</div>
+            <span class="ol-tc-note">행사가 ₩{{ '{:,}'.format(offer.strike_price or 0) }}/주 ·
+              벤처기업법 §16의3에 따라 부여일부터 2년 이상 재직 후 행사 가능</span>
+          </td>
+          <td class="ol-tc-cell ol-tc-amount">
+            <span style="color:var(--tx-3)">{{ '{:,}'.format(offer.option_qty) }}주</span>
+          </td>
+        </tr>
+        {% elif offer.rsu_total and offer.rsu_total > 0 %}
+        <tr class="ol-tc-row">
+          <td class="ol-tc-cell">
+            <div class="ol-tc-name">RSU (양도제한조건부주식)</div>
             <span class="ol-tc-note">{{ offer.rsu_vest_years or 4 }}년 균등 베스팅 · 연간 환산</span>
           </td>
           <td class="ol-tc-cell ol-tc-amount">
@@ -259,8 +270,36 @@
       </div>
     </div>
 
+    <!-- 스톡옵션 행사 조건 -->
+    {% if offer.equity_type == 'stock_option' and offer.option_qty and offer.option_qty > 0 %}
+    <div class="ol-section">
+      <div class="ol-section-label">스톡옵션 부여 조건 — 총 {{ '{:,}'.format(offer.option_qty) }}주</div>
+      <div class="ol-vest-grid">
+        <div class="ol-vest-item">
+          <div class="ol-vest-yr">행사가</div>
+          <div class="ol-vest-amt" style="margin-top:8px;">₩{{ '{:,}'.format(offer.strike_price or 0) }}</div>
+          <div class="ol-vest-pct">1주당</div>
+        </div>
+        <div class="ol-vest-item">
+          <div class="ol-vest-yr">클리프</div>
+          <div class="ol-vest-amt" style="margin-top:8px;">2년</div>
+          <div class="ol-vest-pct">최소 재직 기간</div>
+        </div>
+        <div class="ol-vest-item">
+          <div class="ol-vest-yr">행사 가능 시점</div>
+          <div class="ol-vest-amt" style="margin-top:8px;">부여일 + 2년</div>
+          <div class="ol-vest-pct">벤처기업법 §16의3</div>
+        </div>
+      </div>
+      <div style="font-size:11px; color:var(--tx-3); margin-top:10px; line-height:1.6;">
+        ※ 주식매수선택권은 주주총회 결의로 부여되며, 벤처기업육성에 관한 특별조치법 제16조의3에 따라
+        부여일부터 2년 이상 재임·재직하여야 행사할 수 있습니다. 세부 조건은 별도 부여 계약서를 따릅니다.
+      </div>
+    </div>
+    {% endif %}
+
     <!-- RSU 베스팅 -->
-    {% if offer.rsu_total and offer.rsu_total > 0 %}
+    {% if (offer.equity_type != 'stock_option') and offer.rsu_total and offer.rsu_total > 0 %}
     <div class="ol-section">
       <div class="ol-section-label">RSU 베스팅 스케줄 — 총 ₩{{ '{:,}'.format(offer.rsu_total) }}</div>
       {% set vest_yrs = offer.rsu_vest_years or 4 %}
@@ -389,14 +428,32 @@
              value="{{ offer.bonus_pct or 20 }}" min="0" max="100" step="5">
     </div>
     <div>
+      <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">사이닝 보너스 (원)</label>
+      <input type="number" id="input-signing" class="input" style="font-size:13px;"
+             value="{{ offer.signing_bonus or 0 }}" step="1000000">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">주식보상 유형</label>
+      <select id="input-equity-type" class="input" style="font-size:13px;">
+        <option value="none" {% if offer.equity_type == 'none' %}selected{% endif %}>없음</option>
+        <option value="stock_option" {% if offer.equity_type == 'stock_option' %}selected{% endif %}>스톡옵션</option>
+        <option value="rsu" {% if not offer.equity_type or offer.equity_type == 'rsu' %}selected{% endif %}>RSU</option>
+      </select>
+    </div>
+    <div>
       <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">RSU 총액 (원, 0=없음)</label>
       <input type="number" id="input-rsu" class="input" style="font-size:13px;"
              value="{{ offer.rsu_total or 0 }}" step="1000000">
     </div>
     <div>
-      <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">사이닝 보너스 (원)</label>
-      <input type="number" id="input-signing" class="input" style="font-size:13px;"
-             value="{{ offer.signing_bonus or 0 }}" step="1000000">
+      <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">스톡옵션 수량 (주)</label>
+      <input type="number" id="input-option-qty" class="input" style="font-size:13px;"
+             value="{{ offer.option_qty or 0 }}" step="100">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">행사가 (원/주)</label>
+      <input type="number" id="input-strike" class="input" style="font-size:13px;"
+             value="{{ offer.strike_price or 0 }}" step="100">
     </div>
   </div>
   <div style="margin-top:12px;display:flex;align-items:center;gap:10px;">
@@ -464,6 +521,9 @@
       var bonusPct = parseInt(document.getElementById('input-bonus-pct').value) || 20;
       var rsu      = parseInt(document.getElementById('input-rsu').value) || 0;
       var signing  = parseInt(document.getElementById('input-signing').value) || 0;
+      var eqType   = (document.getElementById('input-equity-type') || {}).value || 'rsu';
+      var optQty   = parseInt((document.getElementById('input-option-qty') || {}).value) || 0;
+      var strike   = parseInt((document.getElementById('input-strike') || {}).value) || 0;
 
       recalcTC(salary, bonusPct);
 
@@ -471,9 +531,12 @@
         salary: salary,
         bonus_pct: bonusPct,
         rsu_total: rsu,
-        signing_bonus: signing
+        signing_bonus: signing,
+        equity_type: eqType,
+        option_qty: optQty,
+        strike_price: strike
       }, function(){
-        /* 저장 후 새로고침해서 RSU 베스팅 섹션 반영 */
+        /* 저장 후 새로고침해서 주식보상 섹션 반영 */
         window.location.reload();
       });
     });

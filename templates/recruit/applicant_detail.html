@@ -474,19 +474,52 @@
                 </div>
                 {% endif %}
               </div>
-              <!-- 2행: 성과급% / RSU / 사이닝 -->
+              <!-- 2행: 성과급% / 사이닝 / 주식보상 유형 -->
               <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px;">
                 <div class="field" style="margin-bottom:0;">
                   <label class="form-label" style="font-size:12px;">성과급 최대 (%)</label>
                   <input type="number" name="bonus_pct" class="input" value="20" min="0" max="100" step="5" placeholder="20">
                 </div>
                 <div class="field" style="margin-bottom:0;">
-                  <label class="form-label" style="font-size:12px;">RSU 총액 (원, 0=없음)</label>
+                  <label class="form-label" style="font-size:12px;">사이닝 보너스 (원)</label>
+                  <input type="number" name="signing_bonus" class="input" value="0" step="500000" placeholder="0">
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">주식보상 유형</label>
+                  <select name="equity_type" class="input" id="of-equity-type" onchange="toggleEquityFields()">
+                    <option value="none">없음</option>
+                    <option value="stock_option" selected>스톡옵션 (국내 스타트업)</option>
+                    <option value="rsu">RSU (양도제한조건부주식)</option>
+                  </select>
+                </div>
+              </div>
+              <!-- 2-1행: 스톡옵션 필드 -->
+              <div id="of-equity-option" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">스톡옵션 수량 (주)</label>
+                  <input type="number" name="option_qty" class="input" value="0" step="100" placeholder="1000">
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">행사가 (원/주)</label>
+                  <input type="number" name="strike_price" class="input" value="0" step="100" placeholder="5000">
+                </div>
+              </div>
+              <div id="of-equity-option-note" style="font-size:11.5px;color:var(--tx-3);margin-bottom:14px;">
+                <i class="fas fa-scale-balanced" style="margin-right:4px;"></i>
+                벤처기업법 §16의3: 부여일부터 <strong>2년 이상 재직</strong>해야 행사할 수 있습니다 (오퍼 레터에 자동 표기).
+              </div>
+              <!-- 2-2행: RSU 필드 -->
+              <div id="of-equity-rsu" style="display:none;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+                <div class="field" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:12px;">RSU 총액 (원)</label>
                   <input type="number" name="rsu_total" class="input" value="0" step="1000000" placeholder="0">
                 </div>
                 <div class="field" style="margin-bottom:0;">
-                  <label class="form-label" style="font-size:12px;">사이닝 보너스 (원)</label>
-                  <input type="number" name="signing_bonus" class="input" value="0" step="500000" placeholder="0">
+                  <label class="form-label" style="font-size:12px;">베스팅 기간 (년)</label>
+                  <select name="rsu_vest_years" class="input">
+                    <option value="3">3년</option>
+                    <option value="4" selected>4년</option>
+                  </select>
                 </div>
               </div>
               <!-- 3행: 입사일 / 유효기간 / 재택 -->
@@ -554,6 +587,19 @@
           document.querySelector('[name=bonus_pct]')?.addEventListener('input',upd);
           upd();
         }());
+
+        function toggleEquityFields(){
+          var t = document.getElementById('of-equity-type');
+          if(!t) return;
+          var v = t.value;
+          var opt  = document.getElementById('of-equity-option');
+          var note = document.getElementById('of-equity-option-note');
+          var rsu  = document.getElementById('of-equity-rsu');
+          if(opt)  opt.style.display  = (v === 'stock_option') ? 'grid' : 'none';
+          if(note) note.style.display = (v === 'stock_option') ? 'block' : 'none';
+          if(rsu)  rsu.style.display  = (v === 'rsu') ? 'grid' : 'none';
+        }
+        toggleEquityFields();
         </script>
         {% endif %}
 

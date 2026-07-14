@@ -981,8 +981,51 @@ def admin_settings():
 
     config  = get_company_config()
     company = get_company_info()
+    positions = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
     return render_template('admin/settings.html', config=config, company=company,
+                           positions=positions,
+                           position_presets=POSITION_PRESETS,
                            active_page='settings')
+
+
+# ── 직급 체계 프리셋 (Phase C-12, saas_plan.md §3) ─────────────
+POSITION_PRESETS = {
+    'l_level': {
+        'label': 'L-레벨형 (테크 스타트업)',
+        'names': {1: 'L1 — Associate', 2: 'L2 — Junior', 3: 'L3 — Mid-Level',
+                  4: 'L4 — Senior', 5: 'L5 — Staff', 6: 'L6 — Manager',
+                  7: 'L7 — Senior Manager', 8: 'L8 — Director', 9: 'L9 — VP / Executive'},
+    },
+    'kr_title': {
+        'label': '호칭형 (사원-대리-과장-차장-부장)',
+        'names': {1: '사원', 2: '주임', 3: '대리', 4: '과장', 5: '차장',
+                  6: '부장', 7: '이사', 8: '상무', 9: '부사장'},
+    },
+}
+
+
+@app.route('/admin/positions/preset', methods=['POST'])
+@admin_required
+def admin_positions_preset():
+    """직급 라벨 프리셋 일괄 적용 — 내부 레벨 체계는 유지, 이름만 변경."""
+    db     = get_db()
+    preset = request.form.get('preset', '')
+    if preset not in POSITION_PRESETS:
+        flash('올바른 프리셋을 선택하세요.', 'error')
+        return redirect(url_for('admin_settings'))
+    names = POSITION_PRESETS[preset]['names']
+    updated = 0
+    for row in db.execute('SELECT id, level FROM positions').fetchall():
+        new_name = names.get(row['level'])
+        if new_name:
+            db.execute('UPDATE positions SET name=? WHERE id=?', (new_name, row['id']))
+            updated += 1
+    db.commit()
+    log_audit('update', 'personal_info', None,
+              f'직급 체계 프리셋 적용 — {POSITION_PRESETS[preset]["label"]} ({updated}개 직급)')
+    flash(f'직급 이름이 "{POSITION_PRESETS[preset]["label"]}" 기준으로 변경되었습니다 ({updated}개). '
+          '직원 데이터·급여 밴드는 그대로 유지됩니다.', 'success')
+    return redirect(url_for('admin_settings'))
 
 
 # ── Dashboard helpers ─────────────────────────────────────────
@@ -9049,8 +9092,19 @@ def recruit_offers(applicant_id):
 
         salary       = _int('salary')
         bonus_pct    = _int('bonus_pct') or 20
+        equity_type  = request.form.get('equity_type', 'rsu')
+        if equity_type not in ('rsu', 'stock_option', 'none'):
+            equity_type = 'rsu'
         rsu_total    = _int('rsu_total') or 0
         rsu_vest_yrs = _int('rsu_vest_years') or 4
+        option_qty   = _int('option_qty') or 0
+        strike_price = _int('strike_price') or 0
+        if equity_type == 'stock_option':
+            rsu_total = 0
+        elif equity_type == 'rsu':
+            option_qty = strike_price = 0
+        else:
+            rsu_total = option_qty = strike_price = 0
         signing      = _int('signing_bonus') or 0
         start_date   = request.form.get('start_date') or None
         expiry_date  = request.form.get('expiry_date') or None
@@ -9065,11 +9119,13 @@ def recruit_offers(applicant_id):
 
         offer_id = db.execute(
             'INSERT INTO offers (applicant_id, posting_id, status, salary, bonus_pct, '
-            'rsu_total, rsu_vest_years, signing_bonus, start_date, expiry_date, '
+            'rsu_total, rsu_vest_years, signing_bonus, equity_type, option_qty, strike_price, '
+            'start_date, expiry_date, '
             'location, wfh_days, job_level, track, company_signer, company_signer_title, '
-            'sent_at, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            'sent_at, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
             (applicant_id, applicant['posting_id'], status, salary, bonus_pct,
-             rsu_total, rsu_vest_yrs, signing, start_date, expiry_date,
+             rsu_total, rsu_vest_yrs, signing, equity_type, option_qty, strike_price,
+             start_date, expiry_date,
              location, wfh_days, job_level, track, signer, signer_title,
              'CURRENT_TIMESTAMP' if action == 'send' else None,
              session['user_id'])
@@ -9091,20 +9147,8 @@ def recruit_offers(applicant_id):
         flash('오퍼가 생성됐습니다.' + (' (이메일 기록 저장)' if action == 'send' else ''), 'success')
         return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id) + '#offers')
 
-    # 요청서 기반 연봉 밴드 조회 (프리필용)
-    band = None
-    if applicant['job_family_id'] and applicant['job_level']:
-        level_num = int(applicant['job_level'][1:]) if applicant['job_level'] and applicant['job_level'][1:].isdigit() else None
-        if level_num:
-            band = db.execute(
-                'SELECT sg.min_salary, sg.mid_salary, sg.max_salary, jf.name AS family_name '
-                'FROM salary_grades sg JOIN job_families jf ON sg.job_family_id = jf.id '
-                'WHERE sg.job_family_id=? AND sg.level=?', (applicant['job_family_id'], level_num)
-            ).fetchone()
-
-    return render_template('recruit/offers.html',
-                           applicant=applicant, band=band,
-                           offer_status_label=OFFER_STATUS_LABEL)
+    # GET — 오퍼 관리는 지원자 상세의 오퍼 탭에서 진행 (전용 페이지 없음)
+    return redirect(url_for('recruit_applicant_detail', applicant_id=applicant_id) + '#offers')
 
 
 @app.route('/recruit/offers/<int:offer_id>/update', methods=['POST'])
@@ -9125,13 +9169,16 @@ def recruit_offer_update(offer_id):
             return None
 
     fields = {}
-    for key in ('salary', 'bonus_pct', 'rsu_total', 'rsu_vest_years', 'signing_bonus', 'wfh_days'):
+    for key in ('salary', 'bonus_pct', 'rsu_total', 'rsu_vest_years', 'signing_bonus', 'wfh_days',
+                'option_qty', 'strike_price'):
         if key in data:
             fields[key] = _safe_int(data[key])
     for key in ('start_date', 'expiry_date', 'location', 'job_level', 'track',
                 'company_signer', 'company_signer_title', 'body'):
         if key in data:
             fields[key] = str(data[key]).strip() or None
+    if data.get('equity_type') in ('rsu', 'stock_option', 'none'):
+        fields['equity_type'] = data['equity_type']
 
     if not fields:
         return jsonify({'ok': True, 'msg': 'no changes'})

@@ -1302,6 +1302,10 @@ def init_db(db_path: str = None):
             ('benefits_json', 'TEXT'),
             ('company_signer','TEXT'),
             ('company_signer_title', 'TEXT'),
+            # v1.2.1 — 국내형 스톡옵션 모드 (Phase C-12, 벤처기업법 §16-3)
+            ('equity_type',   "TEXT DEFAULT 'rsu'"),   # rsu | stock_option
+            ('option_qty',    'INTEGER DEFAULT 0'),    # 스톡옵션 수량(주)
+            ('strike_price',  'INTEGER DEFAULT 0'),    # 행사가(원/주)
         ]:
             if col not in of_cols:
                 c.execute(f'ALTER TABLE offers ADD COLUMN {col} {ddl}')

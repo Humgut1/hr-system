@@ -75,6 +75,7 @@
     <button class="settings-tab" onclick="switchTab('leave')"><i class="fas fa-umbrella-beach" style="margin-right:6px;"></i>휴가 정책</button>
     <button class="settings-tab" onclick="switchTab('payroll')"><i class="fas fa-won-sign" style="margin-right:6px;"></i>급여 설정</button>
     <button class="settings-tab" onclick="switchTab('perf')"><i class="fas fa-chart-line" style="margin-right:6px;"></i>성과관리</button>
+    <button class="settings-tab" onclick="switchTab('positions')"><i class="fas fa-sitemap" style="margin-right:6px;"></i>직급 체계</button>
     <button class="settings-tab" onclick="switchTab('links')"><i class="fas fa-external-link-alt" style="margin-right:6px;"></i>바로가기</button>
   </div>
 
@@ -480,6 +481,46 @@
     </div>
 
   </form>
+
+  <!-- ══ 직급 체계 프리셋 (Phase C-12) ══ -->
+  <div class="settings-panel card" id="tab-positions">
+    <div class="card-body">
+      <div style="font-size:13px; color:var(--tx-3); line-height:1.7; margin-bottom:18px;">
+        회사에 맞는 직급 호칭 체계를 선택하세요. <strong>이름(라벨)만 일괄 변경</strong>되며
+        내부 레벨(1~9)·직원 배정·연봉 밴드는 그대로 유지됩니다.
+        개별 직급 이름을 직접 수정하려면 <a href="{{ url_for('departments') }}" style="color:var(--primary); font-weight:700;">부서·직급 관리</a>에서 변경하세요.
+      </div>
+
+      <form method="POST" action="{{ url_for('admin_positions_preset') }}"
+            onsubmit="return confirm('선택한 프리셋으로 모든 직급 이름이 변경됩니다. 계속할까요?')">
+        <div class="radio-cards" style="margin-bottom:18px;">
+          {% for key, p in position_presets.items() %}
+          <label class="radio-card">
+            <input type="radio" name="preset" value="{{ key }}" {% if loop.first %}checked{% endif %}>
+            <div class="radio-card-body">
+              <div class="radio-card-icon">{{ '🚀' if key == 'l_level' else '🏢' }}</div>
+              <div>
+                <div class="radio-card-name">{{ p.label }}</div>
+                <div class="radio-card-desc">{{ p.names[1] }} → {{ p.names[5] }} → {{ p.names[9] }}</div>
+              </div>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-wand-magic-sparkles"></i> 프리셋 적용</button>
+      </form>
+
+      <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin:24px 0 12px;">현재 직급 체계</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        {% for pos in positions %}
+        <span style="background:var(--bg); border:1px solid var(--border); border-radius:20px;
+                     padding:5px 14px; font-size:12.5px; font-weight:600;">
+          <span style="color:var(--tx-3); font-size:11px;">Lv{{ pos.level }}</span> {{ pos.name }}
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
 
   <!-- 바로가기 탭 -->
   <div class="settings-panel" id="tab-links" style="max-width:100%;">
