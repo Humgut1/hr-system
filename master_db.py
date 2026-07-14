@@ -41,7 +41,16 @@ def get_plan_price(plan):
 
 # ── 경로 헬퍼 ────────────────────────────────────────────────
 def get_tenant_db_path(tenant_id: int) -> str:
-    """테넌트 DB 파일 경로 반환. 테넌트 1은 기존 hr_system.db 사용."""
+    """테넌트 DB 파일 경로 반환. 테넌트 1은 기존 hr_system.db 사용.
+
+    tenant_id가 None/비정상이면 데모 테넌트(1)로 폴백 — 과거 tenant_None.db가
+    생성된 버그의 재발 방지 가드 (P0-3).
+    """
+    if not tenant_id or not str(tenant_id).isdigit():
+        import logging
+        logging.getLogger(__name__).warning(f'get_tenant_db_path: 잘못된 tenant_id={tenant_id!r} → 1로 폴백')
+        tenant_id = 1
+    tenant_id = int(tenant_id)
     name = 'hr_system.db' if tenant_id == 1 else f'tenant_{tenant_id}.db'
     return os.path.join(_db_dir, name) if _db_dir else name
 

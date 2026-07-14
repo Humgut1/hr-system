@@ -861,6 +861,24 @@ def _seed_manager_ids():
     print(f'[seed] manager_id 배정 완료: {len(assignments)}명')
 
 
+def _fix_manager_roles():
+    """시드 정합성 (P0-3): 직속 부하가 있는 사람은 manager role이어야
+    승인(휴가/목표 확정 등) 데모 플로우가 자연스럽게 동작한다.
+    admin/recruiter는 유지, 부하가 있는 employee만 승격. 멱등."""
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute("""
+        UPDATE users SET role='manager'
+        WHERE role='employee' AND status='active'
+          AND id IN (SELECT DISTINCT manager_id FROM users
+                     WHERE manager_id IS NOT NULL AND status='active')
+    """)
+    if c.rowcount:
+        print(f'[seed] 매니저 role 정합성: {c.rowcount}명 employee→manager 승격')
+    conn.commit()
+    conn.close()
+
+
 def _seed_master_db(c_all_users=None):
     """
     master.db에 데모 테넌트(id=1) 등록.
@@ -1411,4 +1429,5 @@ if __name__ == '__main__':
         _seed_checkins_annual()
     else:
         run()
+        _fix_manager_roles()      # 멱등 — 기존 DB에도 정합성 보정 적용 (P0-3)
         _seed_checkins_annual()
