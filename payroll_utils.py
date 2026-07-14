@@ -292,7 +292,7 @@ def calc_personal_deductions(dependents: list,
         dep_income = int(dep['annual_income'] if hasattr(dep, '__getitem__') else getattr(dep, 'annual_income', 0) or 0)
         cohabit    = bool(dep['is_cohabiting'] if hasattr(dep, '__getitem__') else getattr(dep, 'is_cohabiting', 1))
         is_adopted = bool(dep['is_adopted'] if hasattr(dep, '__getitem__') else getattr(dep, 'is_adopted', 0))
-        birth_ord  = int(dep['birth_order'] if hasattr(dep, '__getitem__') else getattr(dep, 'birth_order', 1) or 1)
+        birth_ord  = int((dep['birth_order'] if hasattr(dep, '__getitem__') else getattr(dep, 'birth_order', 1)) or 1)
 
         age = age_of(bd_str)
 

@@ -1683,7 +1683,7 @@ def employee_detail(emp_id):
 
     payslips = db.execute(
         'SELECT year, month, gross_pay, net_pay, base_salary '
-        'FROM payslips WHERE user_id=? ORDER BY year DESC, month DESC LIMIT 6',
+        "FROM payslips WHERE user_id=? AND status='confirmed' ORDER BY year DESC, month DESC LIMIT 6",
         (emp_id,)
     ).fetchall()
 
@@ -3877,7 +3877,7 @@ def termination_request_detail(req_id):
             last_work_date = request.form.get('final_last_work_date') or termination['final_last_work_date'] or termination['requested_last_work_date']
             payslips = db.execute(
                 'SELECT year, month, gross_pay FROM payslips '
-                'WHERE user_id=? ORDER BY year DESC, month DESC LIMIT 3',
+                "WHERE user_id=? AND status='confirmed' ORDER BY year DESC, month DESC LIMIT 3",
                 (termination['user_id'],)
             ).fetchall()
             preview = calc_severance(termination['hire_date'] or '', term_date, [dict(r) for r in payslips])
@@ -3932,7 +3932,7 @@ def termination_request_detail(req_id):
     ).fetchall()
     recent_payslips = db.execute(
         'SELECT year, month, gross_pay FROM payslips '
-        'WHERE user_id=? ORDER BY year DESC, month DESC LIMIT 3',
+        "WHERE user_id=? AND status='confirmed' ORDER BY year DESC, month DESC LIMIT 3",
         (termination['user_id'],)
     ).fetchall()
     preview = calc_severance(
@@ -3980,7 +3980,7 @@ def employee_offboard(emp_id):
 
     recent_payslips = db.execute(
         'SELECT year, month, gross_pay FROM payslips '
-        'WHERE user_id=? ORDER BY year DESC, month DESC LIMIT 3',
+        "WHERE user_id=? AND status='confirmed' ORDER BY year DESC, month DESC LIMIT 3",
         (emp_id,)
     ).fetchall()
     payslip_list = [dict(r) for r in recent_payslips]
@@ -4047,7 +4047,7 @@ def employee_severance(emp_id):
     # 최근 3개월 payslip
     recent_payslips = db.execute(
         'SELECT year, month, gross_pay FROM payslips '
-        'WHERE user_id=? ORDER BY year DESC, month DESC LIMIT 3',
+        "WHERE user_id=? AND status='confirmed' ORDER BY year DESC, month DESC LIMIT 3",
         (emp_id,)
     ).fetchall()
     payslip_list = [dict(r) for r in recent_payslips]
@@ -5308,7 +5308,7 @@ def payroll_list():
     uid = session['user_id']
 
     slips_count = db.execute(
-        'SELECT COUNT(*) FROM payslips WHERE user_id=?', (uid,)
+        "SELECT COUNT(*) FROM payslips WHERE user_id=? AND status='confirmed'", (uid,)
     ).fetchone()[0]
 
     contracts_count = db.execute(
@@ -5334,7 +5334,7 @@ def payroll_slips():
     uid = session['user_id']
     slips = db.execute(
         'SELECT year, month, gross_pay, total_deduction, net_pay '
-        'FROM payslips WHERE user_id=? ORDER BY year DESC, month DESC',
+        "FROM payslips WHERE user_id=? AND status='confirmed' ORDER BY year DESC, month DESC",
         (uid,)
     ).fetchall()
     return render_template('payroll/slips.html',
@@ -5354,7 +5354,7 @@ def payroll_detail(year, month):
         'JOIN users u ON p.user_id = u.id '
         'LEFT JOIN departments d   ON u.department_id = d.id '
         'LEFT JOIN positions   pos ON u.position_id   = pos.id '
-        'WHERE p.user_id=? AND p.year=? AND p.month=?',
+        "WHERE p.user_id=? AND p.year=? AND p.month=? AND p.status='confirmed'",
         (uid, year, month)
     ).fetchone()
     if not slip:
@@ -5362,6 +5362,73 @@ def payroll_detail(year, month):
     return render_template('payroll/detail.html', slip=slip,
                            year=year, month=month, fmt_krw=fmt_krw,
                            active_page='payroll')
+
+# ── 급여 2단계 확정 (P0-2: 자동계산 초안 → 담당자 확정 → 공개·발송) ──
+@app.route('/payroll/confirm', methods=['POST'])
+@admin_required
+def payroll_confirm():
+    """해당 월 draft 명세를 일괄 확정 — 직원 공개 + 인앱 알림 + 이메일 발송."""
+    db    = get_db()
+    year  = request.form.get('year', type=int)
+    month = request.form.get('month', type=int)
+    if not year or not month:
+        flash('연도와 월을 확인해주세요.', 'error')
+        return redirect(url_for('compensation'))
+
+    drafts = db.execute(
+        "SELECT p.*, u.email, u.name FROM payslips p JOIN users u ON p.user_id=u.id "
+        "WHERE p.year=? AND p.month=? AND p.status='draft'", (year, month)
+    ).fetchall()
+    if not drafts:
+        flash(f'{year}년 {month}월에 확정할 초안이 없습니다.', 'error')
+        return redirect(url_for('compensation'))
+
+    db.execute("UPDATE payslips SET status='confirmed' WHERE year=? AND month=? AND status='draft'",
+               (year, month))
+    db.commit()
+
+    for p in drafts:
+        add_notification(
+            p['user_id'], 'info', 'payroll',
+            f'{year}년 {month}월 급여명세서가 확정되었습니다',
+            f'실수령액 {fmt_krw(p["net_pay"])}원 · 명세서를 확인해보세요.',
+            link=f'/payroll/{year}/{month}'
+        )
+        if p['email']:
+            # 급여명세 이메일 (근로기준법 §48 교부 의무, SMTP 미설정 시 데모 모드)
+            try:
+                from integrations.email_sender import send_payslip_email
+                send_payslip_email({'email': p['email'], 'name': p['name']}, {
+                    'year': year, 'month': month,
+                    'gross_pay': p['gross_pay'],
+                    'total_deduction': p['total_deduction'],
+                    'net_pay': p['net_pay'],
+                })
+            except Exception as _ee:
+                app.logger.warning(f'payslip email failed: {_ee}')
+
+    log_audit('update', 'salary', None, f'{year}년 {month}월 급여 확정 — {len(drafts)}건 공개·발송')
+    flash(f'{year}년 {month}월 급여 {len(drafts)}건이 확정되어 직원에게 공개·발송되었습니다.', 'success')
+    return redirect(url_for('compensation'))
+
+
+@app.route('/payroll/discard-drafts', methods=['POST'])
+@admin_required
+def payroll_discard_drafts():
+    """해당 월 draft 명세 폐기 — 급여 항목 수정 후 재생성용."""
+    db    = get_db()
+    year  = request.form.get('year', type=int)
+    month = request.form.get('month', type=int)
+    cur = db.execute("DELETE FROM payslips WHERE year=? AND month=? AND status='draft'",
+                     (year, month))
+    db.commit()
+    if cur.rowcount:
+        log_audit('delete', 'salary', None, f'{year}년 {month}월 급여 초안 {cur.rowcount}건 폐기 (재생성 목적)')
+        flash(f'{year}년 {month}월 초안 {cur.rowcount}건을 폐기했습니다. 급여 항목 수정 후 다시 생성하세요.', 'success')
+    else:
+        flash('폐기할 초안이 없습니다. (확정된 명세는 폐기할 수 없습니다)', 'error')
+    return redirect(url_for('compensation'))
+
 
 @app.route('/payroll/preview', methods=['POST'])
 @admin_required
@@ -5676,15 +5743,14 @@ def compensation():
                         extra_benefits[key] = (bcfg['amount'] if bcfg['amount_type'] == 'fixed'
                                                else int(e['base_salary'] * bcfg['amount'] / 100))
                     emp_d     = db.execute('SELECT birth_date, gender FROM users WHERE id=?', (e['id'],)).fetchone()
-                    is_female = (emp_d['gender'] == 'female') if emp_d and emp_d['gender'] else False
-                    dep_rows  = db.execute(
-                        "SELECT age_type FROM dependents WHERE user_id=? AND status='active'", (e['id'],)
+                    is_female = (emp_d['gender'] == 'F') if emp_d and emp_d['gender'] else False
+                    dependents = db.execute(
+                        'SELECT * FROM employee_dependents WHERE user_id=?', (e['id'],)
                     ).fetchall()
-                    dependents = [{'age_type': d['age_type']} for d in dep_rows]
                     result = calc_payslip(
                         base_salary=e['base_salary'], meal_allowance=e['meal_allowance'],
                         transport_allowance=e['transport_allowance'],
-                        year=year, month=month, overtime_pay=total_ot_pay,
+                        overtime_pay=total_ot_pay,
                         extra_benefits=extra_benefits, dependents=dependents, is_female=is_female
                     )
                     bonus_pay = result.get('benefits_gross', 0)
@@ -5695,8 +5761,8 @@ def compensation():
                         'employment_insurance, income_tax, local_income_tax, '
                         'gross_pay, total_deduction, net_pay, benefits_json, '
                         'income_deduction, earned_income, total_personal_deduction, '
-                        'num_dependents, child_tax_credit_amount) '
-                        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                        'num_dependents, child_tax_credit_amount, status) '
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'draft')",
                         (e['id'], year, month,
                          result['base_salary'], result['meal_allowance'], result['transport_allowance'],
                          result['overtime_pay'], bonus_pay,
@@ -5709,26 +5775,11 @@ def compensation():
                          result['total_personal_deduction'], result['num_dependents'],
                          result['child_tax_credit_amount'])
                     )
-                    add_notification(e['id'], 'info', 'payroll',
-                        f'{year}년 {month}월 급여명세서가 확정되었습니다',
-                        f'실수령액 {fmt_krw(result["net_pay"])}원',
-                        link=f'/payroll/{year}/{month}')
-                    # 급여명세 이메일 발송 (근로기준법 §48 교부 의무, SMTP 미설정 시 데모)
-                    try:
-                        from integrations.email_sender import send_payslip_email
-                        _er = db.execute('SELECT email, name FROM users WHERE id=?', (e['id'],)).fetchone()
-                        if _er and _er['email']:
-                            send_payslip_email(dict(_er), {
-                                'year': year, 'month': month,
-                                'gross_pay': result['gross_pay'],
-                                'total_deduction': result['total_deduction'],
-                                'net_pay': result['net_pay'],
-                            })
-                    except Exception as _ee:
-                        app.logger.warning(f'payslip email failed: {_ee}')
+                    # P0-2: 초안 단계 — 직원 공개·알림·이메일은 '확정' 시점에 일괄 실행
                     count += 1
                 db.commit()
-                flash(f'{year}년 {month}월 급여 {count}건 생성 완료', 'success')
+                flash(f'{year}년 {month}월 급여 {count}건이 초안으로 생성되었습니다. '
+                      '금액 검토 후 [확정·발송]을 눌러야 직원에게 공개됩니다.', 'success')
 
         elif action == 'update_band':
             sg_id      = int(request.form.get('sg_id', 0))
@@ -5847,6 +5898,12 @@ def compensation():
         "SELECT * FROM compensation_review_cycles WHERE status='open' ORDER BY id DESC LIMIT 1"
     ).fetchone()
 
+    # P0-2: 미확정 초안 현황 (월별)
+    draft_months = db.execute(
+        "SELECT year, month, COUNT(*) AS cnt, SUM(net_pay) AS total_net "
+        "FROM payslips WHERE status='draft' GROUP BY year, month ORDER BY year DESC, month DESC"
+    ).fetchall()
+
     raw_emps = db.execute(
         'SELECT u.id, u.name, d.name dept_name, p.name pos_name, '
         'COALESCE(s.base_salary,0) base_salary, '
@@ -5958,6 +6015,7 @@ def compensation():
     return render_template('payroll/compensation.html',
         active_count=active_count,
         this_month_done=this_month_done,
+        draft_months=draft_months,
         active_acr=active_acr,
         compa_outliers=compa_outliers,
         total_salary_spend=total_salary_spend,
@@ -6252,8 +6310,8 @@ def admin_payroll():
                         'employment_insurance, income_tax, local_income_tax, '
                         'gross_pay, total_deduction, net_pay, benefits_json, '
                         'income_deduction, earned_income, total_personal_deduction, '
-                        'num_dependents, child_tax_credit_amount) '
-                        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                        'num_dependents, child_tax_credit_amount, status) '
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'draft')",
                         (e['id'], year, month,
                          result['base_salary'], result['meal_allowance'],
                          result['transport_allowance'], result['overtime_pay'], bonus_pay,
@@ -6266,39 +6324,11 @@ def admin_payroll():
                          result['total_personal_deduction'], result['num_dependents'],
                          result['child_tax_credit_amount'])
                     )
-                    # 급여 확정 인앱 알림 발송
-                    add_notification(
-                        e['id'], 'info', 'payroll',
-                        f'{year}년 {month}월 급여명세서가 확정되었습니다',
-                        f'실수령액 {fmt_krw(result["net_pay"])}원 · 명세서를 확인해보세요.',
-                        link=f'/payroll/{year}/{month}'
-                    )
-                    # Slack DM 발송
-                    emp_email_row = db.execute('SELECT email, name FROM users WHERE id=?', (e['id'],)).fetchone()
-                    if emp_email_row and emp_email_row['email']:
-                        from integrations.dispatcher import notify_slack
-                        notify_slack(
-                            emp_email_row['email'],
-                            f"{year}년 {month}월 급여명세서가 확정됐습니다.\n"
-                            f"실수령액: {fmt_krw(result['net_pay'])}원\n"
-                            f"TalentCore에서 명세서를 확인하세요.",
-                            '급여명세서 생성',
-                            name=emp_email_row['name']
-                        )
-                        # 급여명세 이메일 발송 (근로기준법 §48 교부 의무, SMTP 미설정 시 데모)
-                        try:
-                            from integrations.email_sender import send_payslip_email
-                            send_payslip_email(dict(emp_email_row), {
-                                'year': year, 'month': month,
-                                'gross_pay': result['gross_pay'],
-                                'total_deduction': result['total_deduction'],
-                                'net_pay': result['net_pay'],
-                            })
-                        except Exception as _ee:
-                            app.logger.warning(f'payslip email failed: {_ee}')
+                    # P0-2: 초안 단계 — 알림·Slack·이메일은 '확정' 시점에 일괄 실행
                     count += 1
                 db.commit()
-                msg = f'{year}년 {month}월 급여명세서 {count}건이 생성되었습니다. (근태 수당·복리후생 자동 포함)'
+                msg = (f'{year}년 {month}월 급여명세서 {count}건이 초안으로 생성되었습니다. '
+                       '검토 후 [확정·발송] 시 직원에게 공개됩니다.')
 
     from payroll_utils import calc_compa_ratio, compa_band as _compa_band
     raw_emps = db.execute(
@@ -6614,7 +6644,7 @@ def total_compensation(uid):
 
     # 연간 급여 합계
     payslips = db.execute(
-        'SELECT * FROM payslips WHERE user_id=? AND year=? ORDER BY month',
+        "SELECT * FROM payslips WHERE user_id=? AND year=? AND status='confirmed' ORDER BY month",
         (uid, year)
     ).fetchall()
     total_gross   = sum(p['gross_pay']  for p in payslips)
@@ -6928,7 +6958,7 @@ def cert_view(req_id):
     elif req['cert_type'] == 'income':
         # 소득증명은 연도 파라미터가 추가로 필요할 수 있음 (기본은 신청일 기준 전년도 혹은 현재년도)
         year = today.year
-        slips = db.execute('SELECT * FROM payslips WHERE user_id=? AND year=? ORDER BY month', (uid, year)).fetchall()
+        slips = db.execute("SELECT * FROM payslips WHERE user_id=? AND year=? AND status='confirmed' ORDER BY month", (uid, year)).fetchall()
         annual_gross = sum(s['gross_pay'] for s in slips)
         annual_tax = sum(s['income_tax'] for s in slips)
         annual_local_tax = sum(s['local_income_tax'] for s in slips)
@@ -7823,7 +7853,7 @@ def me_benefits():
 
     # 최근 급여명세서에서 실제 지급된 복리후생 확인
     last_payslip = db.execute(
-        "SELECT * FROM payslips WHERE user_id=? ORDER BY year DESC, month DESC LIMIT 1",
+        "SELECT * FROM payslips WHERE user_id=? AND status='confirmed' ORDER BY year DESC, month DESC LIMIT 1",
         (uid,)
     ).fetchone()
 

@@ -789,6 +789,12 @@ def init_db(db_path: str = None):
         if 'return_comment' not in pg_cols:
             c.execute('ALTER TABLE performance_goals ADD COLUMN return_comment TEXT')
 
+        # 급여 2단계 확정 (P0-2 — 자동계산 draft → 담당자 확정 confirmed)
+        ps_cols = {r[1] for r in c.execute('PRAGMA table_info(payslips)').fetchall()}
+        if 'status' not in ps_cols:
+            # 기존 명세는 이미 직원에게 공개된 것이므로 확정 취급
+            c.execute("ALTER TABLE payslips ADD COLUMN status TEXT NOT NULL DEFAULT 'confirmed'")
+
         # 승인 체인 설정 (Phase C-13 — 결재선 화면 편집)
         c.execute('''
             CREATE TABLE IF NOT EXISTS approval_chains (

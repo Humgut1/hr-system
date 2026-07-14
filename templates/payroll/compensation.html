@@ -145,13 +145,54 @@
         </select>
       </div>
       <button type="submit" class="btn btn-primary">
-        <i class="fas fa-play"></i> 급여 생성
+        <i class="fas fa-play"></i> 급여 생성 (초안)
       </button>
       <span style="font-size:12px; color:var(--primary-tx); align-self:center;">
-        이미 생성된 직원은 건너뜁니다 · 근태 수당·복리후생 자동 포함
+        생성 = 초안 (직원 비공개) · 검토 후 확정 시 공개·발송 · 근태 수당·복리후생 자동 포함
       </span>
     </div>
   </form>
+
+  <!-- P0-2: 미확정 초안 확정·발송 -->
+  {% if draft_months %}
+  <div class="card" style="border:1.5px solid #f59e0b; margin-bottom:16px;">
+    <div class="card-body">
+      <div style="font-weight:800; font-size:13px; margin-bottom:10px;">
+        <i class="fas fa-file-invoice-dollar" style="color:#d97706;"></i> 확정 대기 중인 급여 초안
+        <span style="font-size:11.5px; font-weight:600; color:var(--tx-3); margin-left:6px;">
+          아직 직원에게 공개되지 않았습니다. 금액을 검토한 뒤 확정하세요.
+        </span>
+      </div>
+      {% for dm in draft_months %}
+      <div style="display:flex; align-items:center; gap:14px; padding:10px 0;
+                  {% if not loop.last %}border-bottom:1px solid var(--border);{% endif %} flex-wrap:wrap;">
+        <span style="font-weight:800; font-size:14px;">{{ dm.year }}년 {{ dm.month }}월</span>
+        <span style="font-size:12.5px; color:var(--tx-3);">
+          {{ dm.cnt }}건 · 실수령 합계 {{ '{:,}'.format(dm.total_net or 0) }}원
+        </span>
+        <span style="margin-left:auto; display:flex; gap:8px;">
+          <form method="POST" action="{{ url_for('payroll_confirm') }}"
+                onsubmit="return confirm('{{ dm.year }}년 {{ dm.month }}월 급여 {{ dm.cnt }}건을 확정할까요?\n확정 즉시 직원에게 공개되고 명세서 이메일이 발송됩니다.')">
+            <input type="hidden" name="year" value="{{ dm.year }}">
+            <input type="hidden" name="month" value="{{ dm.month }}">
+            <button type="submit" class="btn btn-primary btn-sm">
+              <i class="fas fa-check"></i> 확정·발송
+            </button>
+          </form>
+          <form method="POST" action="{{ url_for('payroll_discard_drafts') }}"
+                onsubmit="return confirm('{{ dm.year }}년 {{ dm.month }}월 초안 {{ dm.cnt }}건을 폐기할까요?\n급여 항목 수정 후 다시 생성할 때 사용하세요.')">
+            <input type="hidden" name="year" value="{{ dm.year }}">
+            <input type="hidden" name="month" value="{{ dm.month }}">
+            <button type="submit" class="btn btn-ghost btn-sm" style="color:#dc2626;">
+              <i class="fas fa-trash"></i> 초안 폐기
+            </button>
+          </form>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 
   <!-- 직원별 급여 테이블 -->
   <div class="card">
