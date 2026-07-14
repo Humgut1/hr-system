@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block title %}결재 대기함{% endblock %}
+{% block page_title %}결재 대기함{% endblock %}
+
+{% block extra_css %}
+<style>
+.ap-filters { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px; }
+.ap-chip {
+  display:flex; align-items:center; gap:6px;
+  padding:6px 14px; border-radius:20px; font-size:12.5px; font-weight:700;
+  background:var(--surface); border:1.5px solid var(--border); color:var(--tx-2);
+  cursor:pointer; user-select:none;
+}
+.ap-chip:hover { border-color:var(--primary); }
+.ap-chip.active { background:var(--primary); border-color:var(--primary); color:#fff; }
+.ap-chip .cnt {
+  font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:20px;
+  background:rgba(0,0,0,.08);
+}
+.ap-chip.active .cnt { background:rgba(255,255,255,.25); }
+
+.ap-group { margin-bottom:18px; }
+.ap-group-head {
+  display:flex; align-items:center; gap:9px;
+  font-size:13.5px; font-weight:800; margin-bottom:8px;
+}
+.ap-item {
+  display:flex; align-items:center; gap:14px;
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:12px 16px; margin-bottom:6px;
+}
+.ap-item:hover { box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.ap-ico {
+  width:34px; height:34px; border-radius:9px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--bg); color:var(--primary); font-size:13px;
+}
+.ap-empty { font-size:12.5px; color:var(--tx-3); padding:8px 4px 2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+  <div style="font-size:13px; color:var(--tx-3);">
+    {% if total > 0 %}
+    처리 대기 문서 <strong style="color:var(--primary);">{{ total }}건</strong> — 유형을 눌러 필터링할 수 있습니다.
+    {% else %}
+    처리 대기 문서가 없습니다. 🎉
+    {% endif %}
+  </div>
+</div>
+
+<!-- 유형 필터 칩 -->
+<div class="ap-filters">
+  <span class="ap-chip active" data-key="all" onclick="apFilter('all', this)">
+    전체 <span class="cnt">{{ total }}</span>
+  </span>
+  {% for g in groups %}
+  {% if g['items'] %}
+  <span class="ap-chip" data-key="{{ g.key }}" onclick="apFilter('{{ g.key }}', this)">
+    <i class="fas {{ g.icon }}"></i> {{ g.label }} <span class="cnt">{{ g['items']|length }}</span>
+  </span>
+  {% endif %}
+  {% endfor %}
+</div>
+
+{% for g in groups %}
+{% if g['items'] %}
+<div class="ap-group" data-group="{{ g.key }}">
+  <div class="ap-group-head">
+    <i class="fas {{ g.icon }}" style="color:var(--primary);"></i>
+    {{ g.label }}
+    <span style="font-size:11px; font-weight:700; color:var(--tx-3);">{{ g['items']|length }}건</span>
+  </div>
+  {% for it in g['items'] %}
+  <div class="ap-item">
+    <div class="ap-ico"><i class="fas {{ g.icon }}"></i></div>
+    <div style="flex:1; min-width:0;">
+      <div style="font-size:13.5px; font-weight:700;">{{ it.title }}</div>
+      <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">
+        {{ it.sub }}
+        {% if it.requested_at %}<span style="margin-left:8px; font-size:11px;">· 접수 {{ it.requested_at[:16] }}</span>{% endif %}
+      </div>
+    </div>
+    <a href="{{ it.link }}" class="btn btn-primary btn-sm" style="flex-shrink:0;">
+      처리하기 <i class="fas fa-arrow-right" style="font-size:10px;"></i>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endfor %}
+
+{% if total == 0 %}
+<div class="card"><div class="card-body" style="text-align:center; padding:70px; color:var(--tx-3);">
+  <i class="fas fa-check-circle" style="font-size:38px; color:var(--green); display:block; margin-bottom:14px;"></i>
+  모든 결재가 처리되었습니다.
+</div></div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function apFilter(key, chip) {
+  document.querySelectorAll('.ap-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  document.querySelectorAll('.ap-group').forEach(g => {
+    g.style.display = (key === 'all' || g.dataset.group === key) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

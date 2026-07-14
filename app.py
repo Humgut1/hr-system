@@ -1235,6 +1235,82 @@ def dashboard():
                 'sub': f"최종 근무일 요청: {r['requested_last_work_date']}",
                 'link': url_for('termination_requests')
             })
+        # ── 승인 허브 확장 (P1-1) ────────────────────────
+        # 목표 승인 대기 (제출된 목표 세트)
+        goal_pending = db.execute(
+            "SELECT u.id AS uid, u.name, COUNT(*) AS cnt, c.name AS cycle_name, c.id AS cid "
+            "FROM performance_goals g JOIN users u ON g.user_id=u.id "
+            "JOIN performance_cycles c ON g.cycle_id=c.id "
+            "WHERE g.approval_status='submitted' AND c.status='active' "
+            "GROUP BY u.id, c.id ORDER BY MIN(g.created_at) ASC LIMIT 3"
+        ).fetchall()
+        for r in goal_pending:
+            inbox_items.append({
+                'id': r['uid'], 'category': 'goal',
+                'title': f"{r['name']} — 목표 승인 요청 ({r['cnt']}개)",
+                'sub': r['cycle_name'],
+                'link': url_for('performance', cycle=r['cid'])
+            })
+        # 등급 이의신청
+        appeal_rows = db.execute(
+            "SELECT ga.id, u.name, ga.old_grade, ga.cycle_id, c.name AS cycle_name "
+            "FROM grade_appeals ga JOIN users u ON ga.user_id=u.id "
+            "JOIN performance_cycles c ON ga.cycle_id=c.id "
+            "WHERE ga.status='pending' ORDER BY ga.created_at ASC LIMIT 3"
+        ).fetchall()
+        for r in appeal_rows:
+            inbox_items.append({
+                'id': r['id'], 'category': 'appeal',
+                'title': f"{r['name']} — 등급 이의신청 (현재 {r['old_grade']})",
+                'sub': r['cycle_name'],
+                'link': url_for('performance_appeals', cycle=r['cycle_id'])
+            })
+        # OT 승인 대기
+        ot_rows = db.execute(
+            "SELECT o.id, u.name, o.date, o.ot_minutes FROM overtime_requests o "
+            "JOIN users u ON o.user_id=u.id WHERE o.status='pending' "
+            "ORDER BY o.created_at ASC LIMIT 3"
+        ).fetchall()
+        for r in ot_rows:
+            inbox_items.append({
+                'id': r['id'], 'category': 'overtime',
+                'title': f"{r['name']} — 연장근로 승인 요청",
+                'sub': f"{r['date']} · {r['ot_minutes'] // 60}시간 {r['ot_minutes'] % 60}분",
+                'link': url_for('attendance_home', tab='ot')
+            })
+        # 입사 예정 D-7
+        try:
+            hires_soon = db.execute(
+                "SELECT id, name, start_date FROM incoming_hires "
+                "WHERE status='waiting' AND start_date IS NOT NULL AND start_date <= ? "
+                "ORDER BY start_date ASC LIMIT 3",
+                ((date.today() + timedelta(days=7)).isoformat(),)
+            ).fetchall()
+        except sqlite3.OperationalError:
+            hires_soon = []
+        for r in hires_soon:
+            dd = (date.fromisoformat(r['start_date']) - date.today()).days
+            inbox_items.append({
+                'id': r['id'], 'category': 'hire',
+                'title': f"{r['name']} — 입사 {'오늘!' if dd == 0 else ('D-%d' % dd if dd > 0 else 'D+%d 경과' % -dd)}",
+                'sub': f"입사 예정일 {r['start_date']} · 직원 전환 필요",
+                'link': url_for('hires_list')
+            })
+        # 급여 초안 (월별 1건)
+        try:
+            draft_rows = db.execute(
+                "SELECT year, month, COUNT(*) AS cnt FROM payslips "
+                "WHERE status='draft' GROUP BY year, month ORDER BY year DESC, month DESC LIMIT 2"
+            ).fetchall()
+        except sqlite3.OperationalError:
+            draft_rows = []
+        for r in draft_rows:
+            inbox_items.append({
+                'id': f"{r['year']}{r['month']}", 'category': 'payroll',
+                'title': f"{r['year']}년 {r['month']}월 급여 초안 {r['cnt']}건",
+                'sub': '검토 후 확정·발송 필요 (직원 비공개 상태)',
+                'link': url_for('compensation')
+            })
         inbox_count = len(inbox_items)
         # ── 신규 위젯 데이터 ─────────────────────────────────
         this_year   = date.today().year
@@ -1293,11 +1369,55 @@ def dashboard():
             "ORDER BY lr.created_at ASC LIMIT 5", (dept_id,)
         ).fetchall()
         inbox_items = [
-            {'id': r['id'], 'title': r['user_name'] + ' — ' + LEAVE_LABELS.get(r['type'], r['type']),
+            {'id': r['id'], 'category': 'leave',
+             'title': r['user_name'] + ' — ' + LEAVE_LABELS.get(r['type'], r['type']),
              'sub': r['start_date'] + (' ~ ' + r['end_date'] if r['start_date'] != r['end_date'] else '')}
             for r in inbox_rows
         ]
-        inbox_count = pending_count
+        # ── 승인 허브 확장 (P1-1): 목표 승인·이의신청·OT ──
+        goal_rows = db.execute(
+            "SELECT u.id AS uid, u.name, COUNT(*) AS cnt, c.id AS cid, c.name AS cycle_name "
+            "FROM performance_goals g JOIN users u ON g.user_id=u.id "
+            "JOIN performance_cycles c ON g.cycle_id=c.id "
+            "WHERE g.approval_status='submitted' AND c.status='active' "
+            "AND (u.manager_id=? OR u.department_id=?) "
+            "GROUP BY u.id, c.id ORDER BY MIN(g.created_at) ASC LIMIT 3",
+            (uid, dept_id)
+        ).fetchall()
+        for r in goal_rows:
+            inbox_items.append({
+                'id': r['uid'], 'category': 'goal',
+                'title': f"{r['name']} — 목표 승인 요청 ({r['cnt']}개)",
+                'sub': r['cycle_name'],
+                'link': url_for('performance', cycle=r['cid'])
+            })
+        appeal_rows = db.execute(
+            "SELECT ga.id, u.name, ga.old_grade, ga.cycle_id "
+            "FROM grade_appeals ga JOIN users u ON ga.user_id=u.id "
+            "WHERE ga.status='pending' AND u.manager_id=? ORDER BY ga.created_at ASC LIMIT 3",
+            (uid,)
+        ).fetchall()
+        for r in appeal_rows:
+            inbox_items.append({
+                'id': r['id'], 'category': 'appeal',
+                'title': f"{r['name']} — 등급 이의신청 (현재 {r['old_grade']})",
+                'sub': '재검토 의견 필요',
+                'link': url_for('performance_appeals', cycle=r['cycle_id'])
+            })
+        ot_rows = db.execute(
+            "SELECT o.id, u.name, o.date, o.ot_minutes FROM overtime_requests o "
+            "JOIN users u ON o.user_id=u.id "
+            "WHERE o.status='pending' AND u.department_id=? ORDER BY o.created_at ASC LIMIT 3",
+            (dept_id,)
+        ).fetchall()
+        for r in ot_rows:
+            inbox_items.append({
+                'id': r['id'], 'category': 'overtime',
+                'title': f"{r['name']} — 연장근로 승인 요청",
+                'sub': f"{r['date']} · {r['ot_minutes'] // 60}시간 {r['ot_minutes'] % 60}분",
+                'link': url_for('attendance_home', tab='ot')
+            })
+        inbox_count = len(inbox_items)
         team_goals = db.execute(
             "SELECT pg.title, pg.self_score, u.name as user_name, AVG(pr.score) as avg_score "
             "FROM performance_goals pg JOIN users u ON pg.user_id=u.id "
@@ -5312,6 +5432,183 @@ def attendance_calendar():
                            dept_filter=dept_filter,
                            today_absent=today_absent,
                            active_page='attendance')
+
+
+# ══════════════════════════════════════════════════════════════
+#  결재 대기함 (P1-1 승인 허브) — 모든 대기 문서를 한 화면에
+# ══════════════════════════════════════════════════════════════
+@app.route('/approvals')
+@manager_or_admin
+def approvals_hub():
+    db      = get_db()
+    uid     = session['user_id']
+    role    = session['user_role']
+    dept_id = session.get('dept_id') or 0
+    is_admin = (role == 'admin')
+    today   = date.today()
+
+    groups = []   # [{key, label, icon, items:[{title, sub, requested_at, link}]}]
+
+    # ── 휴가·근태 ──
+    if is_admin:
+        rows = db.execute(
+            "SELECT lr.id, lr.type, lr.start_date, lr.end_date, lr.days, lr.status, lr.created_at, u.name "
+            "FROM leave_requests lr JOIN users u ON lr.user_id=u.id "
+            "WHERE lr.status IN ('pending','reviewed') ORDER BY lr.created_at ASC"
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT lr.id, lr.type, lr.start_date, lr.end_date, lr.days, lr.status, lr.created_at, u.name "
+            "FROM leave_requests lr JOIN users u ON lr.user_id=u.id "
+            "WHERE lr.status='pending' AND (u.department_id=? OR u.manager_id=?) "
+            "ORDER BY lr.created_at ASC", (dept_id, uid)
+        ).fetchall()
+    groups.append({'key': 'leave', 'label': '휴가·근태', 'icon': 'fa-calendar-times', 'items': [{
+        'title': f"{r['name']} — {LEAVE_LABELS.get(r['type'], r['type'])} {r['days']}일",
+        'sub': f"{r['start_date']} ~ {r['end_date']}" + (' · 매니저 검토 완료 — HR 최종 승인 대기' if r['status'] == 'reviewed' else ''),
+        'requested_at': r['created_at'],
+        'link': url_for('attendance_home', tab='approvals'),
+    } for r in rows]})
+
+    # ── 연장근로(OT) ──
+    if is_admin:
+        rows = db.execute(
+            "SELECT o.id, o.date, o.ot_minutes, o.reason, o.created_at, u.name "
+            "FROM overtime_requests o JOIN users u ON o.user_id=u.id "
+            "WHERE o.status='pending' ORDER BY o.created_at ASC").fetchall()
+    else:
+        rows = db.execute(
+            "SELECT o.id, o.date, o.ot_minutes, o.reason, o.created_at, u.name "
+            "FROM overtime_requests o JOIN users u ON o.user_id=u.id "
+            "WHERE o.status='pending' AND (u.department_id=? OR u.manager_id=?) "
+            "ORDER BY o.created_at ASC", (dept_id, uid)).fetchall()
+    groups.append({'key': 'overtime', 'label': '연장근로', 'icon': 'fa-clock', 'items': [{
+        'title': f"{r['name']} — 연장근로 {r['ot_minutes'] // 60}시간 {r['ot_minutes'] % 60}분",
+        'sub': f"{r['date']}" + (f" · {r['reason']}" if r['reason'] else ''),
+        'requested_at': r['created_at'],
+        'link': url_for('attendance_home', tab='ot'),
+    } for r in rows]})
+
+    # ── 목표 승인 ──
+    if is_admin:
+        rows = db.execute(
+            "SELECT u.name, COUNT(*) AS cnt, c.id AS cid, c.name AS cycle_name, MIN(g.created_at) AS created_at "
+            "FROM performance_goals g JOIN users u ON g.user_id=u.id "
+            "JOIN performance_cycles c ON g.cycle_id=c.id "
+            "WHERE g.approval_status='submitted' AND c.status='active' "
+            "GROUP BY u.id, c.id ORDER BY created_at ASC").fetchall()
+    else:
+        rows = db.execute(
+            "SELECT u.name, COUNT(*) AS cnt, c.id AS cid, c.name AS cycle_name, MIN(g.created_at) AS created_at "
+            "FROM performance_goals g JOIN users u ON g.user_id=u.id "
+            "JOIN performance_cycles c ON g.cycle_id=c.id "
+            "WHERE g.approval_status='submitted' AND c.status='active' "
+            "AND (u.department_id=? OR u.manager_id=?) "
+            "GROUP BY u.id, c.id ORDER BY created_at ASC", (dept_id, uid)).fetchall()
+    groups.append({'key': 'goal', 'label': '목표 승인', 'icon': 'fa-bullseye', 'items': [{
+        'title': f"{r['name']} — 목표 {r['cnt']}개 승인 요청",
+        'sub': r['cycle_name'],
+        'requested_at': r['created_at'],
+        'link': url_for('performance', cycle=r['cid']),
+    } for r in rows]})
+
+    # ── 등급 이의신청 ──
+    if is_admin:
+        rows = db.execute(
+            "SELECT ga.id, ga.old_grade, ga.created_at, ga.cycle_id, u.name, c.name AS cycle_name "
+            "FROM grade_appeals ga JOIN users u ON ga.user_id=u.id "
+            "JOIN performance_cycles c ON ga.cycle_id=c.id "
+            "WHERE ga.status='pending' ORDER BY ga.created_at ASC").fetchall()
+    else:
+        rows = db.execute(
+            "SELECT ga.id, ga.old_grade, ga.created_at, ga.cycle_id, u.name, c.name AS cycle_name "
+            "FROM grade_appeals ga JOIN users u ON ga.user_id=u.id "
+            "JOIN performance_cycles c ON ga.cycle_id=c.id "
+            "WHERE ga.status='pending' AND u.manager_id=? ORDER BY ga.created_at ASC", (uid,)).fetchall()
+    groups.append({'key': 'appeal', 'label': '등급 이의신청', 'icon': 'fa-gavel', 'items': [{
+        'title': f"{r['name']} — 이의신청 (현재 {r['old_grade']}등급)",
+        'sub': r['cycle_name'],
+        'requested_at': r['created_at'],
+        'link': url_for('performance_appeals', cycle=r['cycle_id']),
+    } for r in rows]})
+
+    if is_admin:
+        # ── 증명서 ──
+        CERT_LABELS = {'employment': '재직증명서', 'career': '경력증명서', 'income': '소득증명', 'resignation': '퇴직확인서'}
+        rows = db.execute(
+            "SELECT cr.id, cr.cert_type, cr.purpose, cr.created_at, u.name "
+            "FROM certificate_requests cr JOIN users u ON cr.user_id=u.id "
+            "WHERE cr.status='pending' ORDER BY cr.created_at ASC").fetchall()
+        groups.append({'key': 'certificate', 'label': '증명서 발급', 'icon': 'fa-file-alt', 'items': [{
+            'title': f"{r['name']} — {CERT_LABELS.get(r['cert_type'], r['cert_type'])}",
+            'sub': r['purpose'] or '용도 미기재',
+            'requested_at': r['created_at'],
+            'link': url_for('certificates_hub'),
+        } for r in rows]})
+
+        # ── 인사발령 ──
+        rows = db.execute(
+            "SELECT pa.id, pa.action_type, pa.from_value, pa.to_value, pa.created_at, pa.user_id, u.name "
+            "FROM personnel_actions pa JOIN users u ON pa.user_id=u.id "
+            "WHERE pa.status='pending' ORDER BY pa.created_at ASC").fetchall()
+        groups.append({'key': 'personnel', 'label': '인사발령', 'icon': 'fa-user-edit', 'items': [{
+            'title': f"{r['name']} — {ACTION_LABELS.get(r['action_type'], r['action_type'])} 기안",
+            'sub': f"{r['from_value'] or '—'} → {(r['to_value'] or '—').split('|')[0]}",
+            'requested_at': r['created_at'],
+            'link': url_for('employee_detail', emp_id=r['user_id']) + '#hr',
+        } for r in rows]})
+
+        # ── 퇴직 ──
+        rows = db.execute(
+            "SELECT tr.id, tr.requested_last_work_date, tr.created_at, u.name "
+            "FROM termination_requests tr JOIN users u ON tr.user_id=u.id "
+            "WHERE tr.status IN ('submitted','under_review') ORDER BY tr.created_at ASC").fetchall()
+        groups.append({'key': 'termination', 'label': '퇴직', 'icon': 'fa-user-clock', 'items': [{
+            'title': f"{r['name']} — 퇴직 신청",
+            'sub': f"최종 근무일 요청: {r['requested_last_work_date']}",
+            'requested_at': r['created_at'],
+            'link': url_for('termination_requests'),
+        } for r in rows]})
+
+        # ── 급여 초안 ──
+        try:
+            rows = db.execute(
+                "SELECT year, month, COUNT(*) AS cnt, MIN(created_at) AS created_at "
+                "FROM payslips WHERE status='draft' GROUP BY year, month "
+                "ORDER BY year DESC, month DESC").fetchall()
+        except sqlite3.OperationalError:
+            rows = []
+        groups.append({'key': 'payroll', 'label': '급여 확정', 'icon': 'fa-file-invoice-dollar', 'items': [{
+            'title': f"{r['year']}년 {r['month']}월 급여 초안 {r['cnt']}건",
+            'sub': '검토 후 확정·발송 필요 (직원 비공개 상태)',
+            'requested_at': r['created_at'],
+            'link': url_for('compensation'),
+        } for r in rows]})
+
+        # ── 입사 예정 (D-7 이내) ──
+        try:
+            rows = db.execute(
+                "SELECT id, name, start_date, created_at FROM incoming_hires "
+                "WHERE status='waiting' AND start_date IS NOT NULL AND start_date <= ? "
+                "ORDER BY start_date ASC",
+                ((today + timedelta(days=7)).isoformat(),)).fetchall()
+        except sqlite3.OperationalError:
+            rows = []
+        def _dday_label(sd):
+            dd = (date.fromisoformat(sd) - today).days
+            return '오늘 입사!' if dd == 0 else (f'D-{dd}' if dd > 0 else f'D+{-dd} 경과')
+        groups.append({'key': 'hire', 'label': '입사 예정', 'icon': 'fa-door-open', 'items': [{
+            'title': f"{r['name']} — 입사 {_dday_label(r['start_date'])}",
+            'sub': f"입사 예정일 {r['start_date']} · 직원 전환 필요",
+            'requested_at': r['created_at'],
+            'link': url_for('hires_list'),
+        } for r in rows]})
+
+    groups = [g for g in groups]   # 빈 그룹도 유지 (0건 표시)
+    total = sum(len(g['items']) for g in groups)
+    return render_template('approvals/hub.html',
+                           groups=groups, total=total,
+                           active_page='approvals')
 
 
 # ── Payroll ─────────────────────────────────────────────────

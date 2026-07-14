@@ -123,20 +123,33 @@
         {% else %}
         {% for item in inbox_items %}
         <div class="inbox-item">
-          <div class="inbox-item-ico ico-orange">
-            <i class="fas fa-calendar-times"></i>
+          <div class="inbox-item-ico
+            {% if item.category == 'leave' %}ico-orange
+            {% elif item.category == 'goal' %}ico-blue
+            {% elif item.category == 'appeal' %}ico-purple
+            {% else %}ico-green{% endif %}">
+            <i class="fas
+              {% if item.category == 'leave' %}fa-calendar-times
+              {% elif item.category == 'goal' %}fa-bullseye
+              {% elif item.category == 'appeal' %}fa-gavel
+              {% elif item.category == 'overtime' %}fa-clock
+              {% else %}fa-bell{% endif %}"></i>
           </div>
           <div class="inbox-item-body">
             <div class="inbox-item-title">{{ item.title }}</div>
             <div class="inbox-item-sub">{{ item.sub }}</div>
           </div>
           <div class="inbox-item-actions">
+            {% if item.category == 'leave' %}
             <form method="POST" action="{{ url_for('attendance_approve', req_id=item.id) }}" style="display:inline;">
-              <button type="submit" class="btn btn-primary btn-sm" style="font-size:11px;">Approve</button>
+              <button type="submit" class="btn btn-primary btn-sm" style="font-size:11px;">승인</button>
             </form>
             <form method="POST" action="{{ url_for('attendance_reject', req_id=item.id) }}" style="display:inline;">
-              <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px;">Reject</button>
+              <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px;">반려</button>
             </form>
+            {% else %}
+            <a href="{{ item.link }}" class="btn btn-primary btn-sm" style="font-size:11px;">확인</a>
+            {% endif %}
           </div>
         </div>
         {% endfor %}

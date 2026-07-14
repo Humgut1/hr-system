@@ -79,6 +79,9 @@
       <div class="nav-section-divider"></div>
       <div class="nav-section-body">
         <div class="nav-category-btn" style="cursor:default;"><span>팀</span></div>
+        <a href="{{ url_for('approvals_hub') }}" class="nav-item{% if active_page == 'approvals' %} active{% endif %}" title="결재 대기함" data-tour="approvals">
+          <i class="fas fa-stamp"></i><span>결재 대기함</span>
+        </a>
         <a href="{{ url_for('employees') }}" class="nav-item{% if active_page in ('employees','termination_requests') %} active{% endif %}" title="팀원 관리" data-tour="team">
           <i class="fas fa-users"></i><span>팀원 관리</span>
         </a>

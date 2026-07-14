@@ -25,7 +25,7 @@ app.config['TESTING'] = True
 ADMIN_EMAIL    = os.environ.get('SWEEP_ADMIN_EMAIL', 'admin@company.com')
 ADMIN_PW       = os.environ.get('SWEEP_ADMIN_PW', 'admin1234!')
 MANAGER_EMAIL  = os.environ.get('SWEEP_MANAGER_EMAIL', 'manager@company.com')
-EMPLOYEE_EMAIL = os.environ.get('SWEEP_EMPLOYEE_EMAIL', 'employee@company.com')
+EMPLOYEE_EMAIL = os.environ.get('SWEEP_EMPLOYEE_EMAIL', 'emp002@company.com')  # employee@company.com은 v1.2.6에서 manager로 승격됨
 DEFAULT_PW     = os.environ.get('SWEEP_DEFAULT_PW', 'changeme!')
 
 SKIP_PREFIX = ('/static', '/logout', '/demo', '/tour', '/slack',

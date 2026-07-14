@@ -114,6 +114,9 @@
           Inbox
           {% if inbox_count > 0 %}<span class="badge badge-pending" style="font-size:11px; margin-left:8px;">{{ inbox_count }}</span>{% endif %}
         </span>
+        <a href="{{ url_for('approvals_hub') }}" class="btn btn-ghost btn-sm">
+          <i class="fas fa-stamp"></i> 결재 대기함 전체
+        </a>
       </div>
       <div class="inbox-widget">
         {% if not inbox_items %}
@@ -129,12 +132,20 @@
             {% elif item.category == 'certificate' %}ico-blue
             {% elif item.category == 'personnel' %}ico-purple
             {% elif item.category == 'termination' %}ico-red
+            {% elif item.category == 'goal' %}ico-blue
+            {% elif item.category == 'appeal' %}ico-purple
+            {% elif item.category == 'payroll' %}ico-orange
             {% else %}ico-green{% endif %}">
             <i class="fas
               {% if item.category == 'leave' %}fa-calendar-times
               {% elif item.category == 'certificate' %}fa-file-alt
               {% elif item.category == 'personnel' %}fa-user-edit
               {% elif item.category == 'termination' %}fa-user-clock
+              {% elif item.category == 'goal' %}fa-bullseye
+              {% elif item.category == 'appeal' %}fa-gavel
+              {% elif item.category == 'overtime' %}fa-clock
+              {% elif item.category == 'hire' %}fa-door-open
+              {% elif item.category == 'payroll' %}fa-file-invoice-dollar
               {% else %}fa-bell{% endif %}"></i>
           </div>
           <div class="inbox-item-body">
