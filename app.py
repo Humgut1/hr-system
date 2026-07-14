@@ -982,10 +982,77 @@ def admin_settings():
     config  = get_company_config()
     company = get_company_info()
     positions = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+    approval_chains = {wf: get_approval_chain(db, wf) for wf in APPROVAL_WORKFLOWS}
     return render_template('admin/settings.html', config=config, company=company,
                            positions=positions,
                            position_presets=POSITION_PRESETS,
+                           approval_workflows=APPROVAL_WORKFLOWS,
+                           approval_chains=approval_chains,
                            active_page='settings')
+
+
+# ── 승인 체인 설정화 (Phase C-13 — 결재선 화면 편집) ────────────
+APPROVAL_WORKFLOWS = {
+    'leave': {
+        'label': '휴가·근태 신청',
+        'options': {
+            'meta_default': '휴가 유형별 기본값 (연차=매니저 전결, 법정휴가=2단계)',
+            'manager_only': '매니저 전결 — 모든 유형 1단계 승인',
+            'manager_hr':   '매니저 검토 → HR 최종 승인 — 모든 유형 2단계',
+        },
+        'default': 'meta_default',
+    },
+    'certificate': {
+        'label': '증명서 발급',
+        'options': {
+            'hr':   'HR 승인 후 발급',
+            'auto': '신청 즉시 자동 발급 (승인 생략)',
+        },
+        'default': 'hr',
+    },
+    'personnel_action': {
+        'label': '인사발령',
+        'options': {
+            'hr':   '기안 → HR 승인 시 반영',
+            'auto': '관리자 전결 — 관리자가 기안하면 즉시 승인·반영',
+        },
+        'default': 'hr',
+    },
+}
+
+
+def get_approval_chain(db, workflow):
+    """결재선 설정 조회 — 미설정 시 기본값."""
+    try:
+        row = db.execute('SELECT chain FROM approval_chains WHERE workflow=?', (workflow,)).fetchone()
+    except sqlite3.OperationalError:
+        row = None
+    default = APPROVAL_WORKFLOWS.get(workflow, {}).get('default', '')
+    chain = row['chain'] if row else default
+    if chain not in APPROVAL_WORKFLOWS.get(workflow, {}).get('options', {}):
+        chain = default
+    return chain
+
+
+@app.route('/admin/approval-chains', methods=['POST'])
+@admin_required
+def admin_approval_chains():
+    """결재선 저장 — 워크플로우별 승인 단계 설정."""
+    db = get_db()
+    changed = []
+    for wf, meta in APPROVAL_WORKFLOWS.items():
+        val = request.form.get(wf, '')
+        if val in meta['options']:
+            db.execute(
+                'INSERT INTO approval_chains (workflow, chain, updated_at) VALUES (?,?,CURRENT_TIMESTAMP) '
+                'ON CONFLICT(workflow) DO UPDATE SET chain=excluded.chain, updated_at=CURRENT_TIMESTAMP',
+                (wf, val)
+            )
+            changed.append(f'{meta["label"]}={meta["options"][val]}')
+    db.commit()
+    log_audit('update', 'personal_info', None, '결재선 설정 변경 — ' + ' / '.join(changed))
+    flash('결재선 설정이 저장되었습니다.', 'success')
+    return redirect(url_for('admin_settings') + '?tab=approvals')
 
 
 # ── 직급 체계 프리셋 (Phase C-12, saas_plan.md §3) ─────────────
@@ -1228,15 +1295,15 @@ def dashboard():
             "ORDER BY u.name", (dept_id, today, today)
         ).fetchall()
         upcoming_reviews = db.execute(
-            "SELECT pc.name as cycle_name, pc.review_end, "
+            "SELECT pc.name as cycle_name, pc.end_date AS review_end, "
             "COUNT(DISTINCT pg.user_id) as member_count, "
             "COUNT(DISTINCT CASE WHEN pr.id IS NOT NULL THEN pg.user_id END) as reviewed_count "
             "FROM performance_cycles pc "
             "JOIN performance_goals pg ON pc.id=pg.cycle_id "
             "JOIN users u ON pg.user_id=u.id "
             "LEFT JOIN performance_reviews pr ON pg.id=pr.goal_id "
-            "WHERE u.department_id=? AND pc.review_end >= ? "
-            "GROUP BY pc.id ORDER BY pc.review_end ASC LIMIT 3",
+            "WHERE u.department_id=? AND pc.end_date >= ? "
+            "GROUP BY pc.id ORDER BY pc.end_date ASC LIMIT 3",
             (dept_id, today)
         ).fetchall()
         enabled_widgets = get_widget_prefs(uid, 'manager')
@@ -3268,13 +3335,38 @@ def employee_action(emp_id):
         from_value = str(old_row['base_salary']) if old_row else '0'
         to_value   = str(new_salary)
 
-    db.execute(
+    cur = db.execute(
         'INSERT INTO personnel_actions '
         '(user_id, action_type, from_value, to_value, effective_date, reason, status, processed_by) '
         'VALUES (?,?,?,?,?,?,?,?)',
         (emp_id, action_type, from_value, to_value, effective_date, reason, 'pending', session['user_id'])
     )
+    new_action_id = cur.lastrowid
     db.commit()
+
+    # 결재선 설정: 관리자 전결이면 기안 즉시 승인·반영 (Phase C-13)
+    if session.get('user_role') == 'admin' and get_approval_chain(db, 'personnel_action') == 'auto':
+        pa = db.execute('SELECT * FROM personnel_actions WHERE id=?', (new_action_id,)).fetchone()
+        today = date.today().isoformat()
+        if pa['effective_date'] > today:
+            db.execute("UPDATE personnel_actions SET status='approved', processed_by=?, applied_at=NULL WHERE id=?",
+                       (session['user_id'], new_action_id))
+            db.commit()
+            add_notification(emp_id, 'info', 'action', '인사발령 확정 (미래발령)',
+                             f'{pa["effective_date"]}에 {ACTION_LABELS[action_type]}이(가) 자동 반영될 예정입니다.',
+                             url_for('employee_detail', emp_id=emp_id))
+            flash(f'인사발령({ACTION_LABELS[action_type]})이 전결 처리되었습니다. 발령일({pa["effective_date"]})에 자동 반영됩니다.', 'success')
+        else:
+            _do_apply_action(db, pa)
+            db.execute("UPDATE personnel_actions SET status='approved', processed_by=?, applied_at=CURRENT_TIMESTAMP WHERE id=?",
+                       (session['user_id'], new_action_id))
+            db.commit()
+            add_notification(emp_id, 'info', 'action', '인사발령 처리 완료',
+                             f'귀하에 대한 {ACTION_LABELS[action_type]} 처리가 완료되었습니다.',
+                             url_for('employee_detail', emp_id=emp_id))
+            flash(f'인사발령({ACTION_LABELS[action_type]})이 전결 처리되어 즉시 반영되었습니다.', 'success')
+        log_audit('update', 'personal_info', emp_id, f'인사발령 전결 처리 — {ACTION_LABELS[action_type]}')
+        return redirect(url_for('employee_detail', emp_id=emp_id) + '#hr')
 
     # 알림 발송: HR 전체에게 승인 대기 알림
     admins = db.execute("SELECT id FROM users WHERE role='admin'").fetchall()
@@ -4922,6 +5014,10 @@ def attendance_approve(req_id):
         approval_flow = req_meta.get('approval_flow', 'manager_only')
         if req['type'] == 'sick' and req_meta.get('approval_hr_threshold'):
             approval_flow = 'manager_only' if req['days'] <= req_meta['approval_hr_threshold'] else 'manager_hr'
+        # 결재선 설정 오버라이드 (Phase C-13)
+        _chain = get_approval_chain(db, 'leave')
+        if _chain != 'meta_default':
+            approval_flow = _chain
 
         req_name = db.execute('SELECT name FROM users WHERE id=?', (req['user_id'],)).fetchone()
         req_username = req_name['name'] if req_name else str(req['user_id'])
@@ -4980,6 +5076,10 @@ def attendance_approve(req_id):
                 'manager_only' if req['days'] <= req_meta['approval_hr_threshold']
                 else 'manager_hr'
             )
+        # 결재선 설정 오버라이드 (Phase C-13)
+        _chain = get_approval_chain(db, 'leave')
+        if _chain != 'meta_default':
+            approval_flow = _chain
 
         # manager_hr 타입: 매니저 검토(reviewed) 완료 후에만 HR 승인 가능
         if approval_flow == 'manager_hr' and req['status'] == 'pending':
@@ -6727,6 +6827,17 @@ def certificate_request():
 
     if cert_type not in ('employment','career','income','resignation'):
         flash('유효하지 않은 증명서 종류입니다.', 'error')
+        return redirect(url_for('certificates_hub'))
+
+    # 결재선 설정: auto면 신청 즉시 자동 발급 (Phase C-13)
+    if get_approval_chain(db, 'certificate') == 'auto':
+        db.execute(
+            "INSERT INTO certificate_requests (user_id, cert_type, purpose, status, approved_at) "
+            "VALUES (?,?,?,'approved',CURRENT_TIMESTAMP)",
+            (uid, cert_type, purpose)
+        )
+        db.commit()
+        flash('증명서가 발급되었습니다. 아래 발급 내역에서 바로 출력할 수 있습니다.', 'success')
         return redirect(url_for('certificates_hub'))
 
     db.execute(

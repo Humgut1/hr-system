@@ -11,7 +11,7 @@
 
 ### 현재 진행 상태 (마지막 업데이트: 2026-07-14)
 
-- **완료된 마지막 버전:** `v1.2.1` (v1.0.0은 Phase B 완결 마일스톤 태그)
+- **완료된 마지막 버전:** `v1.2.2` (v1.0.0은 Phase B 완결 마일스톤 태그)
 - **배포 완료:** v0.99.4(Phase B 전체)까지 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart). v1.1.0은 로컬 완료 — Phase C 묶어서 배포 예정
 - **다음 작업: `saas_plan.md` §6 실행 순서를 따를 것 (Phase A부터 순서대로)**
   1. ~~Phase A-1: 웹훅 서명 검증~~ ✅ v0.96.0 완료
@@ -27,10 +27,12 @@
   11. ~~Phase B 배포 (v0.99.2~0.99.4)~~ ✅ 완료 (2026-07-14, `deploy/update.sh` 실행 — git pull(이미 최신 상태였음)+migrate+재시작, 운영 DB에 `leave_promotion_logs`·`audit_logs` 테이블 + master.db `tenants.plan` 컬럼(데모 테넌트=enterprise) 확인, 랜딩/로그인 200 OK + 랜딩 요금제 섹션 노출 확인, gunicorn 에러 로그 깨끗)
   12. ~~Phase C-10: 성과관리 재개편~~ ✅ v1.1.0 완료
   13. ~~Phase C-11: 입사 예정자 기능~~ ✅ v1.2.0 완료
-  14. ~~Phase C-12: 직급 프리셋 + 스톡옵션 모드~~ ✅ v1.2.1 완료 (다면평가 토글은 C-10에서 이미 구현) — **다음: Phase C-13: 승인 체인 설정화**
+  14. ~~Phase C-12: 직급 프리셋 + 스톡옵션 모드~~ ✅ v1.2.1 완료 (다면평가 토글은 C-10에서 이미 구현)
+  15. ~~Phase C-13: 승인 체인 설정화~~ ✅ v1.2.2 완료 — **Phase C 전체 완료. 다음: Phase C 배포(v1.1.0~v1.2.2) 후 Phase D 또는 개선 작업**
   3. 이후 Phase B(CSV 임포트·요금제 3계층·연차촉진), C(성과 재개편·입사예정자), D — 상세는 saas_plan.md
   - (보류) 온보딩 투어 확장 여부, 도메인 설정(승헌씨 직접)
-- **v0.91~v1.2.1 완료 내역 요약:**
+- **v0.91~v1.2.2 완료 내역 요약:**
+  - v1.2.2 — **승인 체인 설정화 (Phase C-13)**: `approval_chains` 테이블 + `APPROVAL_WORKFLOWS` 3종 + `get_approval_chain()` 헬퍼. 회사 설정에 '결재선' 탭 신규(`/admin/approval-chains`, 라디오 카드 UI, 감사 로그). ①휴가·근태 — 유형별 기본(meta_default)/매니저 전결/2단계(매니저→HR) 선택, attendance_approve 매니저·HR 분기 모두에 오버라이드 적용. ②증명서 — HR 승인/신청 즉시 자동 발급. ③인사발령 — HR 승인/관리자 전결(admin 기안 시 즉시 승인·반영, 미래발령은 발령일 자동 반영, 감사 로그). 퇴직·채용 요청서는 고정 결재선 유지(화면에 명시). settings.html 탭 전환 ?tab= 파라미터 지원 + 탭 하이라이트 배열 버그(links 탭 하이라이트 안 되던 것) 수정. **부수 버그 수정**: 매니저 대시보드 `pc.review_end` 존재하지 않는 컬럼 참조로 500 나던 것 → `end_date`로 수정. 테스트 8케이스 통과
   - v1.2.1 — **직급 프리셋 + 스톡옵션 모드 (Phase C-12, saas_plan.md §3)**: ①직급 체계 프리셋 — `POSITION_PRESETS`(L-레벨형/호칭형 사원~부사장), 회사 설정에 '직급 체계' 탭 신규(`/admin/positions/preset`, 레벨별 이름만 일괄 UPDATE — 직원 배정·급여 밴드 유지, 현재 직급 목록 표시, 커스텀은 부서·직급 관리 링크). ②국내형 스톡옵션 — offers에 `equity_type`(rsu/stock_option/none)·`option_qty`·`strike_price` 컬럼, 오퍼 생성 폼 주식보상 선택형(JS 토글, 기본값 스톡옵션), 오퍼 레터에 스톡옵션 TC 행(수량·행사가) + 부여 조건 섹션(행사가/클리프 2년/벤처기업법 §16의3 문구), 인라인 편집 패널에도 필드 추가, RSU는 stock_option 선택 시 0 처리. **부수 버그 수정**: GET /recruit/applicants/<id>/offers가 존재하지 않는 recruit/offers.html을 렌더링해 500 나던 것 → 지원자 상세 #offers 리다이렉트. 테스트 8케이스 통과
   - v1.2.0 — **입사 예정자 (Phase C-11, saas_plan.md §5)**: `incoming_hires` 테이블 + `/hires` 목록(입사대기/전환완료/취소 탭, D-day 배지, 직접 추가 모달). 유입 3경로 — ①직접 입력 ②CSV 임포트(`/hires/import`, 템플릿 다운로드, UTF-8+CP949, 날짜 정규화 2026.08.01/20260801→ISO, 이름누락·중복이메일 행 제외 후 리포트) ③**표준 웹훅** `POST /api/hires`(master.db `tenants.api_token` 헤더 인증, 잘못된 토큰 401/중복 409, 수신 시 admin 인앱 알림, CSRF 예외 등록). 원클릭 직원 전환: `/employees/new?from_hire=` 프리필(이름/이메일/전화/입사일/부서·직급 이름 매칭) → 등록 시 converted 처리 + 연봉→월 기본급(연봉/12) employee_salary 자동 반영 + 기존 온보딩 자동화(웰컴메일·체크리스트·enrollment) 가동. 웹훅 토큰은 /hires 화면에서 발급·재발급(감사 로그). 사이드바 관리자 섹션에 '입사 예정자'(Core, admin+recruiter). **부수 버그 수정 2건**: ①employees/form.html이 prefill을 무시해 기존 from_applicant 프리필도 동작 안 하던 것 수리 ②employee_new 통합 트리거 `sqlite3.Row.get` AttributeError로 웰컴메일/Jira 디스패치가 조용히 실패하던 것 수정. 테스트 14케이스 통과
   - v1.1.0 — **성과관리 재개편 (Phase C-10, saas_plan.md §4)**: ①주기 상태머신 — `performance_cycles.stage`(goal→progress→review→calibration→appeal→closed) + `include_peer`(다면평가 주기별 토글) + `appeal_until`, 주기 관리 화면에 스텝퍼·단계 전환 버튼(appeal 진입 시 등급 자동 공개+7일 이의기간+알림, 미처리 이의 있으면 종료 차단). ②목표 승인 워크플로우 — `performance_goals.approval_status`(draft/submitted/confirmed/returned)+`return_comment`, 직원 제출(3~5개·가중치 합 100% 검증) → 팀장/HR 확정·반려(사유 필수, 알림), 확정 전 평가 불가, 제출 후 수정 불가, draft 목표 삭제 가능. ③단계별 게이팅 — 목표 등록은 goal 단계만, 자기평가·팀장평가·다면평가는 review 단계만, 진행률은 calibration부터 잠금, 캘리브레이션 확정은 review/calibration 단계만. ④이의제기 신규 — `grade_appeals` 테이블(주기당 1인 1회 UNIQUE), 직원 신청(10자 이상) → `/performance/appeals`에서 팀장(직속만)/HR 인용(등급 조정+calibration 반영)·기각, 전 과정 알림+감사 로그. ⑤다면평가 게이팅 — include_peer=0이면 사이드바 '다면평가 배정'(context processor `peer_enabled`)·직원 다면평가 탭·관리자 다면평가 관리 탭 숨김+라우트 차단. ⑥기존 데이터 마이그레이션: active 주기→review, 기존 목표→confirmed. 부수 수정: index.html 다면평가 관리 패널의 잘못된 calibration 링크→peer_assignments. 테스트 31케이스 통과 (제출 검증/반려·재제출/단계 차단/하향 사유/이의 1회 제한/종료 차단 등)

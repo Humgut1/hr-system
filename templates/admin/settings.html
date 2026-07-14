@@ -76,6 +76,7 @@
     <button class="settings-tab" onclick="switchTab('payroll')"><i class="fas fa-won-sign" style="margin-right:6px;"></i>급여 설정</button>
     <button class="settings-tab" onclick="switchTab('perf')"><i class="fas fa-chart-line" style="margin-right:6px;"></i>성과관리</button>
     <button class="settings-tab" onclick="switchTab('positions')"><i class="fas fa-sitemap" style="margin-right:6px;"></i>직급 체계</button>
+    <button class="settings-tab" onclick="switchTab('approvals')"><i class="fas fa-stamp" style="margin-right:6px;"></i>결재선</button>
     <button class="settings-tab" onclick="switchTab('links')"><i class="fas fa-external-link-alt" style="margin-right:6px;"></i>바로가기</button>
   </div>
 
@@ -522,6 +523,46 @@
     </div>
   </div>
 
+  <!-- ══ 결재선 (Phase C-13) ══ -->
+  <div class="settings-panel card" id="tab-approvals">
+    <div class="card-body">
+      <div style="font-size:13px; color:var(--tx-3); line-height:1.7; margin-bottom:18px;">
+        문서 유형별 승인 단계를 설정합니다. 변경 즉시 새로 접수되는 신청부터 적용되며,
+        이미 진행 중인 신청은 접수 시점의 흐름을 따릅니다.
+      </div>
+
+      <form method="POST" action="{{ url_for('admin_approval_chains') }}">
+        {% for wf, meta in approval_workflows.items() %}
+        <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin:{{ '0' if loop.first else '24px' }} 0 12px;">
+          {{ meta.label }}
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          {% for key, label in meta.options.items() %}
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer;
+                        background:var(--bg); border:1.5px solid {{ 'var(--primary)' if approval_chains[wf] == key else 'var(--border)' }};
+                        border-radius:var(--r); padding:11px 14px;">
+            <input type="radio" name="{{ wf }}" value="{{ key }}"
+                   {% if approval_chains[wf] == key %}checked{% endif %}
+                   onchange="this.closest('form').querySelectorAll('input[name={{ wf }}]').forEach(r=>r.closest('label').style.borderColor = r.checked ? 'var(--primary)' : 'var(--border)')">
+            <span style="font-size:13px; font-weight:600;">{{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        {% endfor %}
+
+        <div style="background:var(--info-bg); border-radius:var(--r); padding:12px 14px; margin-top:20px;
+                    font-size:12px; color:var(--info); line-height:1.6;">
+          <i class="fas fa-info-circle" style="margin-right:6px;"></i>
+          퇴직 신청(본인→매니저→HR)과 채용 요청서(부서장→HR)는 법적·통제 목적상 고정 결재선을 사용합니다.
+        </div>
+
+        <div style="margin-top:20px;">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 결재선 저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- 바로가기 탭 -->
   <div class="settings-panel" id="tab-links" style="max-width:100%;">
     <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; padding-top:4px;">
@@ -557,13 +598,19 @@
 <script>
   function switchTab(name) {
     document.querySelectorAll('.settings-tab').forEach((btn, i) => {
-      const names = ['company','work','leave','payroll','perf'];
+      const names = ['company','work','leave','payroll','perf','positions','approvals','links'];
       btn.classList.toggle('active', names[i] === name);
     });
     document.querySelectorAll('.settings-panel').forEach(panel => {
       panel.classList.toggle('active', panel.id === 'tab-' + name);
     });
   }
+
+  // URL ?tab= 파라미터로 탭 자동 선택
+  (function () {
+    var t = new URLSearchParams(location.search).get('tab');
+    if (t && document.getElementById('tab-' + t)) switchTab(t);
+  })();
 
   // 조건부 블록
   document.querySelectorAll('input[name="work_system"]').forEach(r => {

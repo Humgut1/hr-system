@@ -789,6 +789,15 @@ def init_db(db_path: str = None):
         if 'return_comment' not in pg_cols:
             c.execute('ALTER TABLE performance_goals ADD COLUMN return_comment TEXT')
 
+        # 승인 체인 설정 (Phase C-13 — 결재선 화면 편집)
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS approval_chains (
+                workflow   TEXT PRIMARY KEY,
+                chain      TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
         # 입사 예정자 (Phase C-11 — 외부 ATS 합격자 수신 + 직원 전환, saas_plan.md §5)
         c.execute('''
             CREATE TABLE IF NOT EXISTS incoming_hires (
