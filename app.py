@@ -13,7 +13,7 @@ from functools import wraps
 from flask import (Flask, abort, flash, g, redirect, render_template,
                    request, session, url_for, jsonify)
 from werkzeug.security import check_password_hash, generate_password_hash
-from payroll_utils import (calc_payslip, calc_annual_leave, fmt_krw,
+from payroll_utils import (calc_payslip, calc_annual_leave, compute_leave_balance, fmt_krw,
                            calc_severance, check_min_wage, MIN_WAGE_MONTHLY,
                            calc_day_hours, calc_extra_pay,
                            get_week_bounds, calc_weekly_hours,
@@ -192,6 +192,26 @@ def close_connection(exception):
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
+
+
+# ══════════════════════════════════════════════════════════════
+#  연차 잔액 단일 소스 (P0-1, improvement_plan.md)
+#  발생·이월·사용을 이 함수 한 곳에서만 계산한다.
+#  화면 표시 / 신청 검증 / 연차촉진(§61) / 퇴직 정산(미사용수당) 전부 이 함수 사용.
+# ══════════════════════════════════════════════════════════════
+def get_leave_balance(db, user_id, year=None, include_pending=False):
+    """연차 잔액 계산 — payroll_utils.compute_leave_balance의 얇은 래퍼.
+
+    회사 정책(sick_policy)만 여기서 조회해 넘긴다. 화면 표시 / 신청 검증 /
+    연차촉진(§61) / 퇴직 정산(미사용수당) / Slack / MCP 전부 같은 공식을 쓴다.
+    """
+    try:
+        sick_policy = (get_company_config().get('sick_policy') or 'annual')
+    except Exception:
+        sick_policy = 'annual'
+    return compute_leave_balance(db, user_id, year=year,
+                                 sick_policy=sick_policy,
+                                 include_pending=include_pending)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1348,13 +1368,10 @@ def dashboard():
     # employee
     hire_row = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
     hire_date_str = hire_row['hire_date'] if hire_row else None
-    total_leave   = calc_annual_leave(hire_date_str) if hire_date_str else 15
-    used_leave    = db.execute(
-        "SELECT COALESCE(SUM(days),0) FROM leave_requests "
-        "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm','sick')",
-        (uid,)
-    ).fetchone()[0]
-    remain_leave  = total_leave - float(used_leave)
+    _bal = get_leave_balance(db, uid)
+    total_leave  = _bal['total']
+    used_leave   = _bal['used']
+    remain_leave = _bal['remaining']
     recent_reqs   = db.execute(
         'SELECT type, start_date, end_date, days, status FROM leave_requests '
         'WHERE user_id=? ORDER BY created_at DESC LIMIT 5', (uid,)
@@ -1685,13 +1702,9 @@ def employee_detail(emp_id):
             (emp_id, cycle['id'])
         ).fetchall()
 
-    annual_leave = calc_annual_leave(emp['hire_date']) if emp['hire_date'] else 15.0
-    used_leave   = db.execute(
-        "SELECT COALESCE(SUM(days),0) FROM leave_requests "
-        "WHERE user_id=? AND type='annual' AND status='approved' "
-        "AND strftime('%Y',start_date)=strftime('%Y','now')",
-        (emp_id,)
-    ).fetchone()[0]
+    _bal = get_leave_balance(db, emp_id)
+    annual_leave = _bal['total']
+    used_leave   = _bal['used']
 
     salary_history = db.execute(
         'SELECT sh.*, u.name AS changed_by_name '
@@ -4041,16 +4054,9 @@ def employee_severance(emp_id):
 
     term_date = emp['termination_date'] or date.today().isoformat()
 
-    # 사용 연차일수 조회 (해당 연도 approved 건)
-    term_year  = int(term_date[:4])
-    used_rows  = db.execute(
-        "SELECT COALESCE(SUM(days), 0) AS used "
-        "FROM leave_requests "
-        "WHERE user_id=? AND type='annual' AND status='approved' "
-        "AND strftime('%Y', start_date)=?",
-        (emp_id, str(term_year))
-    ).fetchone()
-    used_days = float(used_rows['used'] if used_rows else 0)
+    # 사용 연차일수 조회 (해당 연도, 단일 소스 — 반차·병가정책 포함)
+    term_year = int(term_date[:4])
+    used_days = get_leave_balance(db, emp_id, year=term_year)['used']
 
     # 마지막 월 일할계산 파라미터
     term_dt         = date.fromisoformat(term_date)
@@ -4669,16 +4675,10 @@ def leave_my():
         'WHERE r.user_id = ? ORDER BY r.created_at DESC',
         (uid,)
     ).fetchall()
-    # 연차 사용일 합산 (승인된 것만)
-    used = db.execute(
-        "SELECT COALESCE(SUM(days),0) FROM leave_requests "
-        "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm','sick')",
-        (uid,)
-    ).fetchone()[0]
-    hire_row = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
-    total = calc_annual_leave(hire_row['hire_date']) if hire_row and hire_row['hire_date'] else 15
+    # 연차 사용일 합산 (단일 소스)
+    _bal = get_leave_balance(db, uid)
     return render_template('leave/my.html', requests=requests,
-                           used=used, total=total, labels=LEAVE_LABELS,
+                           used=_bal['used'], total=_bal['total'], labels=LEAVE_LABELS,
                            active_page='leave')
 
 @app.route('/leave/new', methods=['GET', 'POST'])
@@ -4737,18 +4737,12 @@ def leave_new():
             if meta['max_days'] and days > meta['max_days']:
                 error = f'{meta["label"]} 최대 사용 가능일은 {meta["max_days"]}일입니다. (신청: {days:.0f}일)'
 
-            # 연차 소진 유형: 잔여 연차 검사
+            # 연차 소진 유형: 잔여 연차 검사 (승인 대기 건 포함 — 이중 신청 방지)
             if not error and meta['deduct'] == 'annual':
-                hire_row = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
-                total = calc_annual_leave(hire_row['hire_date']) if hire_row and hire_row['hire_date'] else 15
-                used  = db.execute(
-                    "SELECT COALESCE(SUM(days),0) FROM leave_requests "
-                    "WHERE user_id=? AND status='approved' "
-                    "AND type IN ('annual','half_am','half_pm','sick')",
-                    (uid,)
-                ).fetchone()[0]
-                if used + days > total:
-                    error = f'잔여 연차가 부족합니다. (잔여: {total - used:.1f}일, 신청: {days:.1f}일)'
+                _bal = get_leave_balance(db, uid, include_pending=True)
+                if _bal['used'] + days > _bal['total']:
+                    error = (f'잔여 연차가 부족합니다. '
+                             f'(잔여: {_bal["remaining"]:.1f}일 — 승인 대기 중인 신청 포함, 신청: {days:.1f}일)')
 
             # 기간 중복 검사
             if not error:
@@ -4838,17 +4832,12 @@ def leave_new():
                 flash(f'{meta["label"]} 신청이 완료되었습니다.', 'success')
                 return redirect(url_for('attendance_home', tab='leaves'))
 
-    # 연차 잔여일 계산 (폼에 표시용)
+    # 연차 잔여일 계산 (폼에 표시용, 단일 소스)
     db  = get_db()
     uid = session['user_id']
-    hire_row   = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
-    annual_total = calc_annual_leave(hire_row['hire_date']) if hire_row and hire_row['hire_date'] else 15
-    annual_used  = db.execute(
-        "SELECT COALESCE(SUM(days),0) FROM leave_requests "
-        "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm','sick')",
-        (uid,)
-    ).fetchone()[0]
-    annual_remain = round(annual_total - annual_used, 1)
+    _bal = get_leave_balance(db, uid)
+    annual_total  = _bal['total']
+    annual_remain = round(_bal['remaining'], 1)
 
     # 법정 특별휴가 사용 현황 (올해)
     import json as _json
@@ -10033,14 +10022,10 @@ def attendance_home():
     role  = session.get('user_role', 'employee')
     today = date.today()
 
-    # ── 공통: 연차 계산 ──────────────────────────────────────────
-    hire_row    = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
-    total_leave = calc_annual_leave(hire_row['hire_date']) if hire_row and hire_row['hire_date'] else 15
-    used_leave  = db.execute(
-        "SELECT COALESCE(SUM(days),0) FROM leave_requests "
-        "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm','sick')",
-        (uid,)
-    ).fetchone()[0]
+    # ── 공통: 연차 계산 (단일 소스) ──────────────────────────────
+    _bal = get_leave_balance(db, uid)
+    total_leave = _bal['total']
+    used_leave  = _bal['used']
 
     # ── TAB: 홈 ──────────────────────────────────────────────────
     checkin = db.execute(
@@ -10538,15 +10523,9 @@ def leave_carryover():
 
     processed = 0
     for emp in employees:
-        total = calc_annual_leave(emp['hire_date']) if emp['hire_date'] else 15
-        used  = db.execute(
-            "SELECT COALESCE(SUM(days),0) FROM leave_requests "
-            "WHERE user_id=? AND status='approved' AND type IN ('annual','half_am','half_pm') "
-            "AND strftime('%Y',start_date)=?",
-            (emp['id'], str(year - 1))
-        ).fetchone()[0]
-        remain    = max(0, total - float(used))
-        carry_amt = min(remain, carry_max)
+        # 전년도 잔여 = 단일 소스 계산 (전년 이월분·병가 정책 포함)
+        prev = get_leave_balance(db, emp['id'], year=year - 1)
+        carry_amt = min(max(0, prev['remaining']), carry_max)
 
         db.execute(
             'INSERT INTO leave_balances (user_id, year, total_days, used_days, carry_over_days, carry_over_max) '
@@ -10554,7 +10533,7 @@ def leave_carryover():
             'ON CONFLICT(user_id, year) DO UPDATE SET '
             '  total_days=excluded.total_days, used_days=excluded.used_days, '
             '  carry_over_days=excluded.carry_over_days, updated_at=CURRENT_TIMESTAMP',
-            (emp['id'], year, total + carry_amt, float(used), carry_amt, carry_max)
+            (emp['id'], year, prev['base'] + carry_amt, prev['used'], carry_amt, carry_max)
         )
         processed += 1
 
@@ -11893,21 +11872,21 @@ def people_analytics():
         "GROUP BY ym ORDER BY ym ASC"
     ).fetchall()
 
-    # ── 4. Leave utilization by dept ───────────────
-    leave_util = db.execute(
-        "SELECT d.name AS dept, "
-        "  ROUND(AVG(u_leave.used * 100.0 / COALESCE(u_leave.total, 15)), 1) AS pct "
-        "FROM departments d "
-        "JOIN users u ON u.department_id=d.id AND u.status='active' "
-        "JOIN ("
-        "  SELECT user_id, "
-        "    COALESCE(SUM(days),0) AS used, 15 AS total "
-        "  FROM leave_requests WHERE status='approved' "
-        "  AND type IN ('annual','half_am','half_pm') "
-        "  GROUP BY user_id"
-        ") u_leave ON u_leave.user_id=u.id "
-        "GROUP BY d.id, d.name ORDER BY pct DESC LIMIT 8"
+    # ── 4. Leave utilization by dept (연차 단일 소스 기반 — 하드코딩 15일 제거) ──
+    _emps = db.execute(
+        "SELECT id, department_id FROM users WHERE status='active' AND department_id IS NOT NULL"
     ).fetchall()
+    _dept_pcts = {}
+    for e in _emps:
+        b = get_leave_balance(db, e['id'])
+        if b['total'] > 0:
+            _dept_pcts.setdefault(e['department_id'], []).append(b['used'] * 100.0 / b['total'])
+    _dept_names = {d['id']: d['name'] for d in db.execute('SELECT id, name FROM departments').fetchall()}
+    leave_util = sorted(
+        [{'dept': _dept_names.get(k, '—'), 'pct': round(sum(v) / len(v), 1)}
+         for k, v in _dept_pcts.items() if v],
+        key=lambda x: x['pct'], reverse=True
+    )[:8]
 
     # ── 5. Compa-ratio distribution ─────────────────
     # Compa-ratio = 실제 기본급 / 해당 직급·직군 기준 연봉 × 100
@@ -13524,13 +13503,8 @@ def admin_leave_promotion():
             u = db.execute("SELECT * FROM users WHERE id=? AND status='active'", (uid,)).fetchone()
             if not u:
                 continue
-            total  = calc_annual_leave(u['hire_date'])
-            used   = db.execute(
-                "SELECT COALESCE(SUM(days),0) s FROM leave_requests "
-                "WHERE user_id=? AND type='annual' AND status='approved' "
-                "AND strftime('%Y', start_date)=?", (uid, str(year))
-            ).fetchone()['s']
-            remain = total - used
+            # 법적 증빙 문서 — 반드시 단일 소스로 계산 (반차·이월·병가 정책 포함)
+            remain = get_leave_balance(db, uid, year=year)['remaining']
             if remain <= 0:
                 continue
             db.execute(
@@ -13561,13 +13535,10 @@ def admin_leave_promotion():
         "SELECT id, name, email, hire_date, department_id FROM users "
         "WHERE status='active' AND role != 'guest' ORDER BY name"
     ).fetchall():
-        total = calc_annual_leave(u['hire_date'])
-        used  = db.execute(
-            "SELECT COALESCE(SUM(days),0) s FROM leave_requests "
-            "WHERE user_id=? AND type='annual' AND status='approved' "
-            "AND strftime('%Y', start_date)=?", (u['id'], str(year))
-        ).fetchone()['s']
-        remain = total - used
+        _bal   = get_leave_balance(db, u['id'], year=year)
+        total  = _bal['total']
+        used   = _bal['used']
+        remain = _bal['remaining']
         if remain <= 0:
             continue
         logs = db.execute(
@@ -14503,23 +14474,14 @@ def slack_command():
             return jsonify({'response_type': 'ephemeral', 'text': 'TalentCore에 등록된 계정을 찾을 수 없습니다.'})
 
         # 연차 계산
-        from app import calc_annual_leave
-        total = calc_annual_leave(user['hire_date'])
-        used  = db.execute(
-            "SELECT COALESCE(SUM(days),0) AS s FROM leave_requests "
-            "WHERE user_id=? AND type='annual' AND status='approved' "
-            "AND strftime('%Y', start_date)=strftime('%Y','now')",
-            (user['id'],)
-        ).fetchone()['s']
-        remain = total - used
-
+        _bal = get_leave_balance(db, user['id'])
         return jsonify({
             'response_type': 'ephemeral',
             'text': (
                 f"*{user['name']}님의 연차 현황*\n"
-                f"• 총 부여: {total}일\n"
-                f"• 사용: {used}일\n"
-                f"• 잔여: *{remain}일*"
+                f"• 총 부여: {_bal['total']:g}일" + (f" (이월 {_bal['carryover']:g}일 포함)" if _bal['carryover'] else '') + "\n"
+                f"• 사용: {_bal['used']:g}일\n"
+                f"• 잔여: *{_bal['remaining']:g}일*"
             ),
         })
 

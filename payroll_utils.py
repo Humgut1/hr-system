@@ -165,6 +165,56 @@ def calc_annual_leave(hire_date_str: str) -> float:
     return float(min(15 + extra, 25))
 
 
+def compute_leave_balance(db, user_id, year=None, sick_policy='annual', include_pending=False):
+    """연차 잔액 계산 — 시스템 전체의 유일한 공식 (P0-1, improvement_plan.md).
+
+    app.py의 get_leave_balance()와 mcp_server.py가 공유한다.
+    db: sqlite3 connection (row_factory 무관 — 인덱스 접근만 사용)
+
+    - base:      근속 기준 법정 발생 연차 (calc_annual_leave — §60)
+    - carryover: leave_balances의 해당 연도 이월분
+    - used:      해당 연도(start_date 기준) 소진성 휴가 합
+                 · 연차/오전반차/오후반차는 항상 소진
+                 · 병가는 sick_policy='annual'(연차 차감 정책)일 때만 소진
+    - include_pending: 승인 대기(pending/reviewed) 건 포함 — 신청 검증용 (이중 신청 방지)
+    """
+    if year is None:
+        year = date.today().year
+
+    row = db.execute('SELECT hire_date FROM users WHERE id=?', (user_id,)).fetchone()
+    hire_date = row[0] if row else None
+    base = calc_annual_leave(hire_date) if hire_date else 15.0
+
+    try:
+        row = db.execute(
+            'SELECT carry_over_days FROM leave_balances WHERE user_id=? AND year=?',
+            (user_id, year)
+        ).fetchone()
+        carryover = float(row[0] or 0) if row else 0.0
+    except Exception:   # 테이블 미생성 등
+        carryover = 0.0
+
+    deduct_types = ['annual', 'half_am', 'half_pm']
+    if sick_policy == 'annual':
+        deduct_types.append('sick')
+
+    statuses = "('approved','pending','reviewed')" if include_pending else "('approved')"
+    placeholders = ','.join('?' * len(deduct_types))
+    used = float(db.execute(
+        f"SELECT COALESCE(SUM(days),0) FROM leave_requests "
+        f"WHERE user_id=? AND status IN {statuses} AND type IN ({placeholders}) "
+        f"AND strftime('%Y', start_date)=?",
+        (user_id, *deduct_types, str(year))
+    ).fetchone()[0])
+
+    total = base + carryover
+    return {
+        'year': year, 'base': base, 'carryover': carryover,
+        'total': total, 'used': used, 'remaining': total - used,
+        'deduct_types': deduct_types,
+    }
+
+
 # ══ 소득세 정확 계산 (§47 / §50 / §51 / §59의2) ══════════════════════
 
 def calc_earned_income_deduction(annual_gross: int) -> int:

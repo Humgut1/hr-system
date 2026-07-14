@@ -11,7 +11,7 @@
 
 ### 현재 진행 상태 (마지막 업데이트: 2026-07-14)
 
-- **완료된 마지막 버전:** `v1.2.3` (v1.0.0은 Phase B 완결 마일스톤 태그)
+- **완료된 마지막 버전:** `v1.2.4` (v1.0.0은 Phase B 완결 마일스톤 태그)
 - **배포 완료:** v1.2.2(Phase C 전체)까지 Oracle Cloud VM 배포 완료 (2026-07-14, SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart — 신규 테이블 grade_appeals/incoming_hires/approval_chains + cycles/offers 신규 컬럼 + master.db api_token 확인, 랜딩/로그인 200 OK, 에러 로그 깨끗)
 - **다음 작업: `saas_plan.md` §6 실행 순서를 따를 것 (Phase A부터 순서대로)**
   1. ~~Phase A-1: 웹훅 서명 검증~~ ✅ v0.96.0 완료
@@ -33,7 +33,8 @@
   17. ~~기존 기능 전수 점검 + 개선 기획~~ ✅ 완료 (2026-07-14) — 107 라우트×3역할 스윕(500 에러 0건), 기존 버그 6건 수정, **개선 기획서: `improvement_plan.md`** (P0 연차 단일화·급여 2단계·시드 정리·스윕 자동화 / P1 승인 허브·결재선 확장·한글화·CSV 왕복 / P2 모바일·필터·알림·투어) — **다음: improvement_plan.md P0 스프린트 또는 Phase D (승헌씨 선택)**
   3. 이후 Phase B(CSV 임포트·요금제 3계층·연차촉진), C(성과 재개편·입사예정자), D — 상세는 saas_plan.md
   - (보류) 온보딩 투어 확장 여부, 도메인 설정(승헌씨 직접)
-- **v0.91~v1.2.3 완료 내역 요약:**
+- **v0.91~v1.2.4 완료 내역 요약:**
+  - v1.2.4 — **연차 잔액 단일 소스화 (P0-1, improvement_plan.md)**: `payroll_utils.compute_leave_balance()` 신설 (발생 §60 + 이월 leave_balances + 사용 — 연차/반차 항상 소진, 병가는 sick_policy='annual'일 때만) + app.py `get_leave_balance()` 래퍼(회사 정책 주입). **4가지로 갈라져 있던 계산식을 11개 지점에서 전부 교체**: 직원 대시보드(연도 필터 없던 것), 직원 상세(반차 누락), /leave 목록, 휴가 신청 폼·검증, 근태 홈, 연차 이월 처리, 분석 휴가사용률(하드코딩 15일 제거), **연차촉진 §61 발송·목록(반차·이월 누락 — 법적 증빙 오류였음)**, 퇴직 정산 미사용수당, Slack 명령, **MCP 서버(가산 규칙 자체가 틀렸었음)**. 신규: 신청 검증이 승인 대기 건 포함(include_pending)으로 이중 신청 차단. 부수 수정: dashboard hire_date_str 참조 복구. 테스트: 공식 일관성/이월 반영/대기 포함/이중 신청 차단 + 관련 화면 8종 200 OK
   - v1.2.3 — **전 라우트 스윕 핫픽스**: 107개 GET 라우트 × 3역할(admin/manager/employee) 전수 스윕에서 발견된 500 에러 2건 수정 — ①`/employees/<id>/severance` 퇴직 정산 페이지: `emp.get('base_salary')` sqlite3.Row AttributeError (죽은 중복 계산 호출 제거) ②`/billing/register` 및 결제 성공/실패 리다이렉트 4곳: `url_for('billing_dashboard')` 존재하지 않는 엔드포인트 참조 → `billing`으로 수정 (카드 등록 화면·결제 플로우가 전부 깨져 있었음). 스윕 재실행 결과 500 에러 0건
   - v1.2.2 — **승인 체인 설정화 (Phase C-13)**: `approval_chains` 테이블 + `APPROVAL_WORKFLOWS` 3종 + `get_approval_chain()` 헬퍼. 회사 설정에 '결재선' 탭 신규(`/admin/approval-chains`, 라디오 카드 UI, 감사 로그). ①휴가·근태 — 유형별 기본(meta_default)/매니저 전결/2단계(매니저→HR) 선택, attendance_approve 매니저·HR 분기 모두에 오버라이드 적용. ②증명서 — HR 승인/신청 즉시 자동 발급. ③인사발령 — HR 승인/관리자 전결(admin 기안 시 즉시 승인·반영, 미래발령은 발령일 자동 반영, 감사 로그). 퇴직·채용 요청서는 고정 결재선 유지(화면에 명시). settings.html 탭 전환 ?tab= 파라미터 지원 + 탭 하이라이트 배열 버그(links 탭 하이라이트 안 되던 것) 수정. **부수 버그 수정**: 매니저 대시보드 `pc.review_end` 존재하지 않는 컬럼 참조로 500 나던 것 → `end_date`로 수정. 테스트 8케이스 통과
   - v1.2.1 — **직급 프리셋 + 스톡옵션 모드 (Phase C-12, saas_plan.md §3)**: ①직급 체계 프리셋 — `POSITION_PRESETS`(L-레벨형/호칭형 사원~부사장), 회사 설정에 '직급 체계' 탭 신규(`/admin/positions/preset`, 레벨별 이름만 일괄 UPDATE — 직원 배정·급여 밴드 유지, 현재 직급 목록 표시, 커스텀은 부서·직급 관리 링크). ②국내형 스톡옵션 — offers에 `equity_type`(rsu/stock_option/none)·`option_qty`·`strike_price` 컬럼, 오퍼 생성 폼 주식보상 선택형(JS 토글, 기본값 스톡옵션), 오퍼 레터에 스톡옵션 TC 행(수량·행사가) + 부여 조건 섹션(행사가/클리프 2년/벤처기업법 §16의3 문구), 인라인 편집 패널에도 필드 추가, RSU는 stock_option 선택 시 0 처리. **부수 버그 수정**: GET /recruit/applicants/<id>/offers가 존재하지 않는 recruit/offers.html을 렌더링해 500 나던 것 → 지원자 상세 #offers 리다이렉트. 테스트 8케이스 통과

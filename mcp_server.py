@@ -179,24 +179,19 @@ TOOLS = [
 # ─────────────────────────────────────────────────────────────
 
 def handle_get_my_leave_balance(user: dict) -> str:
+    from payroll_utils import compute_leave_balance
     db  = get_db()
     uid = user['id']
 
-    # 입사일 기반 연차 계산
-    hire = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
-    hire_date = hire['hire_date'] if hire and hire['hire_date'] else None
-    total = 15
-    if hire_date:
-        years = (date.today() - date.fromisoformat(hire_date)).days // 365
-        total = min(25, 15 + max(0, years - 1))
-
-    used = db.execute(
-        "SELECT COALESCE(SUM(days), 0) AS s FROM leave_requests "
-        "WHERE user_id=? AND status='approved' "
-        "AND type IN ('annual','half_am','half_pm') "
-        "AND strftime('%Y', start_date)=?",
-        (uid, str(date.today().year))
-    ).fetchone()['s']
+    # 연차 계산 — 앱과 동일한 단일 공식 사용 (P0-1)
+    try:
+        cfg = db.execute('SELECT sick_policy FROM company_config WHERE id=1').fetchone()
+        sick_policy = (cfg['sick_policy'] if cfg and cfg['sick_policy'] else 'annual')
+    except Exception:
+        sick_policy = 'annual'
+    bal   = compute_leave_balance(db, uid, sick_policy=sick_policy)
+    total = bal['total']
+    used  = bal['used']
 
     pending = db.execute(
         "SELECT COUNT(*) AS c FROM leave_requests "
