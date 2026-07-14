@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block title %}CSV 일괄 수정{% endblock %}
+{% block page_title %}CSV 일괄 수정{% endblock %}
+
+{% block content %}
+
+{% if step == 'upload' %}
+<!-- ── 1단계: 업로드 ─────────────────────────────────────── -->
+<div style="display:grid; grid-template-columns:1fr 340px; gap:20px; align-items:start;">
+
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title"><i class="fas fa-file-csv" style="color:var(--primary); margin-right:7px;"></i>수정한 CSV 재업로드</span>
+    </div>
+    <form method="POST" enctype="multipart/form-data" style="padding:20px;">
+      <div style="border:2px dashed var(--line); border-radius:10px; padding:36px; text-align:center; margin-bottom:16px;">
+        <i class="fas fa-cloud-upload-alt" style="font-size:34px; color:var(--tx-3);"></i>
+        <div style="margin:10px 0 14px;" class="muted">부서·직급·직군·고용형태·기본급·매니저를 수정한 CSV 파일을 선택하세요</div>
+        <input type="file" name="file" accept=".csv" required class="form-control" style="max-width:340px; margin:0 auto;">
+      </div>
+      <button type="submit" class="btn btn-primary"><i class="fas fa-check" style="margin-right:6px;"></i>업로드 및 변경사항 확인</button>
+      <a href="{{ url_for('export_employees_editable') }}" class="btn btn-outline" style="margin-left:8px;">
+        <i class="fas fa-download" style="margin-right:6px;"></i>수정용 CSV 내보내기
+      </a>
+    </form>
+  </div>
+
+  <div class="card" style="padding:18px;">
+    <div style="font-weight:700; margin-bottom:10px;"><i class="fas fa-info-circle" style="color:var(--primary); margin-right:6px;"></i>사용 방법</div>
+    <ul class="muted" style="font-size:13px; line-height:1.9; padding-left:18px; margin:0;">
+      <li>먼저 <b>수정용 CSV 내보내기</b>로 현재 재직 직원 명단을 받으세요</li>
+      <li>엑셀에서 부서·직급·직군·고용형태·기본급·매니저이메일 값을 고친 뒤 저장</li>
+      <li><b>사번</b>으로 대상 직원을 찾으므로 사번 열은 수정·삭제하지 마세요</li>
+      <li>이름 열은 참고용이며 실제 반영되지 않습니다 (개명은 개별 수정 이용)</li>
+      <li>값을 비워두면 해당 항목은 변경하지 않습니다</li>
+      <li>업로드 후 <b>변경 내역을 미리보기에서 확인</b>한 뒤 반영됩니다 — 바로 저장되지 않으니 안심하세요</li>
+    </ul>
+  </div>
+</div>
+
+{% else %}
+<!-- ── 2단계: 변경사항 미리보기 ─────────────────────────────── -->
+<div style="display:flex; gap:12px; margin-bottom:18px;">
+  <div class="card" style="padding:14px 20px; flex:1;">
+    <div class="muted" style="font-size:12px;">변경 적용 예정</div>
+    <div style="font-size:24px; font-weight:700; color:var(--green);">{{ valid_count }}명</div>
+  </div>
+  <div class="card" style="padding:14px 20px; flex:1;">
+    <div class="muted" style="font-size:12px;">변경사항 없음</div>
+    <div style="font-size:24px; font-weight:700; color:var(--tx-2);">{{ no_change_count }}명</div>
+  </div>
+  <div class="card" style="padding:14px 20px; flex:1;">
+    <div class="muted" style="font-size:12px;">오류 (제외됨)</div>
+    <div style="font-size:24px; font-weight:700; color:{{ 'var(--red)' if error_count else 'var(--tx-2)' }};">{{ error_count }}건</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-head">
+    <span class="card-title">변경 내역</span>
+    <span class="muted" style="font-size:12px;">오류 행과 변경사항 없는 행은 반영에서 제외됩니다.</span>
+  </div>
+  <div class="tbl-wrap" style="max-height:420px; overflow-y:auto;">
+    <table>
+      <thead>
+        <tr><th>행</th><th>상태</th><th>사번</th><th>이름</th><th>변경 내용</th></tr>
+      </thead>
+      <tbody>
+        {% for r in results %}
+        <tr {% if r.errors %}style="background:color-mix(in srgb, var(--red) 6%, transparent);"{% endif %}>
+          <td class="muted" style="font-size:12px;">{{ r.line }}</td>
+          <td>
+            {% if r.errors %}<span class="badge badge-danger" style="font-size:11px;">오류</span>
+            {% elif r.changes %}<span class="badge badge-success" style="font-size:11px;">변경</span>
+            {% else %}<span class="badge" style="font-size:11px; background:var(--surface-2); color:var(--tx-2);">변경없음</span>{% endif %}
+          </td>
+          <td style="font-size:13px;">{{ r.emp_no }}</td>
+          <td style="font-weight:600;">{{ r.name }}</td>
+          <td style="font-size:12.5px;">
+            {% if r.errors %}
+              <span style="color:var(--red);">{{ r.errors | join(' · ') }}</span>
+            {% elif r.changes %}
+              {% for key, ch in r.changes.items() %}
+                <span style="display:inline-block; margin:2px 8px 2px 0; padding:2px 8px; border-radius:6px; background:var(--surface-2);">
+                  {{ ch.label }}: {{ ch.old }} → <b>{{ ch.new }}</b>
+                </span>
+              {% endfor %}
+            {% else %}
+              <span class="muted">-</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if valid_count %}
+<form method="POST" action="{{ url_for('employee_bulk_update_confirm') }}" class="card" style="padding:20px; display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
+  <input type="hidden" name="token" value="{{ token }}">
+  <button type="submit" class="btn btn-primary" onclick="return confirm('{{ valid_count }}명의 변경사항을 반영합니다. 진행할까요?')">
+    <i class="fas fa-check-double" style="margin-right:6px;"></i>{{ valid_count }}명 변경 반영
+  </button>
+  <a href="{{ url_for('employee_bulk_update') }}" class="btn btn-ghost">다시 업로드</a>
+</form>
+{% else %}
+<div class="card" style="padding:20px; text-align:center;">
+  <div class="muted">반영할 변경사항이 없습니다. 오류를 수정하거나 값을 바꾼 뒤 다시 업로드해주세요.</div>
+  <a href="{{ url_for('employee_bulk_update') }}" class="btn btn-primary" style="margin-top:12px;">다시 업로드</a>
+</div>
+{% endif %}
+
+{% endif %}
+
+{% endblock %}

@@ -2848,6 +2848,7 @@ EMP_TYPE_MAP = {
     '정규직': 'full_time', '계약직': 'contract', '인턴': 'intern', '파트타임': 'part_time',
     'full_time': 'full_time', 'contract': 'contract', 'intern': 'intern', 'part_time': 'part_time',
 }
+EMP_TYPE_KO = {'full_time': '정규직', 'contract': '계약직', 'intern': '인턴', 'part_time': '파트타임'}
 
 
 def _read_csv_rows(raw_bytes):
@@ -3067,6 +3068,230 @@ def employee_import_confirm():
     if unmatched_managers:
         msg += f' (매니저 매핑 실패 {len(unmatched_managers)}건: {", ".join(unmatched_managers[:5])})'
     flash(msg, 'success' if not unmatched_managers else 'warning')
+    return redirect(url_for('employees'))
+
+
+# ══════════════════════════════════════════════════════════════
+#  CSV 왕복 — 내보내기 → 수정 → 재업로드 일괄 수정 (Phase P1-4, improvement_plan.md)
+# ══════════════════════════════════════════════════════════════
+
+BULK_UPDATE_COLUMNS = ['사번', '이름', '부서', '직급', '직군', '고용형태', '기본급(월)', '매니저이메일']
+
+
+@app.route('/employees/export-editable')
+@admin_required
+def export_employees_editable():
+    """수정용 CSV 내보내기 — 사번을 키로 값을 고쳐 재업로드하면 일괄 반영된다."""
+    import io
+    from flask import Response
+    db = get_db()
+    rows = db.execute(
+        "SELECT u.emp_no, u.name, d.name AS dept, p.name AS pos, jf.name AS jf, "
+        "       u.employment_type, es.base_salary, mgr.email AS manager_email "
+        "FROM users u "
+        "LEFT JOIN departments d ON u.department_id=d.id "
+        "LEFT JOIN positions p ON u.position_id=p.id "
+        "LEFT JOIN job_families jf ON u.job_family_id=jf.id "
+        "LEFT JOIN employee_salary es ON u.id=es.user_id "
+        "LEFT JOIN users mgr ON u.manager_id=mgr.id "
+        "WHERE u.role != 'guest' AND u.status='active' "
+        "ORDER BY d.name, u.name"
+    ).fetchall()
+
+    out = io.StringIO()
+    out.write(','.join(BULK_UPDATE_COLUMNS) + '\n')
+    for r in rows:
+        vals = [
+            r['emp_no'] or '', r['name'] or '', r['dept'] or '', r['pos'] or '', r['jf'] or '',
+            EMP_TYPE_KO.get(r['employment_type'], r['employment_type'] or ''),
+            str(r['base_salary'] or ''), r['manager_email'] or '',
+        ]
+        out.write(','.join(f'"{v}"' if ',' in v else v for v in vals) + '\n')
+
+    return Response('﻿' + out.getvalue(),
+                     mimetype='text/csv; charset=utf-8',
+                     headers={'Content-Disposition': 'attachment; filename=employee_bulk_update.csv'})
+
+
+@app.route('/employees/bulk-update', methods=['GET', 'POST'])
+@admin_required
+def employee_bulk_update():
+    """1단계: 수정된 CSV 재업로드 → 사번 매칭 → 변경분만 골라 미리보기."""
+    db = get_db()
+    if request.method == 'GET':
+        return render_template('employees/bulk_update.html', step='upload',
+                               columns=BULK_UPDATE_COLUMNS, active_page='employees')
+
+    f = request.files.get('file')
+    if not f or not f.filename:
+        flash('CSV 파일을 선택해주세요.', 'warning')
+        return redirect(url_for('employee_bulk_update'))
+
+    rows = _read_csv_rows(f.read())
+    if rows is None:
+        flash('CSV를 읽을 수 없습니다. UTF-8 또는 Excel(CP949)로 저장했는지 확인해주세요.', 'danger')
+        return redirect(url_for('employee_bulk_update'))
+    if not rows:
+        flash('데이터 행이 없습니다.', 'warning')
+        return redirect(url_for('employee_bulk_update'))
+
+    depts = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM departments').fetchall()}
+    poses = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM positions').fetchall()}
+    jfs   = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM job_families').fetchall()}
+
+    current_map = {}
+    for r in db.execute(
+        "SELECT u.id, u.emp_no, u.name, u.department_id, u.position_id, u.job_family_id, "
+        "       u.employment_type, u.manager_id, "
+        "       d.name AS dept_name, p.name AS pos_name, jf.name AS jf_name, "
+        "       mgr.email AS mgr_email, es.base_salary "
+        "FROM users u "
+        "LEFT JOIN departments d ON u.department_id=d.id "
+        "LEFT JOIN positions p ON u.position_id=p.id "
+        "LEFT JOIN job_families jf ON u.job_family_id=jf.id "
+        "LEFT JOIN users mgr ON u.manager_id=mgr.id "
+        "LEFT JOIN employee_salary es ON u.id=es.user_id "
+        "WHERE u.role != 'guest' AND u.status='active'"
+    ).fetchall():
+        if r['emp_no']:
+            current_map[r['emp_no']] = r
+
+    results = []
+    apply_rows = []
+    for i, row in enumerate(rows, start=2):  # CSV 2행부터 (1행 = 헤더)
+        r = {k: (row.get(k) or '').strip() for k in BULK_UPDATE_COLUMNS}
+        errors = []
+        emp_no = r['사번']
+        if not emp_no:
+            errors.append('사번 누락')
+        cur = current_map.get(emp_no) if emp_no else None
+        if emp_no and not cur:
+            errors.append(f'사번 없음(또는 재직중 아님): {emp_no}')
+
+        changes = {}
+        if cur:
+            if r['부서']:
+                new_id = depts.get(r['부서'])
+                if not new_id:
+                    errors.append(f"부서 없음: {r['부서']}")
+                elif new_id != cur['department_id']:
+                    changes['department_id'] = {'label': '부서', 'old': cur['dept_name'] or '-', 'new': r['부서'], 'value': new_id}
+            if r['직급']:
+                new_id = poses.get(r['직급'])
+                if not new_id:
+                    errors.append(f"직급 없음: {r['직급']}")
+                elif new_id != cur['position_id']:
+                    changes['position_id'] = {'label': '직급', 'old': cur['pos_name'] or '-', 'new': r['직급'], 'value': new_id}
+            if r['직군']:
+                new_id = jfs.get(r['직군'])
+                if not new_id:
+                    errors.append(f"직군 없음: {r['직군']}")
+                elif new_id != cur['job_family_id']:
+                    changes['job_family_id'] = {'label': '직군', 'old': cur['jf_name'] or '-', 'new': r['직군'], 'value': new_id}
+            if r['고용형태']:
+                new_type = EMP_TYPE_MAP.get(r['고용형태'])
+                if not new_type:
+                    errors.append(f"고용형태 오류: {r['고용형태']} (정규직/계약직/인턴/파트타임)")
+                elif new_type != cur['employment_type']:
+                    changes['employment_type'] = {
+                        'label': '고용형태',
+                        'old': EMP_TYPE_KO.get(cur['employment_type'], cur['employment_type']),
+                        'new': r['고용형태'], 'value': new_type,
+                    }
+            if r['기본급(월)']:
+                try:
+                    new_sal = int(r['기본급(월)'].replace(',', '').replace('원', ''))
+                except ValueError:
+                    errors.append(f"기본급 숫자 아님: {r['기본급(월)']}")
+                else:
+                    if new_sal != (cur['base_salary'] or 0):
+                        changes['salary'] = {
+                            'label': '기본급',
+                            'old': f"{cur['base_salary'] or 0:,}원", 'new': f"{new_sal:,}원", 'value': new_sal,
+                        }
+            if r['매니저이메일']:
+                mgr_email = r['매니저이메일'].lower()
+                mgr = db.execute('SELECT id, email FROM users WHERE email=?', (mgr_email,)).fetchone()
+                if not mgr:
+                    errors.append(f"매니저 이메일 없음: {mgr_email}")
+                elif mgr['id'] != cur['manager_id']:
+                    changes['manager_id'] = {
+                        'label': '매니저', 'old': cur['mgr_email'] or '-', 'new': mgr_email, 'value': mgr['id'],
+                    }
+
+        results.append({
+            'line': i, 'emp_no': emp_no, 'name': r['이름'] or (cur['name'] if cur else ''),
+            'errors': errors, 'changes': changes,
+        })
+
+        if cur and not errors and changes:
+            sets, salary_val = {}, None
+            for key, ch in changes.items():
+                if key == 'salary':
+                    salary_val = ch['value']
+                else:
+                    sets[key] = ch['value']
+            apply_rows.append({'emp_id': cur['id'], 'sets': sets, 'salary': salary_val})
+
+    error_count = sum(1 for x in results if x['errors'])
+    no_change_count = sum(1 for x in results if not x['errors'] and not x['changes'])
+    token = uuid.uuid4().hex
+    if apply_rows:
+        with open(os.path.join(IMPORT_TMP_DIR, f'bulk_{token}.json'), 'w', encoding='utf-8') as fp:
+            json.dump(apply_rows, fp, ensure_ascii=False)
+
+    return render_template('employees/bulk_update.html', step='preview',
+                           results=results, valid_count=len(apply_rows),
+                           error_count=error_count, no_change_count=no_change_count,
+                           token=token, columns=BULK_UPDATE_COLUMNS,
+                           active_page='employees')
+
+
+@app.route('/employees/bulk-update/confirm', methods=['POST'])
+@admin_required
+def employee_bulk_update_confirm():
+    """2단계: 미리보기에서 확인한 변경분을 일괄 반영 (부서/직급/직군/고용형태/매니저=직접 UPDATE, 급여=salary_history 기록)."""
+    token = request.form.get('token', '')
+    if not token.isalnum():
+        abort(400)
+
+    tmp_path = os.path.join(IMPORT_TMP_DIR, f'bulk_{token}.json')
+    if not os.path.exists(tmp_path):
+        flash('수정 세션이 만료됐습니다. 파일을 다시 업로드해주세요.', 'warning')
+        return redirect(url_for('employee_bulk_update'))
+    with open(tmp_path, encoding='utf-8') as fp:
+        apply_rows = json.load(fp)
+
+    db = get_db()
+    field_count = 0
+    for row in apply_rows:
+        emp_id = row['emp_id']
+        sets = row['sets']
+        if sets:
+            cols = ', '.join(f'{c}=?' for c in sets)
+            db.execute(f'UPDATE users SET {cols} WHERE id=?', (*sets.values(), emp_id))
+            field_count += len(sets)
+        if row['salary'] is not None:
+            new_sal = row['salary']
+            old = db.execute('SELECT base_salary FROM employee_salary WHERE user_id=?', (emp_id,)).fetchone()
+            if old:
+                db.execute('UPDATE employee_salary SET base_salary=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?',
+                           (new_sal, emp_id))
+                old_sal = old['base_salary']
+            else:
+                db.execute('INSERT INTO employee_salary (user_id, base_salary) VALUES (?,?)', (emp_id, new_sal))
+                old_sal = 0
+            db.execute(
+                'INSERT INTO salary_history (user_id, changed_by, old_base_salary, new_base_salary, reason) '
+                'VALUES (?,?,?,?,?)',
+                (emp_id, session['user_id'], old_sal, new_sal, 'CSV 일괄 수정')
+            )
+            field_count += 1
+    db.commit()
+    os.remove(tmp_path)
+
+    log_audit('update', 'personal_info', None, f'CSV 일괄 수정 — {len(apply_rows)}명, 변경 {field_count}건')
+    flash(f'{len(apply_rows)}명 정보가 수정되었습니다. (총 {field_count}건 변경)', 'success')
     return redirect(url_for('employees'))
 
 
