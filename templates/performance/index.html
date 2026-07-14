@@ -173,6 +173,10 @@
   <a href="{{ url_for('performance_goal_new') }}" class="btn btn-primary">
     <i class="fas fa-plus"></i> 목표 등록
   </a>
+  {% elif session.user_role in ('admin', 'manager') %}
+  <a href="{{ url_for('goal_templates') }}" class="btn btn-ghost">
+    <i class="fas fa-clipboard-list"></i> 목표 템플릿
+  </a>
   {% endif %}
 </div>
 

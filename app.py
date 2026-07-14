@@ -1602,6 +1602,9 @@ def employees():
     pos_id       = request.args.get('pos', '')
     emp_type     = request.args.get('emp_type', '')
     perf_grade   = request.args.get('grade', '')
+    status       = request.args.get('status', 'active')   # active | resigned (v1.2.7 탭)
+    if status not in ('active', 'resigned'):
+        status = 'active'
 
     depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
     jfs   = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
@@ -1617,9 +1620,9 @@ def employees():
         'LEFT JOIN (SELECT user_id, final_grade FROM calibration_results '
         '           WHERE id IN (SELECT MAX(id) FROM calibration_results GROUP BY user_id)) cr '
         '           ON u.id = cr.user_id '
-        "WHERE u.status = 'active'"
+        'WHERE u.status = ?'
     )
-    params = []
+    params = [status]
     if q:
         sql    += ' AND (u.name LIKE ? OR u.email LIKE ? OR u.emp_no LIKE ?)'
         params += [f'%{q}%', f'%{q}%', f'%{q}%']
@@ -1636,10 +1639,22 @@ def employees():
     sql += ' ORDER BY u.name'
 
     emp_list = db.execute(sql, params).fetchall()
+
+    # 상단 탭 카운트 (v1.2.7 — 입사 예정자를 직원 관리로 통합)
+    try:
+        hires_waiting = db.execute(
+            "SELECT COUNT(*) FROM incoming_hires WHERE status='waiting'").fetchone()[0]
+    except sqlite3.OperationalError:
+        hires_waiting = 0
+    resigned_count = db.execute(
+        "SELECT COUNT(*) FROM users WHERE status='resigned'").fetchone()[0]
+
     return render_template('employees/list.html',
                            employees=emp_list, depts=depts, jfs=jfs, poses=poses,
                            q=q, dept_id=dept_id, jf_id=jf_id, pos_id=pos_id,
                            emp_type=emp_type, perf_grade=perf_grade,
+                           status=status, hires_waiting=hires_waiting,
+                           resigned_count=resigned_count,
                            active_page='employees')
 
 @app.route('/employees/<int:emp_id>')
@@ -2990,7 +3005,7 @@ def hires_list():
                            hires=hires, counts=counts, status_filter=status_filter,
                            source_label=HIRE_SOURCE_LABEL,
                            api_token=api_token,
-                           active_page='hires')
+                           active_page='employees')
 
 
 @app.route('/hires/new', methods=['POST'])
