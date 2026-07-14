@@ -11,8 +11,8 @@
 
 ### 현재 진행 상태 (마지막 업데이트: 2026-07-14)
 
-- **완료된 마지막 버전:** `v0.99.4`
-- **배포 완료:** v0.99.4(Phase B 전체)까지 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart)
+- **완료된 마지막 버전:** `v1.1.0` (v1.0.0은 Phase B 완결 마일스톤 태그)
+- **배포 완료:** v0.99.4(Phase B 전체)까지 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart). v1.1.0은 로컬 완료 — Phase C 묶어서 배포 예정
 - **다음 작업: `saas_plan.md` §6 실행 순서를 따를 것 (Phase A부터 순서대로)**
   1. ~~Phase A-1: 웹훅 서명 검증~~ ✅ v0.96.0 완료
   2. ~~Phase A-2: CSRF 토큰 전면 적용~~ ✅ v0.97.0 완료
@@ -24,10 +24,12 @@
   8. ~~Phase B-7: 요금제 3계층 + 메뉴 다이어트~~ ✅ v0.99.3 완료
   9. ~~Phase B-8: 연차촉진 알림 + 급여명세 발송~~ ✅ v0.99.4 완료
   10. ~~Phase B-9: 테넌트 온보딩 셀프서비스 점검~~ ✅ 완료 (2026-07-14, 코드 변경 없음 — 가입→로그인→설정 마법사→CSV 임포트(매니저 체인 포함)→직원 로그인→근태 접속까지 신규 테넌트로 전수 검증, 전부 정상. 유일한 404는 구버전 라우트(/onboarding, 제거된 것)로 정상) — Phase B 전체 완료
-  11. ~~Phase B 배포 (v0.99.2~0.99.4)~~ ✅ 완료 (2026-07-14, `deploy/update.sh` 실행 — git pull(이미 최신 상태였음)+migrate+재시작, 운영 DB에 `leave_promotion_logs`·`audit_logs` 테이블 + master.db `tenants.plan` 컬럼(데모 테넌트=enterprise) 확인, 랜딩/로그인 200 OK + 랜딩 요금제 섹션 노출 확인, gunicorn 에러 로그 깨끗) — **다음: Phase C-10: 성과관리 재개편 (saas_plan.md §4)**
+  11. ~~Phase B 배포 (v0.99.2~0.99.4)~~ ✅ 완료 (2026-07-14, `deploy/update.sh` 실행 — git pull(이미 최신 상태였음)+migrate+재시작, 운영 DB에 `leave_promotion_logs`·`audit_logs` 테이블 + master.db `tenants.plan` 컬럼(데모 테넌트=enterprise) 확인, 랜딩/로그인 200 OK + 랜딩 요금제 섹션 노출 확인, gunicorn 에러 로그 깨끗)
+  12. ~~Phase C-10: 성과관리 재개편~~ ✅ v1.1.0 완료 — **다음: Phase C-11: 입사 예정자 기능 (saas_plan.md §5)**
   3. 이후 Phase B(CSV 임포트·요금제 3계층·연차촉진), C(성과 재개편·입사예정자), D — 상세는 saas_plan.md
   - (보류) 온보딩 투어 확장 여부, 도메인 설정(승헌씨 직접)
-- **v0.91~v0.99.4 완료 내역 요약:**
+- **v0.91~v1.1.0 완료 내역 요약:**
+  - v1.1.0 — **성과관리 재개편 (Phase C-10, saas_plan.md §4)**: ①주기 상태머신 — `performance_cycles.stage`(goal→progress→review→calibration→appeal→closed) + `include_peer`(다면평가 주기별 토글) + `appeal_until`, 주기 관리 화면에 스텝퍼·단계 전환 버튼(appeal 진입 시 등급 자동 공개+7일 이의기간+알림, 미처리 이의 있으면 종료 차단). ②목표 승인 워크플로우 — `performance_goals.approval_status`(draft/submitted/confirmed/returned)+`return_comment`, 직원 제출(3~5개·가중치 합 100% 검증) → 팀장/HR 확정·반려(사유 필수, 알림), 확정 전 평가 불가, 제출 후 수정 불가, draft 목표 삭제 가능. ③단계별 게이팅 — 목표 등록은 goal 단계만, 자기평가·팀장평가·다면평가는 review 단계만, 진행률은 calibration부터 잠금, 캘리브레이션 확정은 review/calibration 단계만. ④이의제기 신규 — `grade_appeals` 테이블(주기당 1인 1회 UNIQUE), 직원 신청(10자 이상) → `/performance/appeals`에서 팀장(직속만)/HR 인용(등급 조정+calibration 반영)·기각, 전 과정 알림+감사 로그. ⑤다면평가 게이팅 — include_peer=0이면 사이드바 '다면평가 배정'(context processor `peer_enabled`)·직원 다면평가 탭·관리자 다면평가 관리 탭 숨김+라우트 차단. ⑥기존 데이터 마이그레이션: active 주기→review, 기존 목표→confirmed. 부수 수정: index.html 다면평가 관리 패널의 잘못된 calibration 링크→peer_assignments. 테스트 31케이스 통과 (제출 검증/반려·재제출/단계 차단/하향 사유/이의 1회 제한/종료 차단 등)
   - v0.99.4 — **연차촉진 알림 + 급여명세 발송 (Phase B-8)**: ①연차사용촉진(§61) — `leave_promotion_logs` 테이블(법적 증빙용 발송 이력), `/admin/leave-promotion` 화면(잔여연차 보유자 목록 + 1차/2차 촉진 선택 발송 + 이력 표시), 인앱 알림+이메일 동시 발송, 설정 바로가기에 링크. ②급여명세 이메일(§48 교부 의무) — `send_payslip_email()`(요약 금액+상세 링크), 급여 생성 2개 경로(compensation/admin_payroll) 모두에 best-effort 발송 훅. `_send_simple()` 공통 헬퍼, SMTP 미설정 시 데모 모드
   - v0.99.3 — **요금제 3계층 + 메뉴 다이어트 (Phase B-7)**: master.db `tenants.plan` 컬럼(core/growth/enterprise, 기본 growth, 데모 테넌트=enterprise). `PLAN_PRICES`(2,500/4,500/7,000원), `PLAN_FEATURES` 게이팅 — Growth: performance/recruiting/onboarding/welfare/peer_review, Enterprise: +succession/talent_advanced/comp_advanced/data_wizard. `inject_plan` context processor(`plan_features` set)로 사이드바 메뉴 + 보상관리 급여구조·ACR 탭 + 분석 데이터마법사 탭(버튼+패널 모두) 게이팅. 청구 금액이 요금제 단가 기반으로 변경(`get_plan_price`). SaaS 슈퍼어드민 테넌트 상세에 요금제 변경 폼(`/saas/tenants/<id>/plan`). 랜딩에 3계층 요금제 섹션 신규. 주의: 로그인(`session.clear()`) 후 CSRF 토큰 재발급 — 테스트 시 로그인 후 토큰 재취득 필요
   - v0.99.2 — **CSV 직원 일괄 임포트 (Phase B-6, 실고객 진입로)**: `/employees/import` 2단계 플로우(업로드→검증 미리보기→초기 비밀번호 지정 후 확정). UTF-8(BOM)+CP949 모두 지원, 검증(필수값/이메일 형식·중복(DB+파일 내)/부서·직급·직군 이름 매칭/고용형태/날짜 정규화/급여 콤마 파싱), 오류 행은 제외하고 유효 행만 등록, 매니저이메일 2차 매핑(같은 파일 내 상호참조 가능), 사번 자동생성+employee_salary+master.db 테넌트 유저 등록+peak headcount 갱신, 감사 로그 기록. 템플릿 CSV는 실제 등록된 부서/직급/직군 이름으로 동적 생성. 직원 목록에 'CSV 임포트' 버튼. 임시 검증 데이터는 `static/uploads/imports/`(gitignore)에 토큰 파일로 저장 후 확정 시 삭제

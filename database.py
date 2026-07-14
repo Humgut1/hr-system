@@ -769,6 +769,45 @@ def init_db(db_path: str = None):
         if 'achievable_level' not in cal_cols:
             c.execute("ALTER TABLE calibration_results ADD COLUMN achievable_level TEXT DEFAULT NULL")
 
+        # 성과관리 재개편 마이그레이션 (v1.1.0 — Phase C-10, saas_plan.md §4)
+        pc_cols = {r[1] for r in c.execute('PRAGMA table_info(performance_cycles)').fetchall()}
+        if 'include_peer' not in pc_cols:
+            c.execute('ALTER TABLE performance_cycles ADD COLUMN include_peer INTEGER NOT NULL DEFAULT 1')
+        if 'stage' not in pc_cols:
+            c.execute("ALTER TABLE performance_cycles ADD COLUMN stage TEXT NOT NULL DEFAULT 'goal'")
+            # 기존 주기: 진행 중이던 것은 평가 단계로, 마감된 것은 종료로
+            c.execute("UPDATE performance_cycles SET stage='review' WHERE status='active'")
+            c.execute("UPDATE performance_cycles SET stage='closed' WHERE status='closed'")
+        if 'appeal_until' not in pc_cols:
+            c.execute('ALTER TABLE performance_cycles ADD COLUMN appeal_until DATE')
+
+        pg_cols = {r[1] for r in c.execute('PRAGMA table_info(performance_goals)').fetchall()}
+        if 'approval_status' not in pg_cols:
+            c.execute("ALTER TABLE performance_goals ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'draft'")
+            # 기존 목표는 이미 운영 중이던 데이터이므로 확정 상태로 취급
+            c.execute("UPDATE performance_goals SET approval_status='confirmed'")
+        if 'return_comment' not in pg_cols:
+            c.execute('ALTER TABLE performance_goals ADD COLUMN return_comment TEXT')
+
+        # 등급 이의제기 (주기당 1회 — UNIQUE 제약)
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS grade_appeals (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                cycle_id    INTEGER NOT NULL REFERENCES performance_cycles(id),
+                user_id     INTEGER NOT NULL REFERENCES users(id),
+                reason      TEXT NOT NULL,
+                status      TEXT NOT NULL DEFAULT 'pending'
+                                CHECK(status IN ('pending','accepted','rejected')),
+                old_grade   TEXT,
+                new_grade   TEXT,
+                response    TEXT,
+                resolved_by INTEGER REFERENCES users(id),
+                resolved_at TIMESTAMP,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(cycle_id, user_id)
+            )
+        ''')
+
         # company_config 컬럼 마이그레이션 (v0.50 — 등급별 보상 배수)
         cc_cols = {r[1] for r in c.execute('PRAGMA table_info(company_config)').fetchall()}
         for col, default in [

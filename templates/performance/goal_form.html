@@ -190,18 +190,20 @@
 
       {% if not cycles %}
       <div style="text-align:center; color:var(--tx-3); padding:32px;">
-        진행 중인 평가 주기가 없습니다. HR Admin에 문의하세요.
+        <strong>목표 수립 단계</strong>인 평가 주기가 없습니다.<br>
+        <span style="font-size:12px;">목표는 주기 시작(목표 수립) 단계에서만 등록할 수 있습니다. HR Admin에 문의하세요.</span>
       </div>
       {% else %}
       <form method="POST" action="{{ url_for('performance_goal_new') }}" id="goalForm">
 
         <div class="field">
           <label class="form-label">평가 주기 <span style="color:var(--red);">*</span></label>
-          <select name="cycle_id" class="input" required>
+          <select name="cycle_id" class="input" required id="cycleSelect" onchange="updateWeightHint()">
             {% for c in cycles %}
-            <option value="{{ c.id }}">{{ c.name }}</option>
+            <option value="{{ c.id }}" data-myweight="{{ my_weights.get(c.id, 0) }}">{{ c.name }}</option>
             {% endfor %}
           </select>
+          <div style="font-size:11.5px; color:var(--tx-3); margin-top:5px;" id="weightHint"></div>
         </div>
 
         <div class="grid-2" style="gap:14px;">
@@ -436,5 +438,20 @@ function applyImproved() {
   document.getElementById('aiSuggest').style.display = 'none';
   document.getElementById('aiReason').textContent = '✓ 개선된 목표가 적용되었습니다.';
 }
+
+// 주기별 잔여 가중치 안내
+function updateWeightHint() {
+  var sel = document.getElementById('cycleSelect');
+  var hint = document.getElementById('weightHint');
+  if (!sel || !hint) return;
+  var opt = sel.options[sel.selectedIndex];
+  var used = parseInt(opt.dataset.myweight || '0', 10);
+  var remain = 100 - used;
+  hint.innerHTML = '현재 등록된 가중치 합: <strong>' + used + '%</strong> · 잔여 <strong>'
+    + remain + '%</strong> (제출하려면 합계가 정확히 100%여야 합니다)';
+  var wInput = document.querySelector('input[name="weight"]');
+  if (wInput && remain > 0 && remain <= 100) wInput.value = remain;
+}
+updateWeightHint();
 </script>
 {% endblock %}

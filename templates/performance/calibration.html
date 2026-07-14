@@ -105,15 +105,21 @@
       {% endfor %}
     </select>
     {% endif %}
-    {% if selected_cycle and confirmed_count > 0 %}
+    {% if selected_cycle and confirmed_count > 0 and selected_cycle.stage in ('review','calibration') %}
     <form method="POST">
       <input type="hidden" name="action" value="publish">
       <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
       <button type="submit" class="btn btn-primary"
-              onclick="return confirm('확정된 {{ confirmed_count }}명의 등급을 직원에게 공개합니다.\n직원 성과 페이지에서 결과를 볼 수 있게 됩니다.')">
-        <i class="fas fa-share-square"></i> 직원에게 공개 ({{ confirmed_count }}명)
+              onclick="return confirm('확정된 {{ confirmed_count }}명의 등급을 직원에게 공개합니다.\n공개와 동시에 7일 이의신청 기간이 시작됩니다.')">
+        <i class="fas fa-share-square"></i> 등급 공개 + 이의기간 시작 ({{ confirmed_count }}명)
       </button>
     </form>
+    {% endif %}
+    {% if selected_cycle and selected_cycle.stage in ('appeal','closed') %}
+    <a href="{{ url_for('performance_appeals', cycle=selected_cycle.id) }}" class="btn btn-ghost">
+      <i class="fas fa-gavel"></i> 이의신청 관리
+      {% if appeal_pending %}<span class="badge" style="background:#fee2e2; color:#dc2626; margin-left:4px;">{{ appeal_pending }}</span>{% endif %}
+    </a>
     {% endif %}
     {% if publish_ready and not active_acr %}
     <a href="{{ url_for('compensation') }}?tab=merit&from_cycle={{ selected_cycle.id }}"
@@ -137,6 +143,16 @@
 </div>
 
 {% else %}
+
+{% if selected_cycle.stage not in ('review', 'calibration') %}
+<div style="background:var(--warn-bg, #fef3c7); border:1px solid #f59e0b; border-radius:10px;
+            padding:12px 16px; margin-bottom:16px; font-size:12.5px; color:#92400e;">
+  <i class="fas fa-info-circle" style="margin-right:6px;"></i>
+  현재 주기 단계는 <strong>{{ cycle_stage_label.get(selected_cycle.stage, selected_cycle.stage) }}</strong>입니다.
+  등급 확정은 <strong>HR 조정</strong> 단계에서만 가능합니다 —
+  <a href="{{ url_for('performance_cycles') }}" style="color:#92400e; font-weight:700;">주기 관리에서 단계 변경 →</a>
+</div>
+{% endif %}
 
 <!-- 요약 카드 -->
 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); gap:10px; margin-bottom:20px;">

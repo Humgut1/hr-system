@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% block title %}이의신청 관리{% endblock %}
+{% block page_title %}등급 이의신청 관리{% endblock %}
+
+{% block extra_css %}
+<style>
+.appeal-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 18px 22px; margin-bottom: 12px;
+}
+.appeal-card.pending { border-left: 4px solid #f59e0b; }
+.appeal-card.accepted { border-left: 4px solid var(--green); }
+.appeal-card.rejected { border-left: 4px solid var(--tx-3); }
+.appeal-status {
+  font-size: 10.5px; font-weight: 800; padding: 3px 10px; border-radius: 20px;
+}
+.st-pending  { background:#fef3c7; color:#92400e; }
+.st-accepted { background:#dcfce7; color:#16a34a; }
+.st-rejected { background:#f1f5f9; color:#475569; }
+.grade-pill {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:30px; height:30px; border-radius:50%;
+  font-size:14px; font-weight:900; background:#dbeafe; color:#1e40af;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+  <div style="font-size:12.5px; color:var(--tx-3);">
+    이의신청은 <strong>주기당 1인 1회</strong>이며, 재검토 결과(인용/기각)는 직원에게 알림으로 전달됩니다.
+  </div>
+  <div style="display:flex; gap:10px; align-items:center;">
+    {% if cycles %}
+    <select class="input" style="width:220px; font-size:13px;"
+            onchange="location.href='?cycle='+this.value">
+      {% for c in cycles %}
+      <option value="{{ c.id }}" {% if selected_cycle and c.id == selected_cycle.id %}selected{% endif %}>
+        {{ c.name }} ({{ cycle_stage_label.get(c.stage, c.stage) }})
+      </option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <a href="{{ url_for('calibration', cycle=cycle_id) }}" class="btn btn-ghost btn-sm">
+      <i class="fas fa-balance-scale"></i> 캘리브레이션
+    </a>
+  </div>
+</div>
+
+{% if not selected_cycle %}
+<div class="card"><div class="card-body" style="text-align:center; padding:60px; color:var(--tx-3);">
+  평가 주기를 선택하세요.
+</div></div>
+
+{% elif not appeals %}
+<div class="card"><div class="card-body" style="text-align:center; padding:60px; color:var(--tx-3);">
+  <i class="fas fa-gavel" style="font-size:32px; opacity:.3; display:block; margin-bottom:12px;"></i>
+  이 주기에 접수된 이의신청이 없습니다.
+</div></div>
+
+{% else %}
+
+{% set pending_cnt = appeals|selectattr('status', 'equalto', 'pending')|list|length %}
+<div style="display:grid; grid-template-columns:repeat(3, minmax(120px, 200px)); gap:10px; margin-bottom:20px;">
+  <div class="card" style="margin:0; text-align:center;"><div class="card-body" style="padding:14px;">
+    <div style="font-size:22px; font-weight:900; color:var(--primary);">{{ appeals|length }}</div>
+    <div style="font-size:11px; color:var(--tx-3);">전체 접수</div>
+  </div></div>
+  <div class="card" style="margin:0; text-align:center;"><div class="card-body" style="padding:14px;">
+    <div style="font-size:22px; font-weight:900; color:#d97706;">{{ pending_cnt }}</div>
+    <div style="font-size:11px; color:var(--tx-3);">재검토 대기</div>
+  </div></div>
+  <div class="card" style="margin:0; text-align:center;"><div class="card-body" style="padding:14px;">
+    <div style="font-size:22px; font-weight:900; color:var(--green);">{{ appeals|length - pending_cnt }}</div>
+    <div style="font-size:11px; color:var(--tx-3);">처리 완료</div>
+  </div></div>
+</div>
+
+{% for a in appeals %}
+<div class="appeal-card {{ a.status }}">
+  <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
+    <span class="grade-pill">{{ a.old_grade }}</span>
+    <div style="flex:1; min-width:180px;">
+      <div style="font-weight:800; font-size:14px;">{{ a.user_name }}
+        <span style="font-size:12px; font-weight:600; color:var(--tx-3);">· {{ a.dept_name or '—' }}</span>
+      </div>
+      <div style="font-size:11.5px; color:var(--tx-3);">신청일 {{ a.created_at }}</div>
+    </div>
+    {% if a.status == 'pending' %}
+    <span class="appeal-status st-pending">재검토 대기</span>
+    {% elif a.status == 'accepted' %}
+    <span class="appeal-status st-accepted">인용 — {{ a.old_grade }} → {{ a.new_grade }}</span>
+    {% else %}
+    <span class="appeal-status st-rejected">기각 — 등급 유지</span>
+    {% endif %}
+  </div>
+
+  <div style="font-size:13px; line-height:1.7; background:var(--bg); border-radius:8px; padding:10px 14px; margin-bottom:10px;">
+    <strong style="font-size:11.5px; color:var(--tx-3);">신청 사유</strong><br>{{ a.reason }}
+  </div>
+
+  {% if a.status == 'pending' %}
+  <form method="POST" style="display:flex; flex-direction:column; gap:10px;">
+    <input type="hidden" name="appeal_id" value="{{ a.id }}">
+    <textarea name="response" class="input" rows="2" required
+              placeholder="재검토 의견 (직원에게 전달됩니다) — 예: 목표 3번 달성 근거를 재확인하여 등급을 조정합니다."
+              style="width:100%; resize:vertical;"></textarea>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <select name="new_grade" class="input" style="width:130px; font-size:13px;">
+        <option value="">조정 등급 선택</option>
+        {% for gr in ['S','A','B','C','D'] %}
+        <option value="{{ gr }}" {% if gr == a.old_grade %}disabled{% endif %}>{{ gr }}등급</option>
+        {% endfor %}
+      </select>
+      <button type="submit" name="action" value="accept" class="btn btn-primary btn-sm"
+              onclick="return confirm('이의를 인용하고 등급을 조정할까요?')">
+        <i class="fas fa-check"></i> 인용 (등급 조정)
+      </button>
+      <button type="submit" name="action" value="reject" class="btn btn-ghost btn-sm" style="color:var(--tx-2);"
+              onclick="return confirm('이의를 기각하고 기존 등급을 유지할까요?')">
+        <i class="fas fa-xmark"></i> 기각 (등급 유지)
+      </button>
+    </div>
+  </form>
+  {% else %}
+  <div style="font-size:12.5px; color:var(--tx-3);">
+    <strong>재검토 의견:</strong> {{ a.response }}
+    <span style="font-size:11px;"> — {{ a.resolver_name or '' }} · {{ a.resolved_at }}</span>
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% endif %}
+
+{% endblock %}

@@ -82,7 +82,7 @@
         <a href="{{ url_for('employees') }}" class="nav-item{% if active_page in ('employees','termination_requests') %} active{% endif %}" title="팀원 관리" data-tour="team">
           <i class="fas fa-users"></i><span>팀원 관리</span>
         </a>
-        {% if 'peer_review' in plan_features %}
+        {% if 'peer_review' in plan_features and peer_enabled %}
         <a href="{{ url_for('peer_assignments') }}" class="nav-item{% if active_page == 'peer_assignments' %} active{% endif %}" title="다면평가 배정" data-tour="peer-assign">
           <i class="fas fa-comments"></i><span>다면평가 배정</span>
         </a>

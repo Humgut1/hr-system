@@ -404,6 +404,22 @@ def inject_sub_state():
     return {'sub_state': None}
 
 
+@app.context_processor
+def inject_peer_enabled():
+    """활성 평가 주기의 다면평가 포함 여부 — 사이드바 메뉴 게이팅용 (v1.1.0)"""
+    if not session.get('user_id'):
+        return {'peer_enabled': True}
+    try:
+        row = get_db().execute(
+            "SELECT include_peer FROM performance_cycles WHERE status='active' "
+            "ORDER BY start_date DESC LIMIT 1"
+        ).fetchone()
+        # 활성 주기가 없으면 과거 데이터 열람을 위해 메뉴 유지
+        return {'peer_enabled': (row is None) or bool(row['include_peer'])}
+    except Exception:
+        return {'peer_enabled': True}
+
+
 def _demo_write_blocked():
     """데모 모드(체험하기)에서는 role과 무관하게 모든 쓰기 요청을 차단한다."""
     if session.get('demo_mode') and request.method == 'POST':
@@ -6502,6 +6518,31 @@ def cert_view(req_id):
 # ── Performance ──────────────────────────────────────────────
 SCORE_LABELS = {5: 'S — 탁월', 4: 'A — 우수', 3: 'B — 양호', 2: 'C — 개선필요', 1: 'D — 미흡'}
 
+# ── 성과 주기 상태머신 (v1.1.0, saas_plan.md §4) ─────────────────
+CYCLE_STAGES = ['goal', 'progress', 'review', 'calibration', 'appeal', 'closed']
+CYCLE_STAGE_LABEL = {
+    'goal':        '목표 수립',
+    'progress':    '진행 중',
+    'review':      '평가 진행',
+    'calibration': 'HR 조정',
+    'appeal':      '결과 공개·이의신청',
+    'closed':      '종료',
+}
+CYCLE_STAGE_DESC = {
+    'goal':        '직원이 목표를 작성하고 팀장이 확정합니다. 확정 전에는 평가할 수 없습니다.',
+    'progress':    '목표가 확정되어 진행률을 수시로 업데이트하는 단계입니다.',
+    'review':      '자기평가·다면평가·팀장 평가를 작성하는 단계입니다.',
+    'calibration': 'HR이 부서별 등급 분포를 확인하고 최종 등급을 조정·확정하는 단계입니다.',
+    'appeal':      '등급이 본인에게 공개되었습니다. 이의신청 기간 내 1회 재검토를 요청할 수 있습니다.',
+    'closed':      '주기가 종료되었습니다. 등급별 인상률·상여 연동을 진행할 수 있습니다.',
+}
+GOAL_APPROVAL_LABEL = {
+    'draft':     '작성 중',
+    'submitted': '승인 대기',
+    'confirmed': '확정',
+    'returned':  '반려',
+}
+
 @app.route('/performance')
 @login_required
 def performance():
@@ -6531,7 +6572,8 @@ def performance():
         mgr_dept = int(session.get('dept_id') or 0)
         if role == 'manager' and mgr_dept:
             goals = db.execute(
-                'SELECT g.*, u.id AS user_id, u.name AS user_name, d.name AS dept_name, '
+                'SELECT g.*, u.id AS user_id, u.name AS user_name, u.manager_id AS emp_manager_id, '
+                'd.name AS dept_name, '
                 'AVG(r.score) AS avg_score, COUNT(r.id) AS review_count '
                 'FROM performance_goals g '
                 'JOIN users u ON g.user_id = u.id '
@@ -6543,7 +6585,8 @@ def performance():
             ).fetchall()
         else:
             goals = db.execute(
-                'SELECT g.*, u.id AS user_id, u.name AS user_name, d.name AS dept_name, '
+                'SELECT g.*, u.id AS user_id, u.name AS user_name, u.manager_id AS emp_manager_id, '
+                'd.name AS dept_name, '
                 'AVG(r.score) AS avg_score, COUNT(r.id) AS review_count '
                 'FROM performance_goals g '
                 'JOIN users u ON g.user_id = u.id '
@@ -6563,63 +6606,140 @@ def performance():
             (uid, cycle_id)
         ).fetchall()
 
+    # ── 주기 단계 (상태머신) ──────────────────────────────
+    stage = selected_cycle['stage'] if selected_cycle else None
+    include_peer = bool(selected_cycle['include_peer']) if selected_cycle else False
+
     # ── 직원 전용 추가 데이터 ─────────────────────────────
     peer_assignments_mine = []   # 내가 써야 할 피어리뷰
     calibration_result    = None # 내 캘리브레이션 결과
     todo_items            = []   # 지금 해야 할 일
+    my_goal_state         = None # 내 목표 세트 상태 (제출/확정 워크플로우)
+    my_appeal             = None # 내 이의신청
+    can_appeal            = False
 
     if role == 'employee' and cycle_id:
-        # 피어리뷰 배정 + 완료 여부
-        peer_assignments_mine = db.execute(
-            'SELECT pa.reviewee_id, pa.cycle_id, u.name AS reviewee_name, '
-            '       pr.id AS done_id '
-            'FROM peer_assignments pa '
-            'JOIN users u ON pa.reviewee_id = u.id '
-            'LEFT JOIN peer_reviews pr '
-            '  ON pr.cycle_id=pa.cycle_id AND pr.reviewee_id=pa.reviewee_id '
-            '  AND pr.reviewer_id=pa.reviewer_id AND pr.review_type=\'peer\' '
-            'WHERE pa.cycle_id=? AND pa.reviewer_id=?',
-            (cycle_id, uid)
-        ).fetchall()
+        # 피어리뷰 배정 + 완료 여부 (주기에 다면평가가 포함된 경우만)
+        if include_peer:
+            peer_assignments_mine = db.execute(
+                'SELECT pa.reviewee_id, pa.cycle_id, u.name AS reviewee_name, '
+                '       pr.id AS done_id '
+                'FROM peer_assignments pa '
+                'JOIN users u ON pa.reviewee_id = u.id '
+                'LEFT JOIN peer_reviews pr '
+                '  ON pr.cycle_id=pa.cycle_id AND pr.reviewee_id=pa.reviewee_id '
+                '  AND pr.reviewer_id=pa.reviewer_id AND pr.review_type=\'peer\' '
+                'WHERE pa.cycle_id=? AND pa.reviewer_id=?',
+                (cycle_id, uid)
+            ).fetchall()
 
-        # 캘리브레이션 결과 (is_shared 컬럼 없으면 항상 표시)
+        # 캘리브레이션 결과 (공개된 것만)
         calibration_result = db.execute(
-            'SELECT * FROM calibration_results WHERE cycle_id=? AND user_id=?',
+            'SELECT * FROM calibration_results WHERE cycle_id=? AND user_id=? AND is_shared=1',
             (cycle_id, uid)
         ).fetchone()
 
-        # To-Do 계산
-        goals_no_self = [g for g in goals if not g['self_score']]
-        if goals_no_self:
-            todo_items.append({
-                'icon': 'fa-pen',
-                'color': '#dc2626',
-                'text': f'자기평가 미완료 목표 {len(goals_no_self)}개',
-                'url': url_for('performance_self_review', goal_id=goals_no_self[0]['id'])
-            })
-        peer_undone = [p for p in peer_assignments_mine if not p['done_id']]
-        if peer_undone:
-            todo_items.append({
-                'icon': 'fa-star',
-                'color': '#d97706',
-                'text': f'작성 대기 중인 동료 평가 {len(peer_undone)}명',
-                'url': url_for('peer_reviews_page')
-            })
+        # 내 목표 세트 상태
+        weight_sum = sum(g['weight'] for g in goals)
+        statuses = {g['approval_status'] for g in goals}
         if not goals:
+            set_status = 'none'
+        elif 'returned' in statuses:
+            set_status = 'returned'
+        elif statuses == {'confirmed'}:
+            set_status = 'confirmed'
+        elif 'submitted' in statuses and statuses <= {'submitted', 'confirmed'}:
+            set_status = 'submitted'
+        else:
+            set_status = 'draft'
+        return_comments = [g['return_comment'] for g in goals if g['return_comment']]
+        my_goal_state = {
+            'status': set_status,
+            'weight_sum': weight_sum,
+            'count': len(goals),
+            'can_submit': (stage == 'goal' and set_status in ('draft', 'returned')
+                           and 3 <= len(goals) <= 5 and weight_sum == 100),
+            'return_comment': return_comments[0] if return_comments else None,
+        }
+
+        # 이의신청 상태
+        my_appeal = db.execute(
+            'SELECT * FROM grade_appeals WHERE cycle_id=? AND user_id=?',
+            (cycle_id, uid)
+        ).fetchone()
+        if (stage == 'appeal' and calibration_result and not my_appeal
+                and selected_cycle['appeal_until']
+                and str(date.today()) <= selected_cycle['appeal_until']):
+            can_appeal = True
+
+        # To-Do 계산 (단계별)
+        if stage == 'goal':
+            if not goals:
+                todo_items.append({
+                    'icon': 'fa-plus', 'color': '#1d4ed8',
+                    'text': '이번 주기 목표를 등록하세요 (3~5개, 가중치 합 100%)',
+                    'url': url_for('performance_goal_new')
+                })
+            elif my_goal_state['can_submit']:
+                todo_items.append({
+                    'icon': 'fa-paper-plane', 'color': '#1d4ed8',
+                    'text': '목표 작성 완료 — 팀장 승인을 요청하세요',
+                    'url': url_for('performance') + '?tab=goals'
+                })
+            elif set_status == 'returned':
+                todo_items.append({
+                    'icon': 'fa-rotate-left', 'color': '#dc2626',
+                    'text': '목표가 반려되었습니다 — 수정 후 다시 제출하세요',
+                    'url': url_for('performance') + '?tab=goals'
+                })
+        elif stage == 'review':
+            goals_no_self = [g for g in goals if not g['self_score']]
+            if goals_no_self:
+                todo_items.append({
+                    'icon': 'fa-pen', 'color': '#dc2626',
+                    'text': f'자기평가 미완료 목표 {len(goals_no_self)}개',
+                    'url': url_for('performance_self_review', goal_id=goals_no_self[0]['id'])
+                })
+            peer_undone = [p for p in peer_assignments_mine if not p['done_id']]
+            if peer_undone:
+                todo_items.append({
+                    'icon': 'fa-star', 'color': '#d97706',
+                    'text': f'작성 대기 중인 동료 평가 {len(peer_undone)}명',
+                    'url': url_for('peer_reviews_page')
+                })
+        elif stage == 'appeal' and can_appeal:
             todo_items.append({
-                'icon': 'fa-plus',
-                'color': '#1d4ed8',
-                'text': '이번 주기 목표를 등록하세요',
-                'url': url_for('performance_goal_new')
+                'icon': 'fa-gavel', 'color': '#7c3aed',
+                'text': f'평가 결과가 공개되었습니다 — 이의신청 가능 기간: {selected_cycle["appeal_until"]}까지',
+                'url': url_for('performance') + '?tab=result'
             })
+
+    # ── 매니저/관리자: 직원별 목표 승인 현황 ──────────────
+    emp_goal_status = {}
+    if role in ('admin', 'manager') and cycle_id:
+        for g in goals:
+            st = emp_goal_status.setdefault(g['user_id'], {
+                'submitted': 0, 'confirmed': 0, 'draft': 0, 'returned': 0,
+                'weight_sum': 0, 'manager_id': g['emp_manager_id'],
+            })
+            st[g['approval_status']] = st.get(g['approval_status'], 0) + 1
+            st['weight_sum'] += g['weight']
 
     return render_template('performance/index.html',
                            cycles=cycles, active_cycle=active_cycle,
                            selected_cycle=selected_cycle,
+                           stage=stage, include_peer=include_peer,
+                           cycle_stages=CYCLE_STAGES,
+                           cycle_stage_label=CYCLE_STAGE_LABEL,
+                           cycle_stage_desc=CYCLE_STAGE_DESC,
+                           goal_approval_label=GOAL_APPROVAL_LABEL,
                            goals=goals, score_labels=SCORE_LABELS,
                            peer_assignments_mine=peer_assignments_mine,
                            calibration_result=calibration_result,
                            todo_items=todo_items,
+                           my_goal_state=my_goal_state,
+                           my_appeal=my_appeal, can_appeal=can_appeal,
+                           emp_goal_status=emp_goal_status,
                            active_page='performance')
 
 @app.route('/performance/goals/ai-assist', methods=['POST'])
@@ -6723,8 +6843,10 @@ def performance_goal_ai_assist():
 def performance_goal_new():
     db   = get_db()
     uid  = session['user_id']
+    # 목표 등록은 '목표 수립' 단계인 진행 중 주기에서만 가능
     cycles = db.execute(
-        "SELECT * FROM performance_cycles WHERE status='active' ORDER BY start_date DESC"
+        "SELECT * FROM performance_cycles WHERE status='active' AND stage='goal' "
+        "ORDER BY start_date DESC"
     ).fetchall()
     error = None
 
@@ -6735,38 +6857,221 @@ def performance_goal_new():
         desc     = request.form.get('description', '').strip() or None
         weight   = int(request.form.get('weight', 100))
 
+        cycle = next((c for c in cycles if str(c['id']) == str(cycle_id)), None)
+        my_status = db.execute(
+            "SELECT DISTINCT approval_status FROM performance_goals WHERE cycle_id=? AND user_id=?",
+            (cycle_id, uid)
+        ).fetchall() if cycle_id else []
+        statuses = {r['approval_status'] for r in my_status}
+
         if not cycle_id or not title:
             error = '평가 주기와 목표명은 필수입니다.'
+        elif not cycle:
+            error = '목표 수립 단계인 평가 주기에서만 목표를 등록할 수 있습니다.'
+        elif 'submitted' in statuses:
+            error = '목표를 이미 제출했습니다. 팀장 승인(또는 반려) 후에 수정할 수 있습니다.'
+        elif 'confirmed' in statuses:
+            error = '목표가 이미 확정되었습니다. 변경이 필요하면 팀장에게 문의하세요.'
         elif not (1 <= weight <= 100):
             error = '가중치는 1~100 사이여야 합니다.'
         else:
-            db.execute(
-                'INSERT INTO performance_goals (cycle_id, user_id, category, title, description, weight) '
-                'VALUES (?, ?, ?, ?, ?, ?)',
-                (cycle_id, uid, category, title, desc, weight)
-            )
-            db.commit()
-            return redirect(url_for('performance'))
+            count = db.execute(
+                'SELECT COUNT(*) FROM performance_goals WHERE cycle_id=? AND user_id=?',
+                (cycle_id, uid)
+            ).fetchone()[0]
+            if count >= 5:
+                error = '목표는 최대 5개까지 등록할 수 있습니다.'
+            else:
+                db.execute(
+                    'INSERT INTO performance_goals (cycle_id, user_id, category, title, description, weight, approval_status) '
+                    "VALUES (?, ?, ?, ?, ?, ?, 'draft')",
+                    (cycle_id, uid, category, title, desc, weight)
+                )
+                db.commit()
+                return redirect(url_for('performance'))
+
+    # 주기별 내 현재 가중치 합계 (폼에서 잔여 가중치 안내용)
+    my_weights = {}
+    for c in cycles:
+        my_weights[c['id']] = db.execute(
+            'SELECT COALESCE(SUM(weight),0) FROM performance_goals WHERE cycle_id=? AND user_id=?',
+            (c['id'], uid)
+        ).fetchone()[0]
 
     goal_templates_list = db.execute(
         "SELECT id, title, description, category, weight FROM goal_templates WHERE is_active=1 ORDER BY category, title"
     ).fetchall()
     return render_template('performance/goal_form.html',
                            cycles=cycles, error=error,
+                           my_weights=my_weights,
                            goal_templates=goal_templates_list,
                            active_page='performance')
+
+
+@app.route('/performance/goals/submit', methods=['POST'])
+@login_required
+def performance_goals_submit():
+    """목표 세트 제출 → 팀장 승인 요청 (3~5개, 가중치 합 100%)"""
+    db  = get_db()
+    uid = session['user_id']
+    cycle_id = request.form.get('cycle_id', type=int)
+
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cycle:
+        abort(404)
+    if cycle['stage'] != 'goal':
+        flash('목표 수립 단계에서만 제출할 수 있습니다.', 'error')
+        return redirect(url_for('performance', cycle=cycle_id))
+
+    goals = db.execute(
+        'SELECT * FROM performance_goals WHERE cycle_id=? AND user_id=?',
+        (cycle_id, uid)
+    ).fetchall()
+    weight_sum = sum(g['weight'] for g in goals)
+    statuses = {g['approval_status'] for g in goals}
+
+    if 'submitted' in statuses:
+        flash('이미 제출된 목표입니다. 팀장 승인을 기다려 주세요.', 'error')
+    elif statuses == {'confirmed'} and goals:
+        flash('이미 확정된 목표입니다.', 'error')
+    elif not (3 <= len(goals) <= 5):
+        flash(f'목표는 3~5개여야 합니다. (현재 {len(goals)}개)', 'error')
+    elif weight_sum != 100:
+        flash(f'가중치 합계가 100%여야 합니다. (현재 {weight_sum}%)', 'error')
+    else:
+        db.execute(
+            "UPDATE performance_goals SET approval_status='submitted', return_comment=NULL "
+            "WHERE cycle_id=? AND user_id=?",
+            (cycle_id, uid)
+        )
+        db.commit()
+        # 직속 매니저에게 알림 (없으면 admin 전체)
+        mgr = db.execute('SELECT manager_id FROM users WHERE id=?', (uid,)).fetchone()
+        targets = []
+        if mgr and mgr['manager_id']:
+            targets = [mgr['manager_id']]
+        else:
+            targets = [r['id'] for r in db.execute(
+                "SELECT id FROM users WHERE role='admin' AND status='active'").fetchall()]
+        for t in targets:
+            add_notification(
+                t, 'action', 'perf',
+                '목표 승인 요청',
+                f'{session.get("user_name","직원")}님이 {cycle["name"]} 목표 {len(goals)}개를 제출했습니다.',
+                link='/performance?cycle=%d' % cycle_id
+            )
+        flash('목표를 제출했습니다. 팀장 승인 후 확정됩니다.', 'success')
+    return redirect(url_for('performance', cycle=cycle_id))
+
+
+@app.route('/performance/goals/<int:user_id>/approve', methods=['POST'])
+@manager_or_admin
+def performance_goals_approve(user_id):
+    """팀장/HR — 제출된 목표 세트 승인(확정) 또는 반려"""
+    db       = get_db()
+    uid      = session['user_id']
+    role     = session['user_role']
+    cycle_id = request.form.get('cycle_id', type=int)
+    action   = request.form.get('action', 'approve')  # approve | return
+    comment  = request.form.get('comment', '').strip() or None
+
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    emp   = db.execute('SELECT id, name, manager_id, department_id FROM users WHERE id=?', (user_id,)).fetchone()
+    if not cycle or not emp:
+        abort(404)
+    # 권한: admin 또는 직속 매니저(manager_id) 또는 같은 부서 매니저
+    if role != 'admin':
+        my_dept = int(session.get('dept_id') or 0)
+        if emp['manager_id'] != uid and emp['department_id'] != my_dept:
+            abort(403)
+    if cycle['stage'] != 'goal':
+        flash('목표 수립 단계에서만 승인/반려할 수 있습니다.', 'error')
+        return redirect(url_for('performance', cycle=cycle_id))
+
+    submitted = db.execute(
+        "SELECT COUNT(*) FROM performance_goals "
+        "WHERE cycle_id=? AND user_id=? AND approval_status='submitted'",
+        (cycle_id, user_id)
+    ).fetchone()[0]
+    if not submitted:
+        flash('승인 대기 중인 목표가 없습니다.', 'error')
+        return redirect(url_for('performance', cycle=cycle_id))
+
+    if action == 'return':
+        if not comment:
+            flash('반려 시에는 사유를 입력해야 합니다.', 'error')
+            return redirect(url_for('performance', cycle=cycle_id))
+        db.execute(
+            "UPDATE performance_goals SET approval_status='returned', return_comment=? "
+            "WHERE cycle_id=? AND user_id=? AND approval_status='submitted'",
+            (comment, cycle_id, user_id)
+        )
+        db.commit()
+        add_notification(
+            user_id, 'action', 'perf',
+            '목표가 반려되었습니다',
+            f'{cycle["name"]} 목표 반려 — 사유: {comment}',
+            link='/performance?cycle=%d' % cycle_id
+        )
+        flash(f'{emp["name"]}님의 목표를 반려했습니다.', 'success')
+    else:
+        db.execute(
+            "UPDATE performance_goals SET approval_status='confirmed', return_comment=NULL "
+            "WHERE cycle_id=? AND user_id=? AND approval_status='submitted'",
+            (cycle_id, user_id)
+        )
+        db.commit()
+        add_notification(
+            user_id, 'info', 'perf',
+            '목표가 확정되었습니다',
+            f'{cycle["name"]} 목표가 팀장 승인으로 확정되었습니다. 진행률을 수시로 업데이트하세요.',
+            link='/performance?cycle=%d' % cycle_id
+        )
+        flash(f'{emp["name"]}님의 목표를 확정했습니다.', 'success')
+    return redirect(url_for('performance', cycle=cycle_id))
+
+
+@app.route('/performance/goals/<int:goal_id>/delete', methods=['POST'])
+@login_required
+def performance_goal_delete(goal_id):
+    """본인 목표 삭제 — 목표 수립 단계 + 미확정(draft/returned) 상태에서만"""
+    db   = get_db()
+    uid  = session['user_id']
+    goal = db.execute(
+        'SELECT g.*, c.stage FROM performance_goals g '
+        'JOIN performance_cycles c ON g.cycle_id=c.id WHERE g.id=?', (goal_id,)
+    ).fetchone()
+    if not goal:
+        abort(404)
+    if goal['user_id'] != uid:
+        abort(403)
+    if goal['stage'] != 'goal' or goal['approval_status'] not in ('draft', 'returned'):
+        flash('확정·제출된 목표는 삭제할 수 없습니다. 팀장에게 문의하세요.', 'error')
+        return redirect(url_for('performance', cycle=goal['cycle_id']))
+    db.execute('DELETE FROM performance_reviews WHERE goal_id=?', (goal_id,))
+    db.execute('DELETE FROM performance_goals WHERE id=?', (goal_id,))
+    db.commit()
+    flash('목표를 삭제했습니다.', 'success')
+    return redirect(url_for('performance', cycle=goal['cycle_id']))
 
 @app.route('/performance/goals/<int:goal_id>/review', methods=['GET', 'POST'])
 @manager_or_admin
 def performance_review(goal_id):
     db   = get_db()
     goal = db.execute(
-        'SELECT g.*, u.name AS user_name '
+        'SELECT g.*, u.name AS user_name, c.stage AS cycle_stage '
         'FROM performance_goals g JOIN users u ON g.user_id = u.id '
+        'JOIN performance_cycles c ON g.cycle_id = c.id '
         'WHERE g.id=?', (goal_id,)
     ).fetchone()
     if not goal:
         abort(404)
+    if goal['cycle_stage'] != 'review':
+        flash('팀장 평가는 "평가 진행" 단계에서만 작성할 수 있습니다.', 'error')
+        return redirect(url_for('performance', cycle=goal['cycle_id']))
+    if goal['approval_status'] != 'confirmed':
+        flash('확정되지 않은 목표는 평가할 수 없습니다. 목표 승인을 먼저 진행하세요.', 'error')
+        return redirect(url_for('performance', cycle=goal['cycle_id']))
 
     existing = db.execute(
         'SELECT * FROM performance_reviews WHERE goal_id=? AND reviewer_id=?',
@@ -6808,16 +7113,20 @@ def performance_cycles():
         'GROUP BY pc.id ORDER BY pc.start_date DESC'
     ).fetchall()
     return render_template('performance/cycles.html', cycles=cycles,
+                           cycle_stages=CYCLE_STAGES,
+                           cycle_stage_label=CYCLE_STAGE_LABEL,
+                           cycle_stage_desc=CYCLE_STAGE_DESC,
                            active_page='performance_cycles')
 
 
 @app.route('/performance/cycles/new', methods=['POST'])
 @admin_required
 def performance_cycle_new():
-    db         = get_db()
-    name       = request.form.get('name', '').strip()
-    start_date = request.form.get('start_date', '').strip()
-    end_date   = request.form.get('end_date', '').strip()
+    db           = get_db()
+    name         = request.form.get('name', '').strip()
+    start_date   = request.form.get('start_date', '').strip()
+    end_date     = request.form.get('end_date', '').strip()
+    include_peer = 1 if request.form.get('include_peer') else 0
 
     if not name or not start_date or not end_date:
         flash('모든 항목을 입력해 주세요.', 'error')
@@ -6827,13 +7136,102 @@ def performance_cycle_new():
         return redirect(url_for('performance_cycles'))
 
     # 기존 active 사이클이 있으면 자동 closed 처리
-    db.execute("UPDATE performance_cycles SET status='closed' WHERE status='active'")
+    db.execute("UPDATE performance_cycles SET status='closed', stage='closed' WHERE status='active'")
     db.execute(
-        'INSERT INTO performance_cycles (name, start_date, end_date, status) VALUES (?, ?, ?, ?)',
-        (name, start_date, end_date, 'active')
+        "INSERT INTO performance_cycles (name, start_date, end_date, status, stage, include_peer) "
+        "VALUES (?, ?, ?, 'active', 'goal', ?)",
+        (name, start_date, end_date, include_peer)
     )
     db.commit()
-    flash(f'평가 주기 "{name}"이 생성되었습니다.', 'success')
+    flash(f'평가 주기 "{name}"이 생성되었습니다. 목표 수립 단계부터 시작합니다.', 'success')
+    return redirect(url_for('performance_cycles'))
+
+
+@app.route('/performance/cycles/<int:cycle_id>/stage', methods=['POST'])
+@admin_required
+def performance_cycle_stage(cycle_id):
+    """주기 단계 전환 (상태머신: goal→progress→review→calibration→appeal→closed)"""
+    db    = get_db()
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cycle:
+        abort(404)
+    direction = request.form.get('direction', 'next')
+    cur_idx   = CYCLE_STAGES.index(cycle['stage']) if cycle['stage'] in CYCLE_STAGES else 0
+
+    if direction == 'prev':
+        if cur_idx == 0:
+            flash('첫 단계입니다.', 'error')
+            return redirect(url_for('performance_cycles'))
+        new_stage = CYCLE_STAGES[cur_idx - 1]
+    else:
+        if cur_idx >= len(CYCLE_STAGES) - 1:
+            flash('이미 종료된 주기입니다.', 'error')
+            return redirect(url_for('performance_cycles'))
+        new_stage = CYCLE_STAGES[cur_idx + 1]
+
+    # ── 단계 진입 시 부수 효과 ─────────────────────────────
+    if new_stage == 'appeal' and direction == 'next':
+        # 등급 확정·본인 공개 + 이의신청 7일 기간 시작
+        confirmed = db.execute(
+            'SELECT COUNT(*) FROM calibration_results WHERE cycle_id=?', (cycle_id,)
+        ).fetchone()[0]
+        if confirmed == 0:
+            flash('확정된 등급이 없습니다. HR 조정 단계에서 등급을 먼저 확정하세요.', 'error')
+            return redirect(url_for('performance_cycles'))
+        appeal_until = (date.today() + timedelta(days=7)).isoformat()
+        db.execute('UPDATE calibration_results SET is_shared=1 WHERE cycle_id=?', (cycle_id,))
+        db.execute("UPDATE performance_cycles SET stage='appeal', appeal_until=? WHERE id=?",
+                   (appeal_until, cycle_id))
+        db.commit()
+        shared_rows = db.execute(
+            'SELECT user_id, final_grade FROM calibration_results WHERE cycle_id=?', (cycle_id,)
+        ).fetchall()
+        for r in shared_rows:
+            add_notification(
+                r['user_id'], 'info', 'perf',
+                '성과 평가 결과가 공개되었습니다',
+                f'{cycle["name"]} 최종 등급: {r["final_grade"]} · 이의신청은 {appeal_until}까지 1회 가능합니다.',
+                link='/performance?cycle=%d&tab=result' % cycle_id
+            )
+        log_audit('update', 'performance', None,
+                  f'평가 주기 "{cycle["name"]}" 등급 공개 + 이의신청 기간 시작 (~{appeal_until}, {len(shared_rows)}명)')
+        flash(f'{len(shared_rows)}명의 등급이 공개되었습니다. 이의신청 기간: {appeal_until}까지.', 'success')
+        return redirect(url_for('performance_cycles'))
+
+    if new_stage == 'closed':
+        # 미처리 이의신청이 있으면 경고
+        pending = db.execute(
+            "SELECT COUNT(*) FROM grade_appeals WHERE cycle_id=? AND status='pending'", (cycle_id,)
+        ).fetchone()[0]
+        if pending:
+            flash(f'미처리 이의신청이 {pending}건 있습니다. 먼저 처리해 주세요.', 'error')
+            return redirect(url_for('performance_cycles'))
+        db.execute("UPDATE performance_cycles SET stage='closed', status='closed' WHERE id=?", (cycle_id,))
+        db.commit()
+        flash(f'"{cycle["name"]}" 주기가 종료되었습니다. 보상 관리에서 등급 연동 인상을 진행할 수 있습니다.', 'success')
+        return redirect(url_for('performance_cycles'))
+
+    # 일반 전환 (뒤로 갈 때 closed → 재활성화)
+    db.execute('UPDATE performance_cycles SET stage=? WHERE id=?', (new_stage, cycle_id))
+    if cycle['status'] == 'closed' and new_stage != 'closed':
+        db.execute("UPDATE performance_cycles SET status='active' WHERE id=?", (cycle_id,))
+        db.execute("UPDATE performance_cycles SET status='closed', stage='closed' "
+                   "WHERE status='active' AND id != ?", (cycle_id,))
+    if new_stage == 'review':
+        db.commit()
+        # 평가 시작 알림 (목표 있는 직원에게)
+        targets = db.execute(
+            'SELECT DISTINCT user_id FROM performance_goals WHERE cycle_id=?', (cycle_id,)
+        ).fetchall()
+        for t in targets:
+            add_notification(
+                t['user_id'], 'action', 'perf',
+                '평가가 시작되었습니다',
+                f'{cycle["name"]} 자기평가를 작성해 주세요.' + (' 배정된 다면평가도 함께 작성해 주세요.' if cycle['include_peer'] else ''),
+                link='/performance?cycle=%d' % cycle_id
+            )
+    db.commit()
+    flash(f'단계가 "{CYCLE_STAGE_LABEL[new_stage]}"(으)로 변경되었습니다.', 'success')
     return redirect(url_for('performance_cycles'))
 
 
@@ -6844,7 +7242,7 @@ def performance_cycle_close(cycle_id):
     cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
     if not cycle:
         abort(404)
-    db.execute("UPDATE performance_cycles SET status='closed' WHERE id=?", (cycle_id,))
+    db.execute("UPDATE performance_cycles SET status='closed', stage='closed' WHERE id=?", (cycle_id,))
     db.commit()
     flash(f'"{cycle["name"]}" 평가 주기가 마감되었습니다.', 'success')
     return redirect(url_for('performance_cycles'))
@@ -6857,9 +7255,10 @@ def performance_cycle_activate(cycle_id):
     cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
     if not cycle:
         abort(404)
-    # 기존 active 사이클 종료 후 대상 활성화
-    db.execute("UPDATE performance_cycles SET status='closed' WHERE status='active'")
-    db.execute("UPDATE performance_cycles SET status='active' WHERE id=?", (cycle_id,))
+    # 기존 active 사이클 종료 후 대상 활성화 (종료 상태였다면 이의신청 단계로 복귀)
+    db.execute("UPDATE performance_cycles SET status='closed', stage='closed' WHERE status='active'")
+    reopen_stage = cycle['stage'] if cycle['stage'] not in (None, 'closed') else 'appeal'
+    db.execute("UPDATE performance_cycles SET status='active', stage=? WHERE id=?", (reopen_stage, cycle_id))
     db.commit()
     flash(f'"{cycle["name"]}" 평가 주기가 활성화되었습니다.', 'success')
     return redirect(url_for('performance_cycles'))
@@ -9115,18 +9514,24 @@ def recruit_round_feedback(round_id):
 def performance_goal_progress(goal_id):
     db   = get_db()
     uid  = session['user_id']
-    goal = db.execute('SELECT user_id FROM performance_goals WHERE id=?', (goal_id,)).fetchone()
+    goal = db.execute(
+        'SELECT g.user_id, g.cycle_id, c.stage FROM performance_goals g '
+        'JOIN performance_cycles c ON g.cycle_id=c.id WHERE g.id=?', (goal_id,)
+    ).fetchone()
     if not goal:
         abort(404)
     if goal['user_id'] != uid:
         abort(403)
+    if goal['stage'] not in ('goal', 'progress', 'review'):
+        flash('평가 조정이 시작된 이후에는 진행률을 수정할 수 없습니다.', 'error')
+        return redirect(url_for('performance', cycle=goal['cycle_id']))
     try:
         progress = max(0, min(100, int(request.form.get('progress', 0))))
     except (ValueError, TypeError):
         progress = 0
     db.execute('UPDATE performance_goals SET progress=? WHERE id=?', (progress, goal_id))
     db.commit()
-    return redirect(url_for('performance'))
+    return redirect(url_for('performance', cycle=goal['cycle_id']))
 
 
 @app.route('/performance/goals/<int:goal_id>/self-review', methods=['GET', 'POST'])
@@ -9135,7 +9540,7 @@ def performance_self_review(goal_id):
     db   = get_db()
     uid  = session['user_id']
     goal = db.execute(
-        'SELECT g.*, c.name AS cycle_name FROM performance_goals g '
+        'SELECT g.*, c.name AS cycle_name, c.stage AS cycle_stage FROM performance_goals g '
         'JOIN performance_cycles c ON g.cycle_id = c.id WHERE g.id=?',
         (goal_id,)
     ).fetchone()
@@ -9143,6 +9548,12 @@ def performance_self_review(goal_id):
         abort(404)
     if goal['user_id'] != uid:
         abort(403)
+    if goal['cycle_stage'] != 'review':
+        flash('자기평가는 "평가 진행" 단계에서만 작성할 수 있습니다.', 'error')
+        return redirect(url_for('performance', cycle=goal['cycle_id']))
+    if goal['approval_status'] != 'confirmed':
+        flash('팀장이 목표를 확정한 후에 자기평가를 작성할 수 있습니다.', 'error')
+        return redirect(url_for('performance', cycle=goal['cycle_id']))
     error = None
     if request.method == 'POST':
         try:
@@ -9968,6 +10379,9 @@ def calibration():
 
         # 개별 등급 확정
         if action == 'confirm':
+            if selected_cycle and selected_cycle['stage'] not in ('calibration', 'review'):
+                flash('등급 확정은 "HR 조정" 단계에서만 가능합니다. 주기 관리에서 단계를 변경하세요.', 'error')
+                return redirect(url_for('calibration', cycle=cycle_id))
             GRADE_NUM = {'S': 5, 'A': 4, 'B': 3, 'C': 2, 'D': 1}
             uid              = int(request.form.get('user_id'))
             final_grade      = request.form.get('final_grade')
@@ -10029,10 +10443,13 @@ def calibration():
                           f'캘리브레이션 등급 확정 ({final_grade}' + (f', 하향사유: {downgrade_reason}' if downgrade_reason else '') + ')')
                 flash('등급이 확정되었습니다.', 'success')
 
-        # 직원에게 공개
+        # 직원에게 공개 = 이의신청 단계 시작 (등급 공개 + 7일 이의기간)
         elif action == 'publish':
             cid = int(request.form.get('cycle_id'))
+            appeal_until = (date.today() + timedelta(days=7)).isoformat()
             db.execute('UPDATE calibration_results SET is_shared=1 WHERE cycle_id=?', (cid,))
+            db.execute("UPDATE performance_cycles SET stage='appeal', appeal_until=? WHERE id=?",
+                       (appeal_until, cid))
             count = db.execute(
                 'SELECT COUNT(*) FROM calibration_results WHERE cycle_id=? AND is_shared=1', (cid,)
             ).fetchone()[0]
@@ -10043,12 +10460,14 @@ def calibration():
             ).fetchall()
             for r in shared_rows:
                 add_notification(
-                    r['user_id'], 'info', 'performance',
+                    r['user_id'], 'info', 'perf',
                     '성과 평가 결과가 공개되었습니다',
-                    f'이번 주기 최종 등급: {r["final_grade"]}등급 · 성과 페이지에서 확인하세요.',
-                    link='/performance'
+                    f'이번 주기 최종 등급: {r["final_grade"]}등급 · 이의신청은 {appeal_until}까지 1회 가능합니다.',
+                    link='/performance?tab=result'
                 )
-            flash(f'{count}명의 평가 결과가 직원에게 공개되었습니다.', 'success')
+            log_audit('update', 'performance', None,
+                      f'평가 결과 공개 + 이의신청 기간 시작 (~{appeal_until}, {count}명)')
+            flash(f'{count}명의 평가 결과가 공개되었습니다. 이의신청 기간: {appeal_until}까지.', 'success')
 
         return redirect(url_for('calibration', cycle=cycle_id))
 
@@ -10089,12 +10508,19 @@ def calibration():
         "SELECT id FROM compensation_review_cycles WHERE status='open' ORDER BY id DESC LIMIT 1"
     ).fetchone()
 
+    # 이의신청 현황
+    appeal_pending = db.execute(
+        "SELECT COUNT(*) FROM grade_appeals WHERE cycle_id=? AND status='pending'", (cycle_id,)
+    ).fetchone()[0] if cycle_id else 0
+
     return render_template('performance/calibration.html',
                            cycles=cycles, selected_cycle=selected_cycle,
                            cycle_id=cycle_id, rows=rows,
                            grade_dist=grade_dist, confirmed_count=confirmed_count,
                            total_count=total_count, publish_ready=publish_ready,
                            active_acr=active_acr,
+                           appeal_pending=appeal_pending,
+                           cycle_stage_label=CYCLE_STAGE_LABEL,
                            active_page='performance')
 
 
@@ -10173,6 +10599,167 @@ def _calc_calibration_row(db, user_id, cycle_id):
         'suggested_grade': suggested,
         'anomaly': anomaly,
     }
+
+
+# ──────────────────────────────────────────────
+# v1.1.0 — 등급 이의신청 (Phase C-10, saas_plan.md §4 ⑩)
+# ──────────────────────────────────────────────
+@app.route('/performance/appeal', methods=['POST'])
+@login_required
+def performance_appeal_new():
+    """직원 — 등급 이의신청 (주기당 1회, 이의기간 내)"""
+    db  = get_db()
+    uid = session['user_id']
+    cycle_id = request.form.get('cycle_id', type=int)
+    reason   = request.form.get('reason', '').strip()
+
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cycle:
+        abort(404)
+    result = db.execute(
+        'SELECT * FROM calibration_results WHERE cycle_id=? AND user_id=? AND is_shared=1',
+        (cycle_id, uid)
+    ).fetchone()
+
+    if cycle['stage'] != 'appeal' or not cycle['appeal_until'] or str(date.today()) > cycle['appeal_until']:
+        flash('이의신청 기간이 아닙니다.', 'error')
+    elif not result:
+        flash('공개된 평가 결과가 없습니다.', 'error')
+    elif not reason or len(reason) < 10:
+        flash('이의신청 사유를 10자 이상 구체적으로 작성해 주세요.', 'error')
+    elif db.execute('SELECT id FROM grade_appeals WHERE cycle_id=? AND user_id=?', (cycle_id, uid)).fetchone():
+        flash('이의신청은 주기당 1회만 가능합니다.', 'error')
+    else:
+        db.execute(
+            'INSERT INTO grade_appeals (cycle_id, user_id, reason, old_grade) VALUES (?,?,?,?)',
+            (cycle_id, uid, reason, result['final_grade'])
+        )
+        db.commit()
+        # 직속 매니저 + HR(admin)에게 알림
+        mgr = db.execute('SELECT manager_id FROM users WHERE id=?', (uid,)).fetchone()
+        targets = {r['id'] for r in db.execute(
+            "SELECT id FROM users WHERE role='admin' AND status='active'").fetchall()}
+        if mgr and mgr['manager_id']:
+            targets.add(mgr['manager_id'])
+        for t in targets:
+            add_notification(
+                t, 'action', 'perf',
+                '등급 이의신청 접수',
+                f'{session.get("user_name","직원")}님이 {cycle["name"]} 등급({result["final_grade"]})에 이의를 신청했습니다.',
+                link='/performance/appeals?cycle=%d' % cycle_id
+            )
+        log_audit('create', 'performance', uid, f'등급 이의신청 접수 ({cycle["name"]}, 현재 등급 {result["final_grade"]})')
+        flash('이의신청이 접수되었습니다. 팀장/HR 재검토 결과를 알림으로 안내드립니다.', 'success')
+    return redirect(url_for('performance', cycle=cycle_id, tab='result'))
+
+
+@app.route('/performance/appeals', methods=['GET', 'POST'])
+@manager_or_admin
+def performance_appeals():
+    """팀장/HR — 이의신청 목록 + 재검토 처리 (1회)"""
+    db   = get_db()
+    uid  = session['user_id']
+    role = session['user_role']
+
+    if request.method == 'POST':
+        appeal_id = request.form.get('appeal_id', type=int)
+        action    = request.form.get('action')            # accept | reject
+        response  = request.form.get('response', '').strip()
+        new_grade = request.form.get('new_grade', '').strip()
+
+        appeal = db.execute(
+            'SELECT ga.*, u.name AS user_name, u.manager_id, c.name AS cycle_name '
+            'FROM grade_appeals ga JOIN users u ON ga.user_id=u.id '
+            'JOIN performance_cycles c ON ga.cycle_id=c.id WHERE ga.id=?',
+            (appeal_id,)
+        ).fetchone()
+        if not appeal:
+            abort(404)
+        if role != 'admin' and appeal['manager_id'] != uid:
+            abort(403)
+        if appeal['status'] != 'pending':
+            flash('이미 처리된 이의신청입니다. 재검토는 1회만 가능합니다.', 'error')
+            return redirect(url_for('performance_appeals', cycle=appeal['cycle_id']))
+        if not response:
+            flash('재검토 의견을 입력해야 합니다.', 'error')
+            return redirect(url_for('performance_appeals', cycle=appeal['cycle_id']))
+
+        if action == 'accept':
+            if new_grade not in ('S', 'A', 'B', 'C', 'D'):
+                flash('조정 등급을 선택하세요.', 'error')
+                return redirect(url_for('performance_appeals', cycle=appeal['cycle_id']))
+            db.execute(
+                "UPDATE grade_appeals SET status='accepted', new_grade=?, response=?, "
+                "resolved_by=?, resolved_at=CURRENT_TIMESTAMP WHERE id=?",
+                (new_grade, response, uid, appeal_id)
+            )
+            db.execute(
+                'UPDATE calibration_results SET final_grade=?, note=COALESCE(note,\'\') || ? '
+                'WHERE cycle_id=? AND user_id=?',
+                (new_grade, f' [이의신청 재검토로 {appeal["old_grade"]}→{new_grade} 조정]',
+                 appeal['cycle_id'], appeal['user_id'])
+            )
+            db.commit()
+            add_notification(
+                appeal['user_id'], 'info', 'perf',
+                '이의신청이 인용되었습니다',
+                f'{appeal["cycle_name"]} 등급이 {appeal["old_grade"]} → {new_grade}(으)로 조정되었습니다. 의견: {response}',
+                link='/performance?cycle=%d&tab=result' % appeal['cycle_id']
+            )
+            log_audit('update', 'performance', appeal['user_id'],
+                      f'이의신청 인용 — 등급 {appeal["old_grade"]}→{new_grade} ({response})')
+            flash(f'{appeal["user_name"]}님의 이의신청을 인용했습니다. ({appeal["old_grade"]}→{new_grade})', 'success')
+        else:
+            db.execute(
+                "UPDATE grade_appeals SET status='rejected', response=?, "
+                "resolved_by=?, resolved_at=CURRENT_TIMESTAMP WHERE id=?",
+                (response, uid, appeal_id)
+            )
+            db.commit()
+            add_notification(
+                appeal['user_id'], 'info', 'perf',
+                '이의신청 재검토 결과 안내',
+                f'{appeal["cycle_name"]} 등급({appeal["old_grade"]})이 유지되었습니다. 의견: {response}',
+                link='/performance?cycle=%d&tab=result' % appeal['cycle_id']
+            )
+            log_audit('update', 'performance', appeal['user_id'],
+                      f'이의신청 기각 — 등급 {appeal["old_grade"]} 유지 ({response})')
+            flash(f'{appeal["user_name"]}님의 이의신청을 기각 처리했습니다.', 'success')
+        return redirect(url_for('performance_appeals', cycle=appeal['cycle_id']))
+
+    # GET — 목록
+    cycles = db.execute('SELECT * FROM performance_cycles ORDER BY start_date DESC').fetchall()
+    try:
+        selected_cycle_id = int(request.args.get('cycle', 0))
+    except (ValueError, TypeError):
+        selected_cycle_id = 0
+    selected_cycle = next(
+        (c for c in cycles if c['id'] == selected_cycle_id),
+        next((c for c in cycles if c['stage'] in ('appeal', 'closed')), None)
+    )
+    cycle_id = selected_cycle['id'] if selected_cycle else 0
+
+    appeals = []
+    if cycle_id:
+        q = ('SELECT ga.*, u.name AS user_name, u.manager_id, d.name AS dept_name, '
+             'r.name AS resolver_name '
+             'FROM grade_appeals ga '
+             'JOIN users u ON ga.user_id=u.id '
+             'LEFT JOIN departments d ON u.department_id=d.id '
+             'LEFT JOIN users r ON ga.resolved_by=r.id '
+             'WHERE ga.cycle_id=? ')
+        params = [cycle_id]
+        if role != 'admin':
+            q += 'AND u.manager_id=? '
+            params.append(uid)
+        q += "ORDER BY CASE ga.status WHEN 'pending' THEN 0 ELSE 1 END, ga.created_at DESC"
+        appeals = db.execute(q, params).fetchall()
+
+    return render_template('performance/appeals.html',
+                           cycles=cycles, selected_cycle=selected_cycle,
+                           cycle_id=cycle_id, appeals=appeals,
+                           cycle_stage_label=CYCLE_STAGE_LABEL,
+                           active_page='performance')
 
 
 # ──────────────────────────────────────────────
@@ -10620,6 +11207,12 @@ def peer_review_write(reviewee_id):
     reviewee = db.execute('SELECT id, name, role FROM users WHERE id=?', (reviewee_id,)).fetchone()
     if not cycle or not reviewee:
         abort(404)
+    if not cycle['include_peer']:
+        flash('이번 주기는 다면평가가 포함되지 않았습니다.', 'error')
+        return redirect(url_for('performance', cycle=cycle_id))
+    if cycle['stage'] != 'review':
+        flash('다면평가는 "평가 진행" 단계에서만 작성할 수 있습니다.', 'error')
+        return redirect(url_for('peer_reviews_page', cycle=cycle_id))
 
     # upward 평가는 employee만, 같은 부서의 manager만 대상
     if review_type == 'upward':
@@ -10734,6 +11327,8 @@ def peer_assignments():
     cycle_id = selected_cycle['id'] if selected_cycle else 0
 
     error = None
+    if selected_cycle and not selected_cycle['include_peer']:
+        error = '이 주기는 다면평가가 포함되지 않은 주기입니다. 배정할 수 없습니다.'
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'add':
@@ -10744,6 +11339,11 @@ def peer_assignments():
             except (ValueError, TypeError):
                 error = '입력값이 올바르지 않습니다.'
                 reviewee_id = reviewer_id = cid = 0
+            if not error and cid:
+                cyc = db.execute('SELECT include_peer FROM performance_cycles WHERE id=?', (cid,)).fetchone()
+                if not cyc or not cyc['include_peer']:
+                    flash('다면평가가 포함되지 않은 주기에는 배정할 수 없습니다.', 'error')
+                    return redirect(url_for('peer_assignments', cycle=cycle_id))
             if not error and reviewee_id == reviewer_id:
                 error = '평가자와 피평가자가 동일할 수 없습니다.'
             if not error and cid and reviewee_id and reviewer_id:
