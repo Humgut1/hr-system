@@ -499,6 +499,8 @@
               <span class="badge badge-success" style="font-size:11px;">승인</span>
               {% elif o.status == 'rejected' %}
               <span class="badge badge-danger" style="font-size:11px;" title="{{ o.reject_reason or '' }}">반려</span>
+              {% elif o.status == 'reviewed' %}
+              <span class="badge badge-accent" style="font-size:11px;">매니저 검토완료 — HR 대기</span>
               {% else %}
               <span class="badge badge-warning" style="font-size:11px;">대기</span>
               {% endif %}
@@ -527,7 +529,7 @@
     </div>
     <div class="card-body" style="padding:0;">
       <table class="data-table" style="margin:0;">
-        <thead><tr><th>직원</th><th>부서</th><th>날짜</th><th>시간</th><th>사유</th><th>구분</th><th>처리</th></tr></thead>
+        <thead><tr><th>직원</th><th>부서</th><th>날짜</th><th>시간</th><th>사유</th><th>구분</th><th>상태</th><th>처리</th></tr></thead>
         <tbody>
         {% for o in ot_pending_list %}
         <tr>
@@ -538,9 +540,16 @@
           <td style="font-size:12px; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ o.reason or '-' }}</td>
           <td><span style="font-size:11px; padding:2px 6px; border-radius:4px; background:var(--surface-3);">{{ '사전' if o.request_type == 'pre' else '사후' }}</span></td>
           <td>
+            {% if o.status == 'reviewed' %}
+            <span class="badge badge-accent" style="font-size:11px;">매니저 검토완료 — HR 대기</span>
+            {% else %}
+            <span style="font-size:11px; color:var(--tx-3);">대기</span>
+            {% endif %}
+          </td>
+          <td>
             <div style="display:flex; gap:4px;">
               <form method="POST" action="{{ url_for('overtime_approve', ot_id=o.id) }}" style="margin:0;">
-                <button type="submit" class="btn btn-success btn-sm" style="font-size:11px; padding:3px 8px;">승인</button>
+                <button type="submit" class="btn btn-success btn-sm" style="font-size:11px; padding:3px 8px;">{{ 'HR 최종 승인' if o.status == 'reviewed' else '승인' }}</button>
               </form>
               <button type="button" class="btn btn-danger btn-sm" style="font-size:11px; padding:3px 8px;"
                 onclick="showOtRejectModal({{ o.id }}, '{{ o.user_name }}')">반려</button>

@@ -1078,12 +1078,53 @@ def init_db(db_path: str = None):
             request_type TEXT NOT NULL DEFAULT 'pre'
                          CHECK(request_type IN ('pre','post')),
             status       TEXT NOT NULL DEFAULT 'pending'
-                         CHECK(status IN ('pending','approved','rejected')),
+                         CHECK(status IN ('pending','reviewed','approved','rejected')),
             approver_id  INTEGER REFERENCES users(id),
             approved_at  TIMESTAMP,
+            manager_id   INTEGER REFERENCES users(id),
+            manager_approved_at TIMESTAMP,
+            hr_id        INTEGER REFERENCES users(id),
+            hr_approved_at      TIMESTAMP,
             reject_reason TEXT,
             created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
+
+        # overtime_requests: 결재선 확장 (매니저→HR 2단계) 컬럼 마이그레이션
+        ot_cols = {r[1] for r in c.execute('PRAGMA table_info(overtime_requests)').fetchall()}
+        ot_sql = c.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='overtime_requests'"
+        ).fetchone()
+        if ot_sql and ('manager_id' not in ot_cols or "'reviewed'" not in ot_sql[0]):
+            c.executescript('''
+                PRAGMA foreign_keys = OFF;
+                DROP TABLE IF EXISTS _ot_old;
+                ALTER TABLE overtime_requests RENAME TO _ot_old;
+                CREATE TABLE overtime_requests (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id      INTEGER NOT NULL REFERENCES users(id),
+                    date         TEXT NOT NULL,
+                    ot_start     TEXT NOT NULL,
+                    ot_end       TEXT NOT NULL,
+                    ot_minutes   INTEGER NOT NULL DEFAULT 0,
+                    reason       TEXT,
+                    request_type TEXT NOT NULL DEFAULT 'pre'
+                                 CHECK(request_type IN ('pre','post')),
+                    status       TEXT NOT NULL DEFAULT 'pending'
+                                 CHECK(status IN ('pending','reviewed','approved','rejected')),
+                    approver_id  INTEGER REFERENCES users(id),
+                    approved_at  TIMESTAMP,
+                    manager_id   INTEGER REFERENCES users(id),
+                    manager_approved_at TIMESTAMP,
+                    hr_id        INTEGER REFERENCES users(id),
+                    hr_approved_at      TIMESTAMP,
+                    reject_reason TEXT,
+                    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT INTO overtime_requests (id, user_id, date, ot_start, ot_end, ot_minutes, reason, request_type, status, approver_id, approved_at, reject_reason, created_at)
+                SELECT id, user_id, date, ot_start, ot_end, ot_minutes, reason, request_type, status, approver_id, approved_at, reject_reason, created_at FROM _ot_old;
+                DROP TABLE _ot_old;
+                PRAGMA foreign_keys = ON;
+            ''')
 
         c.execute('''CREATE TABLE IF NOT EXISTS leave_balances (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,

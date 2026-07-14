@@ -1038,6 +1038,14 @@ APPROVAL_WORKFLOWS = {
         },
         'default': 'hr',
     },
+    'overtime': {
+        'label': '연장근로(OT) 승인',
+        'options': {
+            'manager_only': '매니저 전결 — 1단계 승인',
+            'manager_hr':   '매니저 검토 → HR 최종 승인 — 2단계',
+        },
+        'default': 'manager_only',
+    },
 }
 
 
@@ -5473,18 +5481,19 @@ def approvals_hub():
     # ── 연장근로(OT) ──
     if is_admin:
         rows = db.execute(
-            "SELECT o.id, o.date, o.ot_minutes, o.reason, o.created_at, u.name "
+            "SELECT o.id, o.date, o.ot_minutes, o.reason, o.status, o.created_at, u.name "
             "FROM overtime_requests o JOIN users u ON o.user_id=u.id "
-            "WHERE o.status='pending' ORDER BY o.created_at ASC").fetchall()
+            "WHERE o.status IN ('pending','reviewed') ORDER BY o.created_at ASC").fetchall()
     else:
         rows = db.execute(
-            "SELECT o.id, o.date, o.ot_minutes, o.reason, o.created_at, u.name "
+            "SELECT o.id, o.date, o.ot_minutes, o.reason, o.status, o.created_at, u.name "
             "FROM overtime_requests o JOIN users u ON o.user_id=u.id "
             "WHERE o.status='pending' AND (u.department_id=? OR u.manager_id=?) "
             "ORDER BY o.created_at ASC", (dept_id, uid)).fetchall()
     groups.append({'key': 'overtime', 'label': '연장근로', 'icon': 'fa-clock', 'items': [{
         'title': f"{r['name']} — 연장근로 {r['ot_minutes'] // 60}시간 {r['ot_minutes'] % 60}분",
-        'sub': f"{r['date']}" + (f" · {r['reason']}" if r['reason'] else ''),
+        'sub': f"{r['date']}" + (f" · {r['reason']}" if r['reason'] else '')
+               + (' · 매니저 검토 완료 — HR 최종 승인 대기' if r['status'] == 'reviewed' else ''),
         'requested_at': r['created_at'],
         'link': url_for('attendance_home', tab='ot'),
     } for r in rows]})
@@ -10616,14 +10625,17 @@ def attendance_home():
             'FROM overtime_requests o '
             'JOIN users u ON o.user_id=u.id '
             'LEFT JOIN departments d ON u.department_id=d.id '
-            "WHERE o.status='pending'"
         )
         ot_params = []
         if role == 'manager':
+            # 매니저는 본인 검토 몫(pending)만 — 검토 완료(reviewed) 건은 HR 대기 상태
             mgr_dept = session.get('dept_id') or 0
             cur_uid  = session.get('user_id')
-            ot_sql  += ' AND (u.department_id=? OR u.manager_id=?)'
+            ot_sql  += "WHERE o.status='pending' AND (u.department_id=? OR u.manager_id=?)"
             ot_params += [mgr_dept, cur_uid]
+        else:
+            # HR(admin)은 매니저 검토 완료 건까지 함께 확인
+            ot_sql += "WHERE o.status IN ('pending','reviewed')"
         ot_sql += ' ORDER BY o.date DESC'
         ot_pending_list = db.execute(ot_sql, ot_params).fetchall()
 
@@ -10796,40 +10808,116 @@ def overtime_new():
 
 
 @app.route('/attendance/overtime/<int:ot_id>/approve', methods=['POST'])
-@login_required
+@manager_or_admin
 def overtime_approve(ot_id):
-    db  = get_db()
-    uid = session['user_id']
-    if session.get('user_role') not in ('admin', 'manager'):
-        flash('권한이 없습니다.', 'error')
-        return redirect(url_for('attendance_home', tab='ot'))
-    row = db.execute('SELECT * FROM overtime_requests WHERE id=?', (ot_id,)).fetchone()
-    if not row or row['status'] != 'pending':
-        flash('처리할 수 없는 신청입니다.', 'error')
-        return redirect(url_for('attendance_home', tab='ot'))
-    db.execute(
-        "UPDATE overtime_requests SET status='approved', approver_id=?, approved_at=CURRENT_TIMESTAMP WHERE id=?",
-        (uid, ot_id)
-    )
-    db.commit()
-    add_notification(db, row['user_id'], 'OT 신청 승인',
-                     f'{row["date"]} OT 신청({row["ot_minutes"]}분)이 승인되었습니다.')
-    flash('OT 신청을 승인했습니다.', 'success')
+    db   = get_db()
+    uid  = session.get('user_id')
+    role = session.get('user_role')
+    row = db.execute(
+        'SELECT o.*, u.department_id, u.manager_id AS user_manager_id, u.name AS user_name '
+        'FROM overtime_requests o JOIN users u ON o.user_id = u.id WHERE o.id=?', (ot_id,)
+    ).fetchone()
+    if not row:
+        abort(404)
+
+    _chain = get_approval_chain(db, 'overtime')
+    approval_flow = _chain if _chain in ('manager_only', 'manager_hr') else 'manager_only'
+
+    # 매니저 승인 단계
+    if role == 'manager':
+        if row['status'] != 'pending':
+            flash('매니저 검토가 불가능한 상태입니다.', 'error')
+            return redirect(url_for('attendance_home', tab='ot'))
+        if row['user_id'] == uid:
+            flash('본인의 신청은 직접 승인할 수 없습니다.', 'error')
+            return redirect(url_for('attendance_home', tab='ot'))
+        # 권한 검증: 같은 부서원 OR 직속 부하
+        mgr_dept = session.get('dept_id') or 0
+        is_direct_report = (row['user_manager_id'] == uid)
+        same_dept = (mgr_dept != 0 and row['department_id'] == mgr_dept)
+        if not is_direct_report and not same_dept:
+            abort(403)
+
+        if approval_flow == 'manager_only':
+            db.execute(
+                "UPDATE overtime_requests SET status='approved', approver_id=?, approved_at=CURRENT_TIMESTAMP, "
+                "manager_id=?, manager_approved_at=CURRENT_TIMESTAMP WHERE id=?",
+                (uid, uid, ot_id)
+            )
+            db.commit()
+            add_notification(
+                row['user_id'], 'info', 'overtime', 'OT 신청 승인',
+                f'{row["date"]} OT 신청({row["ot_minutes"]}분)이 승인되었습니다.',
+                url_for('attendance_home', tab='ot')
+            )
+            flash('OT 신청을 승인했습니다.', 'success')
+        else:
+            # manager_hr: 검토 완료 → HR 대기
+            db.execute(
+                "UPDATE overtime_requests SET status='reviewed', manager_id=?, manager_approved_at=CURRENT_TIMESTAMP WHERE id=?",
+                (uid, ot_id)
+            )
+            db.commit()
+            admins = db.execute("SELECT id FROM users WHERE role='admin'").fetchall()
+            for admin in admins:
+                add_notification(
+                    admin['id'], 'action', 'overtime',
+                    f"[HR 최종 승인 필요] 연장근로 — {row['user_name']}",
+                    '매니저 검토가 완료됐습니다. HR 최종 승인이 필요합니다.',
+                    url_for('approvals_hub')
+                )
+            flash('매니저 검토 완료. HR 최종 승인 대기 중입니다.', 'success')
+
+    # HR(Admin) 최종 승인 단계
+    elif role == 'admin':
+        if approval_flow == 'manager_hr' and row['status'] == 'pending':
+            flash('이 설정은 매니저 검토가 먼저 완료되어야 합니다. 담당 매니저에게 먼저 검토를 요청하세요.', 'error')
+            return redirect(url_for('attendance_home', tab='ot'))
+        if row['status'] not in ('pending', 'reviewed'):
+            flash('처리할 수 없는 신청입니다.', 'error')
+            return redirect(url_for('attendance_home', tab='ot'))
+        db.execute(
+            "UPDATE overtime_requests SET status='approved', hr_id=?, hr_approved_at=CURRENT_TIMESTAMP, "
+            "approver_id=?, approved_at=CURRENT_TIMESTAMP WHERE id=?",
+            (uid, uid, ot_id)
+        )
+        db.commit()
+        add_notification(
+            row['user_id'], 'info', 'overtime', 'OT 신청 최종 승인',
+            f'{row["date"]} OT 신청({row["ot_minutes"]}분)이 HR 최종 승인되었습니다.',
+            url_for('attendance_home', tab='ot')
+        )
+        flash('HR 최종 승인이 완료됐습니다.', 'success')
+
     return redirect(url_for('attendance_home', tab='ot'))
 
 
 @app.route('/attendance/overtime/<int:ot_id>/reject', methods=['POST'])
-@login_required
+@manager_or_admin
 def overtime_reject(ot_id):
-    db  = get_db()
-    uid = session['user_id']
-    if session.get('user_role') not in ('admin', 'manager'):
-        flash('권한이 없습니다.', 'error')
-        return redirect(url_for('attendance_home', tab='ot'))
-    row = db.execute('SELECT * FROM overtime_requests WHERE id=?', (ot_id,)).fetchone()
-    if not row or row['status'] != 'pending':
+    db   = get_db()
+    uid  = session.get('user_id')
+    role = session.get('user_role')
+    row = db.execute(
+        'SELECT o.*, u.department_id, u.manager_id AS user_manager_id '
+        'FROM overtime_requests o JOIN users u ON o.user_id = u.id WHERE o.id=?', (ot_id,)
+    ).fetchone()
+    if not row:
+        abort(404)
+    if row['status'] not in ('pending', 'reviewed'):
         flash('처리할 수 없는 신청입니다.', 'error')
         return redirect(url_for('attendance_home', tab='ot'))
+
+    if role == 'manager':
+        if row['user_id'] == uid:
+            flash('본인의 신청은 직접 반려할 수 없습니다.', 'error')
+            return redirect(url_for('attendance_home', tab='ot'))
+        mgr_dept = session.get('dept_id') or 0
+        is_direct_report = (row['user_manager_id'] == uid)
+        same_dept = (mgr_dept != 0 and row['department_id'] == mgr_dept)
+        if not is_direct_report and not same_dept:
+            abort(403)
+
     reason = request.form.get('reject_reason', '')
     db.execute(
         "UPDATE overtime_requests SET status='rejected', approver_id=?, approved_at=CURRENT_TIMESTAMP, "
@@ -10837,8 +10925,11 @@ def overtime_reject(ot_id):
         (uid, reason, ot_id)
     )
     db.commit()
-    add_notification(db, row['user_id'], 'OT 신청 반려',
-                     f'{row["date"]} OT 신청이 반려되었습니다. 사유: {reason}')
+    add_notification(
+        row['user_id'], 'info', 'overtime', 'OT 신청 반려',
+        f'{row["date"]} OT 신청이 반려되었습니다. 사유: {reason}',
+        url_for('attendance_home', tab='ot')
+    )
     flash('OT 신청을 반려했습니다.', 'success')
     return redirect(url_for('attendance_home', tab='ot'))
 
