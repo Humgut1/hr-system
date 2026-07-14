@@ -789,6 +789,29 @@ def init_db(db_path: str = None):
         if 'return_comment' not in pg_cols:
             c.execute('ALTER TABLE performance_goals ADD COLUMN return_comment TEXT')
 
+        # 입사 예정자 (Phase C-11 — 외부 ATS 합격자 수신 + 직원 전환, saas_plan.md §5)
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS incoming_hires (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                name              TEXT NOT NULL,
+                email             TEXT,
+                phone             TEXT,
+                start_date        DATE,
+                department_name   TEXT,
+                position_name     TEXT,
+                job_title         TEXT,
+                salary            INTEGER,
+                source            TEXT NOT NULL DEFAULT 'manual'
+                                      CHECK(source IN ('manual','csv','webhook','internal')),
+                memo              TEXT,
+                status            TEXT NOT NULL DEFAULT 'waiting'
+                                      CHECK(status IN ('waiting','converted','cancelled')),
+                converted_user_id INTEGER REFERENCES users(id),
+                created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                converted_at      TIMESTAMP
+            )
+        ''')
+
         # 등급 이의제기 (주기당 1회 — UNIQUE 제약)
         c.execute('''
             CREATE TABLE IF NOT EXISTS grade_appeals (

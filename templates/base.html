@@ -131,6 +131,9 @@
           </a>
         </div>
         {% endif %}
+        <a href="{{ url_for('hires_list') }}" class="nav-item{% if active_page == 'hires' %} active{% endif %}" title="입사 예정자" data-tour="hires">
+          <i class="fas fa-door-open"></i><span>입사 예정자</span>
+        </a>
         {% if session.user_role == 'admin' %}
         <a href="{{ url_for('people_analytics') }}" class="nav-item{% if active_page == 'analytics' %} active{% endif %}" title="분석·보고서" data-tour="analytics">
           <i class="fas fa-chart-pie"></i><span>분석·보고서</span>

@@ -33,6 +33,7 @@ from master_db import (
     get_tenant_plan, set_tenant_plan,
     seed_default_superadmin, get_superadmin_by_username,
     list_tenants_with_state, set_tenant_status,
+    get_or_create_api_token, regenerate_api_token, get_tenant_by_api_token,
 )
 
 app = Flask(__name__)
@@ -200,7 +201,7 @@ def close_connection(exception):
 # ══════════════════════════════════════════════════════════════
 
 # 외부 서비스가 직접 호출하는 엔드포인트 (자체 서명 검증으로 보호됨)
-CSRF_EXEMPT_ENDPOINTS = {'billing_webhook', 'slack_command', 'slack_interactive'}
+CSRF_EXEMPT_ENDPOINTS = {'billing_webhook', 'slack_command', 'slack_interactive', 'hires_webhook'}
 
 
 def _get_csrf_token():
@@ -2468,6 +2469,21 @@ def employee_new():
                     'WHERE applicant_id=? AND status IN ("sent","negotiating","draft")',
                     (new_id, from_applicant_id)
                 )
+            # 입사 예정자→직원 전환 (Phase C-11)
+            from_hire_id = request.form.get('from_hire', type=int)
+            if from_hire_id:
+                db.execute(
+                    "UPDATE incoming_hires SET status='converted', converted_user_id=?, "
+                    "converted_at=CURRENT_TIMESTAMP WHERE id=? AND status='waiting'",
+                    (new_id, from_hire_id)
+                )
+                # 연봉 정보가 있으면 employee_salary에 반영 (월 기본급 = 연봉/12)
+                hire_row = db.execute('SELECT salary FROM incoming_hires WHERE id=?', (from_hire_id,)).fetchone()
+                if hire_row and hire_row['salary']:
+                    db.execute(
+                        'INSERT OR REPLACE INTO employee_salary (user_id, base_salary) VALUES (?, ?)',
+                        (new_id, int(hire_row['salary'] / 12))
+                    )
             # Enrollment Event 자동 생성
             from datetime import date, timedelta
             due = (date.today() + timedelta(days=30)).isoformat()
@@ -2491,8 +2507,10 @@ def employee_new():
             # ── 외부 서비스 연동 트리거 ───────────────────────
             try:
                 from integrations.dispatcher import on_employee_created
-                dept_name = (db.execute("SELECT name FROM departments WHERE id=?", (dept_id,)).fetchone() or {}).get('name','') if dept_id else ''
-                pos_name  = (db.execute("SELECT name FROM positions WHERE id=?", (pos_id,)).fetchone() or {}).get('name','') if pos_id else ''
+                _d = db.execute("SELECT name FROM departments WHERE id=?", (dept_id,)).fetchone() if dept_id else None
+                _p = db.execute("SELECT name FROM positions WHERE id=?", (pos_id,)).fetchone() if pos_id else None
+                dept_name = _d['name'] if _d else ''
+                pos_name  = _p['name'] if _p else ''
                 on_employee_created({
                     'id': new_id,
                     'name': name, 'email': email,
@@ -2518,6 +2536,30 @@ def employee_new():
                 'phone':         request.args.get('phone', ap['phone'] or ''),
                 'department_id': request.args.get('dept', ap['jp_dept'] or ''),
                 'from_applicant': from_applicant_id,
+            }
+
+    # 입사 예정자→직원 전환 프리필 (Phase C-11)
+    from_hire_id = request.args.get('from_hire', type=int)
+    if from_hire_id:
+        h = db.execute("SELECT * FROM incoming_hires WHERE id=? AND status='waiting'", (from_hire_id,)).fetchone()
+        if h:
+            # 부서/직급 이름 → id 매칭 (일치하는 것만 프리필)
+            dept_id = None
+            if h['department_name']:
+                d = db.execute('SELECT id FROM departments WHERE name=?', (h['department_name'],)).fetchone()
+                dept_id = d['id'] if d else None
+            pos_id = None
+            if h['position_name']:
+                p = db.execute('SELECT id FROM positions WHERE name=?', (h['position_name'],)).fetchone()
+                pos_id = p['id'] if p else None
+            prefill = {
+                'name':          h['name'],
+                'email':         h['email'] or '',
+                'phone':         h['phone'] or '',
+                'department_id': dept_id or '',
+                'position_id':   pos_id or '',
+                'hire_date':     h['start_date'] or '',
+                'from_hire':     from_hire_id,
             }
 
     return render_template('employees/form.html',
@@ -2760,6 +2802,261 @@ def employee_import_confirm():
         msg += f' (매니저 매핑 실패 {len(unmatched_managers)}건: {", ".join(unmatched_managers[:5])})'
     flash(msg, 'success' if not unmatched_managers else 'warning')
     return redirect(url_for('employees'))
+
+
+# ══════════════════════════════════════════════════════════════
+#  입사 예정자 (Phase C-11 — 외부 ATS 합격자 수신 + 직원 전환, saas_plan.md §5)
+# ══════════════════════════════════════════════════════════════
+
+HIRES_CSV_COLUMNS = ['이름', '이메일', '전화', '입사예정일', '부서', '직급', '직무', '연봉', '메모']
+HIRE_SOURCE_LABEL = {'manual': '직접 입력', 'csv': 'CSV 임포트', 'webhook': 'ATS 웹훅', 'internal': '자체 채용'}
+
+
+def _normalize_hire_date(val):
+    """입사예정일 정규화: 2026-08-01 / 2026.08.01 / 20260801 모두 지원."""
+    if not val:
+        return None
+    v = str(val).strip().replace('.', '-').replace('/', '-')
+    if len(v) == 8 and v.isdigit():
+        v = f'{v[:4]}-{v[4:6]}-{v[6:]}'
+    try:
+        return datetime.strptime(v, '%Y-%m-%d').date().isoformat()
+    except ValueError:
+        return None
+
+
+@app.route('/hires')
+@recruiter_or_admin
+def hires_list():
+    db = get_db()
+    status_filter = request.args.get('status', 'waiting')
+    if status_filter not in ('waiting', 'converted', 'cancelled', 'all'):
+        status_filter = 'waiting'
+
+    q = ('SELECT h.*, u.name AS converted_name, u.emp_no AS converted_emp_no '
+         'FROM incoming_hires h LEFT JOIN users u ON h.converted_user_id=u.id ')
+    if status_filter != 'all':
+        rows = db.execute(q + 'WHERE h.status=? ORDER BY h.start_date IS NULL, h.start_date, h.id',
+                          (status_filter,)).fetchall()
+    else:
+        rows = db.execute(q + "ORDER BY CASE h.status WHEN 'waiting' THEN 0 ELSE 1 END, "
+                              'h.start_date IS NULL, h.start_date, h.id').fetchall()
+
+    # D-day 계산
+    today = date.today()
+    hires = []
+    for r in rows:
+        d = dict(r)
+        d['dday'] = None
+        if r['start_date']:
+            try:
+                d['dday'] = (date.fromisoformat(r['start_date']) - today).days
+            except ValueError:
+                pass
+        hires.append(d)
+
+    counts = {row['status']: row['c'] for row in db.execute(
+        'SELECT status, COUNT(*) c FROM incoming_hires GROUP BY status').fetchall()}
+
+    # 웹훅 토큰 (admin만 노출)
+    api_token = None
+    if session.get('user_role') == 'admin':
+        api_token = get_or_create_api_token(session.get('tenant_id', 1))
+
+    return render_template('hires/list.html',
+                           hires=hires, counts=counts, status_filter=status_filter,
+                           source_label=HIRE_SOURCE_LABEL,
+                           api_token=api_token,
+                           active_page='hires')
+
+
+@app.route('/hires/new', methods=['POST'])
+@recruiter_or_admin
+def hires_new():
+    db    = get_db()
+    name  = request.form.get('name', '').strip()
+    email = request.form.get('email', '').strip() or None
+    phone = request.form.get('phone', '').strip() or None
+    start = _normalize_hire_date(request.form.get('start_date', ''))
+    dept  = request.form.get('department_name', '').strip() or None
+    pos   = request.form.get('position_name', '').strip() or None
+    job   = request.form.get('job_title', '').strip() or None
+    memo  = request.form.get('memo', '').strip() or None
+    try:
+        salary = int(request.form.get('salary', '').replace(',', '') or 0) or None
+    except ValueError:
+        salary = None
+
+    if not name:
+        flash('이름은 필수입니다.', 'error')
+    elif email and db.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone():
+        flash('이미 등록된 직원의 이메일입니다.', 'error')
+    else:
+        db.execute(
+            'INSERT INTO incoming_hires (name, email, phone, start_date, department_name, '
+            "position_name, job_title, salary, memo, source) VALUES (?,?,?,?,?,?,?,?,?,'manual')",
+            (name, email, phone, start, dept, pos, job, salary, memo)
+        )
+        db.commit()
+        flash(f'입사 예정자 {name}님이 등록되었습니다.', 'success')
+    return redirect(url_for('hires_list'))
+
+
+@app.route('/hires/<int:hire_id>/cancel', methods=['POST'])
+@recruiter_or_admin
+def hires_cancel(hire_id):
+    db = get_db()
+    h = db.execute('SELECT * FROM incoming_hires WHERE id=?', (hire_id,)).fetchone()
+    if not h:
+        abort(404)
+    if h['status'] != 'waiting':
+        flash('대기 중인 입사 예정자만 취소할 수 있습니다.', 'error')
+    else:
+        db.execute("UPDATE incoming_hires SET status='cancelled' WHERE id=?", (hire_id,))
+        db.commit()
+        flash(f'{h["name"]}님의 입사가 취소 처리되었습니다.', 'success')
+    return redirect(url_for('hires_list'))
+
+
+@app.route('/hires/import/template')
+@recruiter_or_admin
+def hires_import_template():
+    import csv, io
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(HIRES_CSV_COLUMNS)
+    w.writerow(['김입사', 'kim.ipsa@example.com', '010-1234-5678', '2026-08-01',
+                '개발팀', 'CL3', '백엔드 엔지니어', '52000000', '그리팅 합격자'])
+    data = '﻿' + buf.getvalue()   # BOM — 한국 Excel 호환
+    return app.response_class(
+        data.encode('utf-8'),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename="incoming_hires_template.csv"'}
+    )
+
+
+@app.route('/hires/import', methods=['POST'])
+@recruiter_or_admin
+def hires_import():
+    """외부 ATS 합격자 CSV 임포트 — 검증 후 유효 행만 등록, 오류 행은 리포트."""
+    db = get_db()
+    f = request.files.get('csv_file')
+    if not f or not f.filename:
+        flash('CSV 파일을 선택해 주세요.', 'error')
+        return redirect(url_for('hires_list'))
+
+    rows = _read_csv_rows(f.read())
+    if rows is None:
+        flash('CSV 파일을 읽을 수 없습니다. UTF-8 또는 CP949(엑셀 기본) 인코딩인지 확인해 주세요.', 'error')
+        return redirect(url_for('hires_list'))
+
+    inserted, errors = 0, []
+    for i, r in enumerate(rows, start=2):   # 2행부터 (1행=헤더)
+        name = (r.get('이름') or '').strip()
+        if not name:
+            errors.append(f'{i}행: 이름 누락')
+            continue
+        email = (r.get('이메일') or '').strip() or None
+        if email and db.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone():
+            errors.append(f'{i}행({name}): 이미 등록된 직원 이메일')
+            continue
+        if email and db.execute(
+                "SELECT id FROM incoming_hires WHERE email=? AND status='waiting'", (email,)).fetchone():
+            errors.append(f'{i}행({name}): 이미 대기 중인 입사 예정자')
+            continue
+        start = _normalize_hire_date(r.get('입사예정일'))
+        if (r.get('입사예정일') or '').strip() and not start:
+            errors.append(f'{i}행({name}): 입사예정일 형식 오류 ({r.get("입사예정일")})')
+            continue
+        try:
+            salary = int(str(r.get('연봉') or '').replace(',', '').strip() or 0) or None
+        except ValueError:
+            salary = None
+        db.execute(
+            'INSERT INTO incoming_hires (name, email, phone, start_date, department_name, '
+            "position_name, job_title, salary, memo, source) VALUES (?,?,?,?,?,?,?,?,?,'csv')",
+            (name, email, (r.get('전화') or '').strip() or None, start,
+             (r.get('부서') or '').strip() or None, (r.get('직급') or '').strip() or None,
+             (r.get('직무') or '').strip() or None, salary, (r.get('메모') or '').strip() or None)
+        )
+        inserted += 1
+    db.commit()
+    if inserted:
+        log_audit('create', 'personal_info', None, f'입사 예정자 CSV 임포트 — {inserted}명')
+    msg = f'{inserted}명 등록 완료.'
+    if errors:
+        msg += f' 오류 {len(errors)}건: ' + ' / '.join(errors[:5]) + (' …' if len(errors) > 5 else '')
+    flash(msg, 'success' if not errors else 'warning')
+    return redirect(url_for('hires_list'))
+
+
+@app.route('/hires/token/regenerate', methods=['POST'])
+@admin_required
+def hires_token_regenerate():
+    regenerate_api_token(session.get('tenant_id', 1))
+    log_audit('update', 'auth', None, 'ATS 웹훅 API 토큰 재발급')
+    flash('웹훅 토큰이 재발급되었습니다. 기존 토큰은 즉시 무효화됩니다 — 연동 중인 ATS에 새 토큰을 등록하세요.', 'success')
+    return redirect(url_for('hires_list'))
+
+
+@app.route('/api/hires', methods=['POST'])
+def hires_webhook():
+    """표준 웹훅 수신 — 외부 ATS가 합격자를 push하는 엔드포인트.
+
+    인증: X-API-Token 헤더 (테넌트별 토큰, /hires 화면에서 발급)
+    본문: JSON {"name": 필수, "email", "phone", "start_date", "department",
+                "position", "job_title", "salary", "memo"}
+    """
+    token = request.headers.get('X-API-Token', '')
+    tenant = get_tenant_by_api_token(token)
+    if not tenant:
+        return {'ok': False, 'error': 'invalid token'}, 401
+
+    payload = request.get_json(silent=True)
+    if not payload:
+        return {'ok': False, 'error': 'invalid JSON body'}, 400
+    name = str(payload.get('name', '')).strip()
+    if not name:
+        return {'ok': False, 'error': 'name is required'}, 400
+
+    start = _normalize_hire_date(payload.get('start_date'))
+    try:
+        salary = int(str(payload.get('salary') or '').replace(',', '') or 0) or None
+    except ValueError:
+        salary = None
+
+    conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
+    conn.row_factory = sqlite3.Row
+    try:
+        email = str(payload.get('email') or '').strip() or None
+        if email:
+            if conn.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone():
+                return {'ok': False, 'error': 'email already exists as employee'}, 409
+            if conn.execute("SELECT id FROM incoming_hires WHERE email=? AND status='waiting'",
+                            (email,)).fetchone():
+                return {'ok': False, 'error': 'duplicate waiting hire'}, 409
+        cur = conn.execute(
+            'INSERT INTO incoming_hires (name, email, phone, start_date, department_name, '
+            "position_name, job_title, salary, memo, source) VALUES (?,?,?,?,?,?,?,?,?,'webhook')",
+            (name, email, str(payload.get('phone') or '').strip() or None, start,
+             str(payload.get('department') or '').strip() or None,
+             str(payload.get('position') or '').strip() or None,
+             str(payload.get('job_title') or '').strip() or None,
+             salary, str(payload.get('memo') or '').strip() or None)
+        )
+        # 관리자에게 인앱 알림
+        admins = conn.execute("SELECT id FROM users WHERE role='admin' AND status='active'").fetchall()
+        for a in admins:
+            conn.execute(
+                'INSERT INTO notifications (user_id, type, category, title, content, link) VALUES (?,?,?,?,?,?)',
+                (a['id'], 'action', 'action', '입사 예정자 수신',
+                 f'외부 ATS에서 합격자 {name}님이 등록되었습니다.' + (f' 입사 예정일: {start}' if start else ''),
+                 '/hires')
+            )
+        conn.commit()
+        return {'ok': True, 'id': cur.lastrowid}, 201
+    finally:
+        conn.close()
 
 
 @app.route('/employees/<int:emp_id>/edit', methods=['GET', 'POST'])

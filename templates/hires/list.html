@@ -1,0 +1,249 @@
+{% extends 'base.html' %}
+{% block title %}입사 예정자{% endblock %}
+{% block page_title %}입사 예정자{% endblock %}
+
+{% block extra_css %}
+<style>
+.hire-tabs { display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:20px; }
+.hire-tab {
+  padding:9px 18px; font-size:13px; font-weight:700; color:var(--tx-3);
+  text-decoration:none; border-bottom:2px solid transparent; margin-bottom:-2px;
+  display:flex; align-items:center; gap:6px;
+}
+.hire-tab:hover { color:var(--text); }
+.hire-tab.active { color:var(--primary); border-bottom-color:var(--primary); }
+.hire-tab .cnt { font-size:10px; font-weight:800; padding:1px 7px; border-radius:20px; background:var(--bg); }
+
+.dday-badge {
+  font-size:11px; font-weight:800; padding:3px 10px; border-radius:20px; white-space:nowrap;
+}
+.dd-soon    { background:#fee2e2; color:#dc2626; }
+.dd-week    { background:#fef3c7; color:#92400e; }
+.dd-later   { background:#dbeafe; color:#1e40af; }
+.dd-past    { background:#f1f5f9; color:#475569; }
+
+.src-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; background:var(--bg); color:var(--tx-2); border:1px solid var(--border); }
+
+.hire-modal {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000;
+  align-items:center; justify-content:center;
+}
+.hire-modal .box { background:var(--surface); border-radius:14px; padding:24px; width:480px; max-width:94vw; max-height:90vh; overflow-y:auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+  <div style="font-size:12.5px; color:var(--tx-3); max-width:560px; line-height:1.6;">
+    외부 ATS(그리팅 등) 합격자를 받아 두었다가 <strong>입사일에 원클릭으로 직원 전환</strong>합니다.
+    전환 시 직원 계정 생성 + 온보딩 체크리스트 + 웰컴 메일이 자동으로 시작됩니다.
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a href="{{ url_for('hires_import_template') }}" class="btn btn-ghost btn-sm">
+      <i class="fas fa-file-csv"></i> CSV 템플릿
+    </a>
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-modal').style.display='flex'">
+      <i class="fas fa-file-import"></i> CSV 임포트
+    </button>
+    <button class="btn btn-primary btn-sm" onclick="document.getElementById('add-modal').style.display='flex'">
+      <i class="fas fa-plus"></i> 직접 추가
+    </button>
+  </div>
+</div>
+
+<!-- 상태 탭 -->
+<div class="hire-tabs">
+  {% for key, label in [('waiting','입사 대기'), ('converted','전환 완료'), ('cancelled','취소'), ('all','전체')] %}
+  <a href="?status={{ key }}" class="hire-tab{% if status_filter == key %} active{% endif %}">
+    {{ label }}
+    {% if key != 'all' %}<span class="cnt">{{ counts.get(key, 0) }}</span>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+
+{% if not hires %}
+<div class="card"><div class="card-body" style="text-align:center; padding:60px; color:var(--tx-3);">
+  <i class="fas fa-door-open" style="font-size:32px; opacity:.3; display:block; margin-bottom:12px;"></i>
+  {{ '대기 중인 입사 예정자가 없습니다.' if status_filter == 'waiting' else '해당하는 입사 예정자가 없습니다.' }}<br>
+  <span style="font-size:12px; margin-top:6px; display:block;">직접 추가하거나, CSV 임포트 / ATS 웹훅으로 합격자를 받아올 수 있습니다.</span>
+</div></div>
+{% else %}
+
+<div class="card">
+  <div class="card-body" style="padding:0; overflow-x:auto;">
+    <table class="table" style="margin:0;">
+      <thead>
+        <tr>
+          <th>이름</th><th>입사 예정일</th><th>부서</th><th>직급 / 직무</th>
+          <th>연봉</th><th>연락처</th><th>출처</th><th style="text-align:right;">액션</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in hires %}
+        <tr>
+          <td>
+            <div style="font-weight:700;">{{ h.name }}</div>
+            {% if h.memo %}<div style="font-size:11px; color:var(--tx-3);">{{ h.memo }}</div>{% endif %}
+          </td>
+          <td>
+            {% if h.start_date %}
+            <div style="font-size:13px;">{{ h.start_date }}</div>
+            {% if h.status == 'waiting' and h.dday is not none %}
+              {% if h.dday < 0 %}
+              <span class="dday-badge dd-past">D+{{ -h.dday }} 경과</span>
+              {% elif h.dday == 0 %}
+              <span class="dday-badge dd-soon">오늘 입사!</span>
+              {% elif h.dday <= 7 %}
+              <span class="dday-badge dd-week">D-{{ h.dday }}</span>
+              {% else %}
+              <span class="dday-badge dd-later">D-{{ h.dday }}</span>
+              {% endif %}
+            {% endif %}
+            {% else %}<span style="color:var(--tx-3);">미정</span>{% endif %}
+          </td>
+          <td>{{ h.department_name or '—' }}</td>
+          <td>
+            {{ h.position_name or '—' }}
+            {% if h.job_title %}<div style="font-size:11px; color:var(--tx-3);">{{ h.job_title }}</div>{% endif %}
+          </td>
+          <td>{% if h.salary %}{{ '{:,}'.format(h.salary) }}원{% else %}—{% endif %}</td>
+          <td style="font-size:12px;">
+            {{ h.email or '' }}{% if h.email and h.phone %}<br>{% endif %}{{ h.phone or '' }}
+            {% if not h.email and not h.phone %}—{% endif %}
+          </td>
+          <td><span class="src-badge">{{ source_label.get(h.source, h.source) }}</span></td>
+          <td style="text-align:right; white-space:nowrap;">
+            {% if h.status == 'waiting' %}
+            <a href="{{ url_for('employee_new') }}?from_hire={{ h.id }}" class="btn btn-primary btn-sm"
+               title="직원 정보가 자동 입력된 등록 화면으로 이동합니다">
+              <i class="fas fa-user-check"></i> 직원 전환
+            </a>
+            <form method="POST" action="{{ url_for('hires_cancel', hire_id=h.id) }}" style="display:inline;"
+                  onsubmit="return confirm('{{ h.name }}님의 입사를 취소 처리할까요?')">
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:#dc2626;">취소</button>
+            </form>
+            {% elif h.status == 'converted' %}
+            <a href="{{ url_for('employee_detail', emp_id=h.converted_user_id) }}" class="btn btn-ghost btn-sm" style="color:var(--green);">
+              <i class="fas fa-check-circle"></i> {{ h.converted_emp_no or '프로필' }} 보기
+            </a>
+            {% else %}
+            <span style="font-size:12px; color:var(--tx-3);">취소됨</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── ATS 웹훅 연동 안내 (admin) ── -->
+{% if api_token %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-body">
+    <div style="font-weight:800; font-size:13px; margin-bottom:8px;">
+      <i class="fas fa-plug" style="color:var(--primary);"></i> 외부 ATS 웹훅 연동
+    </div>
+    <div style="font-size:12px; color:var(--tx-3); line-height:1.7; margin-bottom:10px;">
+      사용 중인 ATS에서 합격자 확정 시 아래 주소로 POST 요청을 보내면 입사 예정자로 자동 등록됩니다.
+    </div>
+    <div style="background:var(--bg); border-radius:8px; padding:12px 14px; font-family:monospace; font-size:12px; overflow-x:auto;">
+      POST {{ request.url_root }}api/hires<br>
+      X-API-Token: <span id="token-value" style="user-select:all;">{{ api_token }}</span><br>
+      Content-Type: application/json<br><br>
+      {"name": "김입사", "email": "kim@example.com", "start_date": "2026-08-01",<br>
+      &nbsp;"department": "개발팀", "position": "CL3", "salary": 52000000}
+    </div>
+    <form method="POST" action="{{ url_for('hires_token_regenerate') }}" style="margin-top:10px;"
+          onsubmit="return confirm('토큰을 재발급하면 기존 토큰은 즉시 무효화됩니다. 계속할까요?')">
+      <button type="submit" class="btn btn-ghost btn-sm" style="color:#dc2626;">
+        <i class="fas fa-rotate"></i> 토큰 재발급
+      </button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── 직접 추가 모달 ── -->
+<div id="add-modal" class="hire-modal">
+  <div class="box">
+    <div style="font-size:15px; font-weight:800; margin-bottom:16px;">
+      <i class="fas fa-plus" style="color:var(--primary);"></i> 입사 예정자 추가
+    </div>
+    <form method="POST" action="{{ url_for('hires_new') }}">
+      <div class="grid-2" style="gap:12px;">
+        <div class="field">
+          <label class="form-label">이름 <span style="color:var(--red);">*</span></label>
+          <input type="text" name="name" class="input" required>
+        </div>
+        <div class="field">
+          <label class="form-label">입사 예정일</label>
+          <input type="date" name="start_date" class="input">
+        </div>
+      </div>
+      <div class="grid-2" style="gap:12px;">
+        <div class="field">
+          <label class="form-label">이메일</label>
+          <input type="email" name="email" class="input">
+        </div>
+        <div class="field">
+          <label class="form-label">전화</label>
+          <input type="tel" name="phone" class="input" placeholder="010-0000-0000">
+        </div>
+      </div>
+      <div class="grid-2" style="gap:12px;">
+        <div class="field">
+          <label class="form-label">부서 (이름)</label>
+          <input type="text" name="department_name" class="input" placeholder="예: 개발팀">
+        </div>
+        <div class="field">
+          <label class="form-label">직급 (이름)</label>
+          <input type="text" name="position_name" class="input" placeholder="예: CL3">
+        </div>
+      </div>
+      <div class="grid-2" style="gap:12px;">
+        <div class="field">
+          <label class="form-label">직무</label>
+          <input type="text" name="job_title" class="input" placeholder="예: 백엔드 엔지니어">
+        </div>
+        <div class="field">
+          <label class="form-label">연봉 (원)</label>
+          <input type="text" name="salary" class="input" placeholder="52,000,000">
+        </div>
+      </div>
+      <div class="field">
+        <label class="form-label">메모</label>
+        <input type="text" name="memo" class="input" placeholder="예: 그리팅 합격자, 오퍼 수락 완료">
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('add-modal').style.display='none'">취소</button>
+        <button type="submit" class="btn btn-primary">추가</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── CSV 임포트 모달 ── -->
+<div id="import-modal" class="hire-modal">
+  <div class="box">
+    <div style="font-size:15px; font-weight:800; margin-bottom:10px;">
+      <i class="fas fa-file-import" style="color:var(--primary);"></i> 합격자 CSV 임포트
+    </div>
+    <div style="font-size:12px; color:var(--tx-3); line-height:1.7; margin-bottom:14px;">
+      외부 ATS에서 내보낸 합격자 명단을 업로드하세요.
+      컬럼: <code>이름(필수), 이메일, 전화, 입사예정일, 부서, 직급, 직무, 연봉, 메모</code><br>
+      UTF-8과 엑셀 기본(CP949) 인코딩 모두 지원 · 오류 행은 건너뛰고 결과를 알려드립니다.
+    </div>
+    <form method="POST" action="{{ url_for('hires_import') }}" enctype="multipart/form-data">
+      <input type="file" name="csv_file" accept=".csv" class="input" required style="margin-bottom:14px;">
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('import-modal').style.display='none'">취소</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i> 임포트</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

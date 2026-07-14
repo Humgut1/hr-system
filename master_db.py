@@ -395,8 +395,50 @@ def migrate_subscriptions():
         conn.execute("ALTER TABLE tenants ADD COLUMN plan TEXT NOT NULL DEFAULT 'growth'")
         # 데모 테넌트(1)는 전체 기능 시연용 → enterprise
         conn.execute("UPDATE tenants SET plan='enterprise' WHERE id=1")
+    # tenants.api_token (Phase C-11 — 입사 예정자 웹훅 수신 인증)
+    if 'api_token' not in t_cols:
+        conn.execute('ALTER TABLE tenants ADD COLUMN api_token TEXT')
     conn.commit()
     conn.close()
+
+
+def get_or_create_api_token(tenant_id):
+    """테넌트 웹훅 API 토큰 조회 — 없으면 생성 (Phase C-11)."""
+    import secrets
+    conn = get_master_db()
+    row = conn.execute('SELECT api_token FROM tenants WHERE id=?', (tenant_id,)).fetchone()
+    if not row:
+        conn.close()
+        return None
+    token = row['api_token']
+    if not token:
+        token = 'tc_' + secrets.token_hex(24)
+        conn.execute('UPDATE tenants SET api_token=? WHERE id=?', (token, tenant_id))
+        conn.commit()
+    conn.close()
+    return token
+
+
+def regenerate_api_token(tenant_id):
+    """웹훅 API 토큰 재발급 (기존 토큰 즉시 무효화)."""
+    import secrets
+    token = 'tc_' + secrets.token_hex(24)
+    conn = get_master_db()
+    conn.execute('UPDATE tenants SET api_token=? WHERE id=?', (token, tenant_id))
+    conn.commit()
+    conn.close()
+    return token
+
+
+def get_tenant_by_api_token(token):
+    """API 토큰으로 테넌트 조회 (웹훅 인증용)."""
+    if not token:
+        return None
+    conn = get_master_db()
+    row = conn.execute("SELECT * FROM tenants WHERE api_token=? AND status != 'suspended'",
+                       (token,)).fetchone()
+    conn.close()
+    return row
 
 
 def get_tenant_plan(tenant_id):
