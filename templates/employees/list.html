@@ -5,7 +5,7 @@
 {% block content %}
 
 <!-- 직원 상태 탭 (재직 / 입사 예정 / 퇴직) — v1.2.7 -->
-<div style="display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:18px;">
+<div id="empStatusTabs" data-tour-page="emp-status-tabs" style="display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:18px;">
   {% set tab_style = "padding:9px 18px; font-size:13px; font-weight:700; text-decoration:none;
        border-bottom:2px solid transparent; margin-bottom:-2px; display:flex; align-items:center; gap:6px;" %}
   <a href="{{ url_for('employees') }}"

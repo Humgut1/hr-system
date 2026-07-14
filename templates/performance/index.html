@@ -673,13 +673,24 @@
     </div>
   </div>
 
+  <div style="display:flex; gap:10px; align-items:center; margin-bottom:16px; flex-wrap:wrap;">
+    <div style="position:relative; flex:1; min-width:200px; max-width:280px;">
+      <i class="fas fa-search" style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--tx-3); font-size:13px;"></i>
+      <input type="text" id="teamSearchInput" class="input" style="padding-left:34px;" placeholder="팀원 이름 검색">
+    </div>
+    <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--tx-2); cursor:pointer;">
+      <input type="checkbox" id="teamIncompleteOnly"> 승인·평가 미완료 팀원만 보기
+    </label>
+    <span id="teamFilterCount" class="muted" style="font-size:12px; margin-left:auto;"></span>
+  </div>
+
   {% set ns = namespace(current_uid=0) %}
   {% for g in goals %}
     {% if g.user_id != ns.current_uid %}
       {% if not loop.first %}</div>{% endif %}
       {% set ns.current_uid = g.user_id %}
       {% set est = emp_goal_status.get(g.user_id) %}
-      <div class="emp-group">
+      <div class="emp-group" data-emp-name="{{ g.user_name|lower }}" data-emp-incomplete="{{ '1' if est and est.incomplete else '0' }}">
       <div class="emp-group-header">
         <div class="avatar-xs">{{ g.user_name[0] }}</div>
         <span style="font-size:15px; font-weight:800;">{{ g.user_name }}</span>
@@ -871,5 +882,31 @@ function openReturnForm(userId, userName) {
 function closeReturnForm() {
   document.getElementById('return-modal').style.display = 'none';
 }
+
+// 팀원 목표 현황 — 이름 검색 + 미완료만 보기 필터
+(function() {
+  var searchInput = document.getElementById('teamSearchInput');
+  var incompleteOnly = document.getElementById('teamIncompleteOnly');
+  var countEl = document.getElementById('teamFilterCount');
+  if (!searchInput || !incompleteOnly) return;
+  var groups = document.querySelectorAll('.emp-group');
+
+  function applyFilter() {
+    var q = searchInput.value.trim().toLowerCase();
+    var onlyIncomplete = incompleteOnly.checked;
+    var shown = 0;
+    groups.forEach(function(g) {
+      var nameMatch = !q || (g.dataset.empName || '').indexOf(q) !== -1;
+      var incompleteMatch = !onlyIncomplete || g.dataset.empIncomplete === '1';
+      var visible = nameMatch && incompleteMatch;
+      g.style.display = visible ? '' : 'none';
+      if (visible) shown++;
+    });
+    countEl.textContent = (q || onlyIncomplete) ? (shown + '명 표시 중 (전체 ' + groups.length + '명)') : '';
+  }
+
+  searchInput.addEventListener('input', applyFilter);
+  incompleteOnly.addEventListener('change', applyFilter);
+})();
 </script>
 {% endblock %}

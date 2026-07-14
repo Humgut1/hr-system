@@ -1126,13 +1126,15 @@ def admin_positions_preset():
 # ── Dashboard helpers ─────────────────────────────────────────
 def _greeting():
     h = datetime.now().hour
-    if h < 12:  return 'Good morning'
-    if h < 17:  return 'Good afternoon'
-    return 'Good evening'
+    if h < 12:  return '좋은 아침이에요'
+    if h < 17:  return '좋은 오후예요'
+    return '수고 많으셨어요'
+
+_WEEKDAY_KO = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']
 
 def _today_label():
     d = date.today()
-    return d.strftime('%A, %B ') + str(d.day)
+    return f"{d.month}월 {d.day}일 {_WEEKDAY_KO[d.weekday()]}"
 
 def _tenure(hire_date_str):
     if not hire_date_str:
@@ -1157,8 +1159,6 @@ def dashboard():
     greet      = _greeting()
     today_str  = _today_label()
     first_name = (session.get('user_name') or '').split()[0]
-    LEAVE_LABELS = {'annual':'Annual','half_am':'Half AM','half_pm':'Half PM','sick':'Sick','etc':'Other'}
-
     cfg = get_company_config()
     if not cfg.get('setup_completed') and role == 'admin':
         return redirect(url_for('admin_setup'))
@@ -1197,7 +1197,7 @@ def dashboard():
         for r in leave_pending:
             inbox_items.append({
                 'id': r['id'], 'category': 'leave',
-                'title': f"{r['name']} — {LEAVE_LABELS.get(r['type'], r['type'])} 휴가 신청",
+                'title': f"{r['name']} — {LEAVE_LABELS.get(r['type'], r['type'])} 신청",
                 'sub': f"{r['start_date']} ~ {r['end_date']}",
                 'link': url_for('attendance')
             })
@@ -1483,8 +1483,8 @@ def dashboard():
             'ORDER BY pinned DESC, created_at DESC LIMIT 5'
         ).fetchall()
         STAGE_MAP = {
-            'applied':'Applied','screening':'Screening','interview':'Interview',
-            'offered':'Offered','hired':'Hired','rejected':'Rejected'
+            'applied':'지원접수','screening':'서류심사','interview':'면접',
+            'offered':'오퍼발송','hired':'입사확정','rejected':'불합격'
         }
         return render_template('dashboard/recruiter.html',
             greet=greet, today_str=today_str, first_name=first_name,
@@ -4682,33 +4682,33 @@ def admin_schedules():
 # ── Dashboard Widget Catalog ──────────────────────────────────────────────
 WIDGET_CATALOG = {
     'admin': [
-        {'key': 'kpi_cards',            'label': 'KPI Cards',           'icon': 'fa-chart-bar'},
-        {'key': 'inbox',                'label': 'Inbox',               'icon': 'fa-inbox'},
-        {'key': 'quick_actions',        'label': 'Quick Actions',       'icon': 'fa-bolt'},
-        {'key': 'payroll_summary',      'label': 'Payroll Summary',     'icon': 'fa-won-sign'},
-        {'key': 'open_positions',       'label': 'Open Positions',      'icon': 'fa-briefcase'},
+        {'key': 'kpi_cards',            'label': '핵심 지표',           'icon': 'fa-chart-bar'},
+        {'key': 'inbox',                'label': '인박스',              'icon': 'fa-inbox'},
+        {'key': 'quick_actions',        'label': '빠른 실행',           'icon': 'fa-bolt'},
+        {'key': 'payroll_summary',      'label': '급여 현황',           'icon': 'fa-won-sign'},
+        {'key': 'open_positions',       'label': '채용 중인 포지션',     'icon': 'fa-briefcase'},
         {'key': 'overtime_violations',  'label': '52h 위반 현황',        'icon': 'fa-clock'},
-        {'key': 'recent_employees',     'label': 'Recent Employees',    'icon': 'fa-user-plus'},
-        {'key': 'whos_out',             'label': "Who's Out Today",     'icon': 'fa-door-open'},
-        {'key': 'announcements',        'label': 'Announcements',       'icon': 'fa-bullhorn'},
+        {'key': 'recent_employees',     'label': '최근 입사자',          'icon': 'fa-user-plus'},
+        {'key': 'whos_out',             'label': '오늘 부재중',          'icon': 'fa-door-open'},
+        {'key': 'announcements',        'label': '공지사항',            'icon': 'fa-bullhorn'},
     ],
     'manager': [
-        {'key': 'kpi_cards',        'label': 'KPI Cards',           'icon': 'fa-chart-bar'},
-        {'key': 'inbox',            'label': 'Inbox',               'icon': 'fa-inbox'},
-        {'key': 'quick_actions',    'label': 'Quick Actions',       'icon': 'fa-bolt'},
-        {'key': 'team_performance', 'label': 'Team Performance',    'icon': 'fa-chart-line'},
-        {'key': 'upcoming_reviews', 'label': 'Upcoming Reviews',    'icon': 'fa-calendar-check'},
-        {'key': 'whos_out',         'label': "Who's Out Today",     'icon': 'fa-door-open'},
-        {'key': 'announcements',    'label': 'Announcements',       'icon': 'fa-bullhorn'},
+        {'key': 'kpi_cards',        'label': '핵심 지표',           'icon': 'fa-chart-bar'},
+        {'key': 'inbox',            'label': '인박스',              'icon': 'fa-inbox'},
+        {'key': 'quick_actions',    'label': '빠른 실행',           'icon': 'fa-bolt'},
+        {'key': 'team_performance', 'label': '팀 성과',             'icon': 'fa-chart-line'},
+        {'key': 'upcoming_reviews', 'label': '예정된 평가',          'icon': 'fa-calendar-check'},
+        {'key': 'whos_out',         'label': '오늘 부재중',          'icon': 'fa-door-open'},
+        {'key': 'announcements',    'label': '공지사항',            'icon': 'fa-bullhorn'},
     ],
     'employee': [
-        {'key': 'kpi_cards',        'label': 'KPI Cards',           'icon': 'fa-chart-bar'},
-        {'key': 'quick_actions',    'label': 'Quick Actions',       'icon': 'fa-bolt'},
-        {'key': 'my_goals',         'label': 'My Goals',            'icon': 'fa-bullseye'},
-        {'key': 'time_off_balance', 'label': 'Time Off Balance',    'icon': 'fa-calendar-check'},
-        {'key': 'leave_requests',   'label': 'Leave Requests',      'icon': 'fa-calendar-times'},
-        {'key': 'upcoming_leave',   'label': 'Upcoming Leave',      'icon': 'fa-calendar-alt'},
-        {'key': 'announcements',    'label': 'Announcements',       'icon': 'fa-bullhorn'},
+        {'key': 'kpi_cards',        'label': '핵심 지표',           'icon': 'fa-chart-bar'},
+        {'key': 'quick_actions',    'label': '빠른 실행',           'icon': 'fa-bolt'},
+        {'key': 'my_goals',         'label': '내 목표',             'icon': 'fa-bullseye'},
+        {'key': 'time_off_balance', 'label': '연차 잔여',           'icon': 'fa-calendar-check'},
+        {'key': 'leave_requests',   'label': '휴가 신청 내역',       'icon': 'fa-calendar-times'},
+        {'key': 'upcoming_leave',   'label': '예정된 휴가',          'icon': 'fa-calendar-alt'},
+        {'key': 'announcements',    'label': '공지사항',            'icon': 'fa-bullhorn'},
     ],
 }
 
@@ -7727,9 +7727,14 @@ def performance():
             st = emp_goal_status.setdefault(g['user_id'], {
                 'submitted': 0, 'confirmed': 0, 'draft': 0, 'returned': 0,
                 'weight_sum': 0, 'manager_id': g['emp_manager_id'],
+                'unreviewed': 0,
             })
             st[g['approval_status']] = st.get(g['approval_status'], 0) + 1
             st['weight_sum'] += g['weight']
+            if not g['review_count']:
+                st['unreviewed'] += 1
+        for st in emp_goal_status.values():
+            st['incomplete'] = bool(st['submitted'] or st['returned'] or st['draft'] or st['unreviewed'])
 
     return render_template('performance/index.html',
                            cycles=cycles, active_cycle=active_cycle,
@@ -8919,6 +8924,33 @@ def requisition_list():
     )
 
 
+def _requisition_submit_for_approval(req_id, uid):
+    """작성 완료 → 부서장 승인 요청 처리 (draft 상태 요청만). 성공 시 True."""
+    db  = get_db()
+    req = db.execute('SELECT * FROM job_requisitions WHERE id=? AND requester_id=?', (req_id, uid)).fetchone()
+    if not req or req['status'] != 'draft':
+        flash('처리할 수 없는 요청입니다.', 'error')
+        return False
+
+    db.execute(
+        "UPDATE job_requisitions SET status='pending_dept', updated_at=CURRENT_TIMESTAMP WHERE id=?",
+        (req_id,)
+    )
+    db.commit()
+
+    approvers = db.execute(
+        "SELECT id FROM users WHERE role IN ('manager','admin') AND department_id=? AND id!=?",
+        (req['department_id'], uid)
+    ).fetchall()
+    for a in approvers:
+        add_notification(a['id'], 'info', 'action', '채용 요청서 승인 요청',
+                         f'"{req["title"]}" 채용 요청서 부서장 승인이 필요합니다.',
+                         link=url_for('requisition_detail', req_id=req_id))
+    db.commit()
+    flash('부서장 승인 요청이 전송되었습니다.', 'success')
+    return True
+
+
 @app.route('/recruit/requisitions/new', methods=['GET', 'POST'])
 @login_required
 def requisition_new():
@@ -8958,7 +8990,7 @@ def requisition_new():
 
         action = f.get('action', 'save')
         if action == 'submit':
-            return redirect(url_for('requisition_submit', req_id=rid))
+            _requisition_submit_for_approval(rid, session['user_id'])
         return redirect(url_for('requisition_detail', req_id=rid))
 
     return render_template('recruit/requisition_form.html',
@@ -9021,29 +9053,7 @@ def requisition_detail(req_id):
 @login_required
 def requisition_submit(req_id):
     """작성 완료 → 부서장 승인 요청."""
-    db  = get_db()
-    uid = session['user_id']
-    req = db.execute('SELECT * FROM job_requisitions WHERE id=? AND requester_id=?', (req_id, uid)).fetchone()
-    if not req or req['status'] != 'draft':
-        flash('처리할 수 없는 요청입니다.', 'error')
-        return redirect(url_for('requisition_list'))
-
-    db.execute(
-        "UPDATE job_requisitions SET status='pending_dept', updated_at=CURRENT_TIMESTAMP WHERE id=?",
-        (req_id,)
-    )
-    db.commit()
-
-    # 같은 부서 매니저/어드민에게 알림
-    approvers = db.execute(
-        "SELECT id FROM users WHERE role IN ('manager','admin') AND department_id=? AND id!=?",
-        (req['department_id'], uid)
-    ).fetchall()
-    for a in approvers:
-        add_notification(db, a['id'], '채용 요청서 승인 요청',
-                         f'"{req["title"]}" 채용 요청서 부서장 승인이 필요합니다.')
-    db.commit()
-    flash('부서장 승인 요청이 전송되었습니다.', 'success')
+    _requisition_submit_for_approval(req_id, session['user_id'])
     return redirect(url_for('requisition_detail', req_id=req_id))
 
 
@@ -9074,8 +9084,9 @@ def requisition_dept_approve(req_id):
         # HR Admin에게 알림
         hr_admins = db.execute("SELECT id FROM users WHERE role='admin'").fetchall()
         for h in hr_admins:
-            add_notification(db, h['id'], 'HR 채용 요청서 승인 요청',
-                             f'"{req["title"]}" 요청서가 부서장 승인을 완료하고 HR 최종 승인을 기다립니다.')
+            add_notification(h['id'], 'info', 'action', 'HR 채용 요청서 승인 요청',
+                             f'"{req["title"]}" 요청서가 부서장 승인을 완료하고 HR 최종 승인을 기다립니다.',
+                             link=url_for('requisition_detail', req_id=req_id))
         flash('부서장 승인 완료. HR 검토 단계로 이동했습니다.', 'success')
     else:
         reason = request.form.get('reject_reason', '')
@@ -9085,8 +9096,9 @@ def requisition_dept_approve(req_id):
             "dept_reject_reason=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
             (uid, reason, req_id)
         )
-        add_notification(db, req['requester_id'], '채용 요청서 반려',
-                         f'"{req["title"]}" 요청서가 부서장 검토에서 반려되었습니다. 사유: {reason}')
+        add_notification(req['requester_id'], 'info', 'action', '채용 요청서 반려',
+                         f'"{req["title"]}" 요청서가 부서장 검토에서 반려되었습니다. 사유: {reason}',
+                         link=url_for('requisition_detail', req_id=req_id))
         flash('요청서를 반려했습니다.', 'success')
 
     db.commit()
@@ -9135,8 +9147,9 @@ def requisition_hr_approve(req_id):
             "posting_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
             (uid, posting_id, req_id)
         )
-        add_notification(db, req['requester_id'], '채용 요청서 최종 승인',
-                         f'"{req["title"]}" 요청서가 승인되어 채용 공고가 생성되었습니다.')
+        add_notification(req['requester_id'], 'info', 'action', '채용 요청서 최종 승인',
+                         f'"{req["title"]}" 요청서가 승인되어 채용 공고가 생성되었습니다.',
+                         link=url_for('requisition_detail', req_id=req_id))
         flash('HR 승인 완료. 채용 공고(draft)가 자동 생성되었습니다.', 'success')
     else:
         reason = request.form.get('reject_reason', '')
@@ -9146,8 +9159,9 @@ def requisition_hr_approve(req_id):
             "hr_reject_reason=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
             (uid, reason, req_id)
         )
-        add_notification(db, req['requester_id'], '채용 요청서 HR 반려',
-                         f'"{req["title"]}" 요청서가 HR 검토에서 반려되었습니다. 사유: {reason}')
+        add_notification(req['requester_id'], 'info', 'action', '채용 요청서 HR 반려',
+                         f'"{req["title"]}" 요청서가 HR 검토에서 반려되었습니다. 사유: {reason}',
+                         link=url_for('requisition_detail', req_id=req_id))
         flash('요청서를 반려했습니다.', 'success')
 
     db.commit()

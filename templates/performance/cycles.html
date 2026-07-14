@@ -98,7 +98,7 @@
           </div>
 
           <!-- 단계 스텝퍼 -->
-          <div class="stage-steps">
+          <div class="stage-steps" data-tour-page="cycle-stepper">
             {% for s in cycle_stages %}
             {% set idx = loop.index0 %}
             <span class="stage-step {{ 'current' if s == c.stage else ('done' if idx < cur_idx else '') }}"
@@ -135,7 +135,7 @@
 
   <!-- 우: 새 주기 생성 -->
   <div>
-    <div class="card">
+    <div class="card" data-tour-page="cycle-new">
       <div style="padding:20px 24px; border-bottom:1px solid var(--border);">
         <span style="font-size:15px; font-weight:800;">새 평가 주기 만들기</span>
       </div>

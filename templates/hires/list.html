@@ -35,7 +35,7 @@
 {% block content %}
 
 <!-- 직원 상태 탭 (재직 / 입사 예정 / 퇴직) — v1.2.7: 직원 관리로 통합 -->
-<div style="display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:18px;">
+<div id="empStatusTabs" data-tour-page="emp-status-tabs" style="display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:18px;">
   {% set tab_style = "padding:9px 18px; font-size:13px; font-weight:700; text-decoration:none;
        border-bottom:2px solid transparent; margin-bottom:-2px; display:flex; align-items:center; gap:6px;" %}
   <a href="{{ url_for('employees') }}" style="{{ tab_style }} color:var(--tx-3);">
@@ -58,7 +58,7 @@
     외부 ATS(그리팅 등) 합격자를 받아 두었다가 <strong>입사일에 원클릭으로 직원 전환</strong>합니다.
     전환 시 직원 계정 생성 + 온보딩 체크리스트 + 웰컴 메일이 자동으로 시작됩니다.
   </div>
-  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+  <div data-tour-page="hires-actions" style="display:flex; gap:8px; flex-wrap:wrap;">
     <a href="{{ url_for('hires_import_template') }}" class="btn btn-ghost btn-sm">
       <i class="fas fa-file-csv"></i> CSV 템플릿
     </a>
@@ -72,7 +72,7 @@
 </div>
 
 <!-- 상태 탭 -->
-<div class="hire-tabs">
+<div class="hire-tabs" data-tour-page="hires-status-tabs">
   {% for key, label in [('waiting','입사 대기'), ('converted','전환 완료'), ('cancelled','취소'), ('all','전체')] %}
   <a href="?status={{ key }}" class="hire-tab{% if status_filter == key %} active{% endif %}">
     {{ label }}

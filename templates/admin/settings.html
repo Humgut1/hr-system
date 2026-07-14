@@ -1,6 +1,6 @@
 ﻿{% extends 'base.html' %}
 {% block title %}회사 설정{% endblock %}
-{% block page_title %}Company Settings{% endblock %}
+{% block page_title %}회사 설정{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -64,7 +64,7 @@
 <div class="settings-wrap">
 
   <div style="margin-bottom:20px;">
-    <h2 style="font-size:20px; font-weight:800; color:var(--text); margin:0;">Company Settings</h2>
+    <h2 style="font-size:20px; font-weight:800; color:var(--text); margin:0;">회사 설정</h2>
     <p style="font-size:13px; color:var(--text-muted); margin:4px 0 0;">TalentCore 운영 정책을 변경합니다. 변경사항은 즉시 적용됩니다.</p>
   </div>
 
@@ -76,7 +76,7 @@
     <button class="settings-tab" onclick="switchTab('payroll')"><i class="fas fa-won-sign" style="margin-right:6px;"></i>급여 설정</button>
     <button class="settings-tab" onclick="switchTab('perf')"><i class="fas fa-chart-line" style="margin-right:6px;"></i>성과관리</button>
     <button class="settings-tab" onclick="switchTab('positions')"><i class="fas fa-sitemap" style="margin-right:6px;"></i>직급 체계</button>
-    <button class="settings-tab" onclick="switchTab('approvals')"><i class="fas fa-stamp" style="margin-right:6px;"></i>결재선</button>
+    <button class="settings-tab" onclick="switchTab('approvals')" data-tour-page="settings-approvals"><i class="fas fa-stamp" style="margin-right:6px;"></i>결재선</button>
     <button class="settings-tab" onclick="switchTab('links')"><i class="fas fa-external-link-alt" style="margin-right:6px;"></i>바로가기</button>
   </div>
 
@@ -576,7 +576,7 @@
         ('fa-paper-plane',    '#e0f2fe:#0369a1',  '연차사용촉진',      url_for('admin_leave_promotion')),
         ('fa-calendar-alt',   '#e0f2fe:#0369a1',  '근무 스케줄',       url_for('admin_schedules')),
         ('fa-coins',          '#fef9c3:#854d0e',  '복지포인트 관리',   url_for('admin_welfare_points')),
-        ('fa-calendar-check', '#f0fdf4:#166534',  'Company Settings',  url_for('admin_settings')),
+        ('fa-calendar-check', '#f0fdf4:#166534',  '회사 설정',         url_for('admin_settings')),
         ('fa-chart-pie',      '#eff6ff:#1d4ed8',  '분석·보고서',       url_for('people_analytics')),
       ] %}
       {% set bg, fg = color.split(':') %}

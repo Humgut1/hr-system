@@ -159,7 +159,7 @@
         <i class="fas fa-circle-question" style="width:28px; text-align:center; flex-shrink:0;"></i>
         <span class="sidebar-footer-label" style="font-size:13px;">가이드 투어</span>
       </a>
-      <a href="{{ url_for('profile') }}" class="nav-item{% if active_page == 'profile' %} active{% endif %}" title="My Profile" style="justify-content:center; padding:8px 0;">
+      <a href="{{ url_for('profile') }}" class="nav-item{% if active_page == 'profile' %} active{% endif %}" title="내 프로필" style="justify-content:center; padding:8px 0;">
         <div class="user-avatar" style="width:28px; height:28px; font-size:12px; flex-shrink:0;">{{ session.user_name[0] if session.user_name else 'U' }}</div>
         <span class="sidebar-footer-label" style="font-size:13px;">{{ session.user_name }}</span>
       </a>
@@ -205,11 +205,11 @@
           <div class="user-info-wrap">
             <span class="user-fullname">{{ session.user_name }}</span>
             <span class="user-rolelabel">
-              {% if session.demo_mode %}HR Admin (Demo)
-              {% elif session.user_role == 'admin' %}HR Admin
-              {% elif session.user_role == 'manager' %}Manager
-              {% elif session.user_role == 'recruiter' %}Recruiter
-              {% elif session.user_role == 'guest' %}Guest
+              {% if session.demo_mode %}HR 관리자 (데모)
+              {% elif session.user_role == 'admin' %}HR 관리자
+              {% elif session.user_role == 'manager' %}매니저
+              {% elif session.user_role == 'recruiter' %}채용담당자
+              {% elif session.user_role == 'guest' %}게스트
               {% else %}{{ session.dept_name }}{% if session.pos_name %} · {{ session.pos_name }}{% endif %}{% endif %}
             </span>
           </div>
@@ -224,17 +224,17 @@
           </div>
           <div style="padding:6px;">
             <a href="{{ url_for('profile') }}" class="user-dropdown-item">
-              <i class="fas fa-user"></i> My Profile
+              <i class="fas fa-user"></i> 내 프로필
             </a>
             {% if session.user_role == 'admin' %}
             <a href="{{ url_for('admin_settings') }}" class="user-dropdown-item">
-              <i class="fas fa-building"></i> Company Settings
+              <i class="fas fa-building"></i> 회사 설정
             </a>
             {% endif %}
             <div style="height:1px; background:var(--border); margin:6px 0;"></div>
             <form method="POST" action="{{ url_for('logout') }}" style="margin:0;">
               <button type="submit" class="user-dropdown-item" style="width:100%; background:none; border:none; cursor:pointer; color:var(--red);">
-                <i class="fas fa-sign-out-alt"></i> Sign Out
+                <i class="fas fa-sign-out-alt"></i> 로그아웃
               </button>
             </form>
           </div>
@@ -358,31 +358,31 @@ function toggleSubgroup(btn, bodyId) {
 (function() {
   var NAV_ITEMS = [
     {% if session.user_role %}
-    {label:'Dashboard', url:'{{ url_for("dashboard") }}', icon:'fa-home'},
+    {label:'대시보드', url:'{{ url_for("dashboard") }}', icon:'fa-home'},
     {label:'근태', url:'{{ url_for("attendance_home") }}', icon:'fa-clock'},
     {label:'휴가 신청', url:'{{ url_for("attendance_home", tab="leaves") }}', icon:'fa-umbrella-beach'},
-    {label:'Payslips', url:'{{ url_for("payroll_list") }}', icon:'fa-won-sign'},
-    {label:'Performance', url:'{{ url_for("performance") }}', icon:'fa-chart-line'},
-    {label:'Documents', url:'{{ url_for("certificates_hub") }}', icon:'fa-folder-open'},
-    {label:'Announcements', url:'{{ url_for("announcements") }}', icon:'fa-bullhorn'},
-    {label:'Org Chart', url:'{{ url_for("org_chart") }}', icon:'fa-sitemap'},
-    {label:'Peer Review', url:'{{ url_for("peer_reviews_page") }}', icon:'fa-star'},
-    {label:'Notifications', url:'{{ url_for("notifications") }}', icon:'fa-bell'},
-    {label:'Profile Settings', url:'{{ url_for("profile") }}', icon:'fa-cog'},
+    {label:'급여명세', url:'{{ url_for("payroll_list") }}', icon:'fa-won-sign'},
+    {label:'성과', url:'{{ url_for("performance") }}', icon:'fa-chart-line'},
+    {label:'증명서', url:'{{ url_for("certificates_hub") }}', icon:'fa-folder-open'},
+    {label:'공지사항', url:'{{ url_for("announcements") }}', icon:'fa-bullhorn'},
+    {label:'조직도', url:'{{ url_for("org_chart") }}', icon:'fa-sitemap'},
+    {label:'다면평가', url:'{{ url_for("peer_reviews_page") }}', icon:'fa-star'},
+    {label:'알림', url:'{{ url_for("notifications") }}', icon:'fa-bell'},
+    {label:'프로필 설정', url:'{{ url_for("profile") }}', icon:'fa-cog'},
     {% if session.user_role in ('admin','manager') %}
-    {label:'Employees', url:'{{ url_for("employees") }}', icon:'fa-users'},
-    {label:'Leave Approvals', url:'{{ url_for("attendance") }}', icon:'fa-check-circle'},
-    {label:'Termination Queue', url:'{{ url_for("termination_requests") }}', icon:'fa-user-clock'},
+    {label:'팀원 관리', url:'{{ url_for("employees") }}', icon:'fa-users'},
+    {label:'근태 승인', url:'{{ url_for("attendance") }}', icon:'fa-check-circle'},
+    {label:'퇴직 처리 대기함', url:'{{ url_for("termination_requests") }}', icon:'fa-user-clock'},
     {% endif %}
     {% if session.user_role == 'admin' %}
-    {label:'Payroll Admin', url:'{{ url_for("admin_payroll") }}', icon:'fa-coins'},
-    {label:'Salary Table', url:'{{ url_for("salary_table") }}', icon:'fa-table'},
-    {label:'Job Postings', url:'{{ url_for("recruit_postings") }}', icon:'fa-file-signature'},
-    {label:'Pipeline', url:'{{ url_for("recruit_pipeline") }}', icon:'fa-user-tie'},
-    {label:'Dept & Grade', url:'{{ url_for("departments") }}', icon:'fa-layer-group'},
-    {label:'People Analytics', url:'{{ url_for("people_analytics") }}', icon:'fa-chart-pie'},
-    {label:'Reports', url:'{{ url_for("export_hub") }}', icon:'fa-file-excel'},
-    {label:'Company Settings', url:'{{ url_for("admin_settings") }}', icon:'fa-building'},
+    {label:'급여 관리', url:'{{ url_for("admin_payroll") }}', icon:'fa-coins'},
+    {label:'급여 기준표', url:'{{ url_for("salary_table") }}', icon:'fa-table'},
+    {label:'채용 공고', url:'{{ url_for("recruit_postings") }}', icon:'fa-file-signature'},
+    {label:'채용 파이프라인', url:'{{ url_for("recruit_pipeline") }}', icon:'fa-user-tie'},
+    {label:'부서·직급 관리', url:'{{ url_for("departments") }}', icon:'fa-layer-group'},
+    {label:'분석·보고서', url:'{{ url_for("people_analytics") }}', icon:'fa-chart-pie'},
+    {label:'데이터 내보내기', url:'{{ url_for("export_hub") }}', icon:'fa-file-excel'},
+    {label:'회사 설정', url:'{{ url_for("admin_settings") }}', icon:'fa-building'},
     {% endif %}
     {% endif %}
   ];
@@ -566,6 +566,18 @@ function toggleSubgroup(btn, bodyId) {
     ],
     recruit_pipeline: [
       { sel: '#pipeBoard', title: '채용 파이프라인', desc: '지원자 카드를 드래그해서 서류/면접/오퍼 등 단계를 이동시킬 수 있습니다. 카드를 클릭하면 상세 정보로 이동합니다.' }
+    ],
+    performance_cycles: [
+      { sel: '[data-tour-page="cycle-stepper"]', title: '주기 단계 스텝퍼', desc: '목표 수립 → 진행 중 → 평가 진행 → HR 조정 → 결과 공개·이의신청 → 종료 순서로 주기를 진행합니다. 「다음 단계」 버튼으로 전환합니다.' },
+      { sel: '[data-tour-page="cycle-new"]', title: '새 주기 만들기', desc: '이름·기간을 입력해 새 평가 주기를 생성합니다. 다면평가 포함 여부를 주기별로 선택할 수 있습니다.' }
+    ],
+    settings: [
+      { sel: '[data-tour-page="settings-approvals"]', title: '결재선', desc: '휴가·근태·증명서·인사발령 등 유형별로 매니저 전결 또는 매니저→HR 2단계 결재선을 설정합니다.' }
+    ],
+    employees: [
+      { sel: '#empStatusTabs', title: '직원 상태 탭', desc: '재직 직원 / 입사 예정 / 퇴직 직원을 탭으로 전환해서 볼 수 있습니다.' },
+      { sel: '[data-tour-page="hires-actions"]', title: '입사 예정자 등록', desc: 'CSV 임포트나 직접 추가로 입사 예정자를 등록하면, 입사일에 원클릭으로 직원 전환할 수 있습니다.' },
+      { sel: '[data-tour-page="hires-status-tabs"]', title: '입사 예정자 상태', desc: '입사 대기 / 전환 완료 / 취소 상태별로 목록을 필터링합니다.' }
     ]
   };
 
