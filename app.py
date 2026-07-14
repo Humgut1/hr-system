@@ -4058,16 +4058,6 @@ def employee_severance(emp_id):
     month_start     = date(term_dt.year, term_dt.month, 1)
     days_worked_last = (term_dt - month_start).days + 1
 
-    # 종합 정산 계산
-    settlement = calc_separation_settlement(
-        hire_date_str        = emp['hire_date'] or '',
-        termination_date_str = term_date,
-        recent_payslips      = payslip_list,
-        used_leave_days      = used_days,
-        final_month_base_salary = emp.get('base_salary') or 0,
-        final_month_days_worked = days_worked_last,
-        final_month_days_total  = days_in_month,
-    )
     # base_salary가 employee_salary에 있으므로 별도 조회
     sal_row = db.execute(
         'SELECT base_salary FROM employee_salary WHERE user_id=?', (emp_id,)
@@ -14269,7 +14259,7 @@ def billing_card_success():
     session.pop('subscription_expired', None)
 
     flash('카드가 등록되었습니다. 구독이 시작됩니다.', 'success')
-    return redirect(url_for('billing_dashboard'))
+    return redirect(url_for('billing'))
 
 
 @app.route('/billing/card-fail')
@@ -14319,7 +14309,7 @@ def billing_charge():
 
     if not tenant or not tenant['toss_billing_key']:
         flash('등록된 결제 수단이 없습니다.', 'error')
-        return redirect(url_for('billing_dashboard'))
+        return redirect(url_for('billing'))
 
     db           = get_db()
     active_count = db.execute(
@@ -14330,7 +14320,7 @@ def billing_charge():
 
     if amount == 0:
         flash('청구 금액이 0원입니다.', 'info')
-        return redirect(url_for('billing_dashboard'))
+        return redirect(url_for('billing'))
 
     order_id     = f'TC-{tenant_id}-{date.today().strftime("%Y%m")}-{uuid.uuid4().hex[:8]}'
     billing_key  = tenant['toss_billing_key']
@@ -14370,7 +14360,7 @@ def billing_charge():
         log_billing(tenant_id, amount, peak, order_id, status='failed')
         flash('결제 처리 중 오류가 발생했습니다.', 'error')
 
-    return redirect(url_for('billing_dashboard'))
+    return redirect(url_for('billing'))
 
 
 # ══════════════════════════════════════════════════════════════

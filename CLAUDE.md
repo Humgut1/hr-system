@@ -11,8 +11,8 @@
 
 ### 현재 진행 상태 (마지막 업데이트: 2026-07-14)
 
-- **완료된 마지막 버전:** `v1.2.2` (v1.0.0은 Phase B 완결 마일스톤 태그)
-- **배포 완료:** v0.99.4(Phase B 전체)까지 Oracle Cloud VM 배포 완료 (SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart). v1.1.0은 로컬 완료 — Phase C 묶어서 배포 예정
+- **완료된 마지막 버전:** `v1.2.3` (v1.0.0은 Phase B 완결 마일스톤 태그)
+- **배포 완료:** v1.2.2(Phase C 전체)까지 Oracle Cloud VM 배포 완료 (2026-07-14, SSH 키: `C:\Users\lg\Downloads\ssh-key-2026-07-04 (1).key`, `deploy/update.sh`로 git pull + migrate_db + systemctl restart — 신규 테이블 grade_appeals/incoming_hires/approval_chains + cycles/offers 신규 컬럼 + master.db api_token 확인, 랜딩/로그인 200 OK, 에러 로그 깨끗)
 - **다음 작업: `saas_plan.md` §6 실행 순서를 따를 것 (Phase A부터 순서대로)**
   1. ~~Phase A-1: 웹훅 서명 검증~~ ✅ v0.96.0 완료
   2. ~~Phase A-2: CSRF 토큰 전면 적용~~ ✅ v0.97.0 완료
@@ -28,10 +28,12 @@
   12. ~~Phase C-10: 성과관리 재개편~~ ✅ v1.1.0 완료
   13. ~~Phase C-11: 입사 예정자 기능~~ ✅ v1.2.0 완료
   14. ~~Phase C-12: 직급 프리셋 + 스톡옵션 모드~~ ✅ v1.2.1 완료 (다면평가 토글은 C-10에서 이미 구현)
-  15. ~~Phase C-13: 승인 체인 설정화~~ ✅ v1.2.2 완료 — **Phase C 전체 완료. 다음: Phase C 배포(v1.1.0~v1.2.2) 후 Phase D 또는 개선 작업**
+  15. ~~Phase C-13: 승인 체인 설정화~~ ✅ v1.2.2 완료 — Phase C 전체 완료
+  16. ~~Phase C 배포 (v1.1.0~v1.2.2)~~ ✅ 완료 (2026-07-14) — **다음: 기존 기능 전수 점검·개선 기획 (승헌씨 요청) 후 Phase D**
   3. 이후 Phase B(CSV 임포트·요금제 3계층·연차촉진), C(성과 재개편·입사예정자), D — 상세는 saas_plan.md
   - (보류) 온보딩 투어 확장 여부, 도메인 설정(승헌씨 직접)
-- **v0.91~v1.2.2 완료 내역 요약:**
+- **v0.91~v1.2.3 완료 내역 요약:**
+  - v1.2.3 — **전 라우트 스윕 핫픽스**: 107개 GET 라우트 × 3역할(admin/manager/employee) 전수 스윕에서 발견된 500 에러 2건 수정 — ①`/employees/<id>/severance` 퇴직 정산 페이지: `emp.get('base_salary')` sqlite3.Row AttributeError (죽은 중복 계산 호출 제거) ②`/billing/register` 및 결제 성공/실패 리다이렉트 4곳: `url_for('billing_dashboard')` 존재하지 않는 엔드포인트 참조 → `billing`으로 수정 (카드 등록 화면·결제 플로우가 전부 깨져 있었음). 스윕 재실행 결과 500 에러 0건
   - v1.2.2 — **승인 체인 설정화 (Phase C-13)**: `approval_chains` 테이블 + `APPROVAL_WORKFLOWS` 3종 + `get_approval_chain()` 헬퍼. 회사 설정에 '결재선' 탭 신규(`/admin/approval-chains`, 라디오 카드 UI, 감사 로그). ①휴가·근태 — 유형별 기본(meta_default)/매니저 전결/2단계(매니저→HR) 선택, attendance_approve 매니저·HR 분기 모두에 오버라이드 적용. ②증명서 — HR 승인/신청 즉시 자동 발급. ③인사발령 — HR 승인/관리자 전결(admin 기안 시 즉시 승인·반영, 미래발령은 발령일 자동 반영, 감사 로그). 퇴직·채용 요청서는 고정 결재선 유지(화면에 명시). settings.html 탭 전환 ?tab= 파라미터 지원 + 탭 하이라이트 배열 버그(links 탭 하이라이트 안 되던 것) 수정. **부수 버그 수정**: 매니저 대시보드 `pc.review_end` 존재하지 않는 컬럼 참조로 500 나던 것 → `end_date`로 수정. 테스트 8케이스 통과
   - v1.2.1 — **직급 프리셋 + 스톡옵션 모드 (Phase C-12, saas_plan.md §3)**: ①직급 체계 프리셋 — `POSITION_PRESETS`(L-레벨형/호칭형 사원~부사장), 회사 설정에 '직급 체계' 탭 신규(`/admin/positions/preset`, 레벨별 이름만 일괄 UPDATE — 직원 배정·급여 밴드 유지, 현재 직급 목록 표시, 커스텀은 부서·직급 관리 링크). ②국내형 스톡옵션 — offers에 `equity_type`(rsu/stock_option/none)·`option_qty`·`strike_price` 컬럼, 오퍼 생성 폼 주식보상 선택형(JS 토글, 기본값 스톡옵션), 오퍼 레터에 스톡옵션 TC 행(수량·행사가) + 부여 조건 섹션(행사가/클리프 2년/벤처기업법 §16의3 문구), 인라인 편집 패널에도 필드 추가, RSU는 stock_option 선택 시 0 처리. **부수 버그 수정**: GET /recruit/applicants/<id>/offers가 존재하지 않는 recruit/offers.html을 렌더링해 500 나던 것 → 지원자 상세 #offers 리다이렉트. 테스트 8케이스 통과
   - v1.2.0 — **입사 예정자 (Phase C-11, saas_plan.md §5)**: `incoming_hires` 테이블 + `/hires` 목록(입사대기/전환완료/취소 탭, D-day 배지, 직접 추가 모달). 유입 3경로 — ①직접 입력 ②CSV 임포트(`/hires/import`, 템플릿 다운로드, UTF-8+CP949, 날짜 정규화 2026.08.01/20260801→ISO, 이름누락·중복이메일 행 제외 후 리포트) ③**표준 웹훅** `POST /api/hires`(master.db `tenants.api_token` 헤더 인증, 잘못된 토큰 401/중복 409, 수신 시 admin 인앱 알림, CSRF 예외 등록). 원클릭 직원 전환: `/employees/new?from_hire=` 프리필(이름/이메일/전화/입사일/부서·직급 이름 매칭) → 등록 시 converted 처리 + 연봉→월 기본급(연봉/12) employee_salary 자동 반영 + 기존 온보딩 자동화(웰컴메일·체크리스트·enrollment) 가동. 웹훅 토큰은 /hires 화면에서 발급·재발급(감사 로그). 사이드바 관리자 섹션에 '입사 예정자'(Core, admin+recruiter). **부수 버그 수정 2건**: ①employees/form.html이 prefill을 무시해 기존 from_applicant 프리필도 동작 안 하던 것 수리 ②employee_new 통합 트리거 `sqlite3.Row.get` AttributeError로 웰컴메일/Jira 디스패치가 조용히 실패하던 것 수정. 테스트 14케이스 통과
