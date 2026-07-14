@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
-{% block title %}Self-Review{% endblock %}
-{% block page_title %}Self-Review{% endblock %}
+{% block title %}자기평가{% endblock %}
+{% block page_title %}자기평가{% endblock %}
 
 {% block content %}
 <div class="card" style="max-width:600px; margin:0 auto;">
   <div class="card-head">
-    <span class="card-title">Self-Review</span>
+    <span class="card-title">자기평가</span>
     <span style="font-size:12px; color:var(--tx-3);">{{ goal.cycle_name }}</span>
   </div>
   <div class="card-body">
@@ -13,13 +13,13 @@
     <!-- Goal summary -->
     <div style="background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm);
                 padding:14px 18px; margin-bottom:24px;">
-      <div style="font-size:11px; font-weight:700; color:var(--tx-3); margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px;">Goal</div>
+      <div style="font-size:11px; font-weight:700; color:var(--tx-3); margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px;">목표</div>
       <div style="font-size:15px; font-weight:700; color:var(--tx-1); margin-bottom:4px;">{{ goal.title }}</div>
       {% if goal.description %}
       <div style="font-size:13px; color:var(--tx-3);">{{ goal.description }}</div>
       {% endif %}
       <div style="margin-top:8px; font-size:12px; color:var(--tx-3);">
-        Weight <strong>{{ goal.weight }}%</strong> &nbsp;·&nbsp; Progress <strong>{{ goal.progress or 0 }}%</strong>
+        가중치 <strong>{{ goal.weight }}%</strong> &nbsp;·&nbsp; 진행률 <strong>{{ goal.progress or 0 }}%</strong>
       </div>
     </div>
 
@@ -31,14 +31,14 @@
 
       <!-- Self score -->
       <div class="field" style="margin-bottom:24px;">
-        <label class="form-label" style="font-size:14px; font-weight:700;">Self-Assessment Score</label>
+        <label class="form-label" style="font-size:14px; font-weight:700;">자기평가 점수</label>
         <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
           {% for val, lbl, bg, tc in [
-            (5, 'S — Outstanding',       '#dcfce7', '#16a34a'),
-            (4, 'A — Excellent',         '#dbeafe', '#1e40af'),
-            (3, 'B — Good',              '#e0f2fe', '#0369a1'),
-            (2, 'C — Needs Improvement', '#fef3c7', '#92400e'),
-            (1, 'D — Unsatisfactory',    '#fee2e2', '#dc2626'),
+            (5, 'S — 탁월',       '#dcfce7', '#16a34a'),
+            (4, 'A — 우수',       '#dbeafe', '#1e40af'),
+            (3, 'B — 양호',       '#e0f2fe', '#0369a1'),
+            (2, 'C — 개선필요',   '#fef3c7', '#92400e'),
+            (1, 'D — 미흡',       '#fee2e2', '#dc2626'),
           ] %}
           <label style="cursor:pointer;">
             <input type="radio" name="self_score" value="{{ val }}"
@@ -58,15 +58,15 @@
 
       <!-- Self comment -->
       <div class="field" style="margin-bottom:28px;">
-        <label class="form-label" style="font-size:14px; font-weight:700;">Comment <span style="font-weight:400; color:var(--tx-3);">(optional)</span></label>
+        <label class="form-label" style="font-size:14px; font-weight:700;">코멘트 <span style="font-weight:400; color:var(--tx-3);">(선택)</span></label>
         <textarea name="self_comment" class="input" rows="4"
-                  placeholder="Reflect on your achievements, challenges, and areas for growth this cycle."
+                  placeholder="이번 주기의 성과, 어려웠던 점, 성장 영역에 대해 작성하세요."
                   style="margin-top:8px; resize:vertical;">{{ goal.self_comment or '' }}</textarea>
       </div>
 
       <div style="display:flex; gap:10px;">
-        <button type="submit" class="btn btn-primary" style="flex:1;">Save</button>
-        <a href="{{ url_for('performance') }}" class="btn btn-ghost" style="flex:1; text-align:center;">Cancel</a>
+        <button type="submit" class="btn btn-primary" style="flex:1;">저장</button>
+        <a href="{{ url_for('performance') }}" class="btn btn-ghost" style="flex:1; text-align:center;">취소</a>
       </div>
     </form>
   </div>

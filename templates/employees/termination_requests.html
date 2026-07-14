@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}퇴직 요청함{% endblock %}
-{% block page_title %}Termination Queue{% endblock %}
+{% block page_title %}퇴직 요청함{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -34,11 +34,11 @@
 <div class="queue-card">
   <div class="queue-head">
     <div>
-      <div style="font-size:18px; font-weight:800; color:var(--text);">Termination Requests</div>
-      <div style="font-size:13px; color:var(--text-muted);">Direct reports for managers, full queue for HR admin.</div>
+      <div style="font-size:18px; font-weight:800; color:var(--text);">퇴직 요청함</div>
+      <div style="font-size:13px; color:var(--text-muted);">매니저는 직속 팀원, HR 관리자는 전체 요청을 확인합니다.</div>
     </div>
     <div class="filters">
-      <a href="{{ url_for('termination_requests') }}" class="filter-chip{% if not status %} active{% endif %}">All</a>
+      <a href="{{ url_for('termination_requests') }}" class="filter-chip{% if not status %} active{% endif %}">전체</a>
       {% for key, label in status_labels.items() %}
       <a href="{{ url_for('termination_requests', status=key) }}" class="filter-chip{% if status == key %} active{% endif %}">{{ label }}</a>
       {% endfor %}
@@ -49,11 +49,11 @@
   <table class="queue-table">
     <thead>
       <tr>
-        <th>Employee</th>
-        <th>Type</th>
-        <th>Status</th>
-        <th>Last Work</th>
-        <th>Termination</th>
+        <th>직원</th>
+        <th>유형</th>
+        <th>상태</th>
+        <th>최종 근무일</th>
+        <th>퇴직일</th>
         <th></th>
       </tr>
     </thead>
@@ -69,7 +69,7 @@
         <td>{{ row.final_last_work_date or row.requested_last_work_date }}</td>
         <td>{{ row.final_termination_date or row.requested_termination_date }}</td>
         <td style="text-align:right;">
-          <a href="{{ url_for('termination_request_detail', req_id=row.id) }}" class="btn btn-ghost btn-sm">Open</a>
+          <a href="{{ url_for('termination_request_detail', req_id=row.id) }}" class="btn btn-ghost btn-sm">열기</a>
         </td>
       </tr>
       {% endfor %}
@@ -77,7 +77,7 @@
   </table>
   {% else %}
   <div style="padding:40px; text-align:center; color:var(--text-muted); font-size:13px;">
-    No requests found.
+    요청 내역이 없습니다.
   </div>
   {% endif %}
 </div>

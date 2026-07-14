@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}퇴직 프로세스 시작{% endblock %}
-{% block page_title %}Start Termination{% endblock %}
+{% block page_title %}퇴직 프로세스 시작{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -28,11 +28,11 @@
 {% block content %}
 <div class="form-wrap">
   <a href="{{ url_for('employee_detail', emp_id=employee.id) }}" class="btn btn-ghost btn-sm" style="margin-bottom:16px;">
-    <i class="fas fa-arrow-left"></i> Back to Employee
+    <i class="fas fa-arrow-left"></i> 직원 상세로
   </a>
 
   <div class="card">
-    <div class="card-head">Start Termination Process</div>
+    <div class="card-head">퇴직 프로세스 시작</div>
     <div class="card-body">
       <div style="margin-bottom:18px;">
         <div style="font-size:18px; font-weight:800; color:var(--text);">{{ employee.name }}</div>
@@ -41,7 +41,7 @@
 
       <form method="POST">
         <div class="field" style="margin-bottom:14px;">
-          <label class="form-label">Request Type</label>
+          <label class="form-label">요청 유형</label>
           <select name="request_type" class="input" required>
             {% for key, label in terminate_types.items() %}
             <option value="{{ key }}">{{ label }}</option>
@@ -50,7 +50,7 @@
         </div>
 
         <div class="field" style="margin-bottom:14px;">
-          <label class="form-label">Reason Code</label>
+          <label class="form-label">사유 코드</label>
           <select name="reason_code" class="input">
             {% for key, label in reason_codes.items() %}
             <option value="{{ key }}">{{ label }}</option>
@@ -60,27 +60,27 @@
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
           <div class="field">
-            <label class="form-label">Planned Last Work Date</label>
+            <label class="form-label">예정 마지막 근무일</label>
             <input type="date" name="requested_last_work_date" class="input" value="{{ today }}" required>
           </div>
           <div class="field">
-            <label class="form-label">Planned Termination Date</label>
+            <label class="form-label">예정 퇴직일</label>
             <input type="date" name="requested_termination_date" class="input" value="{{ today }}" required>
           </div>
         </div>
 
         <div class="field" style="margin-bottom:14px;">
-          <label class="form-label">Reason Detail</label>
+          <label class="form-label">상세 사유</label>
           <textarea name="reason_detail" class="input" rows="4"></textarea>
         </div>
 
         <div class="field" style="margin-bottom:18px;">
-          <label class="form-label">Handover / Risk Note</label>
+          <label class="form-label">인수인계 / 리스크 메모</label>
           <textarea name="handover_note" class="input" rows="4"></textarea>
         </div>
 
         <button type="submit" class="btn btn-primary">
-          <i class="fas fa-play"></i> Start Process
+          <i class="fas fa-play"></i> 프로세스 시작
         </button>
       </form>
     </div>

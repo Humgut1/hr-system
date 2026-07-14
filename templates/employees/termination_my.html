@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}퇴직 신청{% endblock %}
-{% block page_title %}My Termination{% endblock %}
+{% block page_title %}퇴직 신청{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -56,7 +56,7 @@
   <div class="tw-grid">
     <div>
       <div class="card" style="margin-bottom:20px;">
-        <div class="card-head">Current Request</div>
+        <div class="card-head">현재 신청 건</div>
         <div class="card-body">
           {% if open_request %}
           <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap;">
@@ -65,35 +65,35 @@
                 {{ terminate_types.get(open_request.request_type, open_request.request_type) }}
               </div>
               <div class="muted" style="font-size:13px; line-height:1.7;">
-                Notice date: {{ open_request.notice_date }}<br>
-                Last work date: {{ open_request.requested_last_work_date }}<br>
-                Termination date: {{ open_request.requested_termination_date }}
+                통보일: {{ open_request.notice_date }}<br>
+                마지막 근무일: {{ open_request.requested_last_work_date }}<br>
+                퇴직일: {{ open_request.requested_termination_date }}
               </div>
             </div>
             <div style="text-align:right;">
               <span class="status-chip">{{ status_labels.get(open_request.status, open_request.status) }}</span>
               <div style="margin-top:10px;">
                 <a href="{{ url_for('termination_request_detail', req_id=open_request.id) }}" class="btn btn-primary btn-sm">
-                  View Request
+                  신청 보기
                 </a>
               </div>
             </div>
           </div>
           {% else %}
-          <div class="muted" style="font-size:13px;">No open termination request.</div>
+          <div class="muted" style="font-size:13px;">진행중인 퇴직 신청이 없습니다.</div>
           {% endif %}
         </div>
       </div>
 
       <div class="card">
-        <div class="card-head">Submit Termination Request</div>
+        <div class="card-head">퇴직 신청</div>
         <div class="card-body">
           {% if open_request %}
-          <div class="muted" style="font-size:13px;">You can submit a new request after the current process is closed.</div>
+          <div class="muted" style="font-size:13px;">현재 프로세스가 종료된 후 새로 신청할 수 있습니다.</div>
           {% else %}
           <form method="POST">
             <div class="field" style="margin-bottom:14px;">
-              <label class="form-label">Request Type</label>
+              <label class="form-label">요청 유형</label>
               <select name="request_type" class="input" required>
                 {% for key, label in terminate_types.items() %}
                 <option value="{{ key }}">{{ label }}</option>
@@ -102,7 +102,7 @@
             </div>
 
             <div class="field" style="margin-bottom:14px;">
-              <label class="form-label">Reason Code</label>
+              <label class="form-label">사유 코드</label>
               <select name="reason_code" class="input">
                 {% for key, label in reason_codes.items() %}
                 <option value="{{ key }}">{{ label }}</option>
@@ -112,27 +112,27 @@
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
               <div class="field">
-                <label class="form-label">Requested Last Work Date</label>
+                <label class="form-label">요청 마지막 근무일</label>
                 <input type="date" name="requested_last_work_date" class="input" value="{{ today }}" required>
               </div>
               <div class="field">
-                <label class="form-label">Requested Termination Date</label>
+                <label class="form-label">요청 퇴직일</label>
                 <input type="date" name="requested_termination_date" class="input" value="{{ today }}" required>
               </div>
             </div>
 
             <div class="field" style="margin-bottom:14px;">
-              <label class="form-label">Reason Detail</label>
-              <textarea name="reason_detail" class="input" rows="4" placeholder="Add any context HR should review."></textarea>
+              <label class="form-label">상세 사유</label>
+              <textarea name="reason_detail" class="input" rows="4" placeholder="HR이 검토할 참고사항을 입력하세요."></textarea>
             </div>
 
             <div class="field" style="margin-bottom:16px;">
-              <label class="form-label">Handover Note</label>
-              <textarea name="handover_note" class="input" rows="4" placeholder="Team impact, transition plan, open tasks."></textarea>
+              <label class="form-label">인수인계 메모</label>
+              <textarea name="handover_note" class="input" rows="4" placeholder="팀에 미치는 영향, 인수인계 계획, 남은 업무 등"></textarea>
             </div>
 
             <button type="submit" class="btn btn-primary">
-              <i class="fas fa-paper-plane"></i> Submit Request
+              <i class="fas fa-paper-plane"></i> 신청 제출
             </button>
           </form>
           {% endif %}
@@ -142,23 +142,23 @@
 
     <div>
       <div class="card" style="margin-bottom:20px;">
-        <div class="card-head">Employee Summary</div>
+        <div class="card-head">직원 요약</div>
         <div class="card-body">
           <div class="summary-grid">
             <div class="summary-box">
-              <div class="label">Employee</div>
+              <div class="label">직원</div>
               <div class="value">{{ employee.name }}</div>
             </div>
             <div class="summary-box">
-              <div class="label">Department</div>
+              <div class="label">부서</div>
               <div class="value">{{ employee.dept_name or '-' }}</div>
             </div>
             <div class="summary-box">
-              <div class="label">Position</div>
+              <div class="label">직급</div>
               <div class="value">{{ employee.pos_name or '-' }}</div>
             </div>
             <div class="summary-box">
-              <div class="label">Manager</div>
+              <div class="label">매니저</div>
               <div class="value">{{ employee.manager_name or '-' }}</div>
             </div>
           </div>
@@ -166,15 +166,15 @@
       </div>
 
       <div class="card">
-        <div class="card-head">Request History</div>
+        <div class="card-head">신청 이력</div>
         <div class="card-body" style="padding:0;">
           {% if history %}
           <table class="history-table">
             <thead>
               <tr>
-                <th>Created</th>
-                <th>Type</th>
-                <th>Status</th>
+                <th>생성일</th>
+                <th>유형</th>
+                <th>상태</th>
                 <th></th>
               </tr>
             </thead>
@@ -185,14 +185,14 @@
                 <td>{{ terminate_types.get(row.request_type, row.request_type) }}</td>
                 <td>{{ status_labels.get(row.status, row.status) }}</td>
                 <td style="text-align:right;">
-                  <a href="{{ url_for('termination_request_detail', req_id=row.id) }}" class="btn btn-ghost btn-sm">Open</a>
+                  <a href="{{ url_for('termination_request_detail', req_id=row.id) }}" class="btn btn-ghost btn-sm">열기</a>
                 </td>
               </tr>
               {% endfor %}
             </tbody>
           </table>
           {% else %}
-          <div class="card-body muted" style="font-size:13px;">No request history.</div>
+          <div class="card-body muted" style="font-size:13px;">신청 이력이 없습니다.</div>
           {% endif %}
         </div>
       </div>

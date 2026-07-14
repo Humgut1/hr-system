@@ -86,7 +86,7 @@
     {% if session.user_role in ('admin','manager') and departments %}
     <select class="input" style="width:140px; font-size:13px;"
             onchange="applyDeptFilter(this.value)">
-      <option value="">All Departments</option>
+      <option value="">전체 부서</option>
       {% for d in departments %}
       <option value="{{ d.id }}" {% if dept_filter == d.id %}selected{% endif %}>
         {{ d.name }}
@@ -97,7 +97,7 @@
 
     {% if session.user_role in ('admin','manager') %}
     <a href="{{ url_for('attendance') }}" class="btn btn-ghost btn-sm">
-      <i class="fas fa-list"></i> Approvals
+      <i class="fas fa-list"></i> 승인 목록
     </a>
     {% endif %}
   </div>
@@ -113,9 +113,9 @@
         <i class="fas fa-user-clock" style="font-size:14px;"></i>
       </div>
       <div>
-        <div style="font-size:11px; color:var(--tx-3); font-weight:600;">Out Today</div>
+        <div style="font-size:11px; color:var(--tx-3); font-weight:600;">오늘 부재</div>
         <div style="font-size:15px; font-weight:800; color:var(--tx-1);">
-          {{ today_absent|length }} people
+          {{ today_absent|length }}명
         </div>
       </div>
     </div>

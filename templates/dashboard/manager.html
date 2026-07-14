@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}Dashboard{% endblock %}
-{% block page_title %}Dashboard{% endblock %}
+{% block title %}대시보드{% endblock %}
+{% block page_title %}대시보드{% endblock %}
 
 {% block content %}
 
@@ -21,7 +21,7 @@
   <div style="z-index:1; display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
     <i class="fas fa-users welcome-icon" style="position:static; opacity:.15; font-size:48px;"></i>
     <button onclick="toggleCustomize()" class="btn btn-ghost btn-sm" style="font-size:12px;">
-      <i class="fas fa-sliders-h"></i> Customize
+      <i class="fas fa-sliders-h"></i> 위젯 설정
     </button>
   </div>
 </div>
@@ -32,7 +32,7 @@
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
       <div>
         <div style="font-weight:700; font-size:14px; color:var(--tx-1);">
-          <i class="fas fa-sliders-h" style="color:var(--primary); margin-right:7px;"></i>Dashboard Widgets
+          <i class="fas fa-sliders-h" style="color:var(--primary); margin-right:7px;"></i>대시보드 위젯
         </div>
         <div style="font-size:12px; color:var(--tx-3); margin-top:3px;">보고 싶은 위젯만 선택하세요</div>
       </div>
@@ -59,8 +59,8 @@
         {% endfor %}
       </div>
       <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button type="button" onclick="toggleCustomize()" class="btn btn-ghost">Cancel</button>
-        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button>
+        <button type="button" onclick="toggleCustomize()" class="btn btn-ghost">취소</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 저장</button>
       </div>
     </form>
   </div>
@@ -73,28 +73,28 @@
     <div class="stat-ico ico-blue"><i class="fas fa-users"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ team_count }}</div>
-      <div class="stat-lbl">Team Members</div>
+      <div class="stat-lbl">팀원 수</div>
     </div>
   </div>
   <a href="{{ url_for('attendance') }}" class="stat-card" style="text-decoration:none;">
     <div class="stat-ico ico-orange"><i class="fas fa-clock"></i></div>
     <div class="stat-body">
       <div class="stat-val" style="{% if pending_count > 0 %}color:var(--orange);{% endif %}">{{ pending_count }}</div>
-      <div class="stat-lbl">Leave Pending</div>
+      <div class="stat-lbl">휴가 승인 대기</div>
     </div>
   </a>
   <div class="stat-card">
     <div class="stat-ico ico-green"><i class="fas fa-door-open"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ today_leave }}</div>
-      <div class="stat-lbl">Out Today</div>
+      <div class="stat-lbl">오늘 부재중</div>
     </div>
   </div>
   <a href="{{ url_for('performance') }}" class="stat-card" style="text-decoration:none;">
     <div class="stat-ico ico-purple"><i class="fas fa-chart-line"></i></div>
     <div class="stat-body">
-      <div class="stat-val" style="font-size:18px;">Goals</div>
-      <div class="stat-lbl">Review team</div>
+      <div class="stat-val" style="font-size:18px;">목표</div>
+      <div class="stat-lbl">팀 성과 검토</div>
     </div>
   </a>
 </div>
@@ -110,7 +110,7 @@
       <div class="card-head">
         <span class="card-title">
           <i class="fas fa-inbox" style="color:var(--primary); margin-right:7px;"></i>
-          Inbox
+          인박스
           {% if inbox_count > 0 %}<span class="badge badge-pending" style="font-size:11px; margin-left:8px;">{{ inbox_count }}</span>{% endif %}
         </span>
       </div>
@@ -166,8 +166,8 @@
     {% if 'team_performance' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
-        <span class="card-title">Team Performance</span>
-        <a href="{{ url_for('performance') }}" class="btn btn-ghost btn-sm">View all</a>
+        <span class="card-title">팀 성과</span>
+        <a href="{{ url_for('performance') }}" class="btn btn-ghost btn-sm">전체 보기</a>
       </div>
       {% if team_goals %}
       <div>
@@ -185,7 +185,7 @@
               {{ '%.1f'|format(g.avg_score) }}
             </div>
             {% else %}
-            <span class="chip" style="font-size:10px;">No score</span>
+            <span class="chip" style="font-size:10px;">점수 없음</span>
             {% endif %}
           </div>
         </div>
@@ -194,7 +194,7 @@
       {% else %}
       <div style="text-align:center; padding:40px;" class="muted">
         <i class="fas fa-chart-line" style="font-size:28px; opacity:.3; display:block; margin-bottom:10px;"></i>
-        No goals recorded yet.
+        등록된 목표가 없습니다.
       </div>
       {% endif %}
     </div>
@@ -207,23 +207,23 @@
 
     {% if 'quick_actions' in enabled_widgets %}
     <div class="card" style="padding:20px;">
-      <div class="label" style="margin-bottom:14px;">Quick Actions</div>
+      <div class="label" style="margin-bottom:14px;">빠른 실행</div>
       <div class="quick-actions-grid">
         <a href="{{ url_for('attendance') }}" class="qa-btn">
           <div class="qa-btn-ico ico-orange"><i class="fas fa-check-circle"></i></div>
-          <span>Approvals</span>
+          <span>승인 처리</span>
         </a>
         <a href="{{ url_for('performance') }}" class="qa-btn">
           <div class="qa-btn-ico ico-purple"><i class="fas fa-chart-line"></i></div>
-          <span>Performance</span>
+          <span>성과관리</span>
         </a>
         <a href="{{ url_for('employees') }}" class="qa-btn">
           <div class="qa-btn-ico ico-blue"><i class="fas fa-users"></i></div>
-          <span>My Team</span>
+          <span>팀원 관리</span>
         </a>
         <a href="{{ url_for('peer_assignments') }}" class="qa-btn">
           <div class="qa-btn-ico ico-green"><i class="fas fa-user-plus"></i></div>
-          <span>Peer Assign</span>
+          <span>다면평가 배정</span>
         </a>
       </div>
     </div>
@@ -232,7 +232,7 @@
     {% if 'upcoming_reviews' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
-        <span class="card-title">Upcoming Reviews</span>
+        <span class="card-title">예정된 평가</span>
         <a href="{{ url_for('performance') }}" class="btn btn-ghost btn-sm">성과관리</a>
       </div>
       {% if upcoming_reviews %}
@@ -265,7 +265,7 @@
     {% if 'whos_out' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
-        <span class="card-title">Who's Out Today</span>
+        <span class="card-title">오늘 부재중인 직원</span>
       </div>
       {% if who_out %}
       <div style="padding:0 10px 10px;">
@@ -274,14 +274,14 @@
           <div class="avatar-xs" style="flex-shrink:0;">{{ p.name[0] }}</div>
           <div style="flex:1; min-width:0;">
             <div class="body-sm" style="font-weight:600;">{{ p.name }}</div>
-            <div class="muted" style="font-size:12px;">Back {{ p.end_date }}</div>
+            <div class="muted" style="font-size:12px;">복귀 {{ p.end_date }}</div>
           </div>
           <span class="chip" style="font-size:11px;">{{ labels.get(p.type, p.type) }}</span>
         </div>
         {% endfor %}
       </div>
       {% else %}
-      <div style="padding:24px 22px;" class="muted body-sm">Everyone is in today.</div>
+      <div style="padding:24px 22px;" class="muted body-sm">오늘은 전원 출근했습니다.</div>
       {% endif %}
     </div>
     {% endif %}
@@ -289,8 +289,8 @@
     {% if 'announcements' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
-        <span class="card-title">Announcements</span>
-        <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">All</a>
+        <span class="card-title">공지사항</span>
+        <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">전체</a>
       </div>
       {% for post in recent_posts %}
       <a href="{{ url_for('announcement_detail', post_id=post.id) }}" class="list-link-item"
@@ -299,10 +299,10 @@
           <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--tx-1);">{{ post.title }}</div>
           <div class="muted" style="font-size:11px;">{{ post.created_at[:10] }}</div>
         </div>
-        {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px; flex-shrink:0;">Pinned</span>{% endif %}
+        {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px; flex-shrink:0;">고정</span>{% endif %}
       </a>
       {% else %}
-      <div style="padding:24px 22px;" class="muted body-sm">No announcements.</div>
+      <div style="padding:24px 22px;" class="muted body-sm">공지사항이 없습니다.</div>
       {% endfor %}
     </div>
     {% endif %}

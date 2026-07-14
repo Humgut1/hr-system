@@ -111,28 +111,28 @@
     <div class="stat-ico ico-blue"><i class="fas fa-users"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ total_active }}</div>
-      <div class="stat-lbl">Active Headcount</div>
+      <div class="stat-lbl">재직 인원</div>
     </div>
   </div>
   <div class="stat-card">
     <div class="stat-ico ico-orange"><i class="fas fa-sign-out-alt"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ turnover_rate }}<span style="font-size:16px; color:var(--tx-3);">%</span></div>
-      <div class="stat-lbl">Cumulative Turnover</div>
+      <div class="stat-lbl">누적 퇴사율</div>
     </div>
   </div>
   <div class="stat-card">
     <div class="stat-ico ico-green"><i class="fas fa-clock"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ avg_tenure }}<span style="font-size:16px; color:var(--tx-3);">yr</span></div>
-      <div class="stat-lbl">Avg Tenure</div>
+      <div class="stat-lbl">평균 근속연수</div>
     </div>
   </div>
   <div class="stat-card">
     <div class="stat-ico ico-red"><i class="fas fa-exclamation-triangle"></i></div>
     <div class="stat-body">
       <div class="stat-val" style="{% if high_risk_count > 0 %}color:var(--red);{% endif %}">{{ high_risk_count }}</div>
-      <div class="stat-lbl">High Attrition Risk</div>
+      <div class="stat-lbl">이탈 고위험군</div>
     </div>
   </div>
 </div>
@@ -142,7 +142,7 @@
 
   <!-- Headcount by Dept -->
   <div class="card" style="padding:22px;">
-    <div class="label" style="margin-bottom:16px;">Headcount by Department</div>
+    <div class="label" style="margin-bottom:16px;">부서별 인원</div>
     {% set max_hc = dept_headcount[0].cnt if dept_headcount else 1 %}
     {% for row in dept_headcount %}
     <div style="margin-bottom:10px;">
@@ -161,7 +161,7 @@
 
   <!-- Headcount by Grade -->
   <div class="card" style="padding:22px;">
-    <div class="label" style="margin-bottom:16px;">Headcount by Grade</div>
+    <div class="label" style="margin-bottom:16px;">등급별 인원</div>
     {% set max_gc = (grade_headcount[0].cnt if grade_headcount else 1) or 1 %}
     {% for row in grade_headcount %}
     {% set pct = (row.cnt / max_gc * 100)|int %}
@@ -210,7 +210,7 @@
 
   <!-- Leave Utilization -->
   <div class="card" style="padding:22px;">
-    <div class="label" style="margin-bottom:4px;">Leave Utilization by Dept</div>
+    <div class="label" style="margin-bottom:4px;">부서별 연차 사용률</div>
     <div class="muted body-sm" style="margin-bottom:16px; font-size:12px;">연차 사용률 (부서별 평균)</div>
     {% if leave_util %}
     {% for row in leave_util %}
@@ -263,7 +263,7 @@
     {% if risk_employees %}
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Name</th><th>Dept</th><th>Grade</th><th>Risk Score</th><th>Level</th></tr></thead>
+        <thead><tr><th>이름</th><th>부서</th><th>등급</th><th>위험점수</th><th>레벨</th></tr></thead>
         <tbody>
           {% for emp in risk_employees %}
           <tr>

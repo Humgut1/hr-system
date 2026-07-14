@@ -54,20 +54,20 @@
   <!-- Bulk payslip generation -->
   <div class="card">
     <div class="card-head">
-      <span class="card-title">Generate Monthly Payslips</span>
+      <span class="card-title">월별 급여명세서 생성</span>
       <a href="{{ url_for('payroll_bulk_raise') }}" class="btn btn-ghost btn-sm">
-        <i class="fas fa-chart-line"></i> Bulk Raise
+        <i class="fas fa-chart-line"></i> 일괄 인상
       </a>
     </div>
     <div class="card-body">
       <div class="grid-2" style="gap:12px; margin-bottom:14px;">
         <div class="field" style="margin:0;">
-          <label class="form-label">Year</label>
+          <label class="form-label">연도</label>
           <input type="number" id="genYear" class="input"
                  value="2026" min="2020" max="2099">
         </div>
         <div class="field" style="margin:0;">
-          <label class="form-label">Month</label>
+          <label class="form-label">월</label>
           <select id="genMonth" class="input">
             {% for m in range(1, 13) %}
             <option value="{{ m }}" {% if m == 4 %}selected{% endif %}>{{ m }}</option>
@@ -134,15 +134,15 @@
 
   <!-- Insurance rates -->
   <div class="card">
-    <div class="card-head"><span class="card-title">2026 Social Insurance Rates (Employee)</span></div>
+    <div class="card-head"><span class="card-title">2026년 4대보험 요율 (근로자 부담)</span></div>
     <div class="card-body">
       {% for label, rate, law in [
-          ('National Pension',       '4.5%',              'National Pension Act'),
-          ('Health Insurance',       '3.545%',            'National Health Insurance Act'),
-          ('Long-term Care',         'Health × 12.95%',   'Long-term Care Insurance Act'),
-          ('Employment Insurance',   '0.9%',              'Employment Insurance Act'),
-          ('Income Tax',             '6–45% (progressive)','Income Tax Act'),
-          ('Local Income Tax',       'Income tax × 10%',  'Local Tax Act'),
+          ('국민연금',       '4.5%',              '국민연금법'),
+          ('건강보험',       '3.545%',            '국민건강보험법'),
+          ('장기요양보험',   '건강보험료 × 12.95%',   '노인장기요양보험법'),
+          ('고용보험',       '0.9%',              '고용보험법'),
+          ('소득세',         '6–45% (누진세율)','소득세법'),
+          ('지방소득세',     '소득세 × 10%',  '지방세법'),
       ] %}
       <div style="display:flex; justify-content:space-between; align-items:center;
                   padding:8px 0; border-bottom:1px solid var(--border); font-size:13px;">
@@ -154,7 +154,7 @@
       </div>
       {% endfor %}
       <p style="font-size:11px; color:var(--tx-3); margin-top:10px;">
-        Tax-free: Meal allowance ₩200k, Transport ₩200k
+        비과세: 식대 20만원, 교통비 20만원
       </p>
     </div>
   </div>
@@ -163,11 +163,11 @@
 <!-- Employee salary table -->
 <div class="card">
   <div class="card-head">
-    <span class="card-title">Employee Salary Info</span>
+    <span class="card-title">직원 급여 정보</span>
     <div style="display:flex; align-items:center; gap:10px;">
-      <span style="font-size:12px; color:var(--tx-3);">Click pencil icon to edit</span>
+      <span style="font-size:12px; color:var(--tx-3);">연필 아이콘 클릭 시 수정</span>
       <a href="{{ url_for('salary_table') }}" class="btn btn-ghost btn-sm">
-        <i class="fas fa-table"></i> Salary Table
+        <i class="fas fa-table"></i> 연봉 기준표
       </a>
     </div>
   </div>
@@ -175,10 +175,10 @@
     <table>
       <thead>
         <tr>
-          <th>Name</th><th>Dept</th><th>Position</th>
-          <th>Base Salary</th><th>Meal</th><th>Transport</th><th>Est. Gross</th>
+          <th>이름</th><th>부서</th><th>직급</th>
+          <th>기본급</th><th>식대</th><th>교통비</th><th>예상 총지급액</th>
           <th title="기본급 ÷ 밴드 Mid">Compa-Ratio</th>
-          <th>Edit</th>
+          <th>수정</th>
         </tr>
       </thead>
       <tbody>
@@ -242,7 +242,7 @@
       <div>
         <div id="modalTitle" style="font-size:17px; font-weight:800; color:var(--tx-1);"></div>
         <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">
-          Chart updates in real-time as you type
+          입력 시 차트가 실시간으로 업데이트됩니다
         </div>
       </div>
       <button id="closeModal"
@@ -260,15 +260,15 @@
           <input type="hidden" name="user_id" id="modalUserId">
 
           <div class="field">
-            <label class="form-label">Base Salary (₩)</label>
+            <label class="form-label">기본급 (₩)</label>
             <input type="number" name="base_salary" id="modalBase"
                    class="input" step="10000" min="0" required>
           </div>
           <div class="field">
             <label class="form-label">
-              Meal Allowance
+              식대
               <span style="font-size:11px; color:var(--tx-3); font-weight:400;">
-                — Tax-free up to ₩200,000
+                — ₩200,000까지 비과세
               </span>
             </label>
             <input type="number" name="meal_allowance" id="modalMeal"
@@ -276,9 +276,9 @@
           </div>
           <div class="field">
             <label class="form-label">
-              Transport Allowance
+              교통비
               <span style="font-size:11px; color:var(--tx-3); font-weight:400;">
-                — Tax-free up to ₩200,000
+                — ₩200,000까지 비과세
               </span>
             </label>
             <input type="number" name="transport_allowance" id="modalTrans"
@@ -288,17 +288,17 @@
           <div style="background:var(--surface-3); border:1px solid var(--border);
                       border-radius:var(--r-sm); padding:14px 16px; margin-top:4px;">
             <div style="display:flex; justify-content:space-between; font-size:13px; padding:4px 0;">
-              <span style="color:var(--tx-3);">Gross Pay</span>
+              <span style="color:var(--tx-3);">총 지급액</span>
               <span id="summaryGross" style="font-weight:700;">—</span>
             </div>
             <div style="display:flex; justify-content:space-between; font-size:13px; padding:4px 0;
                         border-top:1px dashed var(--border); margin-top:4px;">
-              <span style="color:var(--red);">Total Deductions</span>
+              <span style="color:var(--red);">공제 총액</span>
               <span id="summaryDeduct" style="font-weight:700; color:var(--red);">—</span>
             </div>
             <div style="display:flex; justify-content:space-between; font-size:15px; padding:6px 0 2px;
                         border-top:1px solid var(--border); margin-top:4px;">
-              <span style="font-weight:700; color:var(--tx-1);">Net Pay</span>
+              <span style="font-weight:700; color:var(--tx-1);">실 지급액</span>
               <span id="summaryNet" style="font-weight:800; color:var(--primary); font-size:16px;">—</span>
             </div>
           </div>
@@ -313,9 +313,9 @@
 
           <div style="display:flex; gap:10px; margin-top:20px;">
             <button type="submit" class="btn btn-primary">
-              <i class="fas fa-save"></i> Save
+              <i class="fas fa-save"></i> 저장
             </button>
-            <button type="button" class="btn btn-ghost" id="cancelBtn">Cancel</button>
+            <button type="button" class="btn btn-ghost" id="cancelBtn">취소</button>
           </div>
         </form>
       </div>

@@ -1,11 +1,11 @@
 ﻿{% extends 'base.html' %}
-{% block title %}Performance Review{% endblock %}
-{% block page_title %}Performance{% endblock %}
+{% block title %}성과 평가{% endblock %}
+{% block page_title %}성과{% endblock %}
 
 {% block content %}
 <div style="max-width:600px;">
   <a href="{{ url_for('performance') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
-    <i class="fas fa-arrow-left"></i> Back to Performance
+    <i class="fas fa-arrow-left"></i> 성과관리로
   </a>
 
   <!-- Goal info -->
@@ -17,7 +17,7 @@
         <span class="badge {% if goal.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}">
           {{ goal.category }}
         </span>
-        <span style="font-size:12px; color:var(--tx-3); margin-left:auto;">Weight {{ goal.weight }}%</span>
+        <span style="font-size:12px; color:var(--tx-3); margin-left:auto;">가중치 {{ goal.weight }}%</span>
       </div>
       <div style="font-size:16px; font-weight:800; color:var(--tx-1); margin-bottom:6px;">
         {{ goal.title }}
@@ -32,7 +32,7 @@
   <div class="card">
     <div class="card-head">
       <span class="card-title">
-        {% if existing %}Edit Review{% else %}Submit Review{% endif %}
+        {% if existing %}평가 수정{% else %}평가 제출{% endif %}
       </span>
     </div>
     <div class="card-body">
@@ -45,7 +45,7 @@
       <form method="POST" action="{{ url_for('performance_review', goal_id=goal.id) }}">
 
         <div class="field">
-          <label class="form-label">Score <span style="color:var(--red);">*</span></label>
+          <label class="form-label">점수 <span style="color:var(--red);">*</span></label>
           <div style="display:flex; gap:10px; margin-top:6px;">
             {% for score, label in score_labels.items()|sort(reverse=true) %}
             <label style="flex:1; cursor:pointer;">
@@ -96,16 +96,16 @@
         </div>
 
         <div class="field">
-          <label class="form-label">Comment</label>
+          <label class="form-label">코멘트</label>
           <textarea name="comment" class="input" rows="4"
-                    placeholder="Provide specific evidence and feedback.">{{ existing.comment if existing else '' }}</textarea>
+                    placeholder="구체적인 근거와 피드백을 작성하세요.">{{ existing.comment if existing else '' }}</textarea>
         </div>
 
         <div style="display:flex; gap:10px;">
           <button type="submit" class="btn btn-primary">
-            <i class="fas fa-star"></i> {% if existing %}Update Review{% else %}Submit Review{% endif %}
+            <i class="fas fa-star"></i> {% if existing %}평가 수정{% else %}평가 제출{% endif %}
           </button>
-          <a href="{{ url_for('performance') }}" class="btn btn-ghost">Cancel</a>
+          <a href="{{ url_for('performance') }}" class="btn btn-ghost">취소</a>
         </div>
       </form>
     </div>

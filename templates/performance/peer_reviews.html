@@ -1,6 +1,6 @@
 ﻿{% extends 'base.html' %}
-{% block title %}Peer Reviews{% endblock %}
-{% block page_title %}Peer Reviews{% endblock %}
+{% block title %}다면평가{% endblock %}
+{% block page_title %}다면평가{% endblock %}
 
 {% block head %}
 <style>
@@ -32,7 +32,7 @@
     <select class="input" style="width:220px;" onchange="location.href='?cycle='+this.value">
       {% for c in cycles %}
       <option value="{{ c.id }}" {% if selected_cycle and c.id == selected_cycle.id %}selected{% endif %}>
-        {{ c.name }} ({{ 'Active' if c.status == 'active' else 'Closed' }})
+        {{ c.name }} ({{ '진행중' if c.status == 'active' else '종료' }})
       </option>
       {% endfor %}
     </select>
@@ -42,7 +42,7 @@
 
 {% if not selected_cycle %}
 <div style="background:var(--orange-bg); border:1px solid var(--orange-bg); border-radius:var(--r); padding:16px 20px; color:var(--orange); font-weight:600;">
-  <i class="fas fa-exclamation-triangle"></i> No active review cycle.
+  <i class="fas fa-exclamation-triangle"></i> 진행중인 평가 주기가 없습니다.
 </div>
 {% else %}
 
@@ -50,12 +50,12 @@
 {% if session.user_role == 'employee' %}
 <div style="margin-bottom:28px;">
   <div style="font-size:15px; font-weight:800; color:var(--tx-1); margin-bottom:12px;">
-    <i class="fas fa-pen-to-square" style="color:var(--primary);"></i> Reviews to Complete
+    <i class="fas fa-pen-to-square" style="color:var(--primary);"></i> 작성할 평가
   </div>
 
   {% if not my_assignments and not upward_targets %}
   <div class="peer-card" style="text-align:center; color:var(--tx-3); padding:40px;">
-    No peer reviews assigned to you.
+    배정된 다면평가가 없습니다.
   </div>
   {% endif %}
 
@@ -67,18 +67,18 @@
         <div class="avatar-xs">{{ a.reviewee_name[0] }}</div>
         <div>
           <div style="font-size:14px; font-weight:700;">{{ a.reviewee_name }}</div>
-          <div style="font-size:12px; color:var(--tx-3);">Peer Review</div>
+          <div style="font-size:12px; color:var(--tx-3);">다면평가</div>
         </div>
       </div>
       {% if a.done_id %}
-      <span class="done-badge"><i class="fas fa-check"></i> Submitted</span>
+      <span class="done-badge"><i class="fas fa-check"></i> 제출완료</span>
       {% else %}
-      <span class="todo-badge"><i class="fas fa-clock"></i> Pending</span>
+      <span class="todo-badge"><i class="fas fa-clock"></i> 대기</span>
       {% endif %}
     </div>
     <a href="{{ url_for('peer_review_write', reviewee_id=a.reviewee_id, cycle=selected_cycle.id, type='peer') }}"
        class="btn {% if a.done_id %}btn-ghost{% else %}btn-primary{% endif %} btn-sm">
-      {% if a.done_id %}<i class="fas fa-edit"></i> Edit{% else %}<i class="fas fa-pen"></i> Write Review{% endif %}
+      {% if a.done_id %}<i class="fas fa-edit"></i> 수정{% else %}<i class="fas fa-pen"></i> 평가 작성{% endif %}
     </a>
   </div>
   {% endfor %}
@@ -91,18 +91,18 @@
         <div class="avatar-xs" style="background: linear-gradient(135deg,var(--info),var(--info));">{{ mgr.name[0] }}</div>
         <div>
           <div style="font-size:14px; font-weight:700;">{{ mgr.name }}</div>
-          <div style="font-size:12px; color:var(--tx-3);">Manager Review <span style="background:var(--info-bg);color:var(--info);border-radius:4px;padding:1px 6px;font-size:11px;">Anonymous</span></div>
+          <div style="font-size:12px; color:var(--tx-3);">매니저 평가 <span style="background:var(--info-bg);color:var(--info);border-radius:4px;padding:1px 6px;font-size:11px;">익명</span></div>
         </div>
       </div>
       {% if mgr.done %}
-      <span class="done-badge"><i class="fas fa-check"></i> Submitted</span>
+      <span class="done-badge"><i class="fas fa-check"></i> 제출완료</span>
       {% else %}
-      <span class="todo-badge"><i class="fas fa-clock"></i> Pending</span>
+      <span class="todo-badge"><i class="fas fa-clock"></i> 대기</span>
       {% endif %}
     </div>
     <a href="{{ url_for('peer_review_write', reviewee_id=mgr.id, cycle=selected_cycle.id, type='upward') }}"
        class="btn {% if mgr.done %}btn-ghost{% else %}btn-primary{% endif %} btn-sm">
-      {% if mgr.done %}<i class="fas fa-edit"></i> Edit{% else %}<i class="fas fa-pen"></i> Write Review{% endif %}
+      {% if mgr.done %}<i class="fas fa-edit"></i> 수정{% else %}<i class="fas fa-pen"></i> 평가 작성{% endif %}
     </a>
   </div>
   {% endfor %}
@@ -180,12 +180,12 @@
 {% if session.user_role in ('manager', 'admin') %}
 <div style="margin-bottom:28px;">
   <div style="font-size:15px; font-weight:800; color:var(--tx-1); margin-bottom:12px;">
-    <i class="fas fa-users" style="color:var(--info);"></i> Team Feedback (Upward)
+    <i class="fas fa-users" style="color:var(--info);"></i> 팀 피드백 (상향평가)
   </div>
   {% if received_upward %}
   <div class="anon-notice">
-    <i class="fas fa-lock"></i> This feedback is fully anonymous. Respondents cannot be identified.
-    {{ received_upward.count }} responses total.
+    <i class="fas fa-lock"></i> 이 피드백은 완전 익명이며 응답자를 특정할 수 없습니다.
+    총 {{ received_upward.count }}건의 응답.
   </div>
   <div class="peer-card">
     {% for i in range(1, 6) %}
@@ -200,7 +200,7 @@
     {% endfor %}
     {% if received_upward.comments %}
     <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:14px;">
-      <div style="font-size:12px; font-weight:700; color:var(--tx-3); margin-bottom:8px;">Comments</div>
+      <div style="font-size:12px; font-weight:700; color:var(--tx-3); margin-bottom:8px;">코멘트</div>
       {% for c in received_upward.comments %}
       <div style="font-size:13px; color:var(--tx-2); padding:8px 12px; background:var(--bg); border-radius:var(--r-sm); margin-bottom:6px;">{{ c }}</div>
       {% endfor %}
@@ -210,11 +210,11 @@
   {% elif upward_count > 0 %}
   <div class="peer-card" style="text-align:center; color:var(--tx-3); padding:32px;">
     <i class="fas fa-lock" style="font-size:24px; margin-bottom:8px; display:block;"></i>
-    {{ upward_count }} response(s) so far — results shown after 3+ responses to protect anonymity.
+    현재 {{ upward_count }}건 응답 — 익명성 보호를 위해 3명 이상 응답 시 결과가 공개됩니다.
   </div>
   {% else %}
   <div class="peer-card" style="text-align:center; color:var(--tx-3); padding:32px;">
-    No team feedback received yet.
+    아직 받은 팀 피드백이 없습니다.
   </div>
   {% endif %}
 </div>

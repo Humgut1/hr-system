@@ -1,6 +1,6 @@
 ﻿{% extends 'base.html' %}
 {% block title %}퇴직 요청 상세{% endblock %}
-{% block page_title %}Termination Request{% endblock %}
+{% block page_title %}퇴직 요청{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -54,7 +54,7 @@
     <div class="card">
       <div class="card-head">
         <div>
-          <div class="card-title">Request Summary</div>
+          <div class="card-title">요청 요약</div>
           <div style="font-size:20px; font-weight:800; color:var(--text); margin-top:4px;">{{ termination.employee_name }}</div>
           <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">{{ termination.dept_name or '-' }} / {{ termination.pos_name or '-' }}</div>
         </div>
@@ -63,46 +63,46 @@
       <div class="card-body">
         <div class="meta-grid">
           <div class="meta-box">
-            <div class="label">Request Type</div>
+            <div class="label">요청 유형</div>
             <div class="value">{{ terminate_types.get(termination.request_type, termination.request_type) }}</div>
           </div>
           <div class="meta-box">
-            <div class="label">Reason Code</div>
+            <div class="label">사유 코드</div>
             <div class="value">{{ reason_codes.get(termination.reason_code, termination.reason_code or '-') }}</div>
           </div>
           <div class="meta-box">
-            <div class="label">Requested Last Work Date</div>
+            <div class="label">요청 마지막 근무일</div>
             <div class="value">{{ termination.requested_last_work_date }}</div>
           </div>
           <div class="meta-box">
-            <div class="label">Requested Termination Date</div>
+            <div class="label">요청 퇴직일</div>
             <div class="value">{{ termination.requested_termination_date }}</div>
           </div>
           <div class="meta-box">
-            <div class="label">Final Last Work Date</div>
+            <div class="label">최종 마지막 근무일</div>
             <div class="value">{{ termination.final_last_work_date or '-' }}</div>
           </div>
           <div class="meta-box">
-            <div class="label">Final Termination Date</div>
+            <div class="label">최종 퇴직일</div>
             <div class="value">{{ termination.final_termination_date or '-' }}</div>
           </div>
         </div>
 
         {% if termination.reason_detail %}
         <div style="margin-top:16px;">
-          <div class="form-label">Reason Detail</div>
+          <div class="form-label">상세 사유</div>
           <div style="font-size:13px; color:var(--text); line-height:1.7;">{{ termination.reason_detail }}</div>
         </div>
         {% endif %}
         {% if termination.handover_note %}
         <div style="margin-top:16px;">
-          <div class="form-label">Handover Note</div>
+          <div class="form-label">인수인계 메모</div>
           <div style="font-size:13px; color:var(--text); line-height:1.7;">{{ termination.handover_note }}</div>
         </div>
         {% endif %}
         {% if termination.rejection_reason %}
         <div style="margin-top:16px; padding:12px 14px; border:1px solid var(--red-bg); background:var(--red-bg); border-radius:var(--r); color:var(--red); font-size:13px;">
-          <strong>Rejection reason</strong><br>
+          <strong>반려 사유</strong><br>
           {{ termination.rejection_reason }}
         </div>
         {% endif %}
@@ -111,7 +111,7 @@
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Offboarding Tasks</div>
+        <div class="card-title">오프보딩 태스크</div>
       </div>
       <div class="card-body">
         {% if tasks %}
@@ -120,30 +120,30 @@
             <div>
               <div class="task-title">{{ task.title }}</div>
               <div style="font-size:12px; color:var(--text-muted);">
-                Owner: {{ task.owner_role }} | Due: {{ task.due_date or '-' }} | Status: {{ task.status }}
+                담당: {{ task.owner_role }} | 기한: {{ task.due_date or '-' }} | 상태: {{ task.status }}
               </div>
               {% if task.note %}
-              <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">Note: {{ task.note }}</div>
+              <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">메모: {{ task.note }}</div>
               {% endif %}
             </div>
             <div>
               {% if task.status == 'completed' %}
-              <span class="status-chip" style="background:var(--green-bg); color:var(--green);">Completed</span>
+              <span class="status-chip" style="background:var(--green-bg); color:var(--green);">완료</span>
               {% elif session.user_role == 'admin' or (task.owner_role == 'employee' and termination.user_id == session.user_id) or (task.owner_role == 'manager' and can_manage) %}
               <form method="POST" style="min-width:220px;">
                 <input type="hidden" name="action" value="complete_task">
                 <input type="hidden" name="task_id" value="{{ task.id }}">
-                <input type="text" name="task_note" class="input" placeholder="Completion note" style="margin-bottom:8px;">
-                <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">Mark Complete</button>
+                <input type="text" name="task_note" class="input" placeholder="완료 메모" style="margin-bottom:8px;">
+                <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">완료 처리</button>
               </form>
               {% else %}
-              <span class="status-chip" style="background:var(--surface-3); color:var(--text-muted);">Pending</span>
+              <span class="status-chip" style="background:var(--surface-3); color:var(--text-muted);">대기</span>
               {% endif %}
             </div>
           </div>
           {% endfor %}
         {% else %}
-        <div style="font-size:13px; color:var(--text-muted);">Tasks will be created after HR approval.</div>
+        <div style="font-size:13px; color:var(--text-muted);">HR 승인 후 태스크가 생성됩니다.</div>
         {% endif %}
       </div>
     </div>
@@ -152,41 +152,41 @@
   <div>
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Approval Timeline</div>
+        <div class="card-title">승인 타임라인</div>
       </div>
       <div class="card-body">
         <div class="timeline">
           <div class="timeline-item">
-            <strong>Submitted</strong>
-            <div style="font-size:13px; color:var(--text-muted);">{{ termination.created_at[:16] }} by {{ termination.created_by_name or '-' }}</div>
+            <strong>제출됨</strong>
+            <div style="font-size:13px; color:var(--text-muted);">{{ termination.created_at[:16] }} · {{ termination.created_by_name or '-' }}</div>
           </div>
           <div class="timeline-item">
-            <strong>Manager Review</strong>
+            <strong>매니저 검토</strong>
             <div style="font-size:13px; color:var(--text-muted);">
               {% if termination.manager_approved_at %}
-              {{ termination.manager_approved_at[:16] }} by {{ termination.manager_approved_name or termination.manager_name or '-' }}
+              {{ termination.manager_approved_at[:16] }} · {{ termination.manager_approved_name or termination.manager_name or '-' }}
               {% else %}
-              Pending
+              대기중
               {% endif %}
             </div>
           </div>
           <div class="timeline-item">
-            <strong>HR Approval</strong>
+            <strong>HR 승인</strong>
             <div style="font-size:13px; color:var(--text-muted);">
               {% if termination.hr_approved_at %}
-              {{ termination.hr_approved_at[:16] }} by {{ termination.hr_approved_name or '-' }}
+              {{ termination.hr_approved_at[:16] }} · {{ termination.hr_approved_name or '-' }}
               {% else %}
-              Pending
+              대기중
               {% endif %}
             </div>
           </div>
           <div class="timeline-item">
-            <strong>Completion</strong>
+            <strong>완료</strong>
             <div style="font-size:13px; color:var(--text-muted);">
               {% if termination.completed_at %}
               {{ termination.completed_at[:16] }}
               {% else %}
-              Pending
+              대기중
               {% endif %}
             </div>
           </div>
@@ -196,35 +196,35 @@
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Severance Preview</div>
+        <div class="card-title">퇴직금 미리보기</div>
       </div>
       <div class="card-body">
         {% if preview.eligible %}
         <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-          <span class="muted">Tenure</span>
-          <strong>{{ preview.tenure_days }} days</strong>
+          <span class="muted">근속기간</span>
+          <strong>{{ preview.tenure_days }}일</strong>
         </div>
         <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-          <span class="muted">Average Daily Wage</span>
+          <span class="muted">평균 임금(일)</span>
           <strong>{{ "{:,}원".format(preview.avg_daily_wage) }}</strong>
         </div>
         <div style="display:flex; justify-content:space-between;">
-          <span class="muted">Estimated Severance</span>
+          <span class="muted">예상 퇴직금</span>
           <strong style="font-size:18px; color:var(--info);">{{ "{:,}원".format(preview.severance_amount) }}</strong>
         </div>
         {% else %}
-        <div style="font-size:13px; color:var(--text-muted);">{{ preview.get('reason', 'No severance preview available.') }}</div>
+        <div style="font-size:13px; color:var(--text-muted);">{{ preview.get('reason', '퇴직금 미리보기를 사용할 수 없습니다.') }}</div>
         {% endif %}
       </div>
     </div>
 
     {% if termination.user_id == session.user_id and termination.status in ('submitted', 'under_review') %}
     <div class="card">
-      <div class="card-head"><div class="card-title">Employee Action</div></div>
+      <div class="card-head"><div class="card-title">직원 액션</div></div>
       <div class="card-body">
         <form method="POST">
           <input type="hidden" name="action" value="cancel_request">
-          <button type="submit" class="btn btn-ghost" style="color:var(--red); border-color:var(--red-bg);">Cancel Request</button>
+          <button type="submit" class="btn btn-ghost" style="color:var(--red); border-color:var(--red-bg);">신청 취소</button>
         </form>
       </div>
     </div>
@@ -232,16 +232,16 @@
 
     {% if can_manage and not termination.manager_approved_by and termination.status in ('submitted', 'under_review') %}
     <div class="card">
-      <div class="card-head"><div class="card-title">Manager Review</div></div>
+      <div class="card-head"><div class="card-title">매니저 검토</div></div>
       <div class="card-body" style="display:flex; gap:10px; flex-wrap:wrap;">
         <form method="POST">
           <input type="hidden" name="action" value="manager_approve">
-          <button type="submit" class="btn btn-primary">Manager Approve</button>
+          <button type="submit" class="btn btn-primary">매니저 승인</button>
         </form>
         <form method="POST" style="flex:1; min-width:240px;">
           <input type="hidden" name="action" value="reject_request">
-          <input type="text" name="rejection_reason" class="input" placeholder="Reason for rejection" style="margin-bottom:8px;">
-          <button type="submit" class="btn btn-ghost" style="color:var(--red); border-color:var(--red-bg);">Reject</button>
+          <input type="text" name="rejection_reason" class="input" placeholder="반려 사유" style="margin-bottom:8px;">
+          <button type="submit" class="btn btn-ghost" style="color:var(--red); border-color:var(--red-bg);">반려</button>
         </form>
       </div>
     </div>
@@ -305,29 +305,29 @@
 
     {% if session.user_role == 'admin' and termination.status == 'in_progress' %}
     <div class="card">
-      <div class="card-head"><div class="card-title">Finalize Termination</div></div>
+      <div class="card-head"><div class="card-title">퇴직 확정</div></div>
       <div class="card-body">
         <form method="POST">
           <input type="hidden" name="action" value="finalize_termination">
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
             <div class="field">
-              <label class="form-label">Final Last Work Date</label>
+              <label class="form-label">최종 마지막 근무일</label>
               <input type="date" name="final_last_work_date" class="input" value="{{ termination.final_last_work_date or termination.requested_last_work_date }}">
             </div>
             <div class="field">
-              <label class="form-label">Final Termination Date</label>
+              <label class="form-label">최종 퇴직일</label>
               <input type="date" name="final_termination_date" class="input" value="{{ termination.final_termination_date or termination.requested_termination_date }}">
             </div>
           </div>
           <div class="field" style="margin-bottom:12px;">
-            <label class="form-label">Final Termination Reason</label>
+            <label class="form-label">최종 퇴직 사유</label>
             <input type="text" name="termination_reason" class="input" value="{{ terminate_types.get(termination.request_type, termination.request_type) }}">
           </div>
           <div class="field" style="margin-bottom:14px;">
-            <label class="form-label">Completion Note</label>
+            <label class="form-label">완료 메모</label>
             <textarea name="completion_note" class="input" rows="3"></textarea>
           </div>
-          <button type="submit" class="btn btn-primary">Finalize</button>
+          <button type="submit" class="btn btn-primary">확정</button>
         </form>
       </div>
     </div>

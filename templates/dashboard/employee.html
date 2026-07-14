@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}Dashboard{% endblock %}
-{% block page_title %}Dashboard{% endblock %}
+{% block title %}대시보드{% endblock %}
+{% block page_title %}대시보드{% endblock %}
 
 {% block content %}
 
@@ -17,7 +17,7 @@
   <div style="z-index:1; display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
     <i class="fas fa-user welcome-icon" style="position:static; opacity:.15; font-size:48px;"></i>
     <button onclick="toggleCustomize()" class="btn btn-ghost btn-sm" style="font-size:12px;">
-      <i class="fas fa-sliders-h"></i> Customize
+      <i class="fas fa-sliders-h"></i> 위젯 설정
     </button>
   </div>
 </div>
@@ -28,7 +28,7 @@
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
       <div>
         <div style="font-weight:700; font-size:14px; color:var(--tx-1);">
-          <i class="fas fa-sliders-h" style="color:var(--primary); margin-right:7px;"></i>Dashboard Widgets
+          <i class="fas fa-sliders-h" style="color:var(--primary); margin-right:7px;"></i>대시보드 위젯
         </div>
         <div style="font-size:12px; color:var(--tx-3); margin-top:3px;">보고 싶은 위젯만 선택하세요</div>
       </div>
@@ -55,8 +55,8 @@
         {% endfor %}
       </div>
       <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button type="button" onclick="toggleCustomize()" class="btn btn-ghost">Cancel</button>
-        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button>
+        <button type="button" onclick="toggleCustomize()" class="btn btn-ghost">취소</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 저장</button>
       </div>
     </form>
   </div>
@@ -68,29 +68,29 @@
   <div class="stat-card">
     <div class="stat-ico ico-blue"><i class="fas fa-calendar-check"></i></div>
     <div class="stat-body">
-      <div class="stat-val">{{ remain_leave | int }}<span style="font-size:16px; font-weight:600; color:var(--tx-3);">/{{ total_leave }}d</span></div>
-      <div class="stat-lbl">Leave Balance</div>
+      <div class="stat-val">{{ remain_leave | int }}<span style="font-size:16px; font-weight:600; color:var(--tx-3);">/{{ total_leave }}일</span></div>
+      <div class="stat-lbl">연차 잔여</div>
     </div>
   </div>
   <div class="stat-card">
     <div class="stat-ico ico-orange"><i class="fas fa-calendar-minus"></i></div>
     <div class="stat-body">
-      <div class="stat-val">{{ used_leave | int }}<span style="font-size:14px; color:var(--tx-3);">d</span></div>
-      <div class="stat-lbl">Used · {{ pct_used }}%</div>
+      <div class="stat-val">{{ used_leave | int }}<span style="font-size:14px; color:var(--tx-3);">일</span></div>
+      <div class="stat-lbl">사용 · {{ pct_used }}%</div>
     </div>
   </div>
   <a href="{{ url_for('performance') }}" class="stat-card" style="text-decoration:none;">
     <div class="stat-ico ico-purple"><i class="fas fa-chart-line"></i></div>
     <div class="stat-body">
-      <div class="stat-val" style="font-size:18px;">Review</div>
-      <div class="stat-lbl">Self-review & Goals</div>
+      <div class="stat-val" style="font-size:18px;">평가</div>
+      <div class="stat-lbl">자기평가 & 목표</div>
     </div>
   </a>
   <div class="stat-card">
     <div class="stat-ico ico-green"><i class="fas fa-briefcase"></i></div>
     <div class="stat-body">
       <div class="stat-val" style="font-size:18px;">{{ tenure_str or '—' }}</div>
-      <div class="stat-lbl">Tenure</div>
+      <div class="stat-lbl">근속기간</div>
     </div>
   </div>
 </div>
@@ -103,39 +103,39 @@
 
     {% if 'quick_actions' in enabled_widgets %}
     <div class="card" style="padding:20px;">
-      <div class="label" style="margin-bottom:14px;">Quick Actions</div>
+      <div class="label" style="margin-bottom:14px;">빠른 실행</div>
       <div class="quick-actions-grid">
         <a href="{{ url_for('leave_new') }}" class="qa-btn">
           <div class="qa-btn-ico ico-blue"><i class="fas fa-plus-circle"></i></div>
-          <span>Request Leave</span>
+          <span>휴가 신청</span>
         </a>
         <a href="{{ url_for('attendance_home') }}" class="qa-btn">
           <div class="qa-btn-ico ico-cyan"><i class="fas fa-clock"></i></div>
-          <span>Attendance</span>
+          <span>근태</span>
         </a>
         <a href="{{ url_for('payroll_list') }}" class="qa-btn">
           <div class="qa-btn-ico ico-green"><i class="fas fa-won-sign"></i></div>
-          <span>Payslips</span>
+          <span>급여명세</span>
         </a>
         <a href="{{ url_for('performance') }}" class="qa-btn">
           <div class="qa-btn-ico ico-purple"><i class="fas fa-chart-line"></i></div>
-          <span>Goals</span>
+          <span>목표</span>
         </a>
         <a href="{{ url_for('certificates_hub') }}" class="qa-btn">
           <div class="qa-btn-ico ico-orange"><i class="fas fa-folder-open"></i></div>
-          <span>Documents</span>
+          <span>문서함</span>
         </a>
         <a href="{{ url_for('peer_reviews_page') }}" class="qa-btn">
           <div class="qa-btn-ico ico-amber"><i class="fas fa-star"></i></div>
-          <span>Peer Review</span>
+          <span>다면평가</span>
         </a>
         <a href="{{ url_for('me_benefits') }}" class="qa-btn">
           <div class="qa-btn-ico ico-green"><i class="fas fa-heart"></i></div>
-          <span>Benefits</span>
+          <span>복리후생</span>
         </a>
         <a href="{{ url_for('profile') }}" class="qa-btn">
           <div class="qa-btn-ico ico-slate"><i class="fas fa-cog"></i></div>
-          <span>Settings</span>
+          <span>설정</span>
         </a>
       </div>
     </div>
@@ -144,22 +144,22 @@
     {% if 'leave_requests' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
-        <span class="card-title">Leave Requests</span>
-        <a href="{{ url_for('leave_my') }}" class="btn btn-ghost btn-sm">View all</a>
+        <span class="card-title">휴가 신청 내역</span>
+        <a href="{{ url_for('leave_my') }}" class="btn btn-ghost btn-sm">전체 보기</a>
       </div>
       {% if recent_reqs %}
       <div style="overflow-x:auto;">
         <table>
-          <thead><tr><th>Type</th><th>Period</th><th>Days</th><th>Status</th></tr></thead>
+          <thead><tr><th>유형</th><th>기간</th><th>일수</th><th>상태</th></tr></thead>
           <tbody>
             {% for r in recent_reqs %}
             <tr>
               <td style="font-weight:600; font-size:13px;">{{ labels.get(r.type, r.type) }}</td>
               <td class="muted" style="font-size:12.5px;">{{ r.start_date }}{% if r.start_date != r.end_date %} – {{ r.end_date }}{% endif %}</td>
-              <td class="muted" style="font-size:13px;">{{ r.days }}d</td>
+              <td class="muted" style="font-size:13px;">{{ r.days }}일</td>
               <td>
                 <span class="badge {% if r.status == 'approved' %}badge-active{% elif r.status == 'rejected' %}badge-reject{% elif r.status == 'cancelled' %}badge-inactive{% else %}badge-pending{% endif %}" style="font-size:11px;">
-                  {{ r.status | capitalize }}
+                  {{ {'approved':'승인','rejected':'반려','cancelled':'취소','pending':'대기'}.get(r.status, r.status) }}
                 </span>
               </td>
             </tr>
@@ -170,7 +170,7 @@
       {% else %}
       <div class="card-body muted" style="text-align:center; padding:40px;">
         <i class="fas fa-calendar" style="font-size:28px; opacity:.3; display:block; margin-bottom:10px;"></i>
-        No leave requests yet.
+        휴가 신청 내역이 없습니다.
       </div>
       {% endif %}
     </div>
@@ -184,7 +184,7 @@
     {% if 'my_goals' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
-        <span class="card-title">My Goals</span>
+        <span class="card-title">내 목표</span>
         <a href="{{ url_for('performance') }}" class="btn btn-ghost btn-sm">전체 보기</a>
       </div>
       {% if my_goals %}
@@ -217,9 +217,9 @@
 
     {% if 'time_off_balance' in enabled_widgets %}
     <div class="card" style="padding:24px;">
-      <div class="label">Time Off Balance</div>
+      <div class="label">연차 잔여 현황</div>
       <div style="margin-top:10px; font-size:40px; font-weight:700; letter-spacing:-0.025em; line-height:1;">
-        {{ remain_leave | int }}<span class="muted" style="font-size:22px; font-weight:500;"> / {{ total_leave }}d</span>
+        {{ remain_leave | int }}<span class="muted" style="font-size:22px; font-weight:500;"> / {{ total_leave }}일</span>
       </div>
       <div style="margin-top:18px; height:8px; border-radius:99px; background:var(--bg); overflow:hidden;">
         <span style="display:block; height:100%; width:{{ pct_used }}%;
@@ -227,15 +227,15 @@
                      border-radius:99px;"></span>
       </div>
       <div style="display:flex; justify-content:space-between; margin-top:10px;">
-        <span class="muted body-sm">Used {{ used_leave | int }}d</span>
-        <a href="{{ url_for('leave_new') }}" class="btn btn-ghost btn-sm">Request <i class="fas fa-arrow-right" style="font-size:11px;"></i></a>
+        <span class="muted body-sm">사용 {{ used_leave | int }}일</span>
+        <a href="{{ url_for('leave_new') }}" class="btn btn-ghost btn-sm">신청 <i class="fas fa-arrow-right" style="font-size:11px;"></i></a>
       </div>
     </div>
     {% endif %}
 
     {% if 'upcoming_leave' in enabled_widgets and upcoming_leave %}
     <div class="card">
-      <div class="card-head"><span class="card-title">Upcoming Leave</span></div>
+      <div class="card-head"><span class="card-title">예정된 휴가</span></div>
       <div style="padding:0 10px 10px;">
         {% for u in upcoming_leave %}
         <div class="row" style="padding:10px 12px; border-radius:12px;">
@@ -244,7 +244,7 @@
           </div>
           <div style="flex:1; min-width:0;">
             <div class="body-sm" style="font-weight:600;">{{ labels.get(u.type, u.type) }}</div>
-            <div class="muted" style="font-size:12px;">{{ u.start_date }}{% if u.start_date != u.end_date %} – {{ u.end_date }}{% endif %} · {{ u.days }}d</div>
+            <div class="muted" style="font-size:12px;">{{ u.start_date }}{% if u.start_date != u.end_date %} – {{ u.end_date }}{% endif %} · {{ u.days }}일</div>
           </div>
         </div>
         {% endfor %}
@@ -255,8 +255,8 @@
     {% if 'announcements' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
-        <span class="card-title">Announcements</span>
-        <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">All</a>
+        <span class="card-title">공지사항</span>
+        <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">전체</a>
       </div>
       {% for post in recent_posts %}
       <a href="{{ url_for('announcement_detail', post_id=post.id) }}" class="list-link-item"
@@ -265,10 +265,10 @@
           <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--tx-1);">{{ post.title }}</div>
           <div class="muted" style="font-size:11px;">{{ post.created_at[:10] }}</div>
         </div>
-        {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px; flex-shrink:0;">Pinned</span>{% endif %}
+        {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px; flex-shrink:0;">고정</span>{% endif %}
       </a>
       {% else %}
-      <div style="padding:24px 22px;" class="muted body-sm">No announcements.</div>
+      <div style="padding:24px 22px;" class="muted body-sm">공지사항이 없습니다.</div>
       {% endfor %}
     </div>
     {% endif %}

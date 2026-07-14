@@ -1,16 +1,16 @@
 {% extends 'base.html' %}
-{% block title %}{% if mode == 'edit' %}Edit Posting{% else %}New Posting{% endif %}{% endblock %}
-{% block page_title %}Job Postings{% endblock %}
+{% block title %}{% if mode == 'edit' %}공고 수정{% else %}공고 등록{% endif %}{% endblock %}
+{% block page_title %}채용 공고{% endblock %}
 
 {% block content %}
 <div style="max-width:680px;">
   <a href="{{ url_for('recruit_postings') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
-    <i class="fas fa-arrow-left"></i> Back to Postings
+    <i class="fas fa-arrow-left"></i> 공고 목록으로
   </a>
 
   <div class="card">
     <div class="card-head">
-      <span class="card-title">{% if mode == 'edit' %}Edit Job Posting{% else %}New Job Posting{% endif %}</span>
+      <span class="card-title">{% if mode == 'edit' %}채용 공고 수정{% else %}채용 공고 등록{% endif %}</span>
     </div>
     <div class="card-body">
       {% if error %}
@@ -23,17 +23,17 @@
             action="{{ url_for('recruit_posting_edit', posting_id=posting.id) if mode == 'edit' else url_for('recruit_posting_new') }}">
 
         <div class="field">
-          <label class="form-label">Job Title <span style="color:var(--red);">*</span></label>
+          <label class="form-label">공고 제목 <span style="color:var(--red);">*</span></label>
           <input type="text" name="title" class="input"
                  value="{{ posting.title if posting else '' }}"
-                 placeholder="e.g. Backend Engineer (Python/Flask) 2+ years" required>
+                 placeholder="예: 백엔드 엔지니어 (Python/Flask) 경력 2년 이상" required>
         </div>
 
         <div class="grid-2" style="gap:14px;">
           <div class="field">
-            <label class="form-label">Department</label>
+            <label class="form-label">부서</label>
             <select name="department_id" class="input">
-              <option value="">— TBD —</option>
+              <option value="">— 미정 —</option>
               {% for d in depts %}
               <option value="{{ d.id }}"
                       {% if posting and posting.department_id == d.id %}selected{% endif %}>
@@ -43,9 +43,9 @@
             </select>
           </div>
           <div class="field">
-            <label class="form-label">Position</label>
+            <label class="form-label">직급</label>
             <select name="position_id" class="input">
-              <option value="">— TBD —</option>
+              <option value="">— 미정 —</option>
               {% for p in poses %}
               <option value="{{ p.id }}"
                       {% if posting and posting.position_id == p.id %}selected{% endif %}>
@@ -58,37 +58,37 @@
 
         <div class="grid-2" style="gap:14px;">
           <div class="field">
-            <label class="form-label">Status</label>
+            <label class="form-label">상태</label>
             <select name="status" class="input">
-              <option value="open"   {% if not posting or posting.status == 'open'   %}selected{% endif %}>Open (Public)</option>
-              <option value="draft"  {% if posting and posting.status == 'draft'  %}selected{% endif %}>Draft (Hidden)</option>
-              <option value="closed" {% if posting and posting.status == 'closed' %}selected{% endif %}>Closed</option>
+              <option value="open"   {% if not posting or posting.status == 'open'   %}selected{% endif %}>공개 (게시중)</option>
+              <option value="draft"  {% if posting and posting.status == 'draft'  %}selected{% endif %}>임시저장 (비공개)</option>
+              <option value="closed" {% if posting and posting.status == 'closed' %}selected{% endif %}>마감</option>
             </select>
           </div>
           <div class="field">
-            <label class="form-label">Application Deadline</label>
+            <label class="form-label">지원 마감일</label>
             <input type="date" name="deadline" class="input"
                    value="{{ posting.deadline if posting and posting.deadline else '' }}">
           </div>
         </div>
 
         <div class="field">
-          <label class="form-label">Job Description</label>
+          <label class="form-label">직무 설명</label>
           <textarea name="description" class="input" rows="5"
-                    placeholder="Key responsibilities, role overview, team introduction, etc.">{{ posting.description if posting and posting.description else '' }}</textarea>
+                    placeholder="주요 업무, 역할 개요, 팀 소개 등">{{ posting.description if posting and posting.description else '' }}</textarea>
         </div>
 
         <div class="field">
-          <label class="form-label">Requirements</label>
+          <label class="form-label">자격 요건</label>
           <textarea name="requirements" class="input" rows="5"
-                    placeholder="Required skills, preferred qualifications, experience requirements, etc.">{{ posting.requirements if posting and posting.requirements else '' }}</textarea>
+                    placeholder="필수 스킬, 우대 사항, 경력 요건 등">{{ posting.requirements if posting and posting.requirements else '' }}</textarea>
         </div>
 
         <div style="display:flex; gap:10px;">
           <button type="submit" class="btn btn-primary">
-            <i class="fas fa-check"></i> {% if mode == 'edit' %}Save Changes{% else %}Create Posting{% endif %}
+            <i class="fas fa-check"></i> {% if mode == 'edit' %}변경사항 저장{% else %}공고 등록{% endif %}
           </button>
-          <a href="{{ url_for('recruit_postings') }}" class="btn btn-ghost">Cancel</a>
+          <a href="{{ url_for('recruit_postings') }}" class="btn btn-ghost">취소</a>
         </div>
       </form>
     </div>

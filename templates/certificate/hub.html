@@ -102,7 +102,7 @@
           <td>{{ {'employment':'재직증명서','career':'경력증명서','income':'원천징수영수증','resignation':'퇴직확인서'}.get(r.cert_type, r.cert_type) }}</td>
           <td>{{ r.purpose or '—' }}</td>
           <td>{{ r.created_at[:10] }}</td>
-          <td><span class="badge badge-warning">Pending</span></td>
+          <td><span class="badge badge-warning">대기</span></td>
           <td>
             <div style="display:flex; gap:6px;">
               <form method="POST" action="{{ url_for('certificate_approve', req_id=r.id) }}">

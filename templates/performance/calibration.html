@@ -215,9 +215,9 @@
 <div style="background:var(--purple-bg); border:1px solid var(--purple-bg); border-radius:8px; padding:10px 16px;
             margin-bottom:14px; font-size:12px; color:var(--purple); display:flex; align-items:center; gap:8px;">
   <i class="fas fa-info-circle"></i>
-  <span><strong>잠재력(Potential)</strong> 점수 — <strong style="color:var(--purple);">Low</strong> 현재 역할에 적합 &nbsp;·&nbsp;
-  <strong style="color:var(--purple);">Mid</strong> 1단계 성장 가능 &nbsp;·&nbsp;
-  <strong style="color:var(--purple);">High</strong> 리더십 잠재력 보유. 9박스 배치에 활용됩니다.</span>
+  <span><strong>잠재력(Potential)</strong> 점수 — <strong style="color:var(--purple);">낮음</strong> 현재 역할에 적합 &nbsp;·&nbsp;
+  <strong style="color:var(--purple);">중간</strong> 1단계 성장 가능 &nbsp;·&nbsp;
+  <strong style="color:var(--purple);">높음</strong> 리더십 잠재력 보유. 9박스 배치에 활용됩니다.</span>
 </div>
 
 <!-- 캘리브레이션 테이블 -->
@@ -311,17 +311,17 @@
           <td>
             {% if r.confirmed %}
               {% set ps = r.get('potential_score') if r.get else none %}
-              {% if ps == 1 %}<span style="font-size:12px; color:var(--info); font-weight:700;">Low</span>
-              {% elif ps == 2 %}<span style="font-size:12px; color:var(--purple); font-weight:700;">Mid</span>
-              {% elif ps == 3 %}<span style="font-size:12px; color:var(--green); font-weight:700;">High</span>
+              {% if ps == 1 %}<span style="font-size:12px; color:var(--info); font-weight:700;">낮음</span>
+              {% elif ps == 2 %}<span style="font-size:12px; color:var(--purple); font-weight:700;">중간</span>
+              {% elif ps == 3 %}<span style="font-size:12px; color:var(--green); font-weight:700;">높음</span>
               {% else %}<span style="color:var(--surface-3); font-size:11px;">—</span>{% endif %}
             {% else %}
             <select class="potential-select" id="potential-{{ r.user_id }}"
                     onchange="document.getElementById('ps-{{ r.user_id }}').value=this.value">
               <option value="0">—</option>
-              <option value="1">Low</option>
-              <option value="2">Mid</option>
-              <option value="3">High</option>
+              <option value="1">낮음</option>
+              <option value="2">중간</option>
+              <option value="3">높음</option>
             </select>
             {% endif %}
           </td>

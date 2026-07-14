@@ -1,30 +1,30 @@
 {% extends 'base.html' %}
 {% block title %}{{ posting.title }}{% endblock %}
-{% block page_title %}Job Posting Detail{% endblock %}
+{% block page_title %}채용 공고 상세{% endblock %}
 
 {% block content %}
 <div style="max-width:800px;">
   <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
     <a href="{{ url_for('recruit_postings') }}" class="btn btn-ghost btn-sm">
-      <i class="fas fa-arrow-left"></i> Postings
+      <i class="fas fa-arrow-left"></i> 공고 목록
     </a>
     <a href="{{ url_for('recruit_posting_edit', posting_id=posting.id) }}" class="btn btn-ghost btn-sm">
-      <i class="fas fa-edit"></i> Edit
+      <i class="fas fa-edit"></i> 수정
     </a>
     <a href="{{ url_for('recruit_pipeline', posting=posting.id) }}" class="btn btn-ghost btn-sm">
-      <i class="fas fa-columns"></i> Pipeline
+      <i class="fas fa-columns"></i> 파이프라인
     </a>
     <form method="POST" style="margin-left:auto;">
       {% if posting.status != 'closed' %}
       <input type="hidden" name="action" value="close">
       <button type="submit" class="btn btn-ghost btn-sm"
-              onclick="return confirm('Close this posting?')">
-        <i class="fas fa-times-circle"></i> Close
+              onclick="return confirm('이 공고를 마감하시겠습니까?')">
+        <i class="fas fa-times-circle"></i> 마감
       </button>
       {% else %}
       <input type="hidden" name="action" value="reopen">
       <button type="submit" class="btn btn-ghost btn-sm">
-        <i class="fas fa-redo"></i> Reopen
+        <i class="fas fa-redo"></i> 재개
       </button>
       {% endif %}
     </form>
@@ -37,11 +37,11 @@
         <div style="flex:1;">
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
             {% if posting.status == 'open' %}
-            <span class="badge badge-active">Open</span>
+            <span class="badge badge-active">진행중</span>
             {% elif posting.status == 'draft' %}
-            <span class="badge badge-pending">Draft</span>
+            <span class="badge badge-pending">임시저장</span>
             {% else %}
-            <span class="badge badge-inactive">Closed</span>
+            <span class="badge badge-inactive">마감</span>
             {% endif %}
             {% if posting.dept_name %}<span class="badge badge-info">{{ posting.dept_name }}</span>{% endif %}
             {% if posting.pos_name %}<span class="badge badge-pending">{{ posting.pos_name }}</span>{% endif %}
@@ -50,7 +50,7 @@
         </div>
         {% if posting.deadline %}
         <div style="text-align:right; flex-shrink:0;">
-          <div style="font-size:11px; color:var(--tx-3);">Application Deadline</div>
+          <div style="font-size:11px; color:var(--tx-3);">지원 마감일</div>
           <div style="font-size:14px; font-weight:700; color:var(--orange);">{{ posting.deadline }}</div>
         </div>
         {% endif %}
@@ -58,14 +58,14 @@
 
       {% if posting.description %}
       <div style="margin-bottom:14px;">
-        <div style="font-size:12px; font-weight:700; color:var(--tx-3); margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px;">Job Description</div>
+        <div style="font-size:12px; font-weight:700; color:var(--tx-3); margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px;">직무 설명</div>
         <div style="font-size:13.5px; color:var(--tx-2); line-height:1.8; white-space:pre-wrap;">{{ posting.description }}</div>
       </div>
       {% endif %}
 
       {% if posting.requirements %}
       <div>
-        <div style="font-size:12px; font-weight:700; color:var(--tx-3); margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px;">Requirements</div>
+        <div style="font-size:12px; font-weight:700; color:var(--tx-3); margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px;">자격 요건</div>
         <div style="font-size:13.5px; color:var(--tx-2); line-height:1.8; white-space:pre-wrap;">{{ posting.requirements }}</div>
       </div>
       {% endif %}
@@ -75,7 +75,7 @@
   <!-- Add applicant form -->
   <div class="card" style="margin-bottom:16px;">
     <div class="card-head">
-      <span class="card-title"><i class="fas fa-user-plus" style="margin-right:6px;"></i>Add Applicant</span>
+      <span class="card-title"><i class="fas fa-user-plus" style="margin-right:6px;"></i>지원자 추가</span>
     </div>
     <div class="card-body">
       {% if error %}
@@ -87,37 +87,37 @@
         <input type="hidden" name="action" value="add_applicant">
         <div class="grid-2" style="gap:12px;">
           <div class="field">
-            <label class="form-label">Name <span style="color:var(--red);">*</span></label>
-            <input type="text" name="name" class="input" placeholder="John Doe" required>
+            <label class="form-label">이름 <span style="color:var(--red);">*</span></label>
+            <input type="text" name="name" class="input" placeholder="홍길동" required>
           </div>
           <div class="field">
-            <label class="form-label">Email <span style="color:var(--red);">*</span></label>
+            <label class="form-label">이메일 <span style="color:var(--red);">*</span></label>
             <input type="email" name="email" class="input" placeholder="applicant@email.com" required>
           </div>
         </div>
         <div class="grid-2" style="gap:12px;">
           <div class="field">
-            <label class="form-label">Phone</label>
-            <input type="text" name="phone" class="input" placeholder="+82 10-0000-0000">
+            <label class="form-label">연락처</label>
+            <input type="text" name="phone" class="input" placeholder="010-0000-0000">
           </div>
           <div class="field">
-            <label class="form-label">Source</label>
+            <label class="form-label">유입경로</label>
             <select name="source" class="input">
-              <option value="direct">Direct Apply</option>
-              <option value="referral">Internal Referral</option>
-              <option value="headhunt">Headhunting</option>
-              <option value="platform">Job Platform</option>
-              <option value="other">Other</option>
+              <option value="direct">직접 지원</option>
+              <option value="referral">내부 추천</option>
+              <option value="headhunt">헤드헌팅</option>
+              <option value="platform">채용 플랫폼</option>
+              <option value="other">기타</option>
             </select>
           </div>
         </div>
         <div class="field">
-          <label class="form-label">Resume Note</label>
+          <label class="form-label">이력서 메모</label>
           <textarea name="resume_note" class="input" rows="2"
-                    placeholder="Resume link, portfolio URL, or brief notes"></textarea>
+                    placeholder="이력서 링크, 포트폴리오 URL 또는 간단한 메모"></textarea>
         </div>
         <button type="submit" class="btn btn-primary btn-sm">
-          <i class="fas fa-plus"></i> Add Applicant
+          <i class="fas fa-plus"></i> 지원자 추가
         </button>
       </form>
     </div>
@@ -126,20 +126,20 @@
   <!-- Applicant list -->
   <div class="card">
     <div class="card-head">
-      <span class="card-title">Applicants</span>
-      <span style="font-size:12px; color:var(--tx-3);">{{ applicants|length }} total</span>
+      <span class="card-title">지원자</span>
+      <span style="font-size:12px; color:var(--tx-3);">총 {{ applicants|length }}명</span>
     </div>
     {% if applicants %}
     <div style="overflow-x:auto;">
       <table class="table">
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Phone</th>
-            <th>Source</th>
-            <th>Stage</th>
-            <th>Applied</th>
+            <th>이름</th>
+            <th>이메일</th>
+            <th>연락처</th>
+            <th>유입경로</th>
+            <th>단계</th>
+            <th>지원일</th>
             <th></th>
           </tr>
         </thead>
@@ -165,7 +165,7 @@
             <td style="color:var(--tx-3); font-size:12px;">{{ a.created_at[:10] }}</td>
             <td>
               <a href="{{ url_for('recruit_applicant_detail', applicant_id=a.id) }}"
-                 class="btn btn-ghost btn-sm">Detail</a>
+                 class="btn btn-ghost btn-sm">상세</a>
             </td>
           </tr>
           {% endfor %}
@@ -175,7 +175,7 @@
     {% else %}
     <div class="card-body" style="text-align:center; color:var(--tx-3); padding:32px;">
       <i class="fas fa-users" style="font-size:28px; color:var(--border); margin-bottom:8px; display:block;"></i>
-      No applicants yet.
+      아직 지원자가 없습니다.
     </div>
     {% endif %}
   </div>

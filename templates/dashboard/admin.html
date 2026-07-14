@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}Dashboard{% endblock %}
-{% block page_title %}Dashboard{% endblock %}
+{% block title %}대시보드{% endblock %}
+{% block page_title %}대시보드{% endblock %}
 
 {% block content %}
 
@@ -21,7 +21,7 @@
   <div style="z-index:1; display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
     <i class="fas fa-building welcome-icon" style="position:static; opacity:.15; font-size:48px;"></i>
     <button onclick="toggleCustomize()" class="btn btn-ghost btn-sm" style="font-size:12px;">
-      <i class="fas fa-sliders-h"></i> Customize
+      <i class="fas fa-sliders-h"></i> 위젯 설정
     </button>
   </div>
 </div>
@@ -32,7 +32,7 @@
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
       <div>
         <div style="font-weight:700; font-size:14px; color:var(--tx-1);">
-          <i class="fas fa-sliders-h" style="color:var(--primary); margin-right:7px;"></i>Dashboard Widgets
+          <i class="fas fa-sliders-h" style="color:var(--primary); margin-right:7px;"></i>대시보드 위젯
         </div>
         <div style="font-size:12px; color:var(--tx-3); margin-top:3px;">보고 싶은 위젯만 선택하세요</div>
       </div>
@@ -59,8 +59,8 @@
         {% endfor %}
       </div>
       <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button type="button" onclick="toggleCustomize()" class="btn btn-ghost">Cancel</button>
-        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button>
+        <button type="button" onclick="toggleCustomize()" class="btn btn-ghost">취소</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 저장</button>
       </div>
     </form>
   </div>
@@ -73,28 +73,28 @@
     <div class="stat-ico ico-blue"><i class="fas fa-users"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ total_employees }}</div>
-      <div class="stat-lbl">Active Employees</div>
+      <div class="stat-lbl">재직 인원</div>
     </div>
   </div>
   <a href="{{ url_for('attendance') }}" class="stat-card" style="text-decoration:none; cursor:pointer;">
     <div class="stat-ico ico-orange"><i class="fas fa-clock"></i></div>
     <div class="stat-body">
       <div class="stat-val" style="{% if pending_leave > 0 %}color:var(--orange);{% endif %}">{{ pending_leave }}</div>
-      <div class="stat-lbl">Leave Pending</div>
+      <div class="stat-lbl">휴가 승인 대기</div>
     </div>
   </a>
   <a href="{{ url_for('recruit_postings') }}" class="stat-card" style="text-decoration:none; cursor:pointer;">
     <div class="stat-ico ico-purple"><i class="fas fa-file-signature"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ open_postings }}</div>
-      <div class="stat-lbl">Open Positions</div>
+      <div class="stat-lbl">채용 중인 공고</div>
     </div>
   </a>
   <div class="stat-card">
     <div class="stat-ico ico-green"><i class="fas fa-door-open"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ who_out | length }}</div>
-      <div class="stat-lbl">Out Today</div>
+      <div class="stat-lbl">오늘 부재중</div>
     </div>
   </div>
 </div>
@@ -111,7 +111,7 @@
       <div class="card-head">
         <span class="card-title">
           <i class="fas fa-inbox" style="color:var(--primary); margin-right:7px;"></i>
-          Inbox
+          인박스
           {% if inbox_count > 0 %}<span class="badge badge-pending" style="font-size:11px; margin-left:8px;">{{ inbox_count }}</span>{% endif %}
         </span>
         <a href="{{ url_for('approvals_hub') }}" class="btn btn-ghost btn-sm">
@@ -153,7 +153,7 @@
             <div class="inbox-item-sub">{{ item.sub }}</div>
           </div>
           <div class="inbox-item-actions">
-            <a href="{{ item.link }}" class="btn btn-primary btn-sm">Review</a>
+            <a href="{{ item.link }}" class="btn btn-primary btn-sm">확인</a>
           </div>
         </div>
         {% endfor %}
@@ -250,12 +250,12 @@
     {% if 'recent_employees' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
-        <span class="card-title">Recent Employees</span>
-        <a href="{{ url_for('employees') }}" class="btn btn-ghost btn-sm">View all</a>
+        <span class="card-title">최근 입사자</span>
+        <a href="{{ url_for('employees') }}" class="btn btn-ghost btn-sm">전체 보기</a>
       </div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Department</th><th>Position</th><th>Hired</th></tr></thead>
+          <thead><tr><th>이름</th><th>부서</th><th>직급</th><th>입사일</th></tr></thead>
           <tbody>
             {% for emp in recent_employees %}
             <tr>
@@ -270,7 +270,7 @@
               <td class="muted" style="font-size:13px;">{{ emp.hire_date or '—' }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="4" style="text-align:center; color:var(--tx-3); padding:32px;">No employees yet</td></tr>
+            <tr><td colspan="4" style="text-align:center; color:var(--tx-3); padding:32px;">등록된 직원이 없습니다</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -285,39 +285,39 @@
 
     {% if 'quick_actions' in enabled_widgets %}
     <div class="card" style="padding:20px;">
-      <div class="label" style="margin-bottom:14px;">Quick Actions</div>
+      <div class="label" style="margin-bottom:14px;">빠른 실행</div>
       <div class="quick-actions-grid">
         <a href="{{ url_for('employee_new') }}" class="qa-btn">
           <div class="qa-btn-ico ico-blue"><i class="fas fa-user-plus"></i></div>
-          <span>Add Employee</span>
+          <span>직원 등록</span>
         </a>
         <a href="{{ url_for('announcement_new') }}" class="qa-btn">
           <div class="qa-btn-ico ico-orange"><i class="fas fa-bullhorn"></i></div>
-          <span>Announce</span>
+          <span>공지 작성</span>
         </a>
         <a href="{{ url_for('compensation') }}" class="qa-btn">
           <div class="qa-btn-ico ico-green"><i class="fas fa-coins"></i></div>
-          <span>Payroll</span>
+          <span>급여 관리</span>
         </a>
         <a href="{{ url_for('people_analytics') }}" class="qa-btn">
           <div class="qa-btn-ico ico-purple"><i class="fas fa-chart-pie"></i></div>
-          <span>Analytics</span>
+          <span>분석·보고서</span>
         </a>
         <a href="{{ url_for('recruit_posting_new') }}" class="qa-btn">
           <div class="qa-btn-ico ico-cyan"><i class="fas fa-file-signature"></i></div>
-          <span>New Posting</span>
+          <span>공고 등록</span>
         </a>
         <a href="{{ url_for('export_hub') }}" class="qa-btn">
           <div class="qa-btn-ico ico-green"><i class="fas fa-file-excel"></i></div>
-          <span>Export</span>
+          <span>데이터 내보내기</span>
         </a>
         <a href="{{ url_for('admin_settings') }}" class="qa-btn">
           <div class="qa-btn-ico ico-slate"><i class="fas fa-building"></i></div>
-          <span>Settings</span>
+          <span>회사 설정</span>
         </a>
         <a href="{{ url_for('overtime_monitor') }}" class="qa-btn">
           <div class="qa-btn-ico ico-orange"><i class="fas fa-clock"></i></div>
-          <span>52h Monitor</span>
+          <span>52시간 모니터링</span>
         </a>
       </div>
     </div>
@@ -326,7 +326,7 @@
     {% if 'whos_out' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
-        <span class="card-title">Who's Out Today</span>
+        <span class="card-title">오늘 부재중인 직원</span>
         {% if who_out %}<span class="badge badge-pending" style="font-size:11px;">{{ who_out|length }}명</span>{% endif %}
       </div>
       {% if who_out %}
@@ -343,7 +343,7 @@
         {% endfor %}
       </div>
       {% else %}
-      <div style="padding:24px 22px;" class="muted body-sm">Everyone is in today.</div>
+      <div style="padding:24px 22px;" class="muted body-sm">오늘은 전원 출근했습니다.</div>
       {% endif %}
     </div>
     {% endif %}
@@ -351,10 +351,10 @@
     {% if 'announcements' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
-        <span class="card-title">Announcements</span>
+        <span class="card-title">공지사항</span>
         <div style="display:flex; gap:6px;">
-          <a href="{{ url_for('announcement_new') }}" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> New</a>
-          <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">All</a>
+          <a href="{{ url_for('announcement_new') }}" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> 작성</a>
+          <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">전체</a>
         </div>
       </div>
       {% for post in recent_posts %}
@@ -370,10 +370,10 @@
           <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ post.title }}</div>
           <div class="muted" style="font-size:11px;">{{ post.created_at[:10] }}</div>
         </div>
-        {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px;">Pinned</span>{% endif %}
+        {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px;">고정</span>{% endif %}
       </a>
       {% else %}
-      <div style="padding:24px 22px;" class="muted body-sm">No announcements.</div>
+      <div style="padding:24px 22px;" class="muted body-sm">공지사항이 없습니다.</div>
       {% endfor %}
     </div>
     {% endif %}

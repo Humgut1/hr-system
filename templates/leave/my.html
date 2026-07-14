@@ -1,6 +1,6 @@
 ﻿{% extends 'base.html' %}
-{% block title %}My Leave{% endblock %}
-{% block page_title %}Attendance{% endblock %}
+{% block title %}내 휴가{% endblock %}
+{% block page_title %}근태{% endblock %}
 
 {% block content %}
 
@@ -10,28 +10,28 @@
     <div class="stat-ico ico-blue"><i class="fas fa-calendar-check"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ total - used }}</div>
-      <div class="stat-lbl">Remaining Days</div>
+      <div class="stat-lbl">잔여 일수</div>
     </div>
   </div>
   <div class="stat-card">
     <div class="stat-ico ico-orange"><i class="fas fa-calendar-minus"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ used }}</div>
-      <div class="stat-lbl">Used This Year</div>
+      <div class="stat-lbl">올해 사용</div>
     </div>
   </div>
   <div class="stat-card">
     <div class="stat-ico ico-green"><i class="fas fa-calendar"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ total }}</div>
-      <div class="stat-lbl">Total Days</div>
+      <div class="stat-lbl">총 일수</div>
     </div>
   </div>
   <div class="stat-card">
     <div class="stat-ico ico-purple"><i class="fas fa-hourglass-half"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ requests | selectattr('status','equalto','pending') | list | length }}</div>
-      <div class="stat-lbl">Pending Approval</div>
+      <div class="stat-lbl">승인 대기</div>
     </div>
   </div>
 </div>
@@ -40,14 +40,14 @@
 <div class="card" style="margin-bottom:18px;">
   <div class="card-body" style="padding:18px 22px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-      <span style="font-size:14px; font-weight:700;">Leave Usage</span>
-      <span style="font-size:13px; color:var(--tx-3);">{{ used }} / {{ total }} days used</span>
+      <span style="font-size:14px; font-weight:700;">연차 사용 현황</span>
+      <span style="font-size:13px; color:var(--tx-3);">{{ used }} / {{ total }}일 사용</span>
     </div>
     <div class="leave-bar-track">
       <div class="leave-bar-fill" style="width:{{ [(used / total * 100)|int, 100]|min }}%;"></div>
     </div>
     <div class="leave-bar-labels">
-      <span>Remaining <strong style="color:var(--primary);">{{ total - used }} days</strong></span>
+      <span>잔여 <strong style="color:var(--primary);">{{ total - used }}일</strong></span>
       <span>{{ (used / total * 100)|int }}%</span>
     </div>
   </div>
@@ -56,15 +56,15 @@
 <!-- Leave history -->
 <div class="card">
   <div class="card-head">
-    <span class="card-title">Leave History</span>
+    <span class="card-title">휴가 신청 이력</span>
     <a href="{{ url_for('leave_new') }}" class="btn btn-primary btn-sm">
-      <i class="fas fa-plus"></i> Request Leave
+      <i class="fas fa-plus"></i> 휴가 신청
     </a>
   </div>
   <div class="tbl-wrap">
     <table>
       <thead>
-        <tr><th>Type</th><th>Start</th><th>End</th><th>Days</th><th>Reason</th><th>Status</th><th>Approver</th><th></th></tr>
+        <tr><th>유형</th><th>시작일</th><th>종료일</th><th>일수</th><th>사유</th><th>상태</th><th>승인자</th><th></th></tr>
       </thead>
       <tbody>
         {% for r in requests %}
@@ -76,10 +76,10 @@
           <td style="color:var(--tx-3); max-width:160px; white-space:nowrap;
                      overflow:hidden; text-overflow:ellipsis;">{{ r.reason or '—' }}</td>
           <td>
-            {% if r.status == 'approved' %}<span class="badge badge-active">Approved</span>
-            {% elif r.status == 'rejected' %}<span class="badge badge-reject">Rejected</span>
-            {% elif r.status == 'cancelled' %}<span class="badge badge-inactive">Cancelled</span>
-            {% else %}<span class="badge badge-pending">Pending</span>{% endif %}
+            {% if r.status == 'approved' %}<span class="badge badge-active">승인</span>
+            {% elif r.status == 'rejected' %}<span class="badge badge-reject">반려</span>
+            {% elif r.status == 'cancelled' %}<span class="badge badge-inactive">취소</span>
+            {% else %}<span class="badge badge-pending">대기</span>{% endif %}
           </td>
           <td style="color:var(--tx-3);">{{ r.approver_name or '—' }}</td>
           <td>
@@ -87,8 +87,8 @@
             <form method="POST" action="{{ url_for('leave_cancel', req_id=r.id) }}">
               <button type="submit" class="btn btn-sm"
                       style="background:var(--red-bg); color:var(--red); border:1px solid var(--red-bg);"
-                      onclick="return confirm('Cancel this request?')">
-                Cancel
+                      onclick="return confirm('신청을 취소하시겠습니까?')">
+                취소
               </button>
             </form>
             {% endif %}
@@ -97,7 +97,7 @@
         {% else %}
         <tr>
           <td colspan="8" style="text-align:center; color:var(--tx-3); padding:48px;">
-            No leave requests yet.
+            신청한 휴가가 없습니다.
           </td>
         </tr>
         {% endfor %}

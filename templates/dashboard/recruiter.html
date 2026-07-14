@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}Dashboard{% endblock %}
-{% block page_title %}Dashboard{% endblock %}
+{% block title %}대시보드{% endblock %}
+{% block page_title %}대시보드{% endblock %}
 
 {% block content %}
 
@@ -20,28 +20,28 @@
     <div class="stat-ico ico-blue"><i class="fas fa-file-signature"></i></div>
     <div class="stat-body">
       <div class="stat-val" style="color:var(--primary);">{{ open_postings }}</div>
-      <div class="stat-lbl">Open Postings</div>
+      <div class="stat-lbl">진행중 공고</div>
     </div>
   </a>
   <a href="{{ url_for('recruit_pipeline') }}" class="stat-card" style="text-decoration:none;">
     <div class="stat-ico ico-purple"><i class="fas fa-users"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ total_applicants }}</div>
-      <div class="stat-lbl">Total Applicants</div>
+      <div class="stat-lbl">전체 지원자</div>
     </div>
   </a>
   <a href="{{ url_for('recruit_pipeline') }}" class="stat-card" style="text-decoration:none;">
     <div class="stat-ico ico-orange"><i class="fas fa-comments"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ interview_count }}</div>
-      <div class="stat-lbl">In Interview</div>
+      <div class="stat-lbl">면접 진행중</div>
     </div>
   </a>
   <div class="stat-card">
     <div class="stat-ico ico-green"><i class="fas fa-check-double"></i></div>
     <div class="stat-body">
       <div class="stat-val" style="{% if hired_month > 0 %}color:var(--green);{% endif %}">{{ hired_month }}</div>
-      <div class="stat-lbl">Hired This Month</div>
+      <div class="stat-lbl">이달 채용</div>
     </div>
   </div>
 </div>
@@ -54,13 +54,13 @@
     <!-- Recent Applicants -->
     <div class="card">
       <div class="card-head">
-        <span class="card-title">Recent Applicants</span>
-        <a href="{{ url_for('recruit_pipeline') }}" class="btn btn-ghost btn-sm">Pipeline</a>
+        <span class="card-title">최근 지원자</span>
+        <a href="{{ url_for('recruit_pipeline') }}" class="btn btn-ghost btn-sm">파이프라인</a>
       </div>
       {% if recent_applicants %}
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Posting</th><th>Stage</th><th>Applied</th></tr></thead>
+          <thead><tr><th>이름</th><th>공고</th><th>단계</th><th>지원일</th></tr></thead>
           <tbody>
             {% for a in recent_applicants %}
             <tr>
@@ -86,7 +86,7 @@
       {% else %}
       <div style="text-align:center; padding:40px;" class="muted">
         <i class="fas fa-users" style="font-size:28px; opacity:.3; display:block; margin-bottom:10px;"></i>
-        No applicants yet.
+        아직 지원자가 없습니다.
       </div>
       {% endif %}
     </div>
@@ -94,8 +94,8 @@
     <!-- Announcements -->
     <div class="card">
       <div class="card-head">
-        <span class="card-title">Announcements</span>
-        <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">All</a>
+        <span class="card-title">공지사항</span>
+        <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">전체</a>
       </div>
       {% for post in recent_posts %}
       <a href="{{ url_for('announcement_detail', post_id=post.id) }}" class="list-link-item"
@@ -104,10 +104,10 @@
           <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--tx-1);">{{ post.title }}</div>
           <div class="muted" style="font-size:11px;">{{ post.created_at[:10] }}</div>
         </div>
-        {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px; flex-shrink:0;">Pinned</span>{% endif %}
+        {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px; flex-shrink:0;">고정</span>{% endif %}
       </a>
       {% else %}
-      <div style="padding:24px 22px;" class="muted body-sm">No announcements.</div>
+      <div style="padding:24px 22px;" class="muted body-sm">등록된 공지사항이 없습니다.</div>
       {% endfor %}
     </div>
 
@@ -118,46 +118,46 @@
 
     <!-- Quick Actions -->
     <div class="card" style="padding:20px;">
-      <div class="label" style="margin-bottom:14px;">Quick Actions</div>
+      <div class="label" style="margin-bottom:14px;">빠른 실행</div>
       <div class="quick-actions-grid">
         <a href="{{ url_for('recruit_posting_new') }}" class="qa-btn">
           <div class="qa-btn-ico ico-blue"><i class="fas fa-plus-circle"></i></div>
-          <span>New Posting</span>
+          <span>공고 등록</span>
         </a>
         <a href="{{ url_for('recruit_postings') }}" class="qa-btn">
           <div class="qa-btn-ico ico-purple"><i class="fas fa-file-signature"></i></div>
-          <span>All Postings</span>
+          <span>전체 공고</span>
         </a>
         <a href="{{ url_for('recruit_pipeline') }}" class="qa-btn">
           <div class="qa-btn-ico ico-orange"><i class="fas fa-columns"></i></div>
-          <span>Pipeline</span>
+          <span>파이프라인</span>
         </a>
         <a href="{{ url_for('profile') }}" class="qa-btn">
           <div class="qa-btn-ico ico-slate"><i class="fas fa-cog"></i></div>
-          <span>Settings</span>
+          <span>설정</span>
         </a>
       </div>
     </div>
 
     <!-- Pipeline Stage Breakdown -->
     <div class="card" style="padding:22px;">
-      <div class="label" style="margin-bottom:16px;">Pipeline Stages</div>
+      <div class="label" style="margin-bottom:16px;">파이프라인 단계</div>
       <div style="display:flex; flex-direction:column; gap:12px;">
         <div style="display:flex; align-items:center; justify-content:space-between;">
-          <span class="body-sm">Total in Pipeline</span>
+          <span class="body-sm">전체 파이프라인</span>
           <span style="font-weight:700; font-size:16px;">{{ total_applicants }}</span>
         </div>
         <div style="display:flex; align-items:center; justify-content:space-between;">
-          <span class="body-sm">In Interview</span>
+          <span class="body-sm">면접 진행중</span>
           <span style="font-weight:700; color:var(--orange); font-size:16px;">{{ interview_count }}</span>
         </div>
         <div style="display:flex; align-items:center; justify-content:space-between;">
-          <span class="body-sm">Hired This Month</span>
+          <span class="body-sm">이달 채용</span>
           <span style="font-weight:700; color:var(--green); font-size:16px;">{{ hired_month }}</span>
         </div>
       </div>
       <a href="{{ url_for('recruit_pipeline') }}" class="btn btn-ghost btn-sm" style="margin-top:16px; width:100%; justify-content:center;">
-        View Full Pipeline <i class="fas fa-arrow-right" style="font-size:11px;"></i>
+        전체 파이프라인 보기 <i class="fas fa-arrow-right" style="font-size:11px;"></i>
       </a>
     </div>
 

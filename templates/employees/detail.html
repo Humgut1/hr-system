@@ -216,10 +216,10 @@
     </div>
     <div class="prof-sub">{{ emp.dept_name or '미지정 부서' }} · {{ emp.pos_name or '미지정 직급' }}</div>
     <div class="prof-meta">
-      {% if emp.role == 'admin' %}<span class="prof-tag" style="background:var(--info-bg); color:var(--info);">Admin</span>
-      {% elif emp.role == 'manager' %}<span class="prof-tag" style="background:var(--green-bg); color:var(--green);">Manager</span>
-      {% elif emp.role == 'recruiter' %}<span class="prof-tag" style="background:var(--orange-bg); color:var(--orange);">Recruiter</span>
-      {% else %}<span class="prof-tag">Employee</span>{% endif %}
+      {% if emp.role == 'admin' %}<span class="prof-tag" style="background:var(--info-bg); color:var(--info);">관리자</span>
+      {% elif emp.role == 'manager' %}<span class="prof-tag" style="background:var(--green-bg); color:var(--green);">매니저</span>
+      {% elif emp.role == 'recruiter' %}<span class="prof-tag" style="background:var(--orange-bg); color:var(--orange);">채용담당자</span>
+      {% else %}<span class="prof-tag">직원</span>{% endif %}
 
       {% if emp.employment_type == 'contract' %}<span class="prof-tag" style="background:var(--orange-bg); color:var(--orange);">계약직</span>
       {% elif emp.employment_type == 'intern' %}<span class="prof-tag" style="background:var(--purple-bg); color:var(--purple);">인턴</span>
@@ -1232,7 +1232,7 @@
   <div class="modal" style="width:min(640px, 92vw);">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px;">
       <div>
-        <div class="label">Personnel Action</div>
+        <div class="label">인사발령</div>
         <h3 style="margin:6px 0 0; font-size:22px;">{{ emp.name }} 인사발령 처리</h3>
       </div>
       <button type="button" class="btn btn-ghost btn-sm" onclick="closeActionModal()"><i class="fas fa-times"></i></button>
@@ -1276,10 +1276,10 @@
         <label class="form-label">변경할 역할</label>
         <select name="new_role" class="input">
           <option value="">선택하세요</option>
-          <option value="employee">Employee</option>
-          <option value="manager">Manager</option>
-          <option value="recruiter">Recruiter</option>
-          <option value="admin">HR Admin</option>
+          <option value="employee">직원</option>
+          <option value="manager">매니저</option>
+          <option value="recruiter">채용담당자</option>
+          <option value="admin">HR 관리자</option>
         </select>
       </div>
 

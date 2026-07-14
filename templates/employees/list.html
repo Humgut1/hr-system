@@ -61,8 +61,8 @@
       <!-- 둘째 줄: 상세 필터 -->
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <select name="dept" class="input" style="width:160px; font-size:12px;">
-          <option value="">All Departments</option>
-          {% set type_labels = {'division':'Division','hq':'HQ','dept':'Dept','team':'Team'} %}
+          <option value="">전체 부서</option>
+          {% set type_labels = {'division':'부문','hq':'본부','dept':'실','team':'팀'} %}
           {% for tkey in ['division','hq','dept','team'] %}
           {% set group = depts | selectattr('dept_type','equalto',tkey) | list %}
           {% if group %}
@@ -75,7 +75,7 @@
           {% endfor %}
         </select>
         <select name="jf" class="input" style="width:150px; font-size:12px;">
-          <option value="">All Job Families</option>
+          <option value="">전체 직군</option>
           {% set ns = namespace(cur_group='') %}
           {% for j in jfs %}
             {% if j.group_name and j.group_name != ns.cur_group %}
@@ -88,22 +88,22 @@
           {% if ns.cur_group %}</optgroup>{% endif %}
         </select>
         <select name="pos" class="input" style="width:120px; font-size:12px;">
-          <option value="">All Levels</option>
+          <option value="">전체 직급</option>
           {% for p in poses %}
           <option value="{{ p.id }}" {% if pos_id == p.id|string %}selected{% endif %}>{{ p.name }}</option>
           {% endfor %}
         </select>
         <select name="emp_type" class="input" style="width:120px; font-size:12px;">
-          <option value="">All Emp. Types</option>
-          <option value="full_time"  {% if emp_type == 'full_time'  %}selected{% endif %}>Full-time</option>
-          <option value="part_time"  {% if emp_type == 'part_time'  %}selected{% endif %}>Part-time</option>
-          <option value="contract"   {% if emp_type == 'contract'   %}selected{% endif %}>Contract</option>
-          <option value="intern"     {% if emp_type == 'intern'     %}selected{% endif %}>Intern</option>
+          <option value="">전체 고용형태</option>
+          <option value="full_time"  {% if emp_type == 'full_time'  %}selected{% endif %}>정규직</option>
+          <option value="part_time"  {% if emp_type == 'part_time'  %}selected{% endif %}>파트타임</option>
+          <option value="contract"   {% if emp_type == 'contract'   %}selected{% endif %}>계약직</option>
+          <option value="intern"     {% if emp_type == 'intern'     %}selected{% endif %}>인턴</option>
         </select>
         <select name="grade" class="input" style="width:110px; font-size:12px;">
-          <option value="">All Grades</option>
+          <option value="">전체 등급</option>
           {% for g in ['S','A','B','C','D'] %}
-          <option value="{{ g }}" {% if perf_grade == g %}selected{% endif %}>Grade {{ g }}</option>
+          <option value="{{ g }}" {% if perf_grade == g %}selected{% endif %}>{{ g }}등급</option>
           {% endfor %}
         </select>
       </div>
@@ -113,19 +113,19 @@
 
 <div class="card">
   <div class="card-head">
-    <span class="card-title">Active Employees</span>
+    <span class="card-title">재직 직원</span>
     <span style="font-size:13px; color:var(--tx-3);">{{ employees|length }}명</span>
   </div>
   <div class="tbl-wrap">
     <table>
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Email</th>
-          <th>Department</th>
-          <th>Level</th>
-          <th>Emp. Type</th>
-          <th>Perf. Grade</th>
+          <th>이름</th>
+          <th>이메일</th>
+          <th>부서</th>
+          <th>직급</th>
+          <th>고용형태</th>
+          <th>성과등급</th>
           <th>입사일</th>
           {% if session.user_role == 'admin' %}<th>액션</th>{% endif %}
         </tr>
@@ -146,10 +146,10 @@
           <td>{{ emp.pos_name or '—' }}</td>
           <td>
             {% set et = emp.employment_type %}
-            {% if et == 'full_time' %}<span class="badge badge-active">Full-time</span>
-            {% elif et == 'part_time' %}<span class="badge badge-inactive">Part-time</span>
-            {% elif et == 'contract' %}<span class="badge badge-pending">Contract</span>
-            {% elif et == 'intern' %}<span class="badge badge-info">Intern</span>
+            {% if et == 'full_time' %}<span class="badge badge-active">정규직</span>
+            {% elif et == 'part_time' %}<span class="badge badge-inactive">파트타임</span>
+            {% elif et == 'contract' %}<span class="badge badge-pending">계약직</span>
+            {% elif et == 'intern' %}<span class="badge badge-info">인턴</span>
             {% else %}<span class="badge badge-inactive">—</span>{% endif %}
           </td>
           <td>

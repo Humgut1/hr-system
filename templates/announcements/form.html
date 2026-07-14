@@ -1,16 +1,16 @@
 {% extends 'base.html' %}
-{% block title %}{{ 'Edit Announcement' if post else 'New Announcement' }}{% endblock %}
-{% block page_title %}Announcements{% endblock %}
+{% block title %}{{ '공지사항 수정' if post else '공지사항 작성' }}{% endblock %}
+{% block page_title %}공지사항{% endblock %}
 
 {% block content %}
 <div style="max-width:760px;">
   <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm" style="margin-bottom:18px;">
-    <i class="fas fa-arrow-left"></i> Back to list
+    <i class="fas fa-arrow-left"></i> 목록으로
   </a>
 
   <div class="card">
     <div class="card-head">
-      <span class="card-title">{{ 'Edit Announcement' if post else 'New Announcement' }}</span>
+      <span class="card-title">{{ '공지사항 수정' if post else '공지사항 작성' }}</span>
     </div>
     <div class="card-body">
       {% if error %}
@@ -22,31 +22,31 @@
       <form method="POST"
             action="{{ url_for('announcement_edit', post_id=post.id) if post else url_for('announcement_new') }}">
         <div class="field">
-          <label class="form-label">Title</label>
+          <label class="form-label">제목</label>
           <input type="text" name="title" class="input"
                  value="{{ post.title if post else '' }}"
-                 placeholder="Announcement title" required>
+                 placeholder="공지 제목" required>
         </div>
         <div class="field">
-          <label class="form-label">Content</label>
+          <label class="form-label">내용</label>
           <textarea name="content" class="input"
                     style="height:260px; resize:vertical; line-height:1.7;"
-                    placeholder="Write your announcement here" required>{{ post.content if post else '' }}</textarea>
+                    placeholder="공지 내용을 입력하세요" required>{{ post.content if post else '' }}</textarea>
         </div>
         <div class="field" style="display:flex; align-items:center; gap:10px;">
           <input type="checkbox" name="pinned" id="pinned"
                  style="width:16px; height:16px; accent-color:var(--primary);"
                  {{ 'checked' if post and post.pinned else '' }}>
           <label for="pinned" style="font-size:13.5px; font-weight:600; color:var(--tx-2); cursor:pointer; margin:0;">
-            Pin to top
+            상단 고정
           </label>
         </div>
         <div style="display:flex; gap:10px; margin-top:8px;">
           <button type="submit" class="btn btn-primary">
-            <i class="fas fa-save"></i> {{ 'Save Changes' if post else 'Publish' }}
+            <i class="fas fa-save"></i> {{ '저장' if post else '게시' }}
           </button>
           <a href="{{ url_for('announcement_detail', post_id=post.id) if post else url_for('announcements') }}"
-             class="btn btn-ghost">Cancel</a>
+             class="btn btn-ghost">취소</a>
         </div>
       </form>
     </div>

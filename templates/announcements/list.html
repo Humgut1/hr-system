@@ -1,15 +1,15 @@
 ﻿{% extends 'base.html' %}
-{% block title %}Announcements{% endblock %}
-{% block page_title %}Announcements{% endblock %}
+{% block title %}공지사항{% endblock %}
+{% block page_title %}공지사항{% endblock %}
 
 {% block content %}
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
   <div>
-    <div style="font-size:13px; color:var(--tx-3);">{{ posts|length }} announcement{{ 's' if posts|length != 1 else '' }}</div>
+    <div style="font-size:13px; color:var(--tx-3);">공지 {{ posts|length }}건</div>
   </div>
   {% if session.user_role == 'admin' %}
   <a href="{{ url_for('announcement_new') }}" class="btn btn-primary">
-    <i class="fas fa-plus"></i> New Announcement
+    <i class="fas fa-plus"></i> 공지 작성
   </a>
   {% endif %}
 </div>
@@ -39,7 +39,7 @@
         <div style="flex:1; min-width:0;">
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">
             {% if post.pinned %}
-            <span class="badge badge-info" style="font-size:10px;">Pinned</span>
+            <span class="badge badge-info" style="font-size:10px;">고정</span>
             {% endif %}
             <span style="font-size:15px; font-weight:700; color:var(--tx-1);">{{ post.title }}</span>
           </div>
@@ -57,7 +57,7 @@
 <div class="card">
   <div class="card-body" style="text-align:center; padding:60px; color:var(--tx-3);">
     <i class="fas fa-bullhorn" style="font-size:36px; color:var(--border); margin-bottom:12px; display:block;"></i>
-    <div>No announcements yet.</div>
+    <div>등록된 공지사항이 없습니다.</div>
   </div>
 </div>
 {% endif %}
