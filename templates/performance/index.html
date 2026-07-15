@@ -725,6 +725,7 @@
           <i class="fas fa-rotate-left"></i> 반려
         </button>
         {% endif %}
+        {% if 'talent_advanced' in plan_features %}
         <a href="{{ url_for('talent_card', user_id=g.user_id) }}"
            style="font-size:11px; font-weight:700; color:var(--primary);
                   text-decoration:none; padding:3px 9px; border:1px solid var(--primary);
@@ -732,6 +733,7 @@
            title="Talent Card 보기">
           <i class="fas fa-id-card"></i> Talent Card
         </a>
+        {% endif %}
         </span>
       </div>
     {% endif %}

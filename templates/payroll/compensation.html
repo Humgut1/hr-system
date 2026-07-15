@@ -91,6 +91,7 @@
     </div>
     <div class="kpi-sub">{{ today_year }}년 {{ today_month }}월 생성 현황</div>
   </div>
+  {% if 'comp_advanced' in plan_features %}
   <div class="kpi-card">
     <div class="kpi-label">진행 중 ACR</div>
     <div class="kpi-val" style="color:{% if active_acr %}var(--primary){% else %}var(--tx-3){% endif %};">
@@ -105,6 +106,20 @@
     </div>
     <div class="kpi-sub">밴드 80% 미만 또는 120% 초과</div>
   </div>
+  {% else %}
+  <div class="kpi-card">
+    <div class="kpi-label">확정 대기 초안</div>
+    <div class="kpi-val" style="color:{% if draft_months %}var(--orange){% else %}var(--tx-3){% endif %};">
+      {{ draft_months|length if draft_months else 0 }}건
+    </div>
+    <div class="kpi-sub">월별 급여 초안</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">평균 기본급</div>
+    <div class="kpi-val">{{ '{:,.0f}'.format(avg_base_salary or 0) }}</div>
+    <div class="kpi-sub">재직 직원 월 기본급 평균</div>
+  </div>
+  {% endif %}
 </div>
 
 <!-- ── 탭 네비 ── -->

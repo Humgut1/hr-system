@@ -797,7 +797,7 @@
 
 <div class="tab-panel" id="tab-perf">
 {% if not can_see_sensitive %}<div style="padding:60px;text-align:center;color:var(--tx-3);">접근 권한이 없습니다.</div>{% else %}
-  {% if session.get('user_role') in ('manager', 'admin') %}
+  {% if session.get('user_role') in ('manager', 'admin') and 'talent_advanced' in plan_features %}
   <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
     <a href="{{ url_for('talent_card', user_id=emp.id) }}" class="btn btn-primary btn-sm">
       <i class="fas fa-id-card"></i> Talent Card 보기

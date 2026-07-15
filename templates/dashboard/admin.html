@@ -83,6 +83,7 @@
       <div class="stat-lbl">휴가 승인 대기</div>
     </div>
   </a>
+  {% if 'recruiting' in plan_features %}
   <a href="{{ url_for('recruit_postings') }}" class="stat-card" style="text-decoration:none; cursor:pointer;">
     <div class="stat-ico ico-purple"><i class="fas fa-file-signature"></i></div>
     <div class="stat-body">
@@ -90,6 +91,15 @@
       <div class="stat-lbl">채용 중인 공고</div>
     </div>
   </a>
+  {% else %}
+  <a href="{{ url_for('hires_list') }}" class="stat-card" style="text-decoration:none; cursor:pointer;">
+    <div class="stat-ico ico-purple"><i class="fas fa-door-open"></i></div>
+    <div class="stat-body">
+      <div class="stat-val">{{ hires_waiting_count }}</div>
+      <div class="stat-lbl">입사 예정자</div>
+    </div>
+  </a>
+  {% endif %}
   <div class="stat-card">
     <div class="stat-ico ico-green"><i class="fas fa-door-open"></i></div>
     <div class="stat-body">
@@ -194,7 +204,7 @@
     </div>
     {% endif %}
 
-    {% if 'open_positions' in enabled_widgets %}
+    {% if 'open_positions' in enabled_widgets and 'recruiting' in plan_features %}
     <div class="card">
       <div class="card-head">
         <span class="card-title">채용 중인 포지션</span>
@@ -303,10 +313,17 @@
           <div class="qa-btn-ico ico-purple"><i class="fas fa-chart-pie"></i></div>
           <span>분석·보고서</span>
         </a>
+        {% if 'recruiting' in plan_features %}
         <a href="{{ url_for('recruit_posting_new') }}" class="qa-btn">
           <div class="qa-btn-ico ico-cyan"><i class="fas fa-file-signature"></i></div>
           <span>공고 등록</span>
         </a>
+        {% else %}
+        <a href="{{ url_for('hires_list') }}" class="qa-btn">
+          <div class="qa-btn-ico ico-cyan"><i class="fas fa-door-open"></i></div>
+          <span>입사 예정자</span>
+        </a>
+        {% endif %}
         <a href="{{ url_for('export_hub') }}" class="qa-btn">
           <div class="qa-btn-ico ico-green"><i class="fas fa-file-excel"></i></div>
           <span>데이터 내보내기</span>

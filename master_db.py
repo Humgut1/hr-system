@@ -25,9 +25,9 @@ TRIAL_DAYS     = 14
 
 # ── 요금제 3계층 (Phase B-7, saas_plan.md §2) ────────────────
 PLAN_PRICES = {
-    'core':       2500,   # 인사·근태·급여·증명서·전자결재·문서함
-    'growth':     4500,   # + 성과·채용·온보딩·복지포인트·다면평가
-    'enterprise': 7000,   # + 9박스·승계·Merit Matrix·ACR·Talent Card·데이터 마법사
+    'core':       2500,   # 인사·근태·급여·증명서·전자결재·문서함·입사 예정자
+    'growth':     4500,   # + 성과·온보딩·복지포인트·다면평가
+    'enterprise': 7000,   # + 채용 ATS·9박스·승계·Merit Matrix·ACR·Talent Card·데이터 마법사
 }
 PLAN_LABELS = {
     'core': 'Core', 'growth': 'Growth', 'enterprise': 'Enterprise',
@@ -402,8 +402,8 @@ def migrate_subscriptions():
     t_cols = [row[1] for row in conn.execute('PRAGMA table_info(tenants)')]
     if 'plan' not in t_cols:
         conn.execute("ALTER TABLE tenants ADD COLUMN plan TEXT NOT NULL DEFAULT 'growth'")
-        # 데모 테넌트(1)는 전체 기능 시연용 → enterprise
-        conn.execute("UPDATE tenants SET plan='enterprise' WHERE id=1")
+        # 데모 테넌트(1)도 growth — 채용 ATS·Enterprise 기능은 데모에서 숨김 (2026-07-15 승헌씨 지시)
+        # 필요 시 SaaS 슈퍼어드민(/saas)에서 요금제 변경으로 다시 열 수 있음
     # tenants.api_token (Phase C-11 — 입사 예정자 웹훅 수신 인증)
     if 'api_token' not in t_cols:
         conn.execute('ALTER TABLE tenants ADD COLUMN api_token TEXT')

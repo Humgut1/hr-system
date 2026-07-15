@@ -239,13 +239,14 @@ def inject_csrf_token():
 
 # ══════════════════════════════════════════════════════════════
 #  요금제 3계층 기능 게이팅 (Phase B-7, saas_plan.md §2)
-#  Core   — 인사·근태·급여·증명서·전자결재·문서함 (기본, 게이트 없음)
-#  Growth — + 성과·채용·온보딩·복지포인트·다면평가
-#  Enterprise — + 승계·Talent Card·급여 구조(밴드/Merit/ACR)·데이터 마법사
+#  Core   — 인사·근태·급여·증명서·전자결재·문서함·입사 예정자 (기본, 게이트 없음)
+#  Growth — + 성과·온보딩·복지포인트·다면평가
+#  Enterprise — + 채용 ATS·승계·Talent Card·급여 구조(밴드/Merit/ACR)·데이터 마법사
+#  ※ 채용 ATS는 2026-07-15 승헌씨 지시로 Growth→Enterprise 격리 (입사 예정자는 Core 유지)
 # ══════════════════════════════════════════════════════════════
 
-_GROWTH_FEATURES     = {'performance', 'recruiting', 'onboarding', 'welfare', 'peer_review'}
-_ENTERPRISE_FEATURES = _GROWTH_FEATURES | {'succession', 'talent_advanced', 'comp_advanced', 'data_wizard'}
+_GROWTH_FEATURES     = {'performance', 'onboarding', 'welfare', 'peer_review'}
+_ENTERPRISE_FEATURES = _GROWTH_FEATURES | {'recruiting', 'succession', 'talent_advanced', 'comp_advanced', 'data_wizard'}
 
 PLAN_FEATURES = {
     'core':       set(),
@@ -1169,6 +1170,7 @@ def dashboard():
         pending_leave     = db.execute("SELECT COUNT(*) FROM leave_requests WHERE status='pending'").fetchone()[0]
         open_postings     = db.execute("SELECT COUNT(*) FROM job_postings WHERE status='open'").fetchone()[0]
         total_applicants  = db.execute("SELECT COUNT(*) FROM applicants").fetchone()[0]
+        hires_waiting_count = db.execute("SELECT COUNT(*) FROM incoming_hires WHERE status='waiting'").fetchone()[0]
         recent_employees  = db.execute(
             'SELECT u.name, d.name AS dept, p.name AS pos, u.hire_date '
             'FROM users u LEFT JOIN departments d ON u.department_id=d.id '
@@ -1343,10 +1345,13 @@ def dashboard():
         ).fetchall()
         enabled_widgets = get_widget_prefs(uid, 'admin')
         widget_catalog  = WIDGET_CATALOG['admin']
+        if 'recruiting' not in PLAN_FEATURES.get(_current_plan(), _ENTERPRISE_FEATURES):
+            widget_catalog = [w for w in widget_catalog if w['key'] != 'open_positions']
         return render_template('dashboard/admin.html',
             greet=greet, today_str=today_str, first_name=first_name,
             total_employees=total_employees, total_departments=total_departments,
             pending_leave=pending_leave, open_postings=open_postings,
+            hires_waiting_count=hires_waiting_count,
             total_applicants=total_applicants, recent_employees=recent_employees,
             recent_posts=recent_posts, who_out=who_out,
             inbox_items=inbox_items, inbox_count=inbox_count,
@@ -6450,6 +6455,12 @@ def compensation():
         "FROM payslips WHERE status='draft' GROUP BY year, month ORDER BY year DESC, month DESC"
     ).fetchall()
 
+    # R2: growth 이하 요금제용 KPI (ACR·Compa 카드 대체)
+    avg_base_salary = db.execute(
+        "SELECT AVG(s.base_salary) FROM employee_salary s "
+        "JOIN users u ON u.id=s.user_id WHERE u.status='active'"
+    ).fetchone()[0] or 0
+
     raw_emps = db.execute(
         'SELECT u.id, u.name, d.name dept_name, p.name pos_name, '
         'COALESCE(s.base_salary,0) base_salary, '
@@ -6564,6 +6575,7 @@ def compensation():
         draft_months=draft_months,
         active_acr=active_acr,
         compa_outliers=compa_outliers,
+        avg_base_salary=avg_base_salary,
         total_salary_spend=total_salary_spend,
         emps=emps,
         today_year=today_year,

@@ -435,6 +435,7 @@
 
 </div>
 
+{% if 'recruiting' in plan_features %}
 <!-- ── 채용 ─────────────────────────────── -->
 <div class="section-heading">채용 (Recruiting)</div>
 <div class="export-grid">
@@ -454,6 +455,7 @@
   </div>
 
 </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}

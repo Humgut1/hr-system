@@ -99,7 +99,7 @@
       {% endif %}
 
       <!-- ── 관리자 ─────────────────────────────────── -->
-      {% if session.user_role in ('admin', 'recruiter') %}
+      {% if session.user_role == 'admin' or (session.user_role == 'recruiter' and 'recruiting' in plan_features) %}
       <div class="nav-section-divider"></div>
       <div class="nav-section-body">
         <div class="nav-category-btn" style="cursor:default;"><span>관리자</span></div>
@@ -377,8 +377,11 @@ function toggleSubgroup(btn, bodyId) {
     {% if session.user_role == 'admin' %}
     {label:'급여 관리', url:'{{ url_for("admin_payroll") }}', icon:'fa-coins'},
     {label:'급여 기준표', url:'{{ url_for("salary_table") }}', icon:'fa-table'},
+    {% if 'recruiting' in plan_features %}
     {label:'채용 공고', url:'{{ url_for("recruit_postings") }}', icon:'fa-file-signature'},
     {label:'채용 파이프라인', url:'{{ url_for("recruit_pipeline") }}', icon:'fa-user-tie'},
+    {% endif %}
+    {label:'입사 예정자', url:'{{ url_for("hires_list") }}', icon:'fa-door-open'},
     {label:'부서·직급 관리', url:'{{ url_for("departments") }}', icon:'fa-layer-group'},
     {label:'분석·보고서', url:'{{ url_for("people_analytics") }}', icon:'fa-chart-pie'},
     {label:'데이터 내보내기', url:'{{ url_for("export_hub") }}', icon:'fa-file-excel'},
