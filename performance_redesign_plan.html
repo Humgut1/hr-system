@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>성과관리 체계 개편 기획서 (R1) — TalentCore</title>
+<style>
+  :root {
+    --primary: #4f46e5; --primary-bg: #eef2ff;
+    --tx-1: #191d28; --tx-2: #40465a; --tx-3: #8a90a4;
+    --bg: #f6f7fb; --surface: #fff; --line: #e6e8f0;
+    --green: #047857; --green-bg: #ecfdf5;
+    --red: #dc2626; --red-bg: #fef2f2;
+    --orange: #b45309; --orange-bg: #fffbeb;
+    --r: 12px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; background:var(--bg); color:var(--tx-1); line-height:1.65; }
+  .wrap { max-width:1080px; margin:0 auto; padding:48px 28px 100px; }
+
+  /* 헤더 */
+  .hero { background:linear-gradient(120deg,#4f46e5,#7c3aed); color:#fff; border-radius:20px; padding:40px 44px; margin-bottom:36px; }
+  .hero .tag { display:inline-block; font-size:12px; font-weight:800; background:rgba(255,255,255,.18); padding:4px 14px; border-radius:99px; margin-bottom:14px; letter-spacing:.04em; }
+  .hero h1 { font-size:30px; font-weight:800; letter-spacing:-.02em; margin-bottom:10px; }
+  .hero p { font-size:14.5px; opacity:.88; }
+
+  h2 { font-size:21px; font-weight:800; letter-spacing:-.01em; margin:52px 0 6px; display:flex; align-items:center; gap:10px; }
+  h2 .num { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:8px; background:var(--primary); color:#fff; font-size:14px; flex-shrink:0; }
+  h3 { font-size:16px; font-weight:800; margin:28px 0 10px; color:var(--tx-1); }
+  .sub { font-size:13.5px; color:var(--tx-3); margin-bottom:18px; }
+  p.body { font-size:14.5px; color:var(--tx-2); margin-bottom:12px; }
+
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:22px 26px; margin-bottom:16px; }
+
+  table.doc { width:100%; border-collapse:collapse; font-size:13.5px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r); overflow:hidden; }
+  table.doc th { background:#f2f3f9; text-align:left; padding:11px 16px; font-weight:800; font-size:12.5px; color:var(--tx-2); border-bottom:1px solid var(--line); }
+  table.doc td { padding:11px 16px; border-bottom:1px solid var(--line); color:var(--tx-2); vertical-align:top; }
+  table.doc tr:last-child td { border-bottom:none; }
+  .tblwrap { overflow-x:auto; margin-bottom:16px; }
+
+  .callout { border-left:4px solid var(--primary); background:var(--primary-bg); border-radius:0 10px 10px 0; padding:16px 20px; font-size:14px; color:var(--tx-2); margin:18px 0; }
+  .callout b { color:var(--primary); }
+  .warn { border-left-color:var(--red); background:var(--red-bg); }
+  .warn b { color:var(--red); }
+
+  .badge { display:inline-block; font-size:11px; font-weight:800; padding:2px 10px; border-radius:99px; }
+  .b-green { background:var(--green-bg); color:var(--green); }
+  .b-red { background:var(--red-bg); color:var(--red); }
+  .b-orange { background:var(--orange-bg); color:var(--orange); }
+  .b-primary { background:var(--primary-bg); color:var(--primary); }
+  .b-gray { background:#f0f1f6; color:var(--tx-3); }
+
+  /* ── 목업 공통 ── */
+  .mock { border:1px solid var(--line); border-radius:14px; background:#fbfbfe; padding:0; overflow:hidden; margin:14px 0 6px; box-shadow:0 10px 30px rgba(25,29,40,.06); }
+  .mock-bar { display:flex; align-items:center; gap:8px; background:#eef0f6; padding:9px 16px; border-bottom:1px solid var(--line); }
+  .mock-dot { width:9px; height:9px; border-radius:50%; background:#d3d6e2; }
+  .mock-title { font-size:11.5px; font-weight:700; color:var(--tx-3); margin-left:6px; }
+  .mock-body { padding:18px 20px; }
+  .mock-cap { font-size:12px; color:var(--tx-3); margin:8px 2px 26px; }
+
+  .m-stepper { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+  .m-step { font-size:10.5px; font-weight:800; padding:3px 10px; border-radius:99px; background:#eef0f6; color:var(--tx-3); }
+  .m-step.done { background:var(--green-bg); color:var(--green); }
+  .m-step.cur { background:var(--primary); color:#fff; }
+  .m-arrow { color:#c9cdda; font-size:10px; }
+  .m-dday { margin-left:auto; font-size:11px; font-weight:800; color:var(--orange); background:var(--orange-bg); padding:3px 10px; border-radius:99px; }
+
+  .m-summary { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .m-chip { font-size:11.5px; font-weight:700; padding:6px 13px; border-radius:10px; background:#fff; border:1px solid var(--line); color:var(--tx-2); }
+  .m-chip b { color:var(--red); }
+  .m-chip.ok b { color:var(--green); }
+
+  table.m-tbl { width:100%; border-collapse:collapse; font-size:12px; background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  table.m-tbl th { background:#f5f6fa; padding:8px 12px; text-align:left; font-size:11px; color:var(--tx-3); font-weight:800; border-bottom:1px solid var(--line); }
+  table.m-tbl td { padding:9px 12px; border-bottom:1px solid var(--line); color:var(--tx-2); }
+  table.m-tbl tr:last-child td { border-bottom:none; }
+  .m-prog { display:inline-block; width:72px; height:6px; background:#edeef4; border-radius:99px; vertical-align:middle; position:relative; overflow:hidden; }
+  .m-prog i { position:absolute; left:0; top:0; bottom:0; background:var(--primary); border-radius:99px; }
+  .m-btn { display:inline-block; font-size:11px; font-weight:800; padding:4px 12px; border-radius:8px; background:var(--primary); color:#fff; }
+  .m-btn.ghost { background:#fff; color:var(--tx-2); border:1px solid var(--line); }
+
+  .m-panel { display:grid; grid-template-columns:1.4fr 1fr; gap:14px; }
+  .m-box { background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .m-box h5 { font-size:12px; font-weight:800; margin-bottom:10px; color:var(--tx-1); }
+  .m-goal { border:1px solid var(--line); border-radius:8px; padding:9px 12px; margin-bottom:8px; font-size:11.5px; color:var(--tx-2); }
+  .m-goal .w { float:right; color:var(--tx-3); font-size:10.5px; }
+  .m-score { display:flex; gap:5px; margin-top:6px; }
+  .m-score span { width:22px; height:22px; border-radius:6px; border:1px solid var(--line); display:inline-flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:700; color:var(--tx-3); background:#fff; }
+  .m-score span.sel { background:var(--primary); border-color:var(--primary); color:#fff; }
+  .m-ref { font-size:11px; color:var(--tx-2); background:#f8f9fc; border:1px dashed #d6d9e6; border-radius:8px; padding:9px 11px; margin-bottom:8px; }
+  .m-ref b { display:block; font-size:10.5px; color:var(--tx-3); margin-bottom:2px; }
+
+  .m-dist { display:flex; align-items:flex-end; gap:14px; height:74px; margin:8px 0 4px; padding:0 4px; }
+  .m-dist .col { flex:1; display:flex; flex-direction:column; justify-content:flex-end; gap:3px; text-align:center; }
+  .m-dist .bar { border-radius:5px 5px 0 0; background:var(--primary); opacity:.85; }
+  .m-dist .tgt { border-top:2px dashed var(--orange); position:relative; }
+  .m-dist .lbl { font-size:10px; font-weight:800; color:var(--tx-3); }
+
+  .m-teamlist { display:flex; flex-direction:column; gap:6px; }
+  .m-team { display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:700; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--tx-2); }
+  .m-team.sel { border-color:var(--primary); background:var(--primary-bg); color:var(--primary); }
+  .m-team small { font-weight:700; font-size:10.5px; color:var(--tx-3); }
+
+  .m-stage-emp { background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px 18px; }
+  .m-todo { display:flex; align-items:center; gap:10px; background:var(--primary-bg); border-radius:10px; padding:11px 14px; margin-bottom:12px; font-size:12.5px; font-weight:700; color:var(--primary); }
+
+  ul.plain { margin:8px 0 14px 20px; font-size:14px; color:var(--tx-2); }
+  ul.plain li { margin-bottom:6px; }
+  .src { font-size:12.5px; color:var(--tx-3); }
+  .src a { color:var(--primary); text-decoration:none; }
+  footer { margin-top:60px; text-align:center; font-size:12px; color:var(--tx-3); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <span class="tag">R1 기획서 · 2026-07-16 · 승인 대기</span>
+    <h1>성과관리 체계 개편</h1>
+    <p>Workday · Lattice · 레몬베이스 리서치 + 현행 화면 실측 감사 기반 — Core~Growth(30~200인 실무) 기준 재설계.<br>
+    9박스·Potential·Talent Card는 Enterprise 격리(v1.2.13) 유지, 이 기획에서 다루지 않음.</p>
+  </div>
+
+  <!-- 1. 문제의식 -->
+  <h2><span class="num">1</span>문제의식 — 왜 다시 개편하나</h2>
+  <p class="sub">v1.1.0에서 뼈대(상태머신·목표 승인·이의제기·단계 게이팅)는 완성. 그러나 화면이 실무 사용을 버티지 못함 (2026-07-16 데모 실측)</p>
+
+  <div class="tblwrap"><table class="doc">
+    <tr><th style="width:190px;">화면</th><th>실측 문제</th></tr>
+    <tr><td><b>관리자/매니저 성과 홈</b></td><td>50명 × 4목표 = <b style="color:var(--red);">200개 목표 카드가 한 페이지에 평면 나열</b>. 사람 단위 요약이 없어 "누구 평가가 밀렸는지" 파악 불가. 한 사람을 처리하려면 스크롤로 4곳을 찾아다녀야 함</td></tr>
+    <tr><td><b>캘리브레이션</b></td><td><b style="color:var(--red);">153행 플랫 테이블 + 행마다 라디오 9개</b>. 팀 단위 진행 개념이 없어 실제 캘리브레이션 회의(팀별 조정)를 지원 못 함. 등급 분포 가이드가 확정 전에 안 보임</td></tr>
+    <tr><td><b>게이팅 누락</b></td><td>잠재력(Potential) 배너·컬럼이 growth 요금제에 노출 — saas_plan §3 위반 (Enterprise 격리 대상)</td></tr>
+    <tr><td><b>직원 성과</b></td><td>목표·자기평가·다면·결과가 탭으로 병렬 — "지금 단계에서 내가 할 일"이 화면 구조로 드러나지 않음</td></tr>
+    <tr><td><b>사이클 운영</b></td><td>단계별 <b>마감일이 없고</b>, 미제출자 리마인드 수단이 없음 (HR이 카톡으로 독촉하는 실무 공백)</td></tr>
+    <tr><td><b>결과 공개</b></td><td>등급이 덜렁 공개됨. 국내 실무 필수인 <b>평가 면담 → 확인</b> 절차 없음</td></tr>
+  </table></div>
+
+  <div class="callout warn"><b>한 줄 요약:</b> 데이터 모델은 사람 중심인데 <b>화면은 목표 중심</b>이라 운영이 안 된다.</div>
+
+  <!-- 2. 벤치마크 -->
+  <h2><span class="num">2</span>벤치마크 요약</h2>
+
+  <div class="card">
+    <h3 style="margin-top:0;">Workday</h3>
+    <p class="body">전 과정이 <b>인박스 태스크 기반</b>: 자기평가 제출 → 매니저에게 "Complete Manager Evaluation" 태스크 도착 → 캘리브레이션 → 면담 뒤 <b>Acknowledgement(직원 확인)</b> 단계로 종료. 각자 화면엔 "내 할 일"만 온다.</p>
+    <h3>Lattice</h3>
+    <p class="body">① 사이클 셋업 마법사 — 대상·평가유형·질문·기간·<b>결과 공개 범위</b>를 한 흐름에 설정 ② 매니저 대시보드는 팀 진행률·미완료 현황 중심 ③ 결과는 "패킷"으로 묶어 공개 항목을 어드민이 선택 ④ 캘리브레이션 워크플로우 내장.</p>
+    <h3>레몬베이스 <span class="badge b-primary">국내 30~200인 표준</span></h3>
+    <p class="body">① 리뷰 생성 시 대상자/평가유형(셀프·동료·상향·하향)/템플릿/점수 환산/참고정보 설정, <b>프리셋 4종</b>(신규입사자·360·업적·종합) ② <b>평가 작성 화면 우측에 피평가자의 셀프 평가·목표가 참고 패널로 표시</b> ③ 결과 공개 범위를 평가 유형별로 설정 ④ 평가 패턴 분석으로 불성실 평가 감지.</p>
+  </div>
+
+  <div class="callout">공통 패턴 3가지 — <b>(a)</b> 사람 단위 뷰 + 할 일 중심 &nbsp;<b>(b)</b> 평가 작성 시 컨텍스트(목표·자기평가) 동시 표시 &nbsp;<b>(c)</b> 공개 범위·마감·리마인드가 운영 기능으로 내장</div>
+
+  <!-- 3. 원칙 -->
+  <h2><span class="num">3</span>설계 원칙</h2>
+  <ul class="plain">
+    <li><b>사람 단위 &gt; 목표 단위</b> — 매니저·HR 화면의 기본 행은 '직원', 목표는 그 안의 상세.</li>
+    <li><b>단계가 화면을 결정</b> — 사이클 단계에 따라 각 역할 화면이 "지금 할 일"만 전면 노출.</li>
+    <li><b>기존 뼈대 재사용</b> — 상태머신·목표 승인·이의제기·다면 토글·하향 제한 로직 그대로. DB 변경 최소화.</li>
+    <li><b>Enterprise 배제</b> — 9박스·Potential·Talent Card는 이 플로우에 등장하지 않음.</li>
+  </ul>
+
+  <!-- 4. 화면 재설계 -->
+  <h2><span class="num">4</span>화면 재설계 (목업)</h2>
+
+  <h3>4-A. 매니저/HR — "팀 성과" <span class="badge b-red">핵심</span></h3>
+  <div class="mock">
+    <div class="mock-bar"><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-title">성과 › 팀 성과 (매니저 뷰)</span></div>
+    <div class="mock-body">
+      <div class="m-stepper">
+        <span class="m-step done">목표 수립</span><span class="m-arrow">›</span>
+        <span class="m-step done">진행 중</span><span class="m-arrow">›</span>
+        <span class="m-step cur">평가 진행</span><span class="m-arrow">›</span>
+        <span class="m-step">HR 조정</span><span class="m-arrow">›</span>
+        <span class="m-step">결과 공개</span>
+        <span class="m-dday">마감 D-5</span>
+      </div>
+      <div class="m-summary">
+        <span class="m-chip">내 평가 대기 <b>4명</b></span>
+        <span class="m-chip">자기평가 미제출 <b>2명</b></span>
+        <span class="m-chip ok">완료 <b>6명</b></span>
+      </div>
+      <table class="m-tbl">
+        <tr><th>팀원</th><th>목표</th><th>진행률</th><th>자기평가</th><th>내 평가</th><th></th></tr>
+        <tr><td><b>강다인</b> · B2B영업팀</td><td>4개 (100%)</td><td><span class="m-prog"><i style="width:62%;"></i></span> 62%</td><td><span class="badge b-green">제출</span></td><td><span class="badge b-orange">대기</span></td><td><span class="m-btn">처리</span></td></tr>
+        <tr><td><b>박윤호</b> · B2B영업팀</td><td>4개 (100%)</td><td><span class="m-prog"><i style="width:45%;"></i></span> 45%</td><td><span class="badge b-red">미제출</span></td><td><span class="badge b-gray">—</span></td><td><span class="m-btn ghost">리마인드</span></td></tr>
+        <tr><td><b>박채은</b> · B2B영업팀</td><td>4개 (100%)</td><td><span class="m-prog"><i style="width:78%;"></i></span> 78%</td><td><span class="badge b-green">제출</span></td><td><span class="badge b-green">완료</span></td><td><span class="m-btn ghost">보기</span></td></tr>
+      </table>
+    </div>
+  </div>
+  <p class="mock-cap">사람 단위 테이블 — 상태 배지로 밀린 사람이 바로 보이고, 기존 검색·미완료 필터(v1.2.12)는 유지. 단계에 따라 컬럼이 바뀜(목표 수립 단계에선 '목표 승인 상태'가 표시).</p>
+
+  <div class="mock">
+    <div class="mock-bar"><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-title">[처리] 클릭 → 팀원 상세 처리 패널</span></div>
+    <div class="mock-body">
+      <div class="m-panel">
+        <div class="m-box">
+          <h5>강다인 — 목표별 평가 <span style="float:right; color:var(--tx-3); font-weight:700;">1 / 4</span></h5>
+          <div class="m-goal">KPI · 핵심 지표 달성 <span class="w">가중치 40%</span>
+            <div class="m-score"><span>1</span><span>2</span><span>3</span><span class="sel">4</span><span>5</span></div>
+          </div>
+          <div class="m-goal">KPI · 프로젝트 일정 준수 <span class="w">가중치 30%</span>
+            <div class="m-score"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div>
+          </div>
+          <div style="text-align:right; margin-top:10px;"><span class="m-btn ghost">저장</span> <span class="m-btn">저장 후 다음 팀원 →</span></div>
+        </div>
+        <div class="m-box" style="background:#f8f9fc;">
+          <h5>📎 참고 패널</h5>
+          <div class="m-ref"><b>진행률</b>4개 목표 평균 62% (최근 업데이트 6/28)</div>
+          <div class="m-ref"><b>자기평가</b>"상반기 핵심 지표 115% 달성. 신규 파트너 3사 발굴…" (4.0점)</div>
+          <div class="m-ref"><b>지난 사이클</b>2025 하반기 · B등급</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="mock-cap">레몬베이스 패턴 — 좌: 평가 입력 / 우: 근거(진행률·자기평가·지난 등급). 이동 없이 한 사람을 몰아서 처리하고 "다음 팀원"으로 넘어감. 목표 수립 단계에선 같은 패널이 '제출 목표 검토 → 확정/반려'로 동작.</p>
+
+  <h3>4-B. 직원 — "내 성과" 단계별 단일 화면</h3>
+  <div class="mock">
+    <div class="mock-bar"><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-title">성과 › 내 성과 (직원 뷰 — 평가 진행 단계)</span></div>
+    <div class="mock-body">
+      <div class="m-stepper">
+        <span class="m-step done">목표 수립</span><span class="m-arrow">›</span>
+        <span class="m-step done">진행 중</span><span class="m-arrow">›</span>
+        <span class="m-step cur">평가 진행</span><span class="m-arrow">›</span>
+        <span class="m-step">HR 조정</span><span class="m-arrow">›</span>
+        <span class="m-step">결과 공개</span>
+        <span class="m-dday">마감 D-5</span>
+      </div>
+      <div class="m-stage-emp">
+        <div class="m-todo">✅ 지금 할 일 — 자기평가 작성 · 동료평가 2건</div>
+        <div class="m-goal">자기평가 <span class="w">미제출</span>
+          <div style="font-size:10.5px; color:var(--tx-3); margin-top:3px;">확정된 목표 4개에 대해 점수와 코멘트를 작성합니다.</div>
+          <div style="margin-top:7px;"><span class="m-btn">작성하기</span></div>
+        </div>
+        <div class="m-goal">동료평가 — 박윤호, 박채은 <span class="w">0 / 2</span>
+          <div style="margin-top:7px;"><span class="m-btn ghost">작성하기</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="mock-cap">탭 병렬 대신 <b>단계 스위칭</b> — 본문이 현재 단계 콘텐츠로 교체. 목표 수립 단계=목표 작성(반려 사유 포함), 진행 중=진행률 업데이트, 결과 공개=등급+총평+[결과 확인]+이의신청. 지난 사이클은 하단 아코디언.</p>
+
+  <h3>4-C. 캘리브레이션 — 팀 단위 진행</h3>
+  <div class="mock">
+    <div class="mock-bar"><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-title">성과 › 캘리브레이션 (HR)</span></div>
+    <div class="mock-body">
+      <div style="display:grid; grid-template-columns:190px 1fr; gap:14px;">
+        <div class="m-teamlist">
+          <div class="m-team sel">B2B영업팀 <small>3/10</small></div>
+          <div class="m-team">DevOps팀 <small>0/7</small></div>
+          <div class="m-team">ML/AI팀 <small>7/7 ✓</small></div>
+          <div class="m-team">UX팀 <small>0/5</small></div>
+          <div style="font-size:10.5px; color:var(--tx-3); text-align:center; margin-top:4px;">전체 분포 요약 탭 →</div>
+        </div>
+        <div>
+          <div class="m-box" style="margin-bottom:10px;">
+            <h5>B2B영업팀 등급 분포 <span style="float:right; font-weight:700; color:var(--tx-3);">─ ─ 권장 배분</span></h5>
+            <div class="m-dist">
+              <div class="col"><div class="bar" style="height:12px;"></div><span class="lbl">S 1</span></div>
+              <div class="col"><div class="bar" style="height:34px;"></div><span class="lbl">A 3</span></div>
+              <div class="col"><div class="bar" style="height:52px;"></div><span class="lbl">B 5</span></div>
+              <div class="col"><div class="bar" style="height:12px;"></div><span class="lbl">C 1</span></div>
+              <div class="col"><div class="bar" style="height:2px;"></div><span class="lbl">D 0</span></div>
+            </div>
+          </div>
+          <table class="m-tbl">
+            <tr><th>직원</th><th>자기</th><th>동료</th><th>매니저</th><th>종합</th><th>AI 제안</th><th>확정</th></tr>
+            <tr><td><b>강다인</b></td><td>4.0</td><td>3.8</td><td>4.2</td><td><b>4.05</b></td><td><span class="badge b-primary">A</span></td><td><span class="badge b-green">A 확정</span></td></tr>
+            <tr><td><b>박채은</b></td><td>3.5</td><td>3.6</td><td>3.4</td><td><b>3.50</b></td><td><span class="badge b-primary">B</span></td><td><span class="badge b-orange">선택…</span></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="mock-cap">좌: 팀 목록+확정률 → 선택한 팀만 표시. 상단 분포 바가 권장 배분(회사 설정) 대비 실시간 비교. 종합점수 내림차순, 하향 시 사유 필수·최대 1단계 하향(기존 로직 유지). <b>Potential 컬럼은 Enterprise 게이팅으로 수리.</b></p>
+
+  <h3>4-D. 사이클 운영 (HR)</h3>
+  <ul class="plain">
+    <li><b>단계별 마감일(선택 입력)</b> — 스텝퍼에 D-day 표시, 경과 시 경고 배지</li>
+    <li><b>미제출자 리마인드</b> — 단계별 미완료자 목록 + [리마인드 발송] (인앱 알림 일괄, 기존 add_notification 재사용)</li>
+    <li><b>단계 전환 체크리스트</b> — "매니저 평가 미완료 12명" 경고 후 진행 (이의 미처리 시 종료 차단은 기존 유지)</li>
+    <li><b>결과 확인(acknowledge)</b> — 면담 후 직원이 [결과 확인] 클릭, HR은 확인률 추적 (Workday Acknowledgement 패턴)</li>
+  </ul>
+
+  <!-- 5. DB -->
+  <h2><span class="num">5</span>DB 변경 (최소)</h2>
+  <div class="tblwrap"><table class="doc">
+    <tr><th style="width:220px;">대상</th><th>내용</th></tr>
+    <tr><td><code>performance_cycles</code></td><td><code>goal_deadline</code>, <code>review_deadline</code> DATE 추가 (NULL 허용 — 마감 미설정 운영 가능)</td></tr>
+    <tr><td><code>calibration_results</code></td><td><code>acknowledged_at</code> TIMESTAMP 추가 (결과 확인)</td></tr>
+    <tr><td>신규 테이블</td><td><b>없음</b> — 리마인드는 notifications 재사용, 나머지는 화면 재구성</td></tr>
+  </table></div>
+
+  <!-- 6. 구현 순서 -->
+  <h2><span class="num">6</span>구현 순서 (한 버전 = 한 작업)</h2>
+  <div class="tblwrap"><table class="doc">
+    <tr><th style="width:90px;">버전</th><th>범위</th><th style="width:150px;">비고</th></tr>
+    <tr><td><b>v1.3.0</b></td><td><b>R1-A 매니저 '팀 성과' 재설계</b> — 사람 단위 테이블 + 팀원 상세 처리 패널(목표 승인+평가 통합)</td><td><span class="badge b-red">최대 임팩트</span></td></tr>
+    <tr><td><b>v1.3.1</b></td><td><b>R1-B 직원 '내 성과' 단계별 화면</b> + 평가 작성 참고 패널</td><td></td></tr>
+    <tr><td><b>v1.3.2</b></td><td><b>R1-C 캘리브레이션 팀 단위 재설계</b> + Potential 게이팅 수리</td><td></td></tr>
+    <tr><td><b>v1.3.3</b></td><td><b>R1-D 사이클 운영</b> — 마감일·리마인드·전환 체크 + 결과 확인</td><td>DB 마이그레이션 포함</td></tr>
+  </table></div>
+  <p class="body">각 버전마다 기존 릴리즈 워크플로우(스윕 → 커밋 → 태그 → 릴리즈 → 배포) 적용.</p>
+
+  <!-- 7. 제외 -->
+  <h2><span class="num">7</span>이번에 하지 않는 것</h2>
+  <ul class="plain">
+    <li>9박스·Potential 입력 UI 개선 — Enterprise, 화면에서 숨기기만</li>
+    <li>상시 피드백/칭찬, 1:1 미팅 재도입 — v0.31에서 제거, 재도입은 별도 결정</li>
+    <li>AI 평가 초안 생성(Lattice식) — 기존 규칙 기반 AI 제안 유지, 고도화 후순위</li>
+    <li>평가 질문 템플릿 빌더(레몬베이스식 커스텀 질문) — 현행 고정 프레임(목표 점수+SSC) 유지, 실고객 요구 확인 후</li>
+  </ul>
+
+  <!-- 소스 -->
+  <h2><span class="num">8</span>참고 소스</h2>
+  <p class="src">
+    Workday — <a href="https://www.scu.edu/media/offices/human-resources/documents/workday/Performance-Management-in-Workday.pdf">SCU Performance Management</a> · <a href="https://hr.psu.edu/performance-management-frequently-asked-questions-managers">PSU Manager FAQ</a> · <a href="https://hr.wisc.edu/hr-guides/for-hr-professionals/performance-reviews-overview/">UW–Madison Reviews Overview</a><br>
+    Lattice — <a href="https://lattice.com/platform/performance/reviews">Performance Reviews</a> · <a href="https://help.lattice.com/hc/en-us/articles/360060972553-Review-Cycle-Deliverables">Review Cycle Deliverables</a> · <a href="https://lattice.com/articles/what-is-a-360-degree-review">360 Review</a><br>
+    레몬베이스 — <a href="https://lemonbase.com/products/performance">성과관리 제품</a> · <a href="https://guide.lemonbase.com/admin/reviews/review-cycles">리뷰 사이클 관리 가이드</a>
+  </p>
+
+  <footer>TalentCore · 성과관리 체계 개편 기획서 (R1) · 2026-07-16</footer>
+</div>
+</body>
+</html>

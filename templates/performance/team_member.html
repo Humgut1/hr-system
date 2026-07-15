@@ -1,0 +1,318 @@
+{% extends 'base.html' %}
+{% block title %}{{ emp.name }} 성과 처리{% endblock %}
+{% block page_title %}팀원 성과 처리{% endblock %}
+
+{% block extra_css %}
+<style>
+.tm-layout { display:grid; grid-template-columns:1fr 320px; gap:20px; align-items:start; }
+@media (max-width: 900px) { .tm-layout { grid-template-columns:1fr; } }
+
+.tm-goal {
+  border:1px solid var(--border); border-radius:12px; background:var(--surface);
+  padding:16px 18px; margin-bottom:12px;
+}
+.tm-goal-title { font-size:14px; font-weight:800; }
+.tm-goal-meta { font-size:11.5px; color:var(--tx-3); margin-top:2px; }
+.tm-self {
+  font-size:12px; color:var(--tx-2); background:var(--bg);
+  border:1px dashed var(--border); border-radius:8px; padding:9px 12px; margin-top:10px;
+}
+.tm-self b { font-size:11px; color:var(--tx-3); display:block; margin-bottom:2px; }
+
+/* 점수 선택 버튼 */
+.tm-score { display:flex; gap:6px; margin-top:12px; align-items:center; flex-wrap:wrap; }
+.tm-score input[type=radio] { display:none; }
+.tm-score label {
+  width:38px; height:38px; border-radius:9px; border:1px solid var(--border);
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:14px; font-weight:800; color:var(--tx-3); cursor:pointer; background:var(--surface);
+  transition:all .12s;
+}
+.tm-score input[type=radio]:checked + label {
+  background:var(--primary); border-color:var(--primary); color:#fff;
+}
+.tm-score-hint { font-size:11px; color:var(--tx-3); margin-left:4px; }
+
+.tm-ref { position:sticky; top:80px; }
+.tm-ref-item {
+  background:var(--bg); border:1px dashed var(--border); border-radius:10px;
+  padding:11px 14px; margin-bottom:10px; font-size:12.5px; color:var(--tx-2);
+}
+.tm-ref-item b { display:block; font-size:11px; color:var(--tx-3); margin-bottom:3px; font-weight:800; }
+
+.stage-chip { font-size:11px; font-weight:800; padding:3px 11px; border-radius:20px;
+  background:var(--primary); color:#fff; }
+
+/* index.html과 동일한 공용 배지/진행률 바 */
+.progress-bar-bg { height: 6px; background: #e2e8f0; border-radius: 99px; overflow: hidden; margin-top: 6px; }
+.progress-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #1e40af, #0891b2); transition: width .3s; }
+.appr-badge { font-size:10px; font-weight:800; padding:2px 8px; border-radius:20px; }
+.appr-draft     { background:#f1f5f9; color:#475569; }
+.appr-submitted { background:#fef3c7; color:#92400e; }
+.appr-confirmed { background:#dcfce7; color:#16a34a; }
+.appr-returned  { background:#fee2e2; color:#dc2626; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- 헤더 -->
+<div style="display:flex; align-items:center; gap:14px; margin-bottom:20px; flex-wrap:wrap;">
+  <a href="{{ url_for('performance', cycle=cycle.id) }}" class="btn btn-ghost btn-sm">
+    <i class="fas fa-arrow-left"></i> 팀 성과
+  </a>
+  <div class="avatar-xs" style="width:38px; height:38px; font-size:15px;">{{ emp.name[0] }}</div>
+  <div>
+    <div style="font-size:17px; font-weight:800;">{{ emp.name }}</div>
+    <div style="font-size:12px; color:var(--tx-3);">{{ emp.dept_name or '—' }}</div>
+  </div>
+  <span class="stage-chip" style="margin-left:auto;">{{ cycle.name }} · {{ cycle_stage_label[stage] }}</span>
+</div>
+
+<div class="tm-layout">
+
+  <!-- ══ 좌: 단계별 처리 영역 ══ -->
+  <div>
+
+    {% if not goals %}
+    <div class="card"><div class="card-body" style="text-align:center; padding:50px; color:var(--tx-3);">
+      <i class="fas fa-chart-line" style="font-size:30px; opacity:.3; display:block; margin-bottom:10px;"></i>
+      이번 주기에 등록된 목표가 없습니다.
+    </div></div>
+
+    {% elif stage == 'goal' %}
+    <!-- ── 목표 수립 단계: 승인/반려 ── -->
+    {% if submitted %}
+    <div class="card" style="margin-bottom:14px;">
+      <div style="padding:14px 18px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <span style="font-size:13.5px; font-weight:700;">
+          <i class="fas fa-paper-plane" style="color:var(--primary);"></i>
+          제출된 목표 {{ submitted }}건 · 가중치 합 {{ weight_sum }}%
+        </span>
+        <span style="margin-left:auto; display:flex; gap:8px;">
+          <form method="POST" action="{{ url_for('performance_goals_approve', user_id=emp.id) }}"
+                onsubmit="return confirm('{{ emp.name }}님의 목표를 확정할까요?')">
+            <input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+            <input type="hidden" name="action" value="approve">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-check"></i> 목표 확정</button>
+          </form>
+          <button type="button" class="btn btn-ghost btn-sm" style="color:var(--red);"
+                  onclick="document.getElementById('return-modal').style.display='flex'">
+            <i class="fas fa-rotate-left"></i> 반려
+          </button>
+        </span>
+      </div>
+    </div>
+    {% else %}
+    <div class="card" style="margin-bottom:14px;">
+      <div style="padding:14px 18px; font-size:13px; color:var(--tx-3);">
+        <i class="fas fa-info-circle"></i>
+        승인 대기 중인 목표가 없습니다.
+        {% if goals|selectattr('approval_status','equalto','confirmed')|list %}이미 확정된 상태입니다.{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% for g in goals %}
+    <div class="tm-goal">
+      <div style="display:flex; align-items:flex-start; gap:10px;">
+        <span class="badge {% if g.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}" style="font-size:11px;">{{ g.category }}</span>
+        <div style="flex:1;">
+          <div class="tm-goal-title">{{ g.title }}
+            <span class="appr-badge appr-{{ g.approval_status }}" style="margin-left:6px;">{{ goal_approval_label[g.approval_status] }}</span>
+          </div>
+          <div class="tm-goal-meta">가중치 {{ g.weight }}%</div>
+          {% if g.description %}
+          <div style="font-size:12.5px; color:var(--tx-2); margin-top:8px; white-space:pre-line;">{{ g.description }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
+    {% elif stage == 'review' %}
+    <!-- ── 평가 진행 단계: 목표별 평가 일괄 입력 ── -->
+    {% if confirmed_count %}
+    <form method="POST" action="{{ url_for('performance_team_member_review', emp_uid=emp.id) }}">
+      <input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+
+      {% for g in goals %}
+      {% if g.approval_status == 'confirmed' %}
+      <div class="tm-goal">
+        <div style="display:flex; align-items:flex-start; gap:10px;">
+          <span class="badge {% if g.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}" style="font-size:11px;">{{ g.category }}</span>
+          <div style="flex:1;">
+            <div class="tm-goal-title">{{ g.title }}</div>
+            <div class="tm-goal-meta">가중치 {{ g.weight }}% · 진행률 {{ g.progress or 0 }}%</div>
+            <div class="progress-bar-bg" style="margin-top:6px; max-width:340px;">
+              <div class="progress-bar-fill" style="width:{{ g.progress or 0 }}%;"></div>
+            </div>
+          </div>
+          {% if g.my_score %}
+          <span class="badge badge-active" style="font-size:11px;">내 평가 {{ g.my_score }}점</span>
+          {% endif %}
+        </div>
+
+        {% if g.self_score %}
+        <div class="tm-self">
+          <b>본인 자기평가 — {{ g.self_score }}점 ({{ score_labels.get(g.self_score, '') }})</b>
+          {{ g.self_comment or '코멘트 없음' }}
+        </div>
+        {% else %}
+        <div class="tm-self" style="color:var(--tx-3);"><b>자기평가</b>아직 제출하지 않았습니다.</div>
+        {% endif %}
+
+        <div class="tm-score">
+          {% for s in [1,2,3,4,5] %}
+          <input type="radio" id="score-{{ g.id }}-{{ s }}" name="score_{{ g.id }}" value="{{ s }}"
+                 {% if g.my_score == s %}checked{% endif %}>
+          <label for="score-{{ g.id }}-{{ s }}" title="{{ score_labels.get(s, '') }}">{{ s }}</label>
+          {% endfor %}
+          <span class="tm-score-hint">1 미흡 ~ 5 탁월</span>
+        </div>
+        <textarea name="comment_{{ g.id }}" class="input" rows="2"
+                  placeholder="평가 코멘트 (선택)"
+                  style="width:100%; margin-top:10px; resize:vertical; font-size:12.5px;">{{ g.my_comment or '' }}</textarea>
+      </div>
+      {% endif %}
+      {% endfor %}
+
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+        <button type="submit" class="btn btn-ghost">
+          <i class="fas fa-floppy-disk"></i> 저장
+        </button>
+        {% if next_uid %}
+        <button type="submit" name="save_next" value="1" class="btn btn-primary">
+          저장 후 다음 팀원 ({{ pending_count }}명 남음) <i class="fas fa-arrow-right"></i>
+        </button>
+        {% endif %}
+      </div>
+    </form>
+
+    {% for g in goals if g.approval_status != 'confirmed' %}
+    {% if loop.first %}
+    <div style="font-size:12px; color:var(--tx-3); margin:18px 0 8px;">미확정 목표 (평가 대상 아님)</div>
+    {% endif %}
+    <div class="tm-goal" style="opacity:.6;">
+      <div class="tm-goal-title">{{ g.title }}
+        <span class="appr-badge appr-{{ g.approval_status }}" style="margin-left:6px;">{{ goal_approval_label[g.approval_status] }}</span>
+      </div>
+    </div>
+    {% endfor %}
+
+    {% else %}
+    <div class="card"><div class="card-body" style="text-align:center; padding:50px; color:var(--tx-3);">
+      확정된 목표가 없어 평가할 수 없습니다. 목표 승인을 먼저 진행하세요.
+    </div></div>
+    {% endif %}
+
+    {% else %}
+    <!-- ── 그 외 단계: 읽기 전용 ── -->
+    {% for g in goals %}
+    <div class="tm-goal">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span class="badge {% if g.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}" style="font-size:11px;">{{ g.category }}</span>
+        <div style="flex:1;">
+          <div class="tm-goal-title">{{ g.title }}</div>
+          <div class="progress-bar-bg" style="margin-top:6px; max-width:340px;">
+            <div class="progress-bar-fill" style="width:{{ g.progress or 0 }}%;"></div>
+          </div>
+        </div>
+        <span style="font-size:12px; color:var(--tx-3); white-space:nowrap;">진행률 {{ g.progress or 0 }}%</span>
+        {% if g.avg_score %}
+        <span class="badge badge-info" style="font-size:11px;">평균 {{ '%.1f'|format(g.avg_score|float) }}점</span>
+        {% endif %}
+      </div>
+      {% if g.self_score %}
+      <div class="tm-self">
+        <b>본인 자기평가 — {{ g.self_score }}점</b>{{ g.self_comment or '코멘트 없음' }}
+      </div>
+      {% endif %}
+      {% if g.my_comment %}
+      <div class="tm-self" style="border-color:var(--primary);">
+        <b>내 평가 코멘트 — {{ g.my_score }}점</b>{{ g.my_comment }}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+  </div>
+
+  <!-- ══ 우: 참고 패널 ══ -->
+  <div class="tm-ref">
+    <div class="card">
+      <div style="padding:16px 18px;">
+        <div style="font-size:13px; font-weight:800; margin-bottom:12px;">
+          <i class="fas fa-paperclip" style="color:var(--primary);"></i> 참고 패널
+        </div>
+
+        <div class="tm-ref-item">
+          <b>목표</b>
+          {{ goals|length }}개 · 가중치 합 {{ weight_sum }}% · 확정 {{ confirmed_count }}개
+        </div>
+        <div class="tm-ref-item">
+          <b>진행률</b>
+          전체 평균 {{ avg_progress }}%
+        </div>
+        <div class="tm-ref-item">
+          <b>자기평가</b>
+          {% if self_done %}
+          {{ self_done }} / {{ confirmed_count }} 제출 · 평균 {{ '%.1f'|format(self_avg) }}점
+          {% else %}
+          미제출
+          {% endif %}
+        </div>
+        <div class="tm-ref-item">
+          <b>지난 사이클</b>
+          {% if prev_grade %}
+          {{ prev_grade.cycle_name }} · <span style="font-weight:800; color:var(--primary);">{{ prev_grade.final_grade }}등급</span>
+          {% else %}
+          이력 없음
+          {% endif %}
+        </div>
+        {% if cur_grade and (session.user_role == 'admin' or cur_grade.is_shared) %}
+        <div class="tm-ref-item" style="border-color:var(--primary);">
+          <b>이번 사이클 확정 등급</b>
+          <span style="font-weight:800; color:var(--primary); font-size:15px;">{{ cur_grade.final_grade }}등급</span>
+          {% if not cur_grade.is_shared %}<span style="font-size:11px; color:var(--tx-3);"> (미공개)</span>{% endif %}
+        </div>
+        {% endif %}
+
+        <a href="{{ url_for('employee_detail', emp_id=emp.id) }}" class="btn btn-ghost btn-sm" style="width:100%; justify-content:center; margin-top:4px;">
+          <i class="fas fa-user"></i> 직원 프로필 보기
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 목표 반려 모달 -->
+{% if stage == 'goal' and submitted %}
+<div id="return-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000;
+     align-items:center; justify-content:center;">
+  <div style="background:var(--surface); border-radius:14px; padding:24px; width:420px; max-width:92vw;">
+    <div style="font-size:15px; font-weight:800; margin-bottom:6px;">
+      <i class="fas fa-rotate-left" style="color:var(--red);"></i> 목표 반려 — {{ emp.name }}
+    </div>
+    <div style="font-size:12px; color:var(--tx-3); margin-bottom:14px;">
+      반려 사유는 직원에게 알림으로 전달됩니다. 수정 방향을 구체적으로 적어주세요.
+    </div>
+    <form method="POST" action="{{ url_for('performance_goals_approve', user_id=emp.id) }}">
+      <input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+      <input type="hidden" name="action" value="return">
+      <textarea name="comment" class="input" rows="3" required
+                placeholder="예: 목표 2번의 측정 기준이 불명확합니다. 수치 목표를 추가해 주세요."
+                style="width:100%; margin-bottom:14px; resize:vertical;"></textarea>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button type="button" class="btn btn-ghost"
+                onclick="document.getElementById('return-modal').style.display='none'">취소</button>
+        <button type="submit" class="btn" style="background:var(--red); color:#fff;">반려</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

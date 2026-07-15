@@ -7586,33 +7586,32 @@ def performance():
     cycle_id = selected_cycle['id'] if selected_cycle else 0
 
     if role in ('admin', 'manager'):
-        # manager는 자기 부서 팀원만 조회
+        # manager는 자기 부서 팀원만 조회 (r2 = 현재 로그인 사용자가 남긴 평가)
         mgr_dept = int(session.get('dept_id') or 0)
+        base_sql = (
+            'SELECT g.*, u.id AS user_id, u.name AS user_name, u.manager_id AS emp_manager_id, '
+            'd.name AS dept_name, '
+            'AVG(r.score) AS avg_score, COUNT(DISTINCT r.id) AS review_count, '
+            'COUNT(DISTINCT r2.id) AS my_review_count '
+            'FROM performance_goals g '
+            'JOIN users u ON g.user_id = u.id '
+            'LEFT JOIN departments d ON u.department_id = d.id '
+            'LEFT JOIN performance_reviews r ON g.id = r.goal_id '
+            'LEFT JOIN performance_reviews r2 ON g.id = r2.goal_id AND r2.reviewer_id = ? '
+        )
         if role == 'manager' and mgr_dept:
             goals = db.execute(
-                'SELECT g.*, u.id AS user_id, u.name AS user_name, u.manager_id AS emp_manager_id, '
-                'd.name AS dept_name, '
-                'AVG(r.score) AS avg_score, COUNT(r.id) AS review_count '
-                'FROM performance_goals g '
-                'JOIN users u ON g.user_id = u.id '
-                'LEFT JOIN departments d ON u.department_id = d.id '
-                'LEFT JOIN performance_reviews r ON g.id = r.goal_id '
+                base_sql +
                 'WHERE g.cycle_id = ? AND u.department_id = ? '
                 'GROUP BY g.id ORDER BY u.name, g.created_at',
-                (cycle_id, mgr_dept)
+                (uid, cycle_id, mgr_dept)
             ).fetchall()
         else:
             goals = db.execute(
-                'SELECT g.*, u.id AS user_id, u.name AS user_name, u.manager_id AS emp_manager_id, '
-                'd.name AS dept_name, '
-                'AVG(r.score) AS avg_score, COUNT(r.id) AS review_count '
-                'FROM performance_goals g '
-                'JOIN users u ON g.user_id = u.id '
-                'LEFT JOIN departments d ON u.department_id = d.id '
-                'LEFT JOIN performance_reviews r ON g.id = r.goal_id '
+                base_sql +
                 'WHERE g.cycle_id = ? '
                 'GROUP BY g.id ORDER BY u.name, g.created_at',
-                (cycle_id,)
+                (uid, cycle_id)
             ).fetchall()
     else:
         goals = db.execute(
@@ -7732,21 +7731,92 @@ def performance():
                 'url': url_for('performance') + '?tab=result'
             })
 
-    # ── 매니저/관리자: 직원별 목표 승인 현황 ──────────────
-    emp_goal_status = {}
+    # ── 매니저/관리자: 사람 단위 팀 현황 (R1-A) ──────────────
+    team_rows       = []
+    team_summary    = {}
     if role in ('admin', 'manager') and cycle_id:
+        # 등급 조회 (HR 조정 단계 이후 표시용)
+        grade_rows = db.execute(
+            'SELECT user_id, final_grade, is_shared FROM calibration_results WHERE cycle_id=?',
+            (cycle_id,)
+        ).fetchall()
+        grades = {r['user_id']: r for r in grade_rows}
+
+        by_user = {}
         for g in goals:
-            st = emp_goal_status.setdefault(g['user_id'], {
-                'submitted': 0, 'confirmed': 0, 'draft': 0, 'returned': 0,
-                'weight_sum': 0, 'manager_id': g['emp_manager_id'],
-                'unreviewed': 0,
+            by_user.setdefault(g['user_id'], []).append(g)
+
+        for emp_uid, glist in by_user.items():
+            first = glist[0]
+            confirmed = [g for g in glist if g['approval_status'] == 'confirmed']
+            submitted = sum(1 for g in glist if g['approval_status'] == 'submitted')
+            draft     = sum(1 for g in glist if g['approval_status'] == 'draft')
+            returned  = sum(1 for g in glist if g['approval_status'] == 'returned')
+            weight_sum   = sum(g['weight'] for g in glist)
+            avg_progress = round(sum((g['progress'] or 0) for g in glist) / len(glist)) if glist else 0
+            self_done    = sum(1 for g in confirmed if g['self_score'])
+            my_reviewed  = sum(1 for g in confirmed if g['my_review_count'])
+            gr = grades.get(emp_uid)
+
+            if stage == 'goal':
+                incomplete = bool(submitted or draft or returned or not glist)
+            elif stage == 'review':
+                incomplete = bool(confirmed) and (self_done < len(confirmed) or my_reviewed < len(confirmed))
+            else:
+                incomplete = False
+
+            team_rows.append({
+                'user_id': emp_uid, 'name': first['user_name'],
+                'dept_name': first['dept_name'], 'manager_id': first['emp_manager_id'],
+                'goal_count': len(glist), 'weight_sum': weight_sum,
+                'confirmed': len(confirmed), 'submitted': submitted,
+                'draft': draft, 'returned': returned,
+                'avg_progress': avg_progress,
+                'self_done': self_done, 'self_total': len(confirmed),
+                'my_reviewed': my_reviewed,
+                'grade': (gr['final_grade'] if gr and (role == 'admin' or gr['is_shared']) else None),
+                'incomplete': incomplete,
             })
-            st[g['approval_status']] = st.get(g['approval_status'], 0) + 1
-            st['weight_sum'] += g['weight']
-            if not g['review_count']:
-                st['unreviewed'] += 1
-        for st in emp_goal_status.values():
-            st['incomplete'] = bool(st['submitted'] or st['returned'] or st['draft'] or st['unreviewed'])
+
+        # 목표 미작성 팀원도 표시 (goal 단계 처리 대상)
+        if role == 'manager' and mgr_dept:
+            no_goal_emps = db.execute(
+                'SELECT u.id, u.name, u.manager_id, d.name AS dept_name FROM users u '
+                'LEFT JOIN departments d ON u.department_id=d.id '
+                "WHERE u.status='active' AND u.role NOT IN ('guest') AND u.department_id=? "
+                'ORDER BY u.name', (mgr_dept,)
+            ).fetchall()
+        else:
+            no_goal_emps = db.execute(
+                'SELECT u.id, u.name, u.manager_id, d.name AS dept_name FROM users u '
+                'LEFT JOIN departments d ON u.department_id=d.id '
+                "WHERE u.status='active' AND u.role NOT IN ('guest') "
+                'ORDER BY u.name'
+            ).fetchall()
+        for e in no_goal_emps:
+            if e['id'] in by_user or e['id'] == uid:
+                continue
+            team_rows.append({
+                'user_id': e['id'], 'name': e['name'],
+                'dept_name': e['dept_name'], 'manager_id': e['manager_id'],
+                'goal_count': 0, 'weight_sum': 0,
+                'confirmed': 0, 'submitted': 0, 'draft': 0, 'returned': 0,
+                'avg_progress': 0, 'self_done': 0, 'self_total': 0, 'my_reviewed': 0,
+                'grade': None,
+                'incomplete': (stage == 'goal'),
+            })
+
+        team_rows.sort(key=lambda r: r['name'])
+        team_summary = {
+            'total': len(team_rows),
+            'goal_pending':  sum(1 for r in team_rows if r['submitted']),
+            'goal_drafting': sum(1 for r in team_rows if r['draft'] or r['returned'] or not r['goal_count']),
+            'goal_done':     sum(1 for r in team_rows if r['goal_count'] and not (r['submitted'] or r['draft'] or r['returned'])),
+            'self_missing':  sum(1 for r in team_rows if r['self_total'] and r['self_done'] < r['self_total']),
+            'review_pending': sum(1 for r in team_rows if r['self_total'] and r['my_reviewed'] < r['self_total']),
+            'review_done':   sum(1 for r in team_rows if r['self_total'] and r['my_reviewed'] >= r['self_total']),
+            'avg_progress':  round(sum(r['avg_progress'] for r in team_rows) / len(team_rows)) if team_rows else 0,
+        }
 
     return render_template('performance/index.html',
                            cycles=cycles, active_cycle=active_cycle,
@@ -7762,7 +7832,7 @@ def performance():
                            todo_items=todo_items,
                            my_goal_state=my_goal_state,
                            my_appeal=my_appeal, can_appeal=can_appeal,
-                           emp_goal_status=emp_goal_status,
+                           team_rows=team_rows, team_summary=team_summary,
                            active_page='performance')
 
 @app.route('/performance/goals/ai-assist', methods=['POST'])
@@ -8122,6 +8192,180 @@ def performance_review(goal_id):
                            goal=goal, existing=existing,
                            score_labels=SCORE_LABELS, error=error,
                            active_page='performance')
+
+
+# ── 팀원 상세 처리 패널 (R1-A, v1.3.0) ────────────────────────
+def _team_member_or_403(db, emp_uid):
+    """매니저 소유권 검증 — admin 전체, manager는 직속 부하 또는 같은 부서만."""
+    emp = db.execute(
+        'SELECT u.*, d.name AS dept_name FROM users u '
+        'LEFT JOIN departments d ON u.department_id=d.id WHERE u.id=?', (emp_uid,)
+    ).fetchone()
+    if not emp:
+        abort(404)
+    if session['user_role'] != 'admin':
+        my_dept = int(session.get('dept_id') or 0)
+        if emp['manager_id'] != session['user_id'] and emp['department_id'] != my_dept:
+            abort(403)
+    return emp
+
+
+def _team_pending_uids(db, cycle, viewer_uid, role, mgr_dept):
+    """현재 단계에서 처리 필요한 팀원 user_id 목록 (이름순)."""
+    scope_sql   = ''
+    scope_args  = []
+    if role == 'manager' and mgr_dept:
+        scope_sql  = 'AND u.department_id=? '
+        scope_args = [mgr_dept]
+    if cycle['stage'] == 'goal':
+        rows = db.execute(
+            'SELECT DISTINCT u.id, u.name FROM performance_goals g JOIN users u ON g.user_id=u.id '
+            "WHERE g.cycle_id=? AND g.approval_status='submitted' " + scope_sql +
+            'ORDER BY u.name',
+            [cycle['id']] + scope_args
+        ).fetchall()
+    elif cycle['stage'] == 'review':
+        rows = db.execute(
+            'SELECT DISTINCT u.id, u.name FROM performance_goals g JOIN users u ON g.user_id=u.id '
+            "WHERE g.cycle_id=? AND g.approval_status='confirmed' " + scope_sql +
+            'AND NOT EXISTS (SELECT 1 FROM performance_reviews r WHERE r.goal_id=g.id AND r.reviewer_id=?) '
+            'ORDER BY u.name',
+            [cycle['id']] + scope_args + [viewer_uid]
+        ).fetchall()
+    else:
+        rows = []
+    return [r['id'] for r in rows]
+
+
+@app.route('/performance/team/<int:emp_uid>')
+@manager_or_admin
+def performance_team_member(emp_uid):
+    """팀원 상세 처리 패널 — 목표 승인 + 평가 입력을 한 화면에서 (R1-A)."""
+    db   = get_db()
+    uid  = session['user_id']
+    role = session['user_role']
+    emp  = _team_member_or_403(db, emp_uid)
+
+    try:
+        cycle_id = int(request.args.get('cycle', 0))
+    except (ValueError, TypeError):
+        cycle_id = 0
+    if cycle_id:
+        cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    else:
+        cycle = db.execute("SELECT * FROM performance_cycles WHERE status='active' LIMIT 1").fetchone()
+    if not cycle:
+        flash('평가 주기가 없습니다.', 'error')
+        return redirect(url_for('performance'))
+
+    goals = db.execute(
+        'SELECT g.*, AVG(r.score) AS avg_score, COUNT(DISTINCT r.id) AS review_count, '
+        'r2.score AS my_score, r2.comment AS my_comment '
+        'FROM performance_goals g '
+        'LEFT JOIN performance_reviews r ON g.id = r.goal_id '
+        'LEFT JOIN performance_reviews r2 ON g.id = r2.goal_id AND r2.reviewer_id = ? '
+        'WHERE g.cycle_id=? AND g.user_id=? '
+        'GROUP BY g.id ORDER BY g.created_at',
+        (uid, cycle['id'], emp_uid)
+    ).fetchall()
+
+    confirmed    = [g for g in goals if g['approval_status'] == 'confirmed']
+    weight_sum   = sum(g['weight'] for g in goals)
+    avg_progress = round(sum((g['progress'] or 0) for g in goals) / len(goals)) if goals else 0
+    self_done    = sum(1 for g in confirmed if g['self_score'])
+    self_avg     = (sum(g['self_score'] for g in confirmed if g['self_score']) / self_done) if self_done else None
+    submitted    = sum(1 for g in goals if g['approval_status'] == 'submitted')
+
+    # 지난 사이클 등급 (참고 패널)
+    prev_grade = db.execute(
+        'SELECT cr.final_grade, pc.name AS cycle_name FROM calibration_results cr '
+        'JOIN performance_cycles pc ON cr.cycle_id=pc.id '
+        'WHERE cr.user_id=? AND cr.cycle_id != ? ORDER BY pc.start_date DESC LIMIT 1',
+        (emp_uid, cycle['id'])
+    ).fetchone()
+
+    # 이번 사이클 확정 등급 (조정 단계 이후)
+    cur_grade = db.execute(
+        'SELECT final_grade, is_shared FROM calibration_results WHERE cycle_id=? AND user_id=?',
+        (cycle['id'], emp_uid)
+    ).fetchone()
+
+    # 다음 처리 대상 팀원 (이름순, 본인 제외)
+    mgr_dept = int(session.get('dept_id') or 0)
+    pending  = [u for u in _team_pending_uids(db, cycle, uid, role, mgr_dept) if u != emp_uid]
+    next_uid = pending[0] if pending else None
+
+    return render_template('performance/team_member.html',
+                           emp=emp, cycle=cycle, stage=cycle['stage'],
+                           goals=goals, confirmed_count=len(confirmed),
+                           weight_sum=weight_sum, avg_progress=avg_progress,
+                           self_done=self_done, self_avg=self_avg,
+                           submitted=submitted,
+                           prev_grade=prev_grade, cur_grade=cur_grade,
+                           next_uid=next_uid, pending_count=len(pending),
+                           cycle_stages=CYCLE_STAGES,
+                           cycle_stage_label=CYCLE_STAGE_LABEL,
+                           goal_approval_label=GOAL_APPROVAL_LABEL,
+                           score_labels=SCORE_LABELS,
+                           active_page='performance')
+
+
+@app.route('/performance/team/<int:emp_uid>/review', methods=['POST'])
+@manager_or_admin
+def performance_team_member_review(emp_uid):
+    """팀원 상세 패널에서 목표별 평가 일괄 저장 (R1-A)."""
+    db   = get_db()
+    uid  = session['user_id']
+    _team_member_or_403(db, emp_uid)
+
+    cycle_id = request.form.get('cycle_id', type=int)
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cycle:
+        abort(404)
+    if cycle['stage'] != 'review':
+        flash('팀장 평가는 "평가 진행" 단계에서만 작성할 수 있습니다.', 'error')
+        return redirect(url_for('performance_team_member', emp_uid=emp_uid, cycle=cycle_id))
+
+    goals = db.execute(
+        "SELECT id FROM performance_goals WHERE cycle_id=? AND user_id=? AND approval_status='confirmed'",
+        (cycle_id, emp_uid)
+    ).fetchall()
+
+    saved = 0
+    for g in goals:
+        raw = request.form.get(f'score_{g["id"]}', '').strip()
+        if not raw:
+            continue
+        try:
+            score = int(raw)
+        except ValueError:
+            continue
+        if not (1 <= score <= 5):
+            continue
+        comment = request.form.get(f'comment_{g["id"]}', '').strip() or None
+        db.execute(
+            'INSERT INTO performance_reviews (goal_id, reviewer_id, score, comment) '
+            'VALUES (?, ?, ?, ?) '
+            'ON CONFLICT(goal_id, reviewer_id) DO UPDATE SET score=excluded.score, '
+            'comment=excluded.comment, created_at=CURRENT_TIMESTAMP',
+            (g['id'], uid, score, comment)
+        )
+        saved += 1
+    db.commit()
+
+    if saved:
+        flash(f'평가 {saved}건을 저장했습니다.', 'success')
+    else:
+        flash('저장된 평가가 없습니다. 점수를 선택해주세요.', 'error')
+
+    if request.form.get('save_next'):
+        mgr_dept = int(session.get('dept_id') or 0)
+        pending  = [u for u in _team_pending_uids(db, cycle, uid, session['user_role'], mgr_dept) if u != emp_uid]
+        if pending:
+            return redirect(url_for('performance_team_member', emp_uid=pending[0], cycle=cycle_id))
+        flash('이번 단계에서 처리할 팀원을 모두 완료했습니다. 🎉', 'success')
+        return redirect(url_for('performance', cycle=cycle_id))
+    return redirect(url_for('performance_team_member', emp_uid=emp_uid, cycle=cycle_id))
 
 
 # ── Performance Cycles (Admin) ────────────────────────────────

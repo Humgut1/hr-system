@@ -114,11 +114,12 @@
 .summary-val { font-size: 22px; font-weight: 900; }
 .summary-lbl { font-size: 11px; color: var(--tx-3); margin-top: 3px; }
 
-/* 매니저 직원 그룹 */
-.emp-group { margin-bottom: 20px; }
-.emp-group-header {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;
+/* 팀 성과 — 처리 현황 칩 (R1-A) */
+.team-chip {
+  font-size:12px; font-weight:700; padding:7px 14px; border-radius:10px;
+  background:var(--surface); border:1px solid var(--border); color:var(--tx-2);
 }
+.team-chip b { font-weight:900; }
 
 /* 주기 단계 스텝퍼 */
 .stage-banner {
@@ -639,7 +640,7 @@
 <!-- 탭: 팀원 목표 / 다면평가 배정 (admin) -->
 <div class="perf-tabs">
   <button class="perf-tab active" onclick="switchTab('team', this)" data-tour-page="perf-team">
-    <i class="fas fa-users"></i> 팀원 목표 현황
+    <i class="fas fa-users"></i> 팀 성과
   </button>
   {% if session.user_role == 'admin' %}
   {% if include_peer %}
@@ -653,27 +654,27 @@
   {% endif %}
 </div>
 
-<!-- ── 팀원 목표 ── -->
+<!-- ── 팀 성과 (사람 단위, R1-A) ── -->
 <div id="panel-team" class="perf-panel active">
-  {% if goals %}
-  <!-- 요약 -->
-  <div class="summary-row" style="grid-template-columns:repeat(3,1fr); margin-bottom:20px;">
-    <div class="summary-card">
-      <div class="summary-val" style="color:var(--primary);">{{ goals|map(attribute='user_id')|unique|list|length }}</div>
-      <div class="summary-lbl">목표 있는 직원</div>
-    </div>
-    <div class="summary-card">
-      <div class="summary-val" style="color:var(--green);">{{ goals|length }}</div>
-      <div class="summary-lbl">총 목표 수</div>
-    </div>
-    <div class="summary-card">
-      {% set reviewed = goals|selectattr('review_count')|list|length %}
-      <div class="summary-val" style="color:var(--orange);">{{ reviewed }}</div>
-      <div class="summary-lbl">평가 완료 목표</div>
-    </div>
+  {% if team_rows %}
+
+  <!-- 단계별 처리 현황 칩 -->
+  <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+    {% if stage == 'goal' %}
+    <span class="team-chip"><b style="color:var(--red);">{{ team_summary.goal_pending }}명</b> 목표 승인 대기</span>
+    <span class="team-chip"><b style="color:var(--orange);">{{ team_summary.goal_drafting }}명</b> 작성·수정 중</span>
+    <span class="team-chip"><b style="color:var(--green);">{{ team_summary.goal_done }}명</b> 확정 완료</span>
+    {% elif stage == 'review' %}
+    <span class="team-chip"><b style="color:var(--red);">{{ team_summary.review_pending }}명</b> 내 평가 대기</span>
+    <span class="team-chip"><b style="color:var(--orange);">{{ team_summary.self_missing }}명</b> 자기평가 미제출</span>
+    <span class="team-chip"><b style="color:var(--green);">{{ team_summary.review_done }}명</b> 평가 완료</span>
+    {% else %}
+    <span class="team-chip"><b style="color:var(--primary);">{{ team_summary.total }}명</b> 팀원</span>
+    <span class="team-chip"><b style="color:var(--primary);">{{ team_summary.avg_progress }}%</b> 평균 진행률</span>
+    {% endif %}
   </div>
 
-  <div style="display:flex; gap:10px; align-items:center; margin-bottom:16px; flex-wrap:wrap;">
+  <div style="display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
     <div style="position:relative; flex:1; min-width:200px; max-width:280px;">
       <i class="fas fa-search" style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--tx-3); font-size:13px;"></i>
       <input type="text" id="teamSearchInput" class="input" style="padding-left:34px;" placeholder="팀원 이름 검색">
@@ -684,95 +685,78 @@
     <span id="teamFilterCount" class="muted" style="font-size:12px; margin-left:auto;"></span>
   </div>
 
-  {% set ns = namespace(current_uid=0) %}
-  {% for g in goals %}
-    {% if g.user_id != ns.current_uid %}
-      {% if not loop.first %}</div>{% endif %}
-      {% set ns.current_uid = g.user_id %}
-      {% set est = emp_goal_status.get(g.user_id) %}
-      <div class="emp-group" data-emp-name="{{ g.user_name|lower }}" data-emp-incomplete="{{ '1' if est and est.incomplete else '0' }}">
-      <div class="emp-group-header">
-        <div class="avatar-xs">{{ g.user_name[0] }}</div>
-        <span style="font-size:15px; font-weight:800;">{{ g.user_name }}</span>
-        <span style="font-size:12px; color:var(--tx-3);">{{ g.dept_name or '' }}</span>
-
-        {% if est %}
-          {% if est.submitted %}
-          <span class="appr-badge appr-submitted">목표 승인 대기 {{ est.submitted }}건 · 가중치 {{ est.weight_sum }}%</span>
-          {% elif est.returned %}
-          <span class="appr-badge appr-returned">반려됨 — 직원 수정 대기</span>
-          {% elif est.draft %}
-          <span class="appr-badge appr-draft">작성 중</span>
-          {% else %}
-          <span class="appr-badge appr-confirmed">목표 확정</span>
-          {% endif %}
-        {% endif %}
-
-        <span style="margin-left:auto; display:flex; gap:6px; align-items:center;">
-        {% if stage == 'goal' and est and est.submitted
-              and (session.user_role == 'admin' or est.manager_id == session.user_id) %}
-        <form method="POST" action="{{ url_for('performance_goals_approve', user_id=g.user_id) }}"
-              style="display:inline;"
-              onsubmit="return confirm('{{ g.user_name }}님의 목표를 확정할까요?')">
-          <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
-          <input type="hidden" name="action" value="approve">
-          <button type="submit" class="btn btn-primary btn-sm">
-            <i class="fas fa-check"></i> 목표 확정
-          </button>
-        </form>
-        <button type="button" class="btn btn-ghost btn-sm" style="color:#dc2626;"
-                onclick="openReturnForm({{ g.user_id }}, '{{ g.user_name }}')">
-          <i class="fas fa-rotate-left"></i> 반려
-        </button>
-        {% endif %}
-        {% if 'talent_advanced' in plan_features %}
-        <a href="{{ url_for('talent_card', user_id=g.user_id) }}"
-           style="font-size:11px; font-weight:700; color:var(--primary);
-                  text-decoration:none; padding:3px 9px; border:1px solid var(--primary);
-                  border-radius:20px; white-space:nowrap;"
-           title="Talent Card 보기">
-          <i class="fas fa-id-card"></i> Talent Card
-        </a>
-        {% endif %}
-        </span>
-      </div>
-    {% endif %}
-
-    <div class="goal-card">
-      <div class="goal-card-body">
-        <div style="display:flex; align-items:center; gap:12px;">
-          <span class="badge {% if g.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}" style="font-size:11px;">{{ g.category }}</span>
-          <div style="flex:1;">
-            <div style="font-weight:700; font-size:13px;">
-              {{ g.title }}
-              <span class="appr-badge appr-{{ g.approval_status }}" style="margin-left:6px;">{{ goal_approval_label[g.approval_status] }}</span>
-            </div>
-            <div class="progress-bar-bg" style="margin-top:6px;">
-              <div class="progress-bar-fill" style="width:{{ g.progress or 0 }}%;"></div>
-            </div>
-          </div>
-          <span style="font-size:12px; color:var(--tx-3); white-space:nowrap;">진행률 {{ g.progress or 0 }}%</span>
-          <div style="text-align:center; min-width:60px;">
-            {% if g.avg_score %}
-            {% set sc = g.avg_score|float %}
-            {% if sc >= 4.5 %}{% set cls='chip-s' %}{% elif sc >= 3.5 %}{% set cls='chip-a' %}
-            {% elif sc >= 2.5 %}{% set cls='chip-b' %}{% elif sc >= 1.5 %}{% set cls='chip-c' %}
-            {% else %}{% set cls='chip-d' %}{% endif %}
-            <span class="score-chip {{ cls }}" style="width:32px;height:32px;font-size:13px;">{{ '%.1f'|format(sc) }}</span>
-            {% else %}
-            <span style="font-size:11px; color:var(--tx-3);">미평가</span>
-            {% endif %}
-          </div>
-          {% if stage == 'review' and g.approval_status == 'confirmed' %}
-          <a href="{{ url_for('performance_review', goal_id=g.id) }}" class="btn btn-ghost btn-sm">
-            <i class="fas fa-star"></i> 평가
-          </a>
-          {% endif %}
-        </div>
-      </div>
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>팀원</th>
+            <th>목표</th>
+            <th>목표 상태</th>
+            <th>진행률</th>
+            <th>자기평가</th>
+            <th>내 평가</th>
+            <th>등급</th>
+            <th style="text-align:right;">액션</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in team_rows %}
+          <tr class="team-row" data-emp-name="{{ r.name|lower }}" data-emp-incomplete="{{ '1' if r.incomplete else '0' }}">
+            <td>
+              <div class="u-cell">
+                <div class="avatar-xs">{{ r.name[0] }}</div>
+                <div>
+                  <div class="u-name">{{ r.name }}</div>
+                  <div style="font-size:11px; color:var(--tx-3);">{{ r.dept_name or '' }}</div>
+                </div>
+              </div>
+            </td>
+            <td style="white-space:nowrap;">{{ r.goal_count }}개
+              <span style="font-size:11px; color:{{ 'var(--green)' if r.weight_sum == 100 else 'var(--orange)' }};">({{ r.weight_sum }}%)</span>
+            </td>
+            <td>
+              {% if not r.goal_count %}<span class="appr-badge appr-draft">미작성</span>
+              {% elif r.submitted %}<span class="appr-badge appr-submitted">승인 대기 {{ r.submitted }}건</span>
+              {% elif r.returned %}<span class="appr-badge appr-returned">반려됨</span>
+              {% elif r.draft %}<span class="appr-badge appr-draft">작성 중</span>
+              {% else %}<span class="appr-badge appr-confirmed">확정</span>{% endif %}
+            </td>
+            <td style="white-space:nowrap;">
+              <span class="progress-bar-bg" style="display:inline-block; width:72px; vertical-align:middle;">
+                <span class="progress-bar-fill" style="display:block; width:{{ r.avg_progress }}%;"></span>
+              </span>
+              <span style="font-size:12px; color:var(--tx-3);">{{ r.avg_progress }}%</span>
+            </td>
+            <td>
+              {% if not r.self_total %}<span style="color:var(--tx-3);">—</span>
+              {% elif r.self_done >= r.self_total %}<span class="badge badge-active">제출</span>
+              {% else %}<span class="badge" style="background:var(--red-bg); color:var(--red);">{{ r.self_done }}/{{ r.self_total }}</span>{% endif %}
+            </td>
+            <td>
+              {% if not r.self_total %}<span style="color:var(--tx-3);">—</span>
+              {% elif r.my_reviewed >= r.self_total %}<span class="badge badge-active">완료</span>
+              {% elif r.my_reviewed %}<span class="badge badge-pending">{{ r.my_reviewed }}/{{ r.self_total }}</span>
+              {% else %}<span class="badge" style="background:var(--bg); color:var(--tx-3);">대기</span>{% endif %}
+            </td>
+            <td>
+              {% if r.grade %}
+              {% set gc = {'S':'#7c3aed','A':'#1d4ed8','B':'#047857','C':'#b45309','D':'#dc2626'} %}
+              <span class="badge" style="background:{{ gc[r.grade] }}20; color:{{ gc[r.grade] }};">{{ r.grade }}</span>
+              {% else %}<span style="color:var(--tx-3);">—</span>{% endif %}
+            </td>
+            <td style="text-align:right;">
+              <a href="{{ url_for('performance_team_member', emp_uid=r.user_id, cycle=selected_cycle.id) }}"
+                 class="btn btn-sm {{ 'btn-primary' if r.incomplete else 'btn-ghost' }}">
+                {{ '처리' if r.incomplete else '보기' }}
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
-  {% endfor %}
-  {% if goals %}</div>{% endif %}
+  </div>
 
   {% else %}
   <div class="card">
@@ -826,32 +810,6 @@
 
 {% endif %}{# end role check #}
 
-<!-- 목표 반려 모달 (매니저/관리자) -->
-{% if session.user_role in ('admin', 'manager') and selected_cycle %}
-<div id="return-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000;
-     align-items:center; justify-content:center;">
-  <div style="background:var(--surface); border-radius:14px; padding:24px; width:420px; max-width:92vw;">
-    <div style="font-size:15px; font-weight:800; margin-bottom:6px;">
-      <i class="fas fa-rotate-left" style="color:#dc2626;"></i> 목표 반려 — <span id="return-emp-name"></span>
-    </div>
-    <div style="font-size:12px; color:var(--tx-3); margin-bottom:14px;">
-      반려 사유는 직원에게 알림으로 전달됩니다. 수정 방향을 구체적으로 적어주세요.
-    </div>
-    <form method="POST" id="return-form">
-      <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
-      <input type="hidden" name="action" value="return">
-      <textarea name="comment" class="input" rows="3" required
-                placeholder="예: 목표 2번의 측정 기준이 불명확합니다. 수치 목표를 추가해 주세요."
-                style="width:100%; margin-bottom:14px; resize:vertical;"></textarea>
-      <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button type="button" class="btn btn-ghost" onclick="closeReturnForm()">취소</button>
-        <button type="submit" class="btn" style="background:#dc2626; color:#fff;">반려</button>
-      </div>
-    </form>
-  </div>
-</div>
-{% endif %}
-
 {% endif %}{# end selected_cycle check #}
 
 {% endblock %}
@@ -874,37 +832,26 @@ function switchTab(id, btn) {
   }
 })();
 
-// 목표 반려 모달
-function openReturnForm(userId, userName) {
-  var modal = document.getElementById('return-modal');
-  document.getElementById('return-emp-name').textContent = userName;
-  document.getElementById('return-form').action = '/performance/goals/' + userId + '/approve';
-  modal.style.display = 'flex';
-}
-function closeReturnForm() {
-  document.getElementById('return-modal').style.display = 'none';
-}
-
-// 팀원 목표 현황 — 이름 검색 + 미완료만 보기 필터
+// 팀 성과 — 이름 검색 + 미완료만 보기 필터 (사람 단위 행)
 (function() {
   var searchInput = document.getElementById('teamSearchInput');
   var incompleteOnly = document.getElementById('teamIncompleteOnly');
   var countEl = document.getElementById('teamFilterCount');
   if (!searchInput || !incompleteOnly) return;
-  var groups = document.querySelectorAll('.emp-group');
+  var rows = document.querySelectorAll('.team-row');
 
   function applyFilter() {
     var q = searchInput.value.trim().toLowerCase();
     var onlyIncomplete = incompleteOnly.checked;
     var shown = 0;
-    groups.forEach(function(g) {
-      var nameMatch = !q || (g.dataset.empName || '').indexOf(q) !== -1;
-      var incompleteMatch = !onlyIncomplete || g.dataset.empIncomplete === '1';
+    rows.forEach(function(r) {
+      var nameMatch = !q || (r.dataset.empName || '').indexOf(q) !== -1;
+      var incompleteMatch = !onlyIncomplete || r.dataset.empIncomplete === '1';
       var visible = nameMatch && incompleteMatch;
-      g.style.display = visible ? '' : 'none';
+      r.style.display = visible ? '' : 'none';
       if (visible) shown++;
     });
-    countEl.textContent = (q || onlyIncomplete) ? (shown + '명 표시 중 (전체 ' + groups.length + '명)') : '';
+    countEl.textContent = (q || onlyIncomplete) ? (shown + '명 표시 중 (전체 ' + rows.length + '명)') : '';
   }
 
   searchInput.addEventListener('input', applyFilter);
