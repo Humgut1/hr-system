@@ -71,6 +71,18 @@
   background:#fee2e2; padding:1px 6px; border-radius:20px;
   margin-left:4px;
 }
+
+/* 팀 단위 진행 (R1-C) */
+.cal-team {
+  display:flex; justify-content:space-between; align-items:center; gap:8px;
+  padding:8px 12px; border-radius:8px; text-decoration:none;
+  font-size:12.5px; font-weight:700; color:var(--tx-2); margin-bottom:2px;
+}
+.cal-team:hover { background:var(--bg); }
+.cal-team.sel { background:var(--primary); color:#fff; }
+.cal-team.sel small { color:rgba(255,255,255,.8) !important; }
+.cal-team small { font-size:10.5px; color:var(--tx-3); white-space:nowrap; }
+@media (max-width:900px){ .cal-layout { grid-template-columns:1fr !important; } .cal-layout > .card { position:static !important; max-height:none !important; } }
 </style>
 {% endblock %}
 
@@ -154,11 +166,11 @@
 </div>
 {% endif %}
 
-<!-- 요약 카드 -->
+<!-- 요약 카드 (전 직원 기준) -->
 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); gap:10px; margin-bottom:20px;">
   <div class="card" style="margin:0; text-align:center;">
     <div class="card-body" style="padding:14px;">
-      <div style="font-size:22px; font-weight:900; color:var(--primary);">{{ rows|length }}</div>
+      <div style="font-size:22px; font-weight:900; color:var(--primary);">{{ total_count }}</div>
       <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">전체 직원</div>
     </div>
   </div>
@@ -170,11 +182,10 @@
   </div>
   <div class="card" style="margin:0; text-align:center;">
     <div class="card-body" style="padding:14px;">
-      <div style="font-size:22px; font-weight:900; color:var(--orange);">{{ rows|length - confirmed_count }}</div>
+      <div style="font-size:22px; font-weight:900; color:var(--orange);">{{ total_count - confirmed_count }}</div>
       <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">미확정</div>
     </div>
   </div>
-  {% set anomaly_count = rows|selectattr('anomaly')|list|length %}
   <div class="card" style="margin:0; text-align:center;">
     <div class="card-body" style="padding:14px;">
       <div style="font-size:22px; font-weight:900; color:{% if anomaly_count > 0 %}var(--orange){% else %}var(--green){% endif %};">{{ anomaly_count }}</div>
@@ -191,64 +202,147 @@
   {% endfor %}
 </div>
 
-<!-- 분포 바 차트 -->
-{% if confirmed_count > 0 %}
-<div class="card" style="margin-bottom:16px;">
-  <div class="card-body" style="padding:16px 20px;">
-    <div style="font-size:12px; font-weight:800; margin-bottom:12px;">등급 분포</div>
-    <div class="dist-bar-wrap">
-      {% set max_cnt = [grade_dist.get('S',0), grade_dist.get('A',0), grade_dist.get('B',0), grade_dist.get('C',0), grade_dist.get('D',0)]|max %}
-      {% for g, color, bg in [('S','#166534','#dcfce7'),('A','#1e40af','#dbeafe'),('B','#15803d','#f0fdf4'),('C','#92400e','#fef3c7'),('D','#dc2626','#fee2e2')] %}
-      {% set cnt = grade_dist.get(g, 0) %}
-      <div class="dist-col">
-        <div class="dist-fill" style="height:{{ (cnt / max_cnt * 60)|int if max_cnt > 0 else 3 }}px; background:{{ bg }}; border:1px solid {{ color }}33;"></div>
-        <div class="dist-lbl" style="color:{{ color }};">{{ g }}</div>
-        <div class="dist-cnt">{{ cnt }}명 ({{ ((cnt / confirmed_count * 100)|round(0)|int) if confirmed_count > 0 else 0 }}%)</div>
-      </div>
+<!-- ── 팀 단위 진행 (R1-C): 좌 팀 목록 + 우 본문 ── -->
+<div style="display:grid; grid-template-columns:210px 1fr; gap:16px; align-items:start;" class="cal-layout">
+
+  <!-- 좌: 팀 목록 -->
+  <div class="card" style="margin:0; position:sticky; top:80px; max-height:calc(100vh - 100px); overflow-y:auto;">
+    <div style="padding:10px;">
+      <a href="?cycle={{ selected_cycle.id }}" class="cal-team {{ 'sel' if not selected_dept else '' }}">
+        <span><i class="fas fa-chart-pie" style="margin-right:6px;"></i>전체 요약</span>
+      </a>
+      {% for d in dept_list %}
+      <a href="?cycle={{ selected_cycle.id }}&dept={{ d.dept_id }}" class="cal-team {{ 'sel' if selected_dept == d.dept_id else '' }}">
+        <span>{{ d.dept_name }}</span>
+        <small style="{% if d.confirmed >= d.total %}color:var(--green); font-weight:800;{% endif %}">
+          {{ d.confirmed }}/{{ d.total }}{% if d.confirmed >= d.total %} ✓{% endif %}
+        </small>
+      </a>
       {% endfor %}
     </div>
   </div>
-</div>
-{% endif %}
 
-<!-- Potential Score 안내 -->
-<div style="background:var(--purple-bg); border:1px solid var(--purple-bg); border-radius:8px; padding:10px 16px;
-            margin-bottom:14px; font-size:12px; color:var(--purple); display:flex; align-items:center; gap:8px;">
-  <i class="fas fa-info-circle"></i>
-  <span><strong>잠재력(Potential)</strong> 점수 — <strong style="color:var(--purple);">낮음</strong> 현재 역할에 적합 &nbsp;·&nbsp;
-  <strong style="color:var(--purple);">중간</strong> 1단계 성장 가능 &nbsp;·&nbsp;
-  <strong style="color:var(--purple);">높음</strong> 리더십 잠재력 보유. 9박스 배치에 활용됩니다.</span>
-</div>
+  <!-- 우: 본문 -->
+  <div style="min-width:0;">
 
-<!-- 캘리브레이션 테이블 -->
-<div class="card">
-  <div class="card-head">
-    <span class="card-title">직원별 평가 현황</span>
-    <div style="display:flex; gap:8px; align-items:center;">
-      <span style="font-size:12px; color:var(--tx-3);">
-        <span style="display:inline-block; width:10px; height:10px; background:var(--orange-bg); border:1px solid var(--orange-bg); border-radius:2px; margin-right:4px;"></span>이상 감지
-      </span>
-      <input type="text" class="input" style="width:150px; font-size:12px; padding:6px 10px;"
-             placeholder="이름 검색..." oninput="filterTable(this.value)">
+  {% if not selected_dept %}
+  <!-- ══ 전체 요약 ══ -->
+  {% if confirmed_count > 0 %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body" style="padding:16px 20px;">
+      <div style="font-size:12px; font-weight:800; margin-bottom:12px;">전체 등급 분포
+        <span style="font-weight:600; color:var(--tx-3); margin-left:8px;">확정 {{ confirmed_count }}명 기준 · 괄호는 권장 배분</span>
+      </div>
+      <div class="dist-bar-wrap">
+        {% set max_cnt = [grade_dist.get('S',0), grade_dist.get('A',0), grade_dist.get('B',0), grade_dist.get('C',0), grade_dist.get('D',0)]|max %}
+        {% for g, color, bg in [('S','#166534','#dcfce7'),('A','#1e40af','#dbeafe'),('B','#15803d','#f0fdf4'),('C','#92400e','#fef3c7'),('D','#dc2626','#fee2e2')] %}
+        {% set cnt = grade_dist.get(g, 0) %}
+        <div class="dist-col">
+          <div class="dist-fill" style="height:{{ (cnt / max_cnt * 60)|int if max_cnt > 0 else 3 }}px; background:{{ bg }}; border:1px solid {{ color }}33;"></div>
+          <div class="dist-lbl" style="color:{{ color }};">{{ g }}</div>
+          <div class="dist-cnt">{{ cnt }}명 · {{ ((cnt / confirmed_count * 100)|round(0)|int) if confirmed_count > 0 else 0 }}% <span style="color:#94a3b8;">({{ target_dist[g] }}%)</span></div>
+        </div>
+        {% endfor %}
+      </div>
     </div>
   </div>
-  <div style="overflow-x:auto;">
-    <table class="cal-table" id="calTable">
-      <thead>
-        <tr>
-          <th>직원</th>
-          <th>부서</th>
-          <th>자기평가</th>
-          <th>동료평가</th>
-          <th>매니저평가</th>
-          <th>종합</th>
-          <th>AI 제안</th>
-          <th>잠재력</th>
-          <th>확정 등급 / 조정 사유</th>
-          <th>메모</th>
-          <th>액션</th>
-        </tr>
-      </thead>
+  {% endif %}
+
+  <!-- 부서별 진행 현황 -->
+  <div class="card">
+    <div class="card-head"><span class="card-title">부서별 조정 진행 현황</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>부서</th><th>진행</th><th>확정 / 전체</th><th style="text-align:right;"></th></tr></thead>
+        <tbody>
+          {% for d in dept_list %}
+          <tr>
+            <td style="font-weight:700;">{{ d.dept_name }}</td>
+            <td style="width:40%;">
+              <span class="score-bar-bg" style="width:100%; height:7px;">
+                <span class="score-bar-fill" style="display:block; width:{{ (d.confirmed / d.total * 100)|int if d.total else 0 }}%; background:{{ 'var(--green)' if d.confirmed >= d.total else 'var(--primary)' }};"></span>
+              </span>
+            </td>
+            <td style="white-space:nowrap; font-size:12px; color:var(--tx-3);">
+              {{ d.confirmed }} / {{ d.total }}
+              {% if d.confirmed >= d.total %}<span style="color:var(--green); font-weight:800;"> 완료</span>{% endif %}
+            </td>
+            <td style="text-align:right;">
+              <a href="?cycle={{ selected_cycle.id }}&dept={{ d.dept_id }}"
+                 class="btn btn-sm {{ 'btn-ghost' if d.confirmed >= d.total else 'btn-primary' }}">
+                {{ '보기' if d.confirmed >= d.total else '조정하기' }}
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- ══ 부서 상세 ══ -->
+  {% if dept_info and dept_info.confirmed > 0 %}
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-body" style="padding:14px 20px;">
+      <div style="font-size:12px; font-weight:800; margin-bottom:10px;">{{ dept_info.dept_name }} 등급 분포
+        <span style="font-weight:600; color:var(--tx-3); margin-left:8px;">확정 {{ dept_info.confirmed }}/{{ dept_info.total }}명 · 괄호는 권장 배분</span>
+      </div>
+      <div class="dist-bar-wrap" style="height:60px;">
+        {% set d_dist = dept_info.dist %}
+        {% set max_cnt = [d_dist.get('S',0), d_dist.get('A',0), d_dist.get('B',0), d_dist.get('C',0), d_dist.get('D',0)]|max %}
+        {% for g, color, bg in [('S','#166534','#dcfce7'),('A','#1e40af','#dbeafe'),('B','#15803d','#f0fdf4'),('C','#92400e','#fef3c7'),('D','#dc2626','#fee2e2')] %}
+        {% set cnt = d_dist.get(g, 0) %}
+        <div class="dist-col">
+          <div class="dist-fill" style="height:{{ (cnt / max_cnt * 40)|int if max_cnt > 0 else 3 }}px; background:{{ bg }}; border:1px solid {{ color }}33;"></div>
+          <div class="dist-lbl" style="color:{{ color }};">{{ g }}</div>
+          <div class="dist-cnt">{{ cnt }}명 <span style="color:#94a3b8;">({{ target_dist[g] }}%)</span></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if 'talent_advanced' in plan_features %}
+  <!-- Potential Score 안내 (Enterprise) -->
+  <div style="background:var(--purple-bg); border:1px solid var(--purple-bg); border-radius:8px; padding:10px 16px;
+              margin-bottom:14px; font-size:12px; color:var(--purple); display:flex; align-items:center; gap:8px;">
+    <i class="fas fa-info-circle"></i>
+    <span><strong>잠재력(Potential)</strong> 점수 — <strong style="color:var(--purple);">낮음</strong> 현재 역할에 적합 &nbsp;·&nbsp;
+    <strong style="color:var(--purple);">중간</strong> 1단계 성장 가능 &nbsp;·&nbsp;
+    <strong style="color:var(--purple);">높음</strong> 리더십 잠재력 보유. 9박스 배치에 활용됩니다.</span>
+  </div>
+  {% endif %}
+
+  <!-- 캘리브레이션 테이블 (종합점수 내림차순) -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">{{ dept_info.dept_name if dept_info else '' }} 직원별 평가 현황</span>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span style="font-size:12px; color:var(--tx-3);">
+          <span style="display:inline-block; width:10px; height:10px; background:var(--orange-bg); border:1px solid var(--orange-bg); border-radius:2px; margin-right:4px;"></span>이상 감지
+        </span>
+        <input type="text" class="input" style="width:150px; font-size:12px; padding:6px 10px;"
+               placeholder="이름 검색..." oninput="filterTable(this.value)">
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="cal-table" id="calTable">
+        <thead>
+          <tr>
+            <th>직원</th>
+            <th>자기평가</th>
+            <th>동료평가</th>
+            <th>매니저평가</th>
+            <th>종합</th>
+            <th>AI 제안</th>
+            {% if 'talent_advanced' in plan_features %}<th>잠재력</th>{% endif %}
+            <th>확정 등급 / 조정 사유</th>
+            <th>메모</th>
+            <th>액션</th>
+          </tr>
+        </thead>
       <tbody>
         {% for r in rows %}
         <tr class="{% if r.anomaly %}anomaly-row{% endif %}" data-name="{{ r.name }}">
@@ -265,8 +359,6 @@
               </div>
             </div>
           </td>
-          <td style="color:var(--tx-3); font-size:11px;">{{ r.dept_name }}</td>
-
           <td>
             {% if r.self_avg %}
             <div style="display:flex; align-items:center; gap:5px;">
@@ -307,7 +399,8 @@
             {% else %}<span style="color:var(--surface-3); font-size:11px;">—</span>{% endif %}
           </td>
 
-          <!-- 잠재력 (Potential Score) -->
+          {% if 'talent_advanced' in plan_features %}
+          <!-- 잠재력 (Potential Score, Enterprise) -->
           <td>
             {% if r.confirmed %}
               {% set ps = r.get('potential_score') if r.get else none %}
@@ -325,6 +418,7 @@
             </select>
             {% endif %}
           </td>
+          {% endif %}
 
           <!-- 확정 등급 + 하향 사유 -->
           <td style="min-width:180px;">
@@ -409,8 +503,12 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
   </div>
-</div>
+  {% endif %}{# end selected_dept branch #}
+
+  </div>{# end 우측 본문 #}
+</div>{# end cal-layout #}
 
 {% endif %}
 {% endblock %}

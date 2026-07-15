@@ -11783,7 +11783,7 @@ def calibration():
                       summary_text=excluded.summary_text,
                       note=excluded.note,
                       downgrade_reason=excluded.downgrade_reason,
-                      potential_score=excluded.potential_score,
+                      potential_score=COALESCE(excluded.potential_score, potential_score),
                       decided_by=excluded.decided_by,
                       decided_at=CURRENT_TIMESTAMP
                 ''', (cid, uid,
@@ -11823,11 +11823,16 @@ def calibration():
 
         return redirect(url_for('calibration', cycle=cycle_id))
 
-    # GET — 전 직원 집계
-    rows = []
+    # GET — 전 직원 집계 (R1-C: 팀 단위 진행)
+    try:
+        selected_dept = int(request.args.get('dept', 0))
+    except (ValueError, TypeError):
+        selected_dept = 0
+
+    all_rows = []
     if cycle_id:
         emps = db.execute(
-            "SELECT u.id, u.name, d.name dept_name FROM users u "
+            "SELECT u.id, u.name, u.department_id, d.name dept_name FROM users u "
             "LEFT JOIN departments d ON u.department_id=d.id "
             "WHERE u.status='active' AND u.role NOT IN ('admin','guest') "
             "ORDER BY d.name, u.name"
@@ -11835,27 +11840,56 @@ def calibration():
 
         for emp in emps:
             row = _calc_calibration_row(db, emp['id'], cycle_id)
+            row['dept_id'] = emp['department_id'] or 0
             # 기존 확정 결과
             saved = db.execute(
                 'SELECT * FROM calibration_results WHERE cycle_id=? AND user_id=?',
                 (cycle_id, emp['id'])
             ).fetchone()
-            row['confirmed']   = saved is not None
-            row['final_grade'] = saved['final_grade'] if saved else row['suggested_grade']
-            row['is_shared']   = saved['is_shared'] if saved else 0
-            row['note']        = saved['note'] if saved else ''
-            rows.append(row)
+            row['confirmed']        = saved is not None
+            row['final_grade']      = saved['final_grade'] if saved else row['suggested_grade']
+            row['is_shared']        = saved['is_shared'] if saved else 0
+            row['note']             = saved['note'] if saved else ''
+            row['potential_score']  = saved['potential_score'] if saved else None
+            row['downgrade_reason'] = saved['downgrade_reason'] if saved else None
+            all_rows.append(row)
 
-    # 분포 집계
+    # 전체 분포 집계 (공개 조건은 전 직원 기준 유지)
     grade_dist = {'S':0,'A':0,'B':0,'C':0,'D':0}
     confirmed_count = 0
-    for r in rows:
+    for r in all_rows:
         if r['confirmed']:
             confirmed_count += 1
             grade_dist[r['final_grade']] = grade_dist.get(r['final_grade'], 0) + 1
 
-    total_count = len(rows)
+    total_count = len(all_rows)
     publish_ready = confirmed_count > 0 and confirmed_count == total_count
+
+    # 부서(팀)별 진행 현황 — 좌측 패널
+    dept_groups = {}
+    for r in all_rows:
+        g = dept_groups.setdefault(r['dept_id'], {
+            'dept_id': r['dept_id'],
+            'dept_name': r['dept_name'] if r['dept_name'] != '—' else '부서 미지정',
+            'total': 0, 'confirmed': 0,
+            'dist': {'S':0,'A':0,'B':0,'C':0,'D':0},
+        })
+        g['total'] += 1
+        if r['confirmed']:
+            g['confirmed'] += 1
+            g['dist'][r['final_grade']] = g['dist'].get(r['final_grade'], 0) + 1
+    dept_list = sorted(dept_groups.values(), key=lambda d: d['dept_name'])
+
+    # 선택 부서 상세 — 종합점수 내림차순 (미산출은 뒤로)
+    rows = []
+    dept_info = None
+    if selected_dept and selected_dept in dept_groups:
+        dept_info = dept_groups[selected_dept]
+        rows = sorted(
+            (r for r in all_rows if r['dept_id'] == selected_dept),
+            key=lambda r: (r['overall'] is None, -(r['overall'] or 0), r['name'])
+        )
+
     active_acr = db.execute(
         "SELECT id FROM compensation_review_cycles WHERE status='open' ORDER BY id DESC LIMIT 1"
     ).fetchone()
@@ -11865,9 +11899,16 @@ def calibration():
         "SELECT COUNT(*) FROM grade_appeals WHERE cycle_id=? AND status='pending'", (cycle_id,)
     ).fetchone()[0] if cycle_id else 0
 
+    # 권장 배분 가이드 (%) — 분포 바 점선 기준
+    target_dist = {'S': 10, 'A': 20, 'B': 40, 'C': 20, 'D': 10}
+    anomaly_count = sum(1 for r in all_rows if r['anomaly'])
+
     return render_template('performance/calibration.html',
+                           anomaly_count=anomaly_count,
                            cycles=cycles, selected_cycle=selected_cycle,
                            cycle_id=cycle_id, rows=rows,
+                           dept_list=dept_list, selected_dept=selected_dept,
+                           dept_info=dept_info, target_dist=target_dist,
                            grade_dist=grade_dist, confirmed_count=confirmed_count,
                            total_count=total_count, publish_ready=publish_ready,
                            active_acr=active_acr,
