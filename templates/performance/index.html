@@ -251,9 +251,9 @@
 ════════════════════════════════════════ -->
 {% if session.user_role == 'employee' %}
 
-<!-- To-Do 위젯 -->
+<!-- To-Do 위젯 (지금 할 일) -->
 {% if todo_items %}
-<div class="todo-strip">
+<div class="todo-strip" data-tour-page="perf-goals">
   {% for t in todo_items %}
   <a href="{{ t.url }}" class="todo-item">
     <div class="todo-icon" style="background:{{ t.color }}22; color:{{ t.color }};">
@@ -266,27 +266,146 @@
 </div>
 {% endif %}
 
-<!-- 탭 -->
-<div class="perf-tabs">
-  <button class="perf-tab active" onclick="switchTab('goals', this)" data-tour-page="perf-goals">
-    <i class="fas fa-bullseye"></i> 내 목표
-    {% set undone = goals|selectattr('self_score', 'none')|list|length %}
-    {% if undone > 0 %}<span class="tab-badge">{{ undone }}</span>{% endif %}
-  </button>
-  {% if include_peer %}
-  <button class="perf-tab" onclick="switchTab('peer', this)" data-tour-page="perf-peer">
-    <i class="fas fa-star"></i> 다면평가
-    {% set peer_undone = peer_assignments_mine|selectattr('done_id', 'none')|list|length %}
-    {% if peer_undone > 0 %}<span class="tab-badge">{{ peer_undone }}</span>{% endif %}
-  </button>
+{# ── R1-B: 단계 스위칭 — 결과 공개(appeal)·종료(closed) 단계는 결과가 본문, 그 외엔 목표가 본문 ── #}
+{% if stage in ('appeal', 'closed') %}
+
+<!-- ══ 평가 결과 (본문) ══ -->
+<div data-tour-page="perf-result">
+  {% if calibration_result %}
+  {% set grade = calibration_result.final_grade %}
+  <div class="result-banner">
+    <div>
+      <div style="font-size:13px; font-weight:700; opacity:.7; margin-bottom:6px;">최종 평가 등급</div>
+      <div class="result-grade">{{ grade }}</div>
+      <div class="result-label">
+        {% if grade == 'S' %}탁월 — 기대를 크게 초과{% elif grade == 'A' %}우수 — 기대를 초과{% elif grade == 'B' %}양호 — 기대에 부합{% elif grade == 'C' %}개선 필요{% else %}미흡{% endif %}
+      </div>
+    </div>
+    <div class="result-scores">
+      {% if calibration_result.self_avg %}
+      <div class="rs-item">
+        <div class="rs-val">{{ '%.1f'|format(calibration_result.self_avg) }}</div>
+        <div class="rs-lbl">자기평가</div>
+      </div>
+      {% endif %}
+      {% if calibration_result.peer_avg %}
+      <div class="rs-item">
+        <div class="rs-val">{{ '%.1f'|format(calibration_result.peer_avg) }}</div>
+        <div class="rs-lbl">동료평가</div>
+      </div>
+      {% endif %}
+      {% if calibration_result.mgr_avg %}
+      <div class="rs-item">
+        <div class="rs-val">{{ '%.1f'|format(calibration_result.mgr_avg) }}</div>
+        <div class="rs-lbl">매니저평가</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% if calibration_result.summary_text %}
+  <div class="card">
+    <div class="card-body" style="font-size:13px; line-height:1.8; color:var(--text);">
+      <div style="font-weight:700; margin-bottom:8px; color:var(--primary);">
+        <i class="fas fa-robot"></i> 종합 평가 요약
+      </div>
+      {{ calibration_result.summary_text }}
+    </div>
+  </div>
   {% endif %}
-  <button class="perf-tab" onclick="switchTab('result', this)" data-tour-page="perf-result">
-    <i class="fas fa-trophy"></i> 평가 결과
-  </button>
+
+  <!-- 이의신청 -->
+  {% if my_appeal %}
+  <div class="card" style="margin-top:12px;">
+    <div class="card-body">
+      <div style="font-weight:800; font-size:13px; margin-bottom:10px;">
+        <i class="fas fa-gavel" style="color:var(--purple);"></i> 이의신청 내역
+        {% if my_appeal.status == 'pending' %}
+        <span class="appr-badge appr-submitted" style="margin-left:6px;">재검토 중</span>
+        {% elif my_appeal.status == 'accepted' %}
+        <span class="appr-badge appr-confirmed" style="margin-left:6px;">인용 — {{ my_appeal.old_grade }}→{{ my_appeal.new_grade }}</span>
+        {% else %}
+        <span class="appr-badge appr-returned" style="margin-left:6px;">기각 — 등급 유지</span>
+        {% endif %}
+      </div>
+      <div style="font-size:12.5px; color:var(--tx-3); line-height:1.7;">
+        <div><strong>신청 사유:</strong> {{ my_appeal.reason }}</div>
+        {% if my_appeal.response %}
+        <div style="margin-top:6px;"><strong>재검토 의견:</strong> {{ my_appeal.response }}</div>
+        {% endif %}
+        <div style="margin-top:6px; font-size:11.5px;">신청일: {{ my_appeal.created_at }}
+          {% if my_appeal.resolved_at %} · 처리일: {{ my_appeal.resolved_at }}{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% elif can_appeal %}
+  <div class="card" style="margin-top:12px; border:1.5px solid var(--purple);">
+    <div class="card-body">
+      <div style="font-weight:800; font-size:13px; margin-bottom:6px;">
+        <i class="fas fa-gavel" style="color:var(--purple);"></i> 등급 이의신청
+      </div>
+      <div style="font-size:12px; color:var(--tx-3); margin-bottom:12px;">
+        평가 결과에 이의가 있으면 <strong>{{ selected_cycle.appeal_until }}</strong>까지 1회 재검토를 요청할 수 있습니다.
+        팀장/HR이 재검토 후 결과를 알림으로 안내드립니다.
+      </div>
+      <form method="POST" action="{{ url_for('performance_appeal_new') }}"
+            onsubmit="return confirm('이의신청은 주기당 1회만 가능합니다. 제출할까요?')">
+        <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
+        <textarea name="reason" class="input" rows="3" required minlength="10"
+                  placeholder="이의신청 사유를 구체적으로 작성해 주세요 (10자 이상). 예: 목표 3번의 달성 근거가 평가에 반영되지 않았습니다."
+                  style="width:100%; margin-bottom:10px; resize:vertical;"></textarea>
+        <button type="submit" class="btn" style="background:var(--purple); color:#fff;">
+          <i class="fas fa-paper-plane"></i> 이의신청 제출
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="card">
+    <div class="card-body" style="text-align:center; padding:60px; color:var(--tx-3);">
+      <i class="fas fa-trophy" style="font-size:32px; opacity:.3; display:block; margin-bottom:12px;"></i>
+      아직 평가 결과가 없습니다.<br>
+      <span style="font-size:12px; margin-top:8px; display:block;">
+        HR이 결과를 공개하면 여기에 표시됩니다.
+      </span>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 이번 주기 목표 요약 (아코디언) -->
+  {% if goals %}
+  <details style="margin-top:16px;">
+    <summary style="cursor:pointer; font-size:13px; font-weight:700; color:var(--tx-2); padding:10px 4px;">
+      <i class="fas fa-bullseye" style="margin-right:4px;"></i> 이번 주기 목표 요약 ({{ goals|length }}개)
+    </summary>
+    <div style="margin-top:8px;">
+      {% for g in goals %}
+      <div class="goal-card">
+        <div class="goal-card-body">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span class="badge {% if g.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}" style="font-size:11px;">{{ g.category }}</span>
+            <div style="flex:1;">
+              <div style="font-weight:700; font-size:13px;">{{ g.title }}</div>
+              <div class="progress-bar-bg" style="margin-top:6px;">
+                <div class="progress-bar-fill" style="width:{{ g.progress or 0 }}%;"></div>
+              </div>
+            </div>
+            <span style="font-size:12px; color:var(--tx-3); white-space:nowrap;">진행률 {{ g.progress or 0 }}% · 가중치 {{ g.weight }}%</span>
+            {% if g.self_score %}<span class="badge badge-info" style="font-size:11px;">자기 {{ g.self_score }}점</span>{% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
 </div>
 
-<!-- ── 탭1: 내 목표 ── -->
-<div id="panel-goals" class="perf-panel active">
+{% else %}
+<!-- ══ 목표·평가 (본문 — goal/progress/review/calibration 단계) ══ -->
+<div data-tour-page="perf-goals-body">
 
   <!-- 목표 세트 상태 + 제출 (목표 수립 단계) -->
   {% if my_goal_state and stage == 'goal' %}
@@ -470,166 +589,74 @@
     <div class="card-body" style="text-align:center; padding:60px; color:var(--tx-3);">
       <i class="fas fa-bullseye" style="font-size:32px; opacity:.3; display:block; margin-bottom:12px;"></i>
       이번 주기에 등록된 목표가 없습니다.
+      {% if stage == 'goal' %}
       <br><br>
       <a href="{{ url_for('performance_goal_new') }}" class="btn btn-primary">
         <i class="fas fa-plus"></i> 첫 번째 목표 등록하기
       </a>
-    </div>
-  </div>
-  {% endif %}
-</div>
-
-<!-- ── 탭2: 다면평가 ── -->
-{% if include_peer %}
-<div id="panel-peer" class="perf-panel">
-
-  {% if peer_assignments_mine %}
-  <div style="margin-bottom:16px; font-size:13px; color:var(--tx-3);">
-    총 {{ peer_assignments_mine|length }}명 · 완료
-    {{ peer_assignments_mine|selectattr('done_id')|list|length }}명 ·
-    미완료 {{ peer_assignments_mine|selectattr('done_id', 'none')|list|length }}명
-  </div>
-
-  {% for p in peer_assignments_mine %}
-  <div class="peer-card">
-    <div class="peer-avatar">{{ p.reviewee_name[0] }}</div>
-    <div style="flex:1;">
-      <div style="font-weight:700; font-size:14px;">{{ p.reviewee_name }}</div>
-      <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">
-        {{ '✓ 평가 완료' if p.done_id else '평가 대기 중' }}
-      </div>
-    </div>
-    {% if p.done_id %}
-    <a href="{{ url_for('peer_review_write', reviewee_id=p.reviewee_id) }}?cycle={{ p.cycle_id }}&type=peer"
-       class="btn btn-ghost btn-sm" style="color:var(--green);">
-      <i class="fas fa-check-circle"></i> 완료 · 수정
-    </a>
-    {% else %}
-    <a href="{{ url_for('peer_review_write', reviewee_id=p.reviewee_id) }}?cycle={{ p.cycle_id }}&type=peer"
-       class="btn btn-primary btn-sm">
-      <i class="fas fa-pen"></i> 평가 작성
-    </a>
-    {% endif %}
-  </div>
-  {% endfor %}
-
-  {% else %}
-  <div class="card">
-    <div class="card-body" style="text-align:center; padding:50px; color:var(--tx-3);">
-      <i class="fas fa-star" style="font-size:32px; opacity:.3; display:block; margin-bottom:12px;"></i>
-      배정된 동료 평가가 없습니다.<br>
-      <span style="font-size:12px; margin-top:8px; display:block;">HR Admin이 다면평가를 배정하면 여기에 표시됩니다.</span>
-    </div>
-  </div>
-  {% endif %}
-</div>
-{% endif %}{# end include_peer #}
-
-<!-- ── 탭3: 평가 결과 ── -->
-<div id="panel-result" class="perf-panel">
-  {% if calibration_result %}
-  {% set grade = calibration_result.final_grade %}
-  <div class="result-banner">
-    <div>
-      <div style="font-size:13px; font-weight:700; opacity:.7; margin-bottom:6px;">최종 평가 등급</div>
-      <div class="result-grade">{{ grade }}</div>
-      <div class="result-label">
-        {% if grade == 'S' %}탁월 — 기대를 크게 초과{% elif grade == 'A' %}우수 — 기대를 초과{% elif grade == 'B' %}양호 — 기대에 부합{% elif grade == 'C' %}개선 필요{% else %}미흡{% endif %}
-      </div>
-    </div>
-    <div class="result-scores">
-      {% if calibration_result.self_avg %}
-      <div class="rs-item">
-        <div class="rs-val">{{ '%.1f'|format(calibration_result.self_avg) }}</div>
-        <div class="rs-lbl">자기평가</div>
-      </div>
       {% endif %}
-      {% if calibration_result.peer_avg %}
-      <div class="rs-item">
-        <div class="rs-val">{{ '%.1f'|format(calibration_result.peer_avg) }}</div>
-        <div class="rs-lbl">동료평가</div>
-      </div>
-      {% endif %}
-      {% if calibration_result.mgr_avg %}
-      <div class="rs-item">
-        <div class="rs-val">{{ '%.1f'|format(calibration_result.mgr_avg) }}</div>
-        <div class="rs-lbl">매니저평가</div>
-      </div>
-      {% endif %}
-    </div>
-  </div>
-  {% if calibration_result.summary_text %}
-  <div class="card">
-    <div class="card-body" style="font-size:13px; line-height:1.8; color:var(--text);">
-      <div style="font-weight:700; margin-bottom:8px; color:var(--primary);">
-        <i class="fas fa-robot"></i> 종합 평가 요약
-      </div>
-      {{ calibration_result.summary_text }}
     </div>
   </div>
   {% endif %}
 
-  <!-- ── 이의신청 ── -->
-  {% if my_appeal %}
-  <div class="card" style="margin-top:12px;">
-    <div class="card-body">
-      <div style="font-weight:800; font-size:13px; margin-bottom:10px;">
-        <i class="fas fa-gavel" style="color:var(--purple);"></i> 이의신청 내역
-        {% if my_appeal.status == 'pending' %}
-        <span class="appr-badge appr-submitted" style="margin-left:6px;">재검토 중</span>
-        {% elif my_appeal.status == 'accepted' %}
-        <span class="appr-badge appr-confirmed" style="margin-left:6px;">인용 — {{ my_appeal.old_grade }}→{{ my_appeal.new_grade }}</span>
-        {% else %}
-        <span class="appr-badge appr-returned" style="margin-left:6px;">기각 — 등급 유지</span>
-        {% endif %}
-      </div>
-      <div style="font-size:12.5px; color:var(--tx-3); line-height:1.7;">
-        <div><strong>신청 사유:</strong> {{ my_appeal.reason }}</div>
-        {% if my_appeal.response %}
-        <div style="margin-top:6px;"><strong>재검토 의견:</strong> {{ my_appeal.response }}</div>
-        {% endif %}
-        <div style="margin-top:6px; font-size:11.5px;">신청일: {{ my_appeal.created_at }}
-          {% if my_appeal.resolved_at %} · 처리일: {{ my_appeal.resolved_at }}{% endif %}
+  <!-- 동료 평가 (평가 진행 단계 · 다면 포함 주기만) -->
+  {% if stage == 'review' and include_peer %}
+  <div style="margin-top:28px;" data-tour-page="perf-peer">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+      <span style="font-size:15px; font-weight:800;">
+        <i class="fas fa-star" style="color:var(--orange);"></i> 동료 평가
+      </span>
+      {% if peer_assignments_mine %}
+      <span style="font-size:12px; color:var(--tx-3);">
+        {{ peer_assignments_mine|selectattr('done_id')|list|length }} / {{ peer_assignments_mine|length }} 완료
+      </span>
+      {% endif %}
+    </div>
+
+    {% if peer_assignments_mine %}
+    {% for p in peer_assignments_mine %}
+    <div class="peer-card">
+      <div class="peer-avatar">{{ p.reviewee_name[0] }}</div>
+      <div style="flex:1;">
+        <div style="font-weight:700; font-size:14px;">{{ p.reviewee_name }}</div>
+        <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">
+          {{ '✓ 평가 완료' if p.done_id else '평가 대기 중' }}
         </div>
       </div>
+      {% if p.done_id %}
+      <a href="{{ url_for('peer_review_write', reviewee_id=p.reviewee_id) }}?cycle={{ p.cycle_id }}&type=peer"
+         class="btn btn-ghost btn-sm" style="color:var(--green);">
+        <i class="fas fa-check-circle"></i> 완료 · 수정
+      </a>
+      {% else %}
+      <a href="{{ url_for('peer_review_write', reviewee_id=p.reviewee_id) }}?cycle={{ p.cycle_id }}&type=peer"
+         class="btn btn-primary btn-sm">
+        <i class="fas fa-pen"></i> 평가 작성
+      </a>
+      {% endif %}
     </div>
-  </div>
-  {% elif can_appeal %}
-  <div class="card" style="margin-top:12px; border:1.5px solid var(--purple);">
-    <div class="card-body">
-      <div style="font-weight:800; font-size:13px; margin-bottom:6px;">
-        <i class="fas fa-gavel" style="color:var(--purple);"></i> 등급 이의신청
+    {% endfor %}
+    {% else %}
+    <div class="card">
+      <div class="card-body" style="text-align:center; padding:40px; color:var(--tx-3); font-size:13px;">
+        배정된 동료 평가가 없습니다. HR이 배정하면 여기에 표시됩니다.
       </div>
-      <div style="font-size:12px; color:var(--tx-3); margin-bottom:12px;">
-        평가 결과에 이의가 있으면 <strong>{{ selected_cycle.appeal_until }}</strong>까지 1회 재검토를 요청할 수 있습니다.
-        팀장/HR이 재검토 후 결과를 알림으로 안내드립니다.
-      </div>
-      <form method="POST" action="{{ url_for('performance_appeal_new') }}"
-            onsubmit="return confirm('이의신청은 주기당 1회만 가능합니다. 제출할까요?')">
-        <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
-        <textarea name="reason" class="input" rows="3" required minlength="10"
-                  placeholder="이의신청 사유를 구체적으로 작성해 주세요 (10자 이상). 예: 목표 3번의 달성 근거가 평가에 반영되지 않았습니다."
-                  style="width:100%; margin-bottom:10px; resize:vertical;"></textarea>
-        <button type="submit" class="btn" style="background:var(--purple); color:#fff;">
-          <i class="fas fa-paper-plane"></i> 이의신청 제출
-        </button>
-      </form>
     </div>
+    {% endif %}
   </div>
   {% endif %}
 
-  {% else %}
-  <div class="card">
-    <div class="card-body" style="text-align:center; padding:60px; color:var(--tx-3);">
-      <i class="fas fa-trophy" style="font-size:32px; opacity:.3; display:block; margin-bottom:12px;"></i>
-      아직 평가 결과가 없습니다.<br>
-      <span style="font-size:12px; margin-top:8px; display:block;">
-        평가 주기가 완료되고 HR이 결과를 공개하면 여기에 표시됩니다.
-      </span>
-    </div>
+  <!-- HR 조정 단계 안내 -->
+  {% if stage == 'calibration' %}
+  <div style="margin-top:20px; background:var(--bg); border:1px dashed var(--border); border-radius:12px;
+              padding:18px 20px; text-align:center; font-size:13px; color:var(--tx-3);">
+    <i class="fas fa-balance-scale" style="margin-right:6px;"></i>
+    평가가 마감되어 HR이 등급을 조정하고 있습니다. 결과가 공개되면 알림으로 안내드립니다.
   </div>
   {% endif %}
+
 </div>
+{% endif %}{# end stage switch (R1-B) #}
 
 
 <!-- ════════════════════════════════════════

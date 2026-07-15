@@ -12651,10 +12651,19 @@ def peer_review_write(reviewee_id):
                 db.commit()
                 return redirect(url_for('peer_reviews_page', cycle=cycle_id))
 
+    # 참고 패널 — 평가 대상자의 이번 주기 확정 목표 (R1-B)
+    reviewee_goals = db.execute(
+        "SELECT title, category, weight, progress FROM performance_goals "
+        "WHERE cycle_id=? AND user_id=? AND approval_status='confirmed' "
+        "ORDER BY weight DESC",
+        (cycle_id, reviewee_id)
+    ).fetchall()
+
     return render_template('performance/peer_write.html',
                            cycle=cycle, reviewee=reviewee,
                            review_type=review_type, existing=existing,
                            upward_questions=UPWARD_QUESTIONS, error=error,
+                           reviewee_goals=reviewee_goals,
                            active_page='peer')
 
 

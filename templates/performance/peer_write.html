@@ -3,7 +3,10 @@
 {% block page_title %}{% if review_type == 'upward' %}매니저 평가{% else %}동료 평가{% endif %}{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width:660px; margin:0 auto;">
+<div style="display:grid; grid-template-columns:minmax(0,660px) 300px; gap:20px; justify-content:center; align-items:start;"
+     class="pw-layout">
+<style>@media (max-width:900px){ .pw-layout { grid-template-columns:1fr !important; } }</style>
+<div class="card">
   <div class="card-head">
     <span class="card-title">
       {% if review_type == 'upward' %}
@@ -149,6 +152,35 @@
     </form>
   </div>
 </div>
+
+<!-- 참고 패널 — 평가 대상자의 이번 주기 목표 (R1-B) -->
+<div class="card" style="position:sticky; top:80px;">
+  <div style="padding:16px 18px;">
+    <div style="font-size:13px; font-weight:800; margin-bottom:12px;">
+      <i class="fas fa-paperclip" style="color:var(--primary);"></i> 참고 — {{ reviewee.name }}님의 목표
+    </div>
+    {% if reviewee_goals %}
+    {% for g in reviewee_goals %}
+    <div style="background:var(--bg); border:1px dashed var(--border); border-radius:10px;
+                padding:10px 13px; margin-bottom:8px;">
+      <div style="font-size:12px; font-weight:700;">
+        <span class="badge {% if g.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}"
+              style="font-size:10px; margin-right:4px;">{{ g.category }}</span>
+        {{ g.title }}
+      </div>
+      <div style="font-size:11px; color:var(--tx-3); margin-top:4px;">가중치 {{ g.weight }}% · 진행률 {{ g.progress or 0 }}%</div>
+    </div>
+    {% endfor %}
+    <div style="font-size:11px; color:var(--tx-3); margin-top:8px;">
+      목표 달성 과정에서 관찰한 행동을 근거로 작성하면 더 좋은 피드백이 됩니다.
+    </div>
+    {% else %}
+    <div style="font-size:12px; color:var(--tx-3);">이번 주기에 확정된 목표가 없습니다.</div>
+    {% endif %}
+  </div>
+</div>
+
+</div>{# end pw-layout #}
 {% endblock %}
 
 {% block scripts %}
