@@ -5960,7 +5960,7 @@ def payroll_confirm():
 
     log_audit('update', 'salary', None, f'{year}년 {month}월 급여 확정 — {len(drafts)}건 공개·발송')
     flash(f'{year}년 {month}월 급여 {len(drafts)}건이 확정되어 직원에게 공개·발송되었습니다.', 'success')
-    return redirect(url_for('compensation'))
+    return redirect(url_for('compensation', tab='ops', py=year, pm=month))
 
 
 @app.route('/payroll/discard-drafts', methods=['POST'])
@@ -5978,7 +5978,7 @@ def payroll_discard_drafts():
         flash(f'{year}년 {month}월 초안 {cur.rowcount}건을 폐기했습니다. 급여 항목 수정 후 다시 생성하세요.', 'success')
     else:
         flash('폐기할 초안이 없습니다. (확정된 명세는 폐기할 수 없습니다)', 'error')
-    return redirect(url_for('compensation'))
+    return redirect(url_for('compensation', tab='ops', py=year, pm=month))
 
 
 @app.route('/payroll/preview', methods=['POST'])
@@ -6262,6 +6262,7 @@ def compensation():
             month = int(request.form.get('month', datetime.date.today().month))
             if not (1 <= month <= 12):
                 flash('올바른 월을 입력해주세요.', 'danger')
+                return redirect(url_for('compensation', tab='ops'))
             else:
                 first_day = f"{year}-{month:02d}-01"
                 last_day  = f"{year}-{month:02d}-{cal_mod.monthrange(year, month)[1]}"
@@ -6284,11 +6285,17 @@ def compensation():
                         'SELECT * FROM checkins WHERE user_id=? AND date BETWEEN ? AND ?',
                         (e['id'], first_day, last_day)
                     ).fetchall()
-                    total_ot_pay = sum(
-                        calc_extra_pay(c['overtime_min'] or 0, c['night_min'] or 0,
-                                       c['holiday_min'] or 0, e['base_salary'])
-                        for c in checkins
-                    )
+                    # 기존 버그 수정: calc_extra_pay 인자 순서 오류 + dict 합산 크래시
+                    # (근태 기록이 있는 달에 급여 생성 시 500 — admin_payroll 경로와 동일 패턴으로 통일)
+                    total_ot_pay = 0
+                    for c in checkins:
+                        is_h = c['date'] in holiday_dates
+                        res  = calc_extra_pay(
+                            c['overtime_min'] or 0, c['night_min'] or 0, e['base_salary'],
+                            is_holiday=is_h,
+                            holiday_regular_min=(c['regular_min'] or 0) if is_h else 0
+                        )
+                        total_ot_pay += res['total_extra_pay']
                     extra_benefits = {}
                     for key, bcfg in benefit_cfgs.items():
                         extra_benefits[key] = (bcfg['amount'] if bcfg['amount_type'] == 'fixed'
@@ -6331,6 +6338,8 @@ def compensation():
                 db.commit()
                 flash(f'{year}년 {month}월 급여 {count}건이 초안으로 생성되었습니다. '
                       '금액 검토 후 [확정·발송]을 눌러야 직원에게 공개됩니다.', 'success')
+                # 정산 보드가 해당 월을 계속 보여주도록 (R3-A)
+                return redirect(url_for('compensation', tab='ops', py=year, pm=month))
 
         elif action == 'update_band':
             sg_id      = int(request.form.get('sg_id', 0))
@@ -6455,6 +6464,96 @@ def compensation():
         "FROM payslips WHERE status='draft' GROUP BY year, month ORDER BY year DESC, month DESC"
     ).fetchall()
 
+    # ── R3-A: 이번 달 정산 보드 (v1.4.0) ─────────────────────────
+    try:
+        sel_year  = int(request.args.get('py', today_year))
+        sel_month = int(request.args.get('pm', today_month))
+    except (ValueError, TypeError):
+        sel_year, sel_month = today_year, today_month
+    if not (1 <= sel_month <= 12):
+        sel_year, sel_month = today_year, today_month
+
+    month_first = f"{sel_year}-{sel_month:02d}-01"
+    month_last  = f"{sel_year}-{sel_month:02d}-{cal_mod.monthrange(sel_year, sel_month)[1]:02d}"
+
+    # 급여 미설정 직원 (정산 대상에서 빠지는 사람)
+    missing_salary = db.execute(
+        "SELECT u.id, u.name, d.name dept_name FROM users u "
+        "LEFT JOIN departments d ON u.department_id=d.id "
+        "LEFT JOIN employee_salary s ON u.id=s.user_id "
+        "WHERE u.status='active' AND u.role NOT IN ('admin','guest') "
+        "AND COALESCE(s.base_salary,0)=0 ORDER BY u.name"
+    ).fetchall()
+
+    # 이달 입사/퇴사 (일할·정산 주의 대상)
+    month_hires = db.execute(
+        "SELECT id, name, hire_date FROM users WHERE hire_date BETWEEN ? AND ? AND status='active'",
+        (month_first, month_last)
+    ).fetchall()
+    month_leavers = db.execute(
+        "SELECT id, name, termination_date FROM users WHERE termination_date BETWEEN ? AND ?",
+        (month_first, month_last)
+    ).fetchall()
+    hire_map = {h['id']: h['hire_date'] for h in month_hires}
+
+    # 선택월 초안·확정 현황
+    sel_draft_cnt = db.execute(
+        "SELECT COUNT(*) FROM payslips WHERE year=? AND month=? AND status='draft'",
+        (sel_year, sel_month)).fetchone()[0]
+    sel_confirmed_cnt = db.execute(
+        "SELECT COUNT(*) FROM payslips WHERE year=? AND month=? AND status='confirmed'",
+        (sel_year, sel_month)).fetchone()[0]
+
+    # 정산 단계 판정: 1=생성 전 / 2=초안 검토 / 3=확정 완료
+    if sel_draft_cnt:
+        pay_step = 2
+    elif sel_confirmed_cnt:
+        pay_step = 3
+    else:
+        pay_step = 1
+
+    # 검토 테이블 — 선택월 초안 + 전월 대비 증감
+    prev_y, prev_m = (sel_year - 1, 12) if sel_month == 1 else (sel_year, sel_month - 1)
+    prev_map = {r['user_id']: r['net_pay'] for r in db.execute(
+        'SELECT user_id, net_pay FROM payslips WHERE year=? AND month=?', (prev_y, prev_m)
+    ).fetchall()}
+    review_rows = []
+    review_alerts = 0
+    if pay_step == 2:
+        drafts = db.execute(
+            "SELECT p.*, u.name, d.name dept_name FROM payslips p "
+            "JOIN users u ON p.user_id=u.id "
+            "LEFT JOIN departments d ON u.department_id=d.id "
+            "WHERE p.year=? AND p.month=? AND p.status='draft' ORDER BY d.name, u.name",
+            (sel_year, sel_month)
+        ).fetchall()
+        for p in drafts:
+            prev_net = prev_map.get(p['user_id'])
+            diff_pct = None
+            if prev_net:
+                diff_pct = round((p['net_pay'] - prev_net) / prev_net * 100, 1)
+            is_alert  = diff_pct is not None and abs(diff_pct) >= 20
+            is_newbie = p['user_id'] in hire_map
+            if is_alert:
+                review_alerts += 1
+            review_rows.append({**dict(p), 'diff_pct': diff_pct,
+                                'is_alert': is_alert, 'is_newbie': is_newbie,
+                                'extra_pay': (p['overtime_pay'] or 0) + (p['bonus_pay'] or 0)})
+        # 이상 건 먼저, 이후 부서·이름순 유지
+        review_rows.sort(key=lambda r: (not r['is_alert'], r['dept_name'] or '', r['name']))
+
+    sel_confirmed_net = db.execute(
+        "SELECT COALESCE(SUM(net_pay),0) FROM payslips WHERE year=? AND month=? AND status='confirmed'",
+        (sel_year, sel_month)).fetchone()[0]
+
+    # 급여일 D-day (선택월 기준)
+    pay_day = int(cfg.get('pay_day', 25) or 25)
+    try:
+        pay_date = datetime.date(sel_year, sel_month, min(pay_day, cal_mod.monthrange(sel_year, sel_month)[1]))
+        pay_dday = (pay_date - today).days
+    except ValueError:
+        pay_date, pay_dday = None, None
+
     # R2: growth 이하 요금제용 KPI (ACR·Compa 카드 대체)
     avg_base_salary = db.execute(
         "SELECT AVG(s.base_salary) FROM employee_salary s "
@@ -6573,6 +6672,13 @@ def compensation():
         active_count=active_count,
         this_month_done=this_month_done,
         draft_months=draft_months,
+        sel_year=sel_year, sel_month=sel_month,
+        pay_step=pay_step, pay_date=pay_date, pay_dday=pay_dday,
+        missing_salary=missing_salary,
+        month_hires=month_hires, month_leavers=month_leavers,
+        sel_draft_cnt=sel_draft_cnt, sel_confirmed_cnt=sel_confirmed_cnt,
+        sel_confirmed_net=sel_confirmed_net,
+        review_rows=review_rows, review_alerts=review_alerts,
         active_acr=active_acr,
         compa_outliers=compa_outliers,
         avg_base_salary=avg_base_salary,

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>보상관리 체계 개편 기획서 (R3) — TalentCore</title>
+<style>
+  :root {
+    --primary: #4f46e5; --primary-bg: #eef2ff;
+    --tx-1: #191d28; --tx-2: #40465a; --tx-3: #8a90a4;
+    --bg: #f6f7fb; --surface: #fff; --line: #e6e8f0;
+    --green: #047857; --green-bg: #ecfdf5;
+    --red: #dc2626; --red-bg: #fef2f2;
+    --orange: #b45309; --orange-bg: #fffbeb;
+    --r: 12px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; background:var(--bg); color:var(--tx-1); line-height:1.65; }
+  .wrap { max-width:1080px; margin:0 auto; padding:48px 28px 100px; }
+
+  .hero { background:linear-gradient(120deg,#047857,#0891b2); color:#fff; border-radius:20px; padding:40px 44px; margin-bottom:36px; }
+  .hero .tag { display:inline-block; font-size:12px; font-weight:800; background:rgba(255,255,255,.18); padding:4px 14px; border-radius:99px; margin-bottom:14px; letter-spacing:.04em; }
+  .hero h1 { font-size:30px; font-weight:800; letter-spacing:-.02em; margin-bottom:10px; }
+  .hero p { font-size:14.5px; opacity:.88; }
+
+  h2 { font-size:21px; font-weight:800; letter-spacing:-.01em; margin:52px 0 6px; display:flex; align-items:center; gap:10px; }
+  h2 .num { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:8px; background:#047857; color:#fff; font-size:14px; flex-shrink:0; }
+  h3 { font-size:16px; font-weight:800; margin:28px 0 10px; }
+  .sub { font-size:13.5px; color:var(--tx-3); margin-bottom:18px; }
+  p.body { font-size:14.5px; color:var(--tx-2); margin-bottom:12px; }
+
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:22px 26px; margin-bottom:16px; }
+
+  table.doc { width:100%; border-collapse:collapse; font-size:13.5px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r); overflow:hidden; }
+  table.doc th { background:#f2f3f9; text-align:left; padding:11px 16px; font-weight:800; font-size:12.5px; color:var(--tx-2); border-bottom:1px solid var(--line); }
+  table.doc td { padding:11px 16px; border-bottom:1px solid var(--line); color:var(--tx-2); vertical-align:top; }
+  table.doc tr:last-child td { border-bottom:none; }
+  .tblwrap { overflow-x:auto; margin-bottom:16px; }
+
+  .callout { border-left:4px solid #047857; background:var(--green-bg); border-radius:0 10px 10px 0; padding:16px 20px; font-size:14px; color:var(--tx-2); margin:18px 0; }
+  .callout b { color:#047857; }
+  .warn { border-left-color:var(--red); background:var(--red-bg); }
+  .warn b { color:var(--red); }
+
+  .badge { display:inline-block; font-size:11px; font-weight:800; padding:2px 10px; border-radius:99px; }
+  .b-green { background:var(--green-bg); color:var(--green); }
+  .b-red { background:var(--red-bg); color:var(--red); }
+  .b-orange { background:var(--orange-bg); color:var(--orange); }
+  .b-primary { background:var(--primary-bg); color:var(--primary); }
+  .b-gray { background:#f0f1f6; color:var(--tx-3); }
+
+  .mock { border:1px solid var(--line); border-radius:14px; background:#fbfbfe; overflow:hidden; margin:14px 0 6px; box-shadow:0 10px 30px rgba(25,29,40,.06); }
+  .mock-bar { display:flex; align-items:center; gap:8px; background:#eef0f6; padding:9px 16px; border-bottom:1px solid var(--line); }
+  .mock-dot { width:9px; height:9px; border-radius:50%; background:#d3d6e2; }
+  .mock-title { font-size:11.5px; font-weight:700; color:var(--tx-3); margin-left:6px; }
+  .mock-body { padding:18px 20px; }
+  .mock-cap { font-size:12px; color:var(--tx-3); margin:8px 2px 26px; }
+
+  .m-stepper { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+  .m-step { font-size:10.5px; font-weight:800; padding:4px 12px; border-radius:99px; background:#eef0f6; color:var(--tx-3); display:flex; align-items:center; gap:5px; }
+  .m-step.done { background:var(--green-bg); color:var(--green); }
+  .m-step.cur { background:#047857; color:#fff; }
+  .m-arrow { color:#c9cdda; font-size:10px; }
+  .m-lock { font-size:9px; }
+
+  table.m-tbl { width:100%; border-collapse:collapse; font-size:12px; background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  table.m-tbl th { background:#f5f6fa; padding:8px 12px; text-align:left; font-size:11px; color:var(--tx-3); font-weight:800; border-bottom:1px solid var(--line); }
+  table.m-tbl td { padding:9px 12px; border-bottom:1px solid var(--line); color:var(--tx-2); }
+  table.m-tbl tr:last-child td { border-bottom:none; }
+  .m-btn { display:inline-block; font-size:11px; font-weight:800; padding:4px 12px; border-radius:8px; background:#047857; color:#fff; }
+  .m-btn.ghost { background:#fff; color:var(--tx-2); border:1px solid var(--line); }
+  .m-chip { font-size:11.5px; font-weight:700; padding:6px 13px; border-radius:10px; background:#fff; border:1px solid var(--line); color:var(--tx-2); }
+  .m-chip b { color:var(--red); }
+  .m-chip.ok b { color:var(--green); }
+  .diff-up { color:#047857; font-weight:800; }
+  .diff-down { color:#dc2626; font-weight:800; }
+
+  ul.plain { margin:8px 0 14px 20px; font-size:14px; color:var(--tx-2); }
+  ul.plain li { margin-bottom:6px; }
+  .src { font-size:12.5px; color:var(--tx-3); }
+  .src a { color:var(--primary); text-decoration:none; }
+  footer { margin-top:60px; text-align:center; font-size:12px; color:var(--tx-3); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <span class="tag">R3 기획서 · 2026-07-16 · 승인 대기</span>
+    <h1>보상관리 체계 개편</h1>
+    <p>flex 급여정산·Workday Compensation Review 리서치 + 현행 화면 실측 감사 기반 — Core~Growth(30~200인 실무) 기준 재설계.<br>
+    Salary Band·Merit Matrix·ACR은 Enterprise 격리(v1.2.13) 유지, 이 기획에서 다루지 않음.</p>
+  </div>
+
+  <!-- 1 -->
+  <h2><span class="num">1</span>문제의식 — 현행 실측 (2026-07-16 데모 감사)</h2>
+  <div class="tblwrap"><table class="doc">
+    <tr><th style="width:190px;">화면</th><th>실측 문제</th></tr>
+    <tr><td><b>급여 운영 탭</b></td><td><b style="color:var(--red);">153명 플랫 테이블</b>(부서순)에 검색·필터 없음. 기본급 0원(급여 미설정) 직원이 그대로 섞여 노출. 연/월 선택 + [급여 생성] 버튼 + 명단이 전부 — "이번 달 정산이 어디까지 진행됐나"가 화면 구조로 안 보임</td></tr>
+    <tr><td><b>검토 단계 부재</b></td><td>초안 생성 → 바로 확정·발송. <b>전월 대비 얼마나 달라졌는지, 이상값은 없는지</b> 검토할 화면이 없음 — 실무에서 가장 사고가 잦은 지점(중도입사 일할, 수당 급증, 누락)</td></tr>
+    <tr><td><b>연봉 조정(인상)</b></td><td>일괄 인상 = % 입력 → <b>즉시 적용, 되돌리기 불가</b>. 실무의 "조정안 작성 → 시뮬레이션 → 검토 → 적용일에 반영 → 통보" 흐름이 없음. 적용일 지정 불가(항상 즉시)</td></tr>
+    <tr><td><b>게이팅 잔여 누락</b></td><td>Compa-Ratio가 <b>직원 테이블 컬럼 + 분석 탭 분포 카드</b>에 growth 요금제로 노출 — saas_plan §3 위반 (R2에서 KPI 카드만 대체하고 이 2곳을 놓침)</td></tr>
+    <tr><td><b>보상 분석 탭</b></td><td>Compa 분포(Enterprise 대상)뿐. Core 고객이 실제로 궁금한 <b>월 인건비 추이·부서별 인건비</b>가 없음. 일괄 인상 폼의 부서 드롭다운은 부문~팀 49개 평면 나열</td></tr>
+  </table></div>
+  <div class="callout warn"><b>한 줄 요약:</b> 급여는 매월 도는 <b>사이클 업무</b>인데 화면은 명단+버튼이고, 연봉 조정은 <b>절차 없이 즉시 반영</b>된다.</div>
+
+  <!-- 2 -->
+  <h2><span class="num">2</span>벤치마크 요약</h2>
+  <div class="card">
+    <h3 style="margin-top:0;">flex 급여정산 <span class="badge b-primary">국내 표준</span></h3>
+    <p class="body">월 정산을 <b>단계형 위저드</b>로 진행: 대상자 확인 → 근태 연동 → 지급/공제 확인 → 단계별 <b>확정·잠금(자물쇠)</b> → 급여대장 다운로드 → 정산 완료 후 <b>명세서 공개 설정(공개일·시각·알림)</b>. 확정한 단계는 해제 전까지 수정 불가. 연봉테이블→정산→명세 발급을 하나의 급여 사이클로 묶음.</p>
+    <h3>Workday Compensation Review</h3>
+    <p class="body">연 1회 조정은 <b>워크시트(제안 그리드)</b>에서: 컨텍스트(현재 연봉·등급·가이드라인)와 입력 필드(제안 인상률)를 한 그리드에. 제안 → 승인 → <b>effective date에 base pay 자동 반영</b>. 제안 단계에서는 실제 급여가 바뀌지 않음.</p>
+    <h3>TalentCore 기존 자산 (재사용)</h3>
+    <p class="body">급여 2단계(초안→확정·발송+이메일, v1.2.5) · 등급별 인상률 테이블(성과 R1 연동) · salary_history · 미래 발령 예약 반영 프레임(personnel_actions) · 감사 로그.</p>
+  </div>
+  <div class="callout">공통 패턴 — <b>(a)</b> 월 급여는 단계형 사이클(생성→검토→확정)로 &nbsp;<b>(b)</b> 연봉 조정은 "제안↔반영 분리 + 적용일 지정" &nbsp;<b>(c)</b> 검토 화면엔 비교 컨텍스트(전월/현재 연봉)를 함께</div>
+
+  <!-- 3 -->
+  <h2><span class="num">3</span>설계 원칙</h2>
+  <ul class="plain">
+    <li><b>월 급여 = 사이클</b> — 급여 운영 탭을 "이번 달 정산 보드"로: 단계 스텝퍼가 화면을 이끈다.</li>
+    <li><b>조정은 제안↔반영 분리</b> — 연봉 조정안(draft)은 몇 번이고 고치고, 반영은 적용일에 한 번.</li>
+    <li><b>기존 뼈대 재사용</b> — payslips.status(초안/확정), salary_history, 등급 연동 인상률, 이메일 발송 그대로.</li>
+    <li><b>Enterprise 배제</b> — Salary Band·Compa·Merit Matrix·ACR은 등장하지 않음 (게이팅 누락 2곳 수리 포함).</li>
+  </ul>
+
+  <!-- 4 -->
+  <h2><span class="num">4</span>화면 재설계 (목업)</h2>
+
+  <h3>4-A. 급여 운영 — "이번 달 정산 보드" <span class="badge b-red">핵심</span></h3>
+  <div class="mock">
+    <div class="mock-bar"><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-title">보상 관리 › 급여 운영 (2026년 7월)</span></div>
+    <div class="mock-body">
+      <div class="m-stepper">
+        <span class="m-step done">① 대상 확인 <i class="m-lock">🔒</i></span><span class="m-arrow">›</span>
+        <span class="m-step cur">② 초안 생성·검토</span><span class="m-arrow">›</span>
+        <span class="m-step">③ 확정·발송</span>
+        <span style="margin-left:auto; font-size:11px; font-weight:800; color:var(--orange);">급여일 7/25 (D-9)</span>
+      </div>
+      <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+        <span class="m-chip">대상 <b style="color:var(--tx-1);">150명</b></span>
+        <span class="m-chip"><b>3명</b> 급여 미설정 — 제외됨</span>
+        <span class="m-chip"><b>2건</b> 전월 대비 ±20% 이상</span>
+        <span class="m-chip ok"><b>1명</b> 이달 입사 (일할)</span>
+      </div>
+      <table class="m-tbl">
+        <tr><th>직원</th><th>기본급</th><th>수당(OT·야간)</th><th>실지급액</th><th>전월 대비</th><th></th></tr>
+        <tr><td><b>강다인</b> · B2B영업</td><td>5,416,666</td><td>182,000</td><td>5,120,400</td><td><span class="diff-up">+3.7%</span> <span class="badge b-orange">OT 증가</span></td><td><span class="m-btn ghost">상세</span></td></tr>
+        <tr><td><b>박윤호</b> · B2B영업</td><td>4,166,666</td><td>—</td><td>3,905,210</td><td>±0%</td><td><span class="m-btn ghost">상세</span></td></tr>
+        <tr><td><b>김신입</b> · UX팀</td><td>2,083,333</td><td>—</td><td>1,988,120</td><td><span class="badge b-primary">7/16 입사 · 일할</span></td><td><span class="m-btn ghost">상세</span></td></tr>
+      </table>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;">
+        <span class="m-btn ghost">급여대장 Excel</span>
+        <span class="m-btn">검토 완료 → 확정·발송</span>
+      </div>
+    </div>
+  </div>
+  <p class="mock-cap">flex 패턴의 3단계 정산 보드. ①대상 확인: 재직·미설정·입퇴사자 정리(미설정 직원은 여기서 잡힘) ②초안 생성 후 <b>전월 대비 증감 컬럼 + 이상 감지 칩</b>(±20% 이상, 수당 급증, 일할 대상)으로 검토 ③확정 시 기존 로직(공개+알림+이메일) 그대로. 검색·부서 필터 추가.</p>
+
+  <h3>4-B. 연봉 조정 — 조정안 3단계 (즉시 반영 폐지)</h3>
+  <div class="mock">
+    <div class="mock-bar"><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-title">보상 관리 › 연봉 조정 (2026년 정기 조정)</span></div>
+    <div class="mock-body">
+      <div class="m-stepper">
+        <span class="m-step done">① 조정안 작성</span><span class="m-arrow">›</span>
+        <span class="m-step cur">② 시뮬레이션·검토</span><span class="m-arrow">›</span>
+        <span class="m-step">③ 적용 (2026-08-01)</span>
+      </div>
+      <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+        <span class="m-chip">대상 <b style="color:var(--tx-1);">150명</b></span>
+        <span class="m-chip ok">평균 인상률 <b>4.2%</b></span>
+        <span class="m-chip ok">월 인건비 증가 <b>+38,120,000원</b></span>
+      </div>
+      <table class="m-tbl">
+        <tr><th>직원</th><th>등급</th><th>현재 기본급</th><th>기본 인상률</th><th>개별 조정</th><th>조정 후</th></tr>
+        <tr><td><b>강다인</b></td><td><span class="badge b-primary">A</span></td><td>5,416,666</td><td>+5.0%</td><td><b>+7.0%</b> <span class="badge b-orange">사유: 핵심인재</span></td><td>5,795,833</td></tr>
+        <tr><td><b>박윤호</b></td><td><span class="badge b-gray">B</span></td><td>4,166,666</td><td>+3.0%</td><td>—</td><td>4,291,666</td></tr>
+      </table>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;">
+        <span class="m-btn ghost">임시저장</span>
+        <span class="m-btn">적용 예약 (8/1 발효)</span>
+      </div>
+    </div>
+  </div>
+  <p class="mock-cap">Workday 워크시트 축소판 — 등급별 기본 인상률(성과 R1 연동, 사전 공개 테이블과 동일)로 프리필 후 <b>개인별 조정(사유 입력)</b>. 임시저장 가능(draft), 적용 전엔 실제 급여 불변. <b>적용일 지정</b> — 미래일이면 예약, 당일 자동 반영 + salary_history 기록 + 직원 알림(선택). 기존 '일괄 인상'·'Merit 인상' 즉시 적용 폼은 이 플로우로 대체.</p>
+
+  <h3>4-C. 보상 분석 — Core 친화 인건비 분석 + 직원 '내 보상'</h3>
+  <div class="mock">
+    <div class="mock-bar"><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-title">보상 분석 탭 (growth)</span></div>
+    <div class="mock-body">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div style="background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px;">
+          <div style="font-size:11px; font-weight:800; color:var(--tx-3); margin-bottom:8px;">월 인건비 추이 (최근 6개월)</div>
+          <div style="display:flex; align-items:flex-end; gap:8px; height:60px;">
+            <div style="flex:1; background:#a7f3d0; height:70%; border-radius:4px 4px 0 0;"></div>
+            <div style="flex:1; background:#a7f3d0; height:72%; border-radius:4px 4px 0 0;"></div>
+            <div style="flex:1; background:#a7f3d0; height:71%; border-radius:4px 4px 0 0;"></div>
+            <div style="flex:1; background:#6ee7b7; height:78%; border-radius:4px 4px 0 0;"></div>
+            <div style="flex:1; background:#6ee7b7; height:79%; border-radius:4px 4px 0 0;"></div>
+            <div style="flex:1; background:#047857; height:84%; border-radius:4px 4px 0 0;"></div>
+          </div>
+        </div>
+        <div style="background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px;">
+          <div style="font-size:11px; font-weight:800; color:var(--tx-3); margin-bottom:8px;">부서별 월 인건비 Top 5</div>
+          <div style="font-size:11.5px; color:var(--tx-2); line-height:2;">
+            엔지니어링 본부 ████████ 1.2억<br>
+            영업 본부 █████ 0.8억<br>
+            프로덕트 본부 ████ 0.6억
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="mock-cap">Compa 분포(Enterprise 격리 수리) 대신 <b>월 인건비 추이·부서별 인건비</b> — 확정 payslips 집계라 신규 테이블 불필요. 직원 쪽은 '내 문서'에 <b>연봉 변화 타임라인</b>(salary_history 기반, 조정 사유 포함) 추가.</p>
+
+  <!-- 5 -->
+  <h2><span class="num">5</span>DB 변경 (최소)</h2>
+  <div class="tblwrap"><table class="doc">
+    <tr><th style="width:240px;">대상</th><th>내용</th></tr>
+    <tr><td>신규 <code>salary_adjustments</code></td><td>연봉 조정안 헤더 (name, effective_date, status: draft/applied, created_by, applied_at)</td></tr>
+    <tr><td>신규 <code>salary_adjustment_items</code></td><td>조정안 라인 (adjustment_id, user_id, old_salary, pct, new_salary, reason)</td></tr>
+    <tr><td><code>payslips</code>·<code>salary_history</code></td><td>변경 없음 (기존 재사용)</td></tr>
+  </table></div>
+
+  <!-- 6 -->
+  <h2><span class="num">6</span>구현 순서 (한 버전 = 한 작업)</h2>
+  <div class="tblwrap"><table class="doc">
+    <tr><th style="width:90px;">버전</th><th>범위</th><th style="width:150px;">비고</th></tr>
+    <tr><td><b>v1.4.0</b></td><td><b>R3-A 월 정산 보드</b> — 급여 운영 탭 3단계 사이클(대상 확인/초안·검토(전월 diff+이상 감지)/확정·발송) + 검색·필터 + Compa 게이팅 수리 2곳</td><td><span class="badge b-red">최대 임팩트</span></td></tr>
+    <tr><td><b>v1.4.1</b></td><td><b>R3-B 연봉 조정 3단계</b> — 조정안 작성(등급 프리필+개별 조정)→시뮬레이션→적용일 반영. 기존 즉시 적용 폼 대체</td><td>DB 마이그레이션 포함</td></tr>
+    <tr><td><b>v1.4.2</b></td><td><b>R3-C 분석·내 보상</b> — 인건비 분석 2종 + 직원 연봉 타임라인 + 부서 드롭다운 계층화</td><td></td></tr>
+  </table></div>
+  <p class="body">각 버전마다 릴리즈 워크플로우(스윕 → 커밋 → 태그 → 릴리즈) 적용, R3 완료 시 VM 일괄 배포.</p>
+
+  <!-- 7 -->
+  <h2><span class="num">7</span>이번에 하지 않는 것</h2>
+  <ul class="plain">
+    <li>Salary Band·Compa·Merit Matrix·ACR 개선 — Enterprise, 숨김 유지</li>
+    <li>4대보험 요율·세액 계산 로직 변경 — 현행 유지 ("참고용 자동계산 + 담당자 확정" 포지션 그대로)</li>
+    <li>연말정산·퇴직 중도정산 — Phase D(saas_plan §6) 유지</li>
+    <li>매니저 조정 워크시트 롤업(Workday식 다단계) — 30~200인은 HR 단독 시트로 충분, 실고객 요구 시 결재선 연동 검토</li>
+  </ul>
+
+  <!-- 8 -->
+  <h2><span class="num">8</span>참고 소스</h2>
+  <p class="src">
+    flex — <a href="https://flex.team/landing/service/payroll">급여정산 제품</a> · <a href="https://guide.flex.team/ko/articles/10300722-급여정산하기">급여정산 가이드(단계·잠금·명세 공개)</a> · <a href="https://flex.team/blog/2023/08/30/payroll-cycle/">기본 급여사이클</a><br>
+    Workday — <a href="https://commitconsulting.com/blog/workday-compensation-review-process">Compensation Review Process</a> · <a href="https://www.suretysystems.com/insights/aligning-rewards-and-performance-with-the-workday-merit-process/">Merit Process</a> · <a href="https://kognitivinc.com/blog/a-workday-hidden-gem-for-compensation-review-processes/">Configurable Grid(워크시트)</a>
+  </p>
+
+  <footer>TalentCore · 보상관리 체계 개편 기획서 (R3) · 2026-07-16</footer>
+</div>
+</body>
+</html>

@@ -66,6 +66,23 @@
 .modal-box { background:var(--surface); border-radius:var(--r-lg); padding:28px; width:400px; max-width:94vw; }
 .modal-title { font-size:16px; font-weight:800; color:var(--tx-1); margin-bottom:18px; }
 .modal-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
+
+/* ── 정산 보드 (R3-A, v1.4.0) ── */
+.pay-steps { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.pay-step {
+  font-size:11px; font-weight:800; padding:4px 12px; border-radius:20px;
+  background:var(--surface-3, #f0f1f6); color:var(--tx-3); white-space:nowrap;
+}
+.pay-step.done { background:var(--green-bg); color:var(--green); }
+.pay-step.cur  { background:var(--primary); color:#fff; }
+.pay-chip {
+  font-size:12px; font-weight:700; padding:6px 13px; border-radius:10px;
+  background:var(--surface); border:1px solid var(--line); color:var(--tx-2);
+}
+.pay-chip b { font-weight:900; color:var(--tx-1); }
+.pay-chip.warn { border-color:var(--red); }
+.pay-chip.warn b { color:var(--red); }
+.pay-chip.info b { color:var(--primary); }
 </style>
 {% endblock %}
 
@@ -138,84 +155,204 @@
 ════════════════════════════════ -->
 <div id="cp-ops" class="cp-pane" {% if active_tab != 'ops' %}style="display:none"{% endif %}>
 
-  <!-- 월 급여 생성 바 -->
-  <form method="POST" action="{{ url_for('compensation') }}">
-    <input type="hidden" name="action" value="generate">
-    <input type="hidden" name="_tab" value="ops">
-    <div class="gen-bar">
-      <div class="field">
-        <label>연도</label>
-        <select name="year">
-          {% for y in range(today_year - 1, today_year + 2) %}
-          <option value="{{ y }}" {% if y == today_year %}selected{% endif %}>{{ y }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="field">
-        <label>월</label>
-        <select name="month">
-          {% for m in range(1, 13) %}
-          <option value="{{ m }}" {% if m == today_month %}selected{% endif %}>{{ m }}월</option>
-          {% endfor %}
-        </select>
-      </div>
-      <button type="submit" class="btn btn-primary">
-        <i class="fas fa-play"></i> 급여 생성 (초안)
-      </button>
-      <span style="font-size:12px; color:var(--primary-tx); align-self:center;">
-        생성 = 초안 (직원 비공개) · 검토 후 확정 시 공개·발송 · 근태 수당·복리후생 자동 포함
-      </span>
-    </div>
-  </form>
-
-  <!-- P0-2: 미확정 초안 확정·발송 -->
-  {% if draft_months %}
-  <div class="card" style="border:1.5px solid #f59e0b; margin-bottom:16px;">
+  <!-- ══ R3-A: 이번 달 정산 보드 (v1.4.0) ══ -->
+  <div class="card" style="margin-bottom:16px;">
     <div class="card-body">
-      <div style="font-weight:800; font-size:13px; margin-bottom:10px;">
-        <i class="fas fa-file-invoice-dollar" style="color:#d97706;"></i> 확정 대기 중인 급여 초안
-        <span style="font-size:11.5px; font-weight:600; color:var(--tx-3); margin-left:6px;">
-          아직 직원에게 공개되지 않았습니다. 금액을 검토한 뒤 확정하세요.
+
+      <!-- 월 선택 + 스텝퍼 + 급여일 -->
+      <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px;">
+        <select class="input" style="width:170px; font-size:13px; font-weight:700;"
+                onchange="location.href='?tab=ops&py='+this.value.split('-')[0]+'&pm='+this.value.split('-')[1]">
+          {% for off in [-2, -1, 0, 1] %}
+          {% set ym = (today_year * 12 + today_month - 1 + off) %}
+          {% set y = (ym // 12) %}{% set m = (ym % 12) + 1 %}
+          <option value="{{ y }}-{{ m }}" {% if y == sel_year and m == sel_month %}selected{% endif %}>{{ y }}년 {{ m }}월 정산</option>
+          {% endfor %}
+          {% if sel_year * 12 + sel_month - 1 < today_year * 12 + today_month - 3 or sel_year * 12 + sel_month - 1 > today_year * 12 + today_month %}
+          <option value="{{ sel_year }}-{{ sel_month }}" selected>{{ sel_year }}년 {{ sel_month }}월 정산</option>
+          {% endif %}
+        </select>
+
+        <div class="pay-steps">
+          <span class="pay-step {{ 'done' if pay_step > 1 else 'cur' }}">① 대상 확인</span>
+          <i class="fas fa-chevron-right" style="font-size:9px; color:var(--tx-3);"></i>
+          <span class="pay-step {{ 'done' if pay_step > 2 else ('cur' if pay_step == 2 else '') }}">② 초안 생성·검토</span>
+          <i class="fas fa-chevron-right" style="font-size:9px; color:var(--tx-3);"></i>
+          <span class="pay-step {{ 'done' if pay_step == 3 else '' }}">③ 확정·발송</span>
+        </div>
+
+        {% if pay_dday is not none and pay_step != 3 %}
+        <span style="margin-left:auto; font-size:11.5px; font-weight:800; white-space:nowrap;
+                     color:{{ 'var(--red)' if pay_dday < 3 else 'var(--orange)' }};">
+          <i class="fas fa-calendar-day"></i> 급여일 {{ pay_date.month }}/{{ pay_date.day }}
+          {% if pay_dday >= 0 %}(D-{{ pay_dday }}){% else %}({{ pay_dday|abs }}일 경과){% endif %}
         </span>
+        {% endif %}
       </div>
-      {% for dm in draft_months %}
-      <div style="display:flex; align-items:center; gap:14px; padding:10px 0;
-                  {% if not loop.last %}border-bottom:1px solid var(--border);{% endif %} flex-wrap:wrap;">
-        <span style="font-weight:800; font-size:14px;">{{ dm.year }}년 {{ dm.month }}월</span>
-        <span style="font-size:12.5px; color:var(--tx-3);">
-          {{ dm.cnt }}건 · 실수령 합계 {{ '{:,}'.format(dm.total_net or 0) }}원
+
+      <!-- 대상 요약 칩 -->
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
+        <span class="pay-chip">대상 <b>{{ active_count - missing_salary|length }}명</b></span>
+        {% if missing_salary %}
+        <span class="pay-chip warn" onclick="document.getElementById('missing-detail').open = true; document.getElementById('missing-detail').scrollIntoView({block:'center'});" style="cursor:pointer;">
+          <b>{{ missing_salary|length }}명</b> 급여 미설정 — 제외됨
         </span>
+        {% endif %}
+        {% if month_hires %}<span class="pay-chip info"><b>{{ month_hires|length }}명</b> 이달 입사 (일할 확인)</span>{% endif %}
+        {% if month_leavers %}<span class="pay-chip info"><b>{{ month_leavers|length }}명</b> 이달 퇴사</span>{% endif %}
+        {% if pay_step == 2 and review_alerts %}
+        <span class="pay-chip warn"><b>{{ review_alerts }}건</b> 전월 대비 ±20% 이상</span>
+        {% endif %}
+      </div>
+
+      <!-- 급여 미설정 상세 (접이식) -->
+      {% if missing_salary %}
+      <details id="missing-detail" style="margin-top:10px;">
+        <summary style="cursor:pointer; font-size:12px; font-weight:700; color:var(--red);">
+          급여 미설정 직원 {{ missing_salary|length }}명 — 설정 전까지 정산에서 제외됩니다
+        </summary>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+          {% for ms in missing_salary %}
+          <button type="button" class="btn btn-ghost btn-sm" style="font-size:11.5px;"
+                  onclick="openSalaryModal({{ ms.id }},'{{ ms.name }}',0,0,0)">
+            {{ ms.name }} <span style="color:var(--tx-3);">{{ ms.dept_name or '' }}</span> <i class="fas fa-pencil-alt" style="font-size:10px;"></i>
+          </button>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
+
+      <div style="height:1px; background:var(--border); margin:14px 0;"></div>
+
+      <!-- 단계별 본문 -->
+      {% if pay_step == 1 %}
+      <form method="POST" action="{{ url_for('compensation') }}"
+            style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <input type="hidden" name="action" value="generate">
+        <input type="hidden" name="_tab" value="ops">
+        <input type="hidden" name="year" value="{{ sel_year }}">
+        <input type="hidden" name="month" value="{{ sel_month }}">
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-play"></i> {{ sel_month }}월 급여 초안 생성
+        </button>
+        <span style="font-size:12px; color:var(--tx-3);">
+          초안은 직원에게 공개되지 않습니다 · 근태 수당·복리후생 자동 포함 · 생성 후 검토 단계로 넘어갑니다
+        </span>
+      </form>
+
+      {% elif pay_step == 2 %}
+      <!-- 초안 검토 테이블 (전월 대비) -->
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+        <span style="font-size:13px; font-weight:800;">
+          <i class="fas fa-magnifying-glass-dollar" style="color:var(--primary);"></i>
+          초안 검토 — {{ review_rows|length }}건
+        </span>
+        <span style="font-size:11.5px; color:var(--tx-3);">이상 감지 건이 위로 정렬됩니다. 문제 없으면 확정·발송하세요.</span>
         <span style="margin-left:auto; display:flex; gap:8px;">
           <form method="POST" action="{{ url_for('payroll_confirm') }}"
-                onsubmit="return confirm('{{ dm.year }}년 {{ dm.month }}월 급여 {{ dm.cnt }}건을 확정할까요?\n확정 즉시 직원에게 공개되고 명세서 이메일이 발송됩니다.')">
-            <input type="hidden" name="year" value="{{ dm.year }}">
-            <input type="hidden" name="month" value="{{ dm.month }}">
-            <button type="submit" class="btn btn-primary btn-sm">
-              <i class="fas fa-check"></i> 확정·발송
-            </button>
+                onsubmit="return confirm('{{ sel_year }}년 {{ sel_month }}월 급여 {{ review_rows|length }}건을 확정할까요?\n확정 즉시 직원에게 공개되고 명세서 이메일이 발송됩니다.')">
+            <input type="hidden" name="year" value="{{ sel_year }}">
+            <input type="hidden" name="month" value="{{ sel_month }}">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-check"></i> 검토 완료 → 확정·발송</button>
           </form>
           <form method="POST" action="{{ url_for('payroll_discard_drafts') }}"
-                onsubmit="return confirm('{{ dm.year }}년 {{ dm.month }}월 초안 {{ dm.cnt }}건을 폐기할까요?\n급여 항목 수정 후 다시 생성할 때 사용하세요.')">
-            <input type="hidden" name="year" value="{{ dm.year }}">
-            <input type="hidden" name="month" value="{{ dm.month }}">
-            <button type="submit" class="btn btn-ghost btn-sm" style="color:#dc2626;">
-              <i class="fas fa-trash"></i> 초안 폐기
-            </button>
+                onsubmit="return confirm('{{ sel_year }}년 {{ sel_month }}월 초안을 폐기할까요?\n급여 항목 수정 후 다시 생성할 때 사용하세요.')">
+            <input type="hidden" name="year" value="{{ sel_year }}">
+            <input type="hidden" name="month" value="{{ sel_month }}">
+            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--red);"><i class="fas fa-trash"></i> 초안 폐기</button>
           </form>
         </span>
       </div>
-      {% endfor %}
+      <div class="tbl-wrap" style="max-height:420px; overflow-y:auto;">
+        <table>
+          <thead>
+            <tr><th>직원</th><th>기본급</th><th>수당·상여</th><th>실지급액</th><th>전월 대비</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for r in review_rows %}
+            <tr {% if r.is_alert %}style="background:var(--orange-bg);"{% endif %}>
+              <td>
+                <div class="u-cell">
+                  <div class="avatar-xs">{{ r.name[0] }}</div>
+                  <div>
+                    <div class="u-name">{{ r.name }}</div>
+                    <div style="font-size:11px; color:var(--tx-3);">{{ r.dept_name or '' }}</div>
+                  </div>
+                </div>
+              </td>
+              <td style="font-variant-numeric:tabular-nums;">{{ '{:,}'.format(r.base_salary or 0) }}원</td>
+              <td style="font-variant-numeric:tabular-nums; color:var(--tx-3);">
+                {% if r.extra_pay %}{{ '{:,}'.format(r.extra_pay) }}원{% else %}—{% endif %}
+              </td>
+              <td style="font-variant-numeric:tabular-nums; font-weight:700;">{{ '{:,}'.format(r.net_pay or 0) }}원</td>
+              <td>
+                {% if r.is_newbie %}
+                <span class="badge" style="background:var(--info-bg); color:var(--info);">이달 입사 · 일할 확인</span>
+                {% elif r.diff_pct is none %}
+                <span style="color:var(--tx-3); font-size:11px;">전월 없음</span>
+                {% else %}
+                <span style="font-weight:800; color:{{ 'var(--red)' if r.is_alert else ('var(--green)' if r.diff_pct > 0 else 'var(--tx-3)') }};">
+                  {{ '%+.1f'|format(r.diff_pct) }}%
+                </span>
+                {% if r.is_alert %}<i class="fas fa-triangle-exclamation" style="color:var(--red); font-size:11px;"></i>{% endif %}
+                {% endif %}
+              </td>
+              <td>
+                <a href="{{ url_for('employee_detail', emp_id=r.user_id) }}?tab=payroll" class="btn btn-ghost btn-sm" title="명세 상세"><i class="fas fa-file-alt"></i></a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% else %}
+      <!-- 확정 완료 -->
+      <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+        <span style="font-size:13.5px; font-weight:800; color:var(--green);">
+          <i class="fas fa-circle-check"></i> {{ sel_month }}월 정산 완료 — {{ sel_confirmed_cnt }}건 확정·발송됨
+        </span>
+        <span style="font-size:12px; color:var(--tx-3);">실수령 합계 {{ '{:,}'.format(sel_confirmed_net) }}원 · 직원 공개 + 명세서 이메일 발송 완료</span>
+        <a href="{{ url_for('export_payroll', year=sel_year, month=sel_month) }}" class="btn btn-ghost btn-sm" style="margin-left:auto;">
+          <i class="fas fa-file-excel" style="color:#217346;"></i> 급여대장 Excel
+        </a>
+      </div>
+      {% endif %}
+
     </div>
+  </div>
+
+  <!-- 다른 달 미확정 초안 알림 -->
+  {% set other_drafts = draft_months | rejectattr('year', 'equalto', sel_year) | list
+                        + draft_months | selectattr('year', 'equalto', sel_year) | rejectattr('month', 'equalto', sel_month) | list %}
+  {% if other_drafts %}
+  <div style="background:var(--orange-bg); border:1px solid #f59e0b; border-radius:10px; padding:10px 16px;
+              margin-bottom:16px; font-size:12.5px; color:#92400e;">
+    <i class="fas fa-file-invoice-dollar"></i> 다른 달에 확정 대기 초안이 있습니다:
+    {% for dm in other_drafts %}
+    <a href="?tab=ops&py={{ dm.year }}&pm={{ dm.month }}" style="color:#92400e; font-weight:800;">{{ dm.year }}년 {{ dm.month }}월 ({{ dm.cnt }}건)</a>{{ ' · ' if not loop.last }}
+    {% endfor %}
   </div>
   {% endif %}
 
   <!-- 직원별 급여 테이블 -->
   <div class="card">
-    <div class="card-head">
+    <div class="card-head" style="flex-wrap:wrap; gap:10px;">
       <span class="card-title">직원별 급여 현황</span>
-      <a href="{{ url_for('export_employees') }}" class="btn btn-ghost btn-sm">
-        <i class="fas fa-file-excel" style="color:#217346;"></i> Excel
-      </a>
+      <span style="display:flex; gap:8px; align-items:center; margin-left:auto; flex-wrap:wrap;">
+        <input type="text" id="salarySearchInput" class="input"
+               style="width:160px; font-size:12px; padding:6px 10px;" placeholder="이름 검색...">
+        <select id="salaryDeptFilter" class="input" style="width:150px; font-size:12px; padding:6px 10px;">
+          <option value="">전체 부서</option>
+          {% for d in emps|map(attribute='dept_name')|reject('none')|unique|sort %}
+          <option value="{{ d }}">{{ d }}</option>
+          {% endfor %}
+        </select>
+        <span id="salaryFilterCount" style="font-size:11.5px; color:var(--tx-3);"></span>
+        <a href="{{ url_for('export_employees') }}" class="btn btn-ghost btn-sm">
+          <i class="fas fa-file-excel" style="color:#217346;"></i> Excel
+        </a>
+      </span>
     </div>
     <div class="tbl-wrap">
       <table>
@@ -227,17 +364,19 @@
             <th>기본급</th>
             <th>식대</th>
             <th>교통비</th>
-            <th>Compa-Ratio</th>
+            {% if 'comp_advanced' in plan_features %}<th>Compa-Ratio</th>{% endif %}
             <th>액션</th>
           </tr>
         </thead>
         <tbody>
           {% for emp in emps %}
-          <tr>
+          <tr class="salary-row" data-emp-name="{{ emp.name|lower }}" data-emp-dept="{{ emp.dept_name or '' }}">
             <td>
               <div class="u-cell">
                 <div class="avatar-xs">{{ emp.name[0] }}</div>
-                <span class="u-name">{{ emp.name }}</span>
+                <span class="u-name">{{ emp.name }}
+                  {% if not emp.base_salary %}<span class="badge" style="background:var(--red-bg); color:var(--red); margin-left:4px;">미설정</span>{% endif %}
+                </span>
               </div>
             </td>
             <td style="color:var(--tx-3);">{{ emp.dept_name or '—' }}</td>
@@ -245,6 +384,7 @@
             <td style="font-variant-numeric:tabular-nums;">{{ '{:,}'.format(emp.base_salary) }}원</td>
             <td style="color:var(--tx-3); font-variant-numeric:tabular-nums;">{{ '{:,}'.format(emp.meal_allowance) }}원</td>
             <td style="color:var(--tx-3); font-variant-numeric:tabular-nums;">{{ '{:,}'.format(emp.transport_allowance) }}원</td>
+            {% if 'comp_advanced' in plan_features %}
             <td>
               {% if emp.compa_ratio %}
               {% set cr = emp.compa_ratio %}
@@ -253,6 +393,7 @@
               </span>
               {% else %}<span style="color:var(--tx-3);">—</span>{% endif %}
             </td>
+            {% endif %}
             <td>
               <button class="btn btn-ghost btn-sm"
                 onclick="openSalaryModal({{ emp.id }},'{{ emp.name }}',{{ emp.base_salary }},{{ emp.meal_allowance }},{{ emp.transport_allowance }})">
@@ -621,7 +762,8 @@
 
   <div style="display:grid; grid-template-columns:1fr 360px; gap:20px;">
 
-    <!-- 좌: Compa-Ratio 분포 -->
+    {% if 'comp_advanced' in plan_features %}
+    <!-- 좌: Compa-Ratio 분포 (Enterprise) -->
     <div class="card">
       <div class="card-head"><span class="card-title">Compa-Ratio 분포</span></div>
       <div style="padding:16px;">
@@ -665,6 +807,50 @@
         {% endif %}
       </div>
     </div>
+    {% else %}
+    <!-- 좌: 인건비 요약 (Core~Growth) -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">인건비 요약</span></div>
+      <div style="padding:16px;">
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px;">
+          <div style="text-align:center; padding:14px; background:var(--green-bg); border-radius:var(--r);">
+            <div style="font-size:20px; font-weight:900; color:var(--green);">{{ '{:,.0f}'.format(total_salary_spend / 10000) }}만</div>
+            <div style="font-size:11px; color:var(--green); font-weight:700;">월 기본급 합계</div>
+          </div>
+          <div style="text-align:center; padding:14px; background:var(--info-bg); border-radius:var(--r);">
+            <div style="font-size:20px; font-weight:900; color:var(--info);">{{ '{:,.0f}'.format(avg_base_salary / 10000) }}만</div>
+            <div style="font-size:11px; color:var(--info); font-weight:700;">평균 기본급</div>
+          </div>
+          <div style="text-align:center; padding:14px; background:var(--primary-bg, #eef2ff); border-radius:var(--r);">
+            <div style="font-size:20px; font-weight:900; color:var(--primary);">{{ active_count }}명</div>
+            <div style="font-size:11px; color:var(--primary); font-weight:700;">재직 인원</div>
+          </div>
+        </div>
+        {% set dept_costs = {} %}
+        {% for e in emps %}
+          {% if e.dept_name %}
+            {% set _ = dept_costs.update({e.dept_name: dept_costs.get(e.dept_name, 0) + e.base_salary}) %}
+          {% endif %}
+        {% endfor %}
+        {% set top_depts = dept_costs | dictsort(by='value', reverse=true) %}
+        {% if top_depts %}
+        {% set max_cost = top_depts[0][1] %}
+        <div style="font-size:11px; font-weight:700; color:var(--tx-3); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px;">
+          부서별 월 기본급 Top 8
+        </div>
+        {% for dname, cost in top_depts[:8] %}
+        <div style="display:flex; align-items:center; gap:10px; padding:5px 0;">
+          <span style="width:110px; font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ dname }}</span>
+          <span style="flex:1; height:8px; background:var(--surface-3, #f0f1f6); border-radius:99px; overflow:hidden;">
+            <span style="display:block; height:100%; width:{{ (cost / max_cost * 100)|int if max_cost else 0 }}%; background:var(--green); border-radius:99px;"></span>
+          </span>
+          <span style="font-size:11.5px; color:var(--tx-3); font-variant-numeric:tabular-nums; white-space:nowrap;">{{ '{:,.0f}'.format(cost / 10000) }}만</span>
+        </div>
+        {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
 
     <!-- 우: 일괄 인상 시뮬레이터 -->
     <div class="card">
@@ -846,6 +1032,32 @@ function openSalaryModal(id, name, base, meal, trans) {
   document.getElementById('sm-trans').value = trans;
   document.getElementById('salary-modal').classList.add('open');
 }
+
+// 직원별 급여 현황 — 이름 검색 + 부서 필터 (R3-A)
+(function() {
+  var input  = document.getElementById('salarySearchInput');
+  var deptSel = document.getElementById('salaryDeptFilter');
+  var countEl = document.getElementById('salaryFilterCount');
+  if (!input || !deptSel) return;
+  var rows = document.querySelectorAll('.salary-row');
+
+  function applyFilter() {
+    var q = input.value.trim().toLowerCase();
+    var dept = deptSel.value;
+    var shown = 0;
+    rows.forEach(function(r) {
+      var nameMatch = !q || (r.dataset.empName || '').indexOf(q) !== -1;
+      var deptMatch = !dept || r.dataset.empDept === dept;
+      var visible = nameMatch && deptMatch;
+      r.style.display = visible ? '' : 'none';
+      if (visible) shown++;
+    });
+    countEl.textContent = (q || dept) ? (shown + '명 / ' + rows.length + '명') : '';
+  }
+
+  input.addEventListener('input', applyFilter);
+  deptSel.addEventListener('change', applyFilter);
+})();
 
 function openBandModal(sgId, posName, jfName, min, mid, max) {
   document.getElementById('bm-id').value  = sgId;
