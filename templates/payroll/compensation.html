@@ -812,6 +812,25 @@
     <div class="card">
       <div class="card-head"><span class="card-title">인건비 요약</span></div>
       <div style="padding:16px;">
+
+        {% if labor_trend %}
+        <div style="font-size:11px; font-weight:700; color:var(--tx-3); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px;">
+          월 인건비 추이 (확정 총지급액, 최근 {{ labor_trend|length }}개월)
+        </div>
+        <div style="display:flex; align-items:flex-end; gap:8px; height:90px; margin-bottom:18px; padding:0 2px;">
+          {% for t in labor_trend %}
+          <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end; gap:4px; text-align:center;">
+            <div style="font-size:10px; color:var(--tx-3); font-variant-numeric:tabular-nums;">{{ '{:,.1f}'.format(t.total / 100000000) }}억</div>
+            <div style="height:{{ (t.total / labor_trend_max * 56)|int if labor_trend_max else 3 }}px;
+                        background:{{ 'var(--green)' if loop.last else 'var(--green-bg)' }};
+                        border:1px solid var(--green); border-radius:5px 5px 0 0;"
+                 title="{{ t.year }}년 {{ t.month }}월 · {{ '{:,}'.format(t.total) }}원 ({{ t.cnt }}건)"></div>
+            <div style="font-size:10.5px; font-weight:700; color:var(--tx-3);">{{ t.month }}월</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
         <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px;">
           <div style="text-align:center; padding:14px; background:var(--green-bg); border-radius:var(--r);">
             <div style="font-size:20px; font-weight:900; color:var(--green);">{{ '{:,.0f}'.format(total_salary_spend / 10000) }}만</div>

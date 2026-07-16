@@ -5880,7 +5880,7 @@ def payroll_list():
 @app.route('/payroll/slips')
 @login_required
 def payroll_slips():
-    """급여명세서 목록"""
+    """급여명세서 목록 + 내 기본급 변화 타임라인 (R3-C)"""
     db  = get_db()
     uid = session['user_id']
     slips = db.execute(
@@ -5888,8 +5888,15 @@ def payroll_slips():
         "FROM payslips WHERE user_id=? AND status='confirmed' ORDER BY year DESC, month DESC",
         (uid,)
     ).fetchall()
+    # 내 기본급 변화 이력 (기본급이 실제로 바뀐 건만)
+    my_history = db.execute(
+        'SELECT * FROM salary_history '
+        'WHERE user_id=? AND old_base_salary != new_base_salary '
+        'ORDER BY changed_at DESC LIMIT 12',
+        (uid,)
+    ).fetchall()
     return render_template('payroll/slips.html',
-                           slips=slips,
+                           slips=slips, my_history=my_history,
                            fmt_krw=fmt_krw,
                            active_page='my_docs')
 
@@ -6560,6 +6567,14 @@ def compensation():
         "JOIN users u ON u.id=s.user_id WHERE u.status='active'"
     ).fetchone()[0] or 0
 
+    # R3-C: 월 인건비 추이 (최근 6개월 확정 급여 총지급액)
+    labor_trend = list(reversed(db.execute(
+        "SELECT year, month, SUM(gross_pay) AS total, COUNT(*) AS cnt "
+        "FROM payslips WHERE status='confirmed' "
+        "GROUP BY year, month ORDER BY year DESC, month DESC LIMIT 6"
+    ).fetchall()))
+    labor_trend_max = max((r['total'] for r in labor_trend), default=0)
+
     raw_emps = db.execute(
         'SELECT u.id, u.name, d.name dept_name, p.name pos_name, '
         'COALESCE(s.base_salary,0) base_salary, '
@@ -6679,6 +6694,7 @@ def compensation():
         sel_draft_cnt=sel_draft_cnt, sel_confirmed_cnt=sel_confirmed_cnt,
         sel_confirmed_net=sel_confirmed_net,
         review_rows=review_rows, review_alerts=review_alerts,
+        labor_trend=labor_trend, labor_trend_max=labor_trend_max,
         active_acr=active_acr,
         compa_outliers=compa_outliers,
         avg_base_salary=avg_base_salary,

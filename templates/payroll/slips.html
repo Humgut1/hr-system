@@ -50,4 +50,36 @@
   </div>
 </div>
 {% endif %}
+
+<!-- 내 기본급 변화 타임라인 (R3-C) -->
+{% if my_history %}
+<div class="card" style="margin-top:16px;">
+  <div class="card-head"><span class="card-title">내 기본급 변화</span>
+    <span style="font-size:12px; color:var(--tx-3);">최근 {{ my_history|length }}건</span>
+  </div>
+  <div style="padding:6px 22px 14px;">
+    {% for h in my_history %}
+    {% set diff_pct = ((h.new_base_salary - h.old_base_salary) / h.old_base_salary * 100) if h.old_base_salary else 0 %}
+    <div style="display:flex; align-items:flex-start; gap:12px; padding:11px 0;
+                {% if not loop.last %}border-bottom:1px solid var(--line);{% endif %}">
+      <div style="width:9px; height:9px; border-radius:50%; margin-top:5px; flex-shrink:0;
+                  background:{{ 'var(--green)' if h.new_base_salary > h.old_base_salary else ('var(--red)' if h.new_base_salary < h.old_base_salary else 'var(--tx-3)') }};"></div>
+      <div style="flex:1; min-width:0;">
+        <div style="font-size:13px; font-weight:700;">
+          {{ '{:,}'.format(h.old_base_salary) }}원 → {{ '{:,}'.format(h.new_base_salary) }}원
+          <span style="font-weight:800; margin-left:6px;
+                       color:{{ 'var(--green)' if diff_pct > 0 else ('var(--red)' if diff_pct < 0 else 'var(--tx-3)') }};">
+            {{ '%+.1f'|format(diff_pct) }}%
+          </span>
+        </div>
+        {% if h.reason %}
+        <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">{{ h.reason }}</div>
+        {% endif %}
+      </div>
+      <span style="font-size:11.5px; color:var(--tx-3); white-space:nowrap;">{{ h.changed_at[:10] }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 {% endblock %}
