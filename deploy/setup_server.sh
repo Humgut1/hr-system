@@ -47,9 +47,10 @@ python migrate_db.py
 # ── 7. .env 파일 생성 (기본값) ───────────────
 echo "[7/7] 환경변수 파일 생성..."
 if [ ! -f ".env" ]; then
-cat > .env << 'ENVEOF'
+GENERATED_SECRET=$(openssl rand -hex 32)
+cat > .env << ENVEOF
 FLASK_DEBUG=false
-SECRET_KEY=talentcore-production-secret-change-this
+HR_SECRET_KEY=${GENERATED_SECRET}
 COMPANY_NAME=TalentCore Demo
 # Slack (선택)
 # SLACK_BOT_TOKEN=xoxb-...

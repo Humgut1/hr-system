@@ -37,7 +37,14 @@ from master_db import (
 )
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('HR_SECRET_KEY', 'dev-only-change-in-prod')
+# HR_SECRET_KEY 우선, 구버전 .env 호환으로 SECRET_KEY도 인식 (v1.4.3 보안 수리)
+app.secret_key = (os.environ.get('HR_SECRET_KEY')
+                  or os.environ.get('SECRET_KEY')
+                  or 'dev-only-change-in-prod')
+if app.secret_key == 'dev-only-change-in-prod':
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        '경고: 세션 시크릿이 개발용 기본값입니다. 운영 환경에서는 HR_SECRET_KEY 환경변수를 반드시 설정하세요.')
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # ── 지원자 서류 업로드 설정 ────────────────────────────────────
