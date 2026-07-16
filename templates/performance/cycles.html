@@ -119,6 +119,32 @@
             &nbsp;<a href="{{ url_for('payroll_bulk_raise') }}" style="color:var(--primary); font-weight:700;">등급 연동 인상(Merit) →</a>
             {% endif %}
           </div>
+
+          <!-- 미완료 현황 + 단계별 마감일 (R1-D) -->
+          {% if pending_info.get(c.id) %}
+          <div style="font-size:11.5px; font-weight:700; color:var(--orange); margin-top:6px;">
+            <i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>{{ pending_info[c.id] }}
+          </div>
+          {% endif %}
+          <form method="post" action="{{ url_for('performance_cycle_deadlines', cycle_id=c.id) }}"
+                style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
+            <span style="font-size:11px; color:var(--tx-3); font-weight:700;">단계 마감</span>
+            <label style="font-size:11px; color:var(--tx-3); display:flex; align-items:center; gap:4px;">
+              목표
+              <input type="date" name="goal_deadline" class="input"
+                     value="{{ c.goal_deadline or '' }}"
+                     style="width:135px; font-size:11px; padding:3px 6px;
+                            {% if c.stage == 'goal' and c.goal_deadline and c.goal_deadline < today %}border-color:var(--red);{% endif %}">
+            </label>
+            <label style="font-size:11px; color:var(--tx-3); display:flex; align-items:center; gap:4px;">
+              평가
+              <input type="date" name="review_deadline" class="input"
+                     value="{{ c.review_deadline or '' }}"
+                     style="width:135px; font-size:11px; padding:3px 6px;
+                            {% if c.stage == 'review' and c.review_deadline and c.review_deadline < today %}border-color:var(--red);{% endif %}">
+            </label>
+            <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px; padding:3px 10px;">저장</button>
+          </form>
           {% endif %}
         </div>
         {% endfor %}
@@ -153,6 +179,19 @@
           <div style="margin-bottom:16px;">
             <label class="form-label">종료일 <span style="color:var(--orange);">*</span></label>
             <input type="date" name="end_date" class="input" required>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+            <div>
+              <label class="form-label">목표 수립 마감 <span style="font-weight:400; color:var(--tx-3);">(선택)</span></label>
+              <input type="date" name="goal_deadline" class="input">
+            </div>
+            <div>
+              <label class="form-label">평가 작성 마감 <span style="font-weight:400; color:var(--tx-3);">(선택)</span></label>
+              <input type="date" name="review_deadline" class="input">
+            </div>
+          </div>
+          <div style="font-size:11px; color:var(--tx-3); margin:-8px 0 16px;">
+            마감일을 설정하면 성과 화면에 D-day가 표시되고, 경과 시 경고 배지가 붙습니다.
           </div>
 
           <label style="display:flex; align-items:flex-start; gap:10px; margin-bottom:20px; cursor:pointer;

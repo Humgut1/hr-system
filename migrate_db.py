@@ -924,8 +924,24 @@ def _seed_master_db(c_all_users=None):
     print(f"   master.db: 데모 테넌트 등록 ({len(emails)}명)")
 
 
+def _migrate_tenant_dbs():
+    """모든 테넌트 DB에도 스키마 마이그레이션 적용 (v1.3.3~, 멱등)."""
+    import glob
+    base = os.path.dirname(os.path.abspath(__file__))
+    for tp in sorted(glob.glob(os.path.join(base, 'tenant_*.db'))):
+        fname = os.path.basename(tp)
+        if fname == 'tenant_1.db':   # 잔재 파일 (메인은 hr_system.db)
+            continue
+        try:
+            init_db(tp)
+            print(f"   테넌트 DB 마이그레이션: {fname}")
+        except Exception as e:
+            print(f"   [경고] {fname} 마이그레이션 실패: {e}")
+
+
 def run():
     init_db()   # 테이블이 없을 때도 안전하게 실행되도록
+    _migrate_tenant_dbs()
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()

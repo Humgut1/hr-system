@@ -7627,6 +7627,21 @@ def performance():
     stage = selected_cycle['stage'] if selected_cycle else None
     include_peer = bool(selected_cycle['include_peer']) if selected_cycle else False
 
+    # 단계 마감일 + D-day (R1-D)
+    stage_deadline = None
+    stage_dday     = None
+    if selected_cycle:
+        keys = selected_cycle.keys()
+        if stage == 'goal' and 'goal_deadline' in keys:
+            stage_deadline = selected_cycle['goal_deadline']
+        elif stage == 'review' and 'review_deadline' in keys:
+            stage_deadline = selected_cycle['review_deadline']
+        if stage_deadline:
+            try:
+                stage_dday = (date.fromisoformat(stage_deadline) - date.today()).days
+            except (ValueError, TypeError):
+                stage_dday = None
+
     # ── 직원 전용 추가 데이터 ─────────────────────────────
     peer_assignments_mine = []   # 내가 써야 할 피어리뷰
     calibration_result    = None # 내 캘리브레이션 결과
@@ -7833,6 +7848,7 @@ def performance():
                            my_goal_state=my_goal_state,
                            my_appeal=my_appeal, can_appeal=can_appeal,
                            team_rows=team_rows, team_summary=team_summary,
+                           stage_deadline=stage_deadline, stage_dday=stage_dday,
                            active_page='performance')
 
 @app.route('/performance/goals/ai-assist', methods=['POST'])
@@ -8368,6 +8384,88 @@ def performance_team_member_review(emp_uid):
     return redirect(url_for('performance_team_member', emp_uid=emp_uid, cycle=cycle_id))
 
 
+@app.route('/performance/remind', methods=['POST'])
+@manager_or_admin
+def performance_remind():
+    """단계별 미완료자 리마인드 일괄 발송 (R1-D) — 매니저는 자기 부서만."""
+    db   = get_db()
+    uid  = session['user_id']
+    role = session['user_role']
+    cycle_id = request.form.get('cycle_id', type=int)
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cycle:
+        abort(404)
+
+    mgr_dept  = int(session.get('dept_id') or 0)
+    scope_sql, scope_args = '', []
+    if role == 'manager' and mgr_dept:
+        scope_sql  = 'AND u.department_id=? '
+        scope_args = [mgr_dept]
+
+    stage = cycle['stage']
+    targets = []
+    if stage == 'goal':
+        # 목표 미확정(미작성 포함) 직원 — 미작성자는 부서 스코프의 목표 없는 직원까지
+        rows = db.execute(
+            "SELECT DISTINCT u.id FROM users u "
+            "LEFT JOIN performance_goals g ON g.user_id=u.id AND g.cycle_id=? "
+            "WHERE u.status='active' AND u.role NOT IN ('guest','admin') " + scope_sql +
+            "AND (g.id IS NULL OR g.approval_status IN ('draft','returned'))",
+            [cycle_id] + scope_args
+        ).fetchall()
+        targets = [r['id'] for r in rows]
+        title, content = '목표 수립을 완료해 주세요', \
+            f'{cycle["name"]} 목표 작성·제출이 아직 완료되지 않았습니다.' + \
+            (f' 마감일: {cycle["goal_deadline"]}' if cycle['goal_deadline'] else '')
+    elif stage == 'review':
+        rows = db.execute(
+            "SELECT DISTINCT u.id FROM users u "
+            "JOIN performance_goals g ON g.user_id=u.id AND g.cycle_id=? "
+            "WHERE g.approval_status='confirmed' AND g.self_score IS NULL " + scope_sql,
+            [cycle_id] + scope_args
+        ).fetchall()
+        targets = [r['id'] for r in rows]
+        title, content = '자기평가를 작성해 주세요', \
+            f'{cycle["name"]} 자기평가가 아직 제출되지 않았습니다.' + \
+            (f' 마감일: {cycle["review_deadline"]}' if cycle['review_deadline'] else '')
+    else:
+        flash('리마인드는 목표 수립·평가 진행 단계에서만 발송할 수 있습니다.', 'error')
+        return redirect(url_for('performance', cycle=cycle_id))
+
+    for t in targets:
+        add_notification(t, 'action', 'perf', title, content,
+                         link='/performance?cycle=%d' % cycle_id)
+    if targets:
+        log_audit('create', 'performance', None,
+                  f'{cycle["name"]} {CYCLE_STAGE_LABEL[stage]} 미완료 리마인드 발송 ({len(targets)}명)')
+        flash(f'미완료자 {len(targets)}명에게 리마인드를 발송했습니다.', 'success')
+    else:
+        flash('리마인드 대상이 없습니다. 모두 완료된 상태입니다.', 'success')
+    return redirect(url_for('performance', cycle=cycle_id))
+
+
+@app.route('/performance/acknowledge', methods=['POST'])
+@login_required
+def performance_acknowledge():
+    """직원 — 공개된 평가 결과 확인 (R1-D, Workday Acknowledgement 패턴)."""
+    db  = get_db()
+    uid = session['user_id']
+    cycle_id = request.form.get('cycle_id', type=int)
+    row = db.execute(
+        'SELECT id, acknowledged_at FROM calibration_results '
+        'WHERE cycle_id=? AND user_id=? AND is_shared=1', (cycle_id, uid)
+    ).fetchone()
+    if not row:
+        flash('공개된 평가 결과가 없습니다.', 'error')
+        return redirect(url_for('performance', cycle=cycle_id))
+    if not row['acknowledged_at']:
+        db.execute('UPDATE calibration_results SET acknowledged_at=CURRENT_TIMESTAMP WHERE id=?',
+                   (row['id'],))
+        db.commit()
+        flash('평가 결과 확인이 기록되었습니다.', 'success')
+    return redirect(url_for('performance', cycle=cycle_id))
+
+
 # ── Performance Cycles (Admin) ────────────────────────────────
 @app.route('/performance/cycles')
 @admin_required
@@ -8379,7 +8477,52 @@ def performance_cycles():
         'LEFT JOIN performance_goals pg ON pc.id = pg.cycle_id '
         'GROUP BY pc.id ORDER BY pc.start_date DESC'
     ).fetchall()
+
+    # 활성 주기 단계별 미완료 현황 (전환 전 체크리스트, R1-D)
+    pending_info = {}
+    for cyc in cycles:
+        if cyc['status'] != 'active':
+            continue
+        if cyc['stage'] == 'goal':
+            n = db.execute(
+                "SELECT COUNT(DISTINCT user_id) FROM performance_goals "
+                "WHERE cycle_id=? AND approval_status != 'confirmed'", (cyc['id'],)
+            ).fetchone()[0]
+            if n:
+                pending_info[cyc['id']] = f'목표 미확정 {n}명'
+        elif cyc['stage'] == 'review':
+            no_self = db.execute(
+                "SELECT COUNT(DISTINCT user_id) FROM performance_goals "
+                "WHERE cycle_id=? AND approval_status='confirmed' AND self_score IS NULL", (cyc['id'],)
+            ).fetchone()[0]
+            no_mgr = db.execute(
+                "SELECT COUNT(*) FROM performance_goals g "
+                "WHERE g.cycle_id=? AND g.approval_status='confirmed' "
+                "AND NOT EXISTS (SELECT 1 FROM performance_reviews r WHERE r.goal_id=g.id)", (cyc['id'],)
+            ).fetchone()[0]
+            parts = []
+            if no_self: parts.append(f'자기평가 미제출 {no_self}명')
+            if no_mgr:  parts.append(f'매니저 미평가 목표 {no_mgr}개')
+            if parts:
+                pending_info[cyc['id']] = ' · '.join(parts)
+        elif cyc['stage'] == 'appeal':
+            n = db.execute(
+                "SELECT COUNT(*) FROM grade_appeals WHERE cycle_id=? AND status='pending'", (cyc['id'],)
+            ).fetchone()[0]
+            ack = db.execute(
+                'SELECT COUNT(*) FROM calibration_results WHERE cycle_id=? AND acknowledged_at IS NOT NULL',
+                (cyc['id'],)
+            ).fetchone()[0]
+            total = db.execute(
+                'SELECT COUNT(*) FROM calibration_results WHERE cycle_id=?', (cyc['id'],)
+            ).fetchone()[0]
+            parts = [f'결과 확인 {ack}/{total}명']
+            if n: parts.append(f'미처리 이의 {n}건')
+            pending_info[cyc['id']] = ' · '.join(parts)
+
     return render_template('performance/cycles.html', cycles=cycles,
+                           pending_info=pending_info,
+                           today=date.today().isoformat(),
                            cycle_stages=CYCLE_STAGES,
                            cycle_stage_label=CYCLE_STAGE_LABEL,
                            cycle_stage_desc=CYCLE_STAGE_DESC,
@@ -8394,6 +8537,8 @@ def performance_cycle_new():
     start_date   = request.form.get('start_date', '').strip()
     end_date     = request.form.get('end_date', '').strip()
     include_peer = 1 if request.form.get('include_peer') else 0
+    goal_deadline   = request.form.get('goal_deadline', '').strip() or None
+    review_deadline = request.form.get('review_deadline', '').strip() or None
 
     if not name or not start_date or not end_date:
         flash('모든 항목을 입력해 주세요.', 'error')
@@ -8405,12 +8550,30 @@ def performance_cycle_new():
     # 기존 active 사이클이 있으면 자동 closed 처리
     db.execute("UPDATE performance_cycles SET status='closed', stage='closed' WHERE status='active'")
     db.execute(
-        "INSERT INTO performance_cycles (name, start_date, end_date, status, stage, include_peer) "
-        "VALUES (?, ?, ?, 'active', 'goal', ?)",
-        (name, start_date, end_date, include_peer)
+        "INSERT INTO performance_cycles (name, start_date, end_date, status, stage, include_peer, "
+        "goal_deadline, review_deadline) "
+        "VALUES (?, ?, ?, 'active', 'goal', ?, ?, ?)",
+        (name, start_date, end_date, include_peer, goal_deadline, review_deadline)
     )
     db.commit()
     flash(f'평가 주기 "{name}"이 생성되었습니다. 목표 수립 단계부터 시작합니다.', 'success')
+    return redirect(url_for('performance_cycles'))
+
+
+@app.route('/performance/cycles/<int:cycle_id>/deadlines', methods=['POST'])
+@admin_required
+def performance_cycle_deadlines(cycle_id):
+    """단계별 마감일 수정 (R1-D)."""
+    db = get_db()
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cycle:
+        abort(404)
+    goal_deadline   = request.form.get('goal_deadline', '').strip() or None
+    review_deadline = request.form.get('review_deadline', '').strip() or None
+    db.execute('UPDATE performance_cycles SET goal_deadline=?, review_deadline=? WHERE id=?',
+               (goal_deadline, review_deadline, cycle_id))
+    db.commit()
+    flash('단계별 마감일이 저장되었습니다.', 'success')
     return redirect(url_for('performance_cycles'))
 
 
@@ -8477,6 +8640,27 @@ def performance_cycle_stage(cycle_id):
         db.commit()
         flash(f'"{cycle["name"]}" 주기가 종료되었습니다. 보상 관리에서 등급 연동 인상을 진행할 수 있습니다.', 'success')
         return redirect(url_for('performance_cycles'))
+
+    # 전환 체크리스트 경고 (R1-D — 진행은 허용하되 미완료 현황을 알림)
+    if direction == 'next' and new_stage == 'progress':
+        unconfirmed = db.execute(
+            "SELECT COUNT(DISTINCT user_id) FROM performance_goals "
+            "WHERE cycle_id=? AND approval_status != 'confirmed'", (cycle_id,)
+        ).fetchone()[0]
+        if unconfirmed:
+            flash(f'⚠ 목표가 아직 확정되지 않은 직원이 {unconfirmed}명 있습니다. 목표 수립 단계가 지나면 신규 등록·제출이 제한됩니다.', 'error')
+    if direction == 'next' and new_stage == 'calibration':
+        no_self = db.execute(
+            "SELECT COUNT(DISTINCT user_id) FROM performance_goals "
+            "WHERE cycle_id=? AND approval_status='confirmed' AND self_score IS NULL", (cycle_id,)
+        ).fetchone()[0]
+        no_mgr = db.execute(
+            "SELECT COUNT(*) FROM performance_goals g "
+            "WHERE g.cycle_id=? AND g.approval_status='confirmed' "
+            "AND NOT EXISTS (SELECT 1 FROM performance_reviews r WHERE r.goal_id=g.id)", (cycle_id,)
+        ).fetchone()[0]
+        if no_self or no_mgr:
+            flash(f'⚠ 자기평가 미제출 {no_self}명 · 매니저 미평가 목표 {no_mgr}개 상태로 조정 단계에 진입했습니다. 점수 없는 항목은 집계에서 빠집니다.', 'error')
 
     # 일반 전환 (뒤로 갈 때 closed → 재활성화)
     db.execute('UPDATE performance_cycles SET stage=? WHERE id=?', (new_stage, cycle_id))

@@ -781,6 +781,14 @@ def init_db(db_path: str = None):
         if 'appeal_until' not in pc_cols:
             c.execute('ALTER TABLE performance_cycles ADD COLUMN appeal_until DATE')
 
+        # 사이클 운영 마이그레이션 (v1.3.3 — R1-D)
+        if 'goal_deadline' not in pc_cols:
+            c.execute('ALTER TABLE performance_cycles ADD COLUMN goal_deadline DATE')
+        if 'review_deadline' not in pc_cols:
+            c.execute('ALTER TABLE performance_cycles ADD COLUMN review_deadline DATE')
+        if 'acknowledged_at' not in cal_cols:
+            c.execute('ALTER TABLE calibration_results ADD COLUMN acknowledged_at TIMESTAMP')
+
         pg_cols = {r[1] for r in c.execute('PRAGMA table_info(performance_goals)').fetchall()}
         if 'approval_status' not in pg_cols:
             c.execute("ALTER TABLE performance_goals ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'draft'")

@@ -205,6 +205,19 @@
     </span>
     {% if not loop.last %}<i class="fas fa-chevron-right stage-arrow"></i>{% endif %}
     {% endfor %}
+    {% if stage_deadline %}
+    {% if stage_dday is not none and stage_dday < 0 %}
+    <span style="margin-left:auto; font-size:11px; font-weight:800; color:var(--red); background:var(--red-bg);
+                 padding:3px 11px; border-radius:20px; white-space:nowrap;">
+      <i class="fas fa-triangle-exclamation"></i> 마감 {{ stage_dday|abs }}일 경과 ({{ stage_deadline }})
+    </span>
+    {% else %}
+    <span style="margin-left:auto; font-size:11px; font-weight:800; color:var(--orange); background:var(--orange-bg);
+                 padding:3px 11px; border-radius:20px; white-space:nowrap;">
+      <i class="fas fa-hourglass-half"></i> 마감 D-{{ stage_dday }} ({{ stage_deadline }})
+    </span>
+    {% endif %}
+    {% endif %}
   </div>
   <div style="font-size:12px; color:var(--tx-3); margin-top:8px;">
     <i class="fas fa-info-circle" style="margin-right:4px;"></i>{{ cycle_stage_desc[stage] }}
@@ -309,6 +322,28 @@
         <i class="fas fa-robot"></i> 종합 평가 요약
       </div>
       {{ calibration_result.summary_text }}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 결과 확인 (R1-D) -->
+  {% if 'acknowledged_at' in calibration_result.keys() %}
+  <div class="card" style="margin-top:12px;">
+    <div class="card-body" style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+      {% if calibration_result.acknowledged_at %}
+      <span style="font-size:13px; color:var(--green); font-weight:700;">
+        <i class="fas fa-check-circle"></i> 결과 확인 완료 ({{ calibration_result.acknowledged_at[:10] }})
+      </span>
+      <span style="font-size:12px; color:var(--tx-3);">평가 결과를 확인하셨습니다. 이의가 있으면 아래에서 이의신청을 진행할 수 있습니다.</span>
+      {% else %}
+      <span style="font-size:12.5px; color:var(--tx-2); flex:1; min-width:220px;">
+        팀장과의 평가 면담 후 <strong>결과 확인</strong>을 눌러주세요. 확인 기록은 HR에 전달됩니다.
+      </span>
+      <form method="POST" action="{{ url_for('performance_acknowledge') }}">
+        <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
+        <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-check"></i> 결과 확인</button>
+      </form>
+      {% endif %}
     </div>
   </div>
   {% endif %}
@@ -685,16 +720,30 @@
 <div id="panel-team" class="perf-panel active">
   {% if team_rows %}
 
-  <!-- 단계별 처리 현황 칩 -->
-  <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+  <!-- 단계별 처리 현황 칩 + 리마인드 (R1-D) -->
+  <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
     {% if stage == 'goal' %}
     <span class="team-chip"><b style="color:var(--red);">{{ team_summary.goal_pending }}명</b> 목표 승인 대기</span>
     <span class="team-chip"><b style="color:var(--orange);">{{ team_summary.goal_drafting }}명</b> 작성·수정 중</span>
     <span class="team-chip"><b style="color:var(--green);">{{ team_summary.goal_done }}명</b> 확정 완료</span>
+    {% if team_summary.goal_drafting %}
+    <form method="POST" action="{{ url_for('performance_remind') }}" style="margin-left:auto;"
+          onsubmit="return confirm('목표 작성·제출이 완료되지 않은 팀원에게 리마인드 알림을 보낼까요?')">
+      <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
+      <button type="submit" class="btn btn-ghost btn-sm"><i class="fas fa-bell"></i> 미완료 리마인드</button>
+    </form>
+    {% endif %}
     {% elif stage == 'review' %}
     <span class="team-chip"><b style="color:var(--red);">{{ team_summary.review_pending }}명</b> 내 평가 대기</span>
     <span class="team-chip"><b style="color:var(--orange);">{{ team_summary.self_missing }}명</b> 자기평가 미제출</span>
     <span class="team-chip"><b style="color:var(--green);">{{ team_summary.review_done }}명</b> 평가 완료</span>
+    {% if team_summary.self_missing %}
+    <form method="POST" action="{{ url_for('performance_remind') }}" style="margin-left:auto;"
+          onsubmit="return confirm('자기평가 미제출 팀원에게 리마인드 알림을 보낼까요?')">
+      <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
+      <button type="submit" class="btn btn-ghost btn-sm"><i class="fas fa-bell"></i> 미완료 리마인드</button>
+    </form>
+    {% endif %}
     {% else %}
     <span class="team-chip"><b style="color:var(--primary);">{{ team_summary.total }}명</b> 팀원</span>
     <span class="team-chip"><b style="color:var(--primary);">{{ team_summary.avg_progress }}%</b> 평균 진행률</span>
