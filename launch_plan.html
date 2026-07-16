@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>출시 준비 기획 (R4) — TalentCore</title>
+<style>
+  :root { --tx-1:#191d28; --tx-2:#40465a; --tx-3:#8a90a4; --bg:#f6f7fb; --line:#e6e8f0;
+          --green:#047857; --green-bg:#ecfdf5; --red:#dc2626; --red-bg:#fef2f2;
+          --orange:#b45309; --orange-bg:#fffbeb; --primary:#4f46e5; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; background:var(--bg); color:var(--tx-1); line-height:1.7; }
+  .wrap { max-width:1000px; margin:0 auto; padding:48px 28px 100px; }
+  .hero { background:linear-gradient(120deg,#b45309,#dc2626); color:#fff; border-radius:20px; padding:38px 42px; margin-bottom:34px; }
+  .hero .tag { display:inline-block; font-size:12px; font-weight:800; background:rgba(255,255,255,.18); padding:4px 14px; border-radius:99px; margin-bottom:12px; }
+  .hero h1 { font-size:29px; font-weight:800; margin-bottom:8px; }
+  .hero p { font-size:14px; opacity:.9; }
+  h2 { font-size:20px; font-weight:800; margin:46px 0 12px; display:flex; align-items:center; gap:10px; }
+  h2 .num { display:inline-flex; align-items:center; justify-content:center; width:27px; height:27px; border-radius:8px; background:#b45309; color:#fff; font-size:13px; flex-shrink:0; }
+  h3 { font-size:15.5px; font-weight:800; margin:24px 0 10px; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; background:#fff; border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:14px; }
+  th { background:#f2f3f9; text-align:left; padding:10px 15px; font-weight:800; font-size:12.5px; color:var(--tx-2); border-bottom:1px solid var(--line); }
+  td { padding:10px 15px; border-bottom:1px solid var(--line); color:var(--tx-2); vertical-align:top; }
+  tr:last-child td { border-bottom:none; }
+  .tblwrap { overflow-x:auto; }
+  .badge { display:inline-block; font-size:11px; font-weight:800; padding:2px 10px; border-radius:99px; white-space:nowrap; }
+  .b-done { background:var(--green-bg); color:var(--green); }
+  .b-p0 { background:var(--red-bg); color:var(--red); }
+  .b-p1 { background:var(--orange-bg); color:var(--orange); }
+  .b-p2 { background:#f0f1f6; color:var(--tx-3); }
+  .b-who { background:#eef2ff; color:var(--primary); }
+  .callout { border-left:4px solid var(--green); background:var(--green-bg); border-radius:0 10px 10px 0; padding:14px 18px; font-size:13.5px; color:var(--tx-2); margin:14px 0; }
+  .callout.red { border-left-color:var(--red); background:var(--red-bg); }
+  ol.steps { margin:8px 0 14px 22px; font-size:14px; color:var(--tx-2); }
+  ol.steps li { margin-bottom:7px; }
+  footer { margin-top:56px; text-align:center; font-size:12px; color:var(--tx-3); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <span class="tag">R4 기획서 · 2026-07-16 · 승인 대기</span>
+    <h1>출시 준비 기획 — 최종 보완 리스트</h1>
+    <p>v1.0 정의: "모르는 회사가 스스로 가입해 자기 데이터로 한 달 쓸 수 있는 상태" · 목표: 디자인 파트너 1~2개사<br>
+    2026-07-16 출시 관점 전수 감사 결과 — 발견 즉시 수리한 것 1건(v1.4.3), 남은 것 P0 4건.</p>
+  </div>
+
+  <h2><span class="num">0</span>감사 요약</h2>
+  <div class="callout">
+    <b>이미 갖춰짐 ✅</b> — 웹훅 서명·CSRF·감사 로그·자동 백업·비밀번호 정책(Phase A 전체), 테넌트 셀프서비스 가입 전수 검증, 요금제 게이팅, 스윕 자동화, 성과(R1)·보상(R3) 개편 완료
+  </div>
+  <div class="callout red">
+    <b>즉시 수리 완료 🔧</b> — <b>운영 세션 시크릿이 레포에 공개된 기본값으로 서명되던 구멍</b> (환경변수 이름 불일치). 감사 중 발견 → v1.4.3로 당일 수리·배포·전 세션 무효화 완료.
+  </div>
+
+  <h2><span class="num">1</span>보완 리스트</h2>
+
+  <h3><span class="badge b-p0">P0</span> 출시 차단 — 전부 해결 전 오픈 불가</h3>
+  <div class="tblwrap"><table>
+    <tr><th style="width:30px;">#</th><th style="width:200px;">항목</th><th>현황 → 조치</th><th style="width:90px;">담당</th></tr>
+    <tr><td>1</td><td>세션 시크릿</td><td><span class="badge b-done">v1.4.3 수리 완료</span> VM 신규 무작위 키 적용</td><td>—</td></tr>
+    <tr><td>2</td><td><b>개인정보처리방침·이용약관</b></td><td>랜딩·가입 어디에도 없음. 급여·인사정보 서비스라 법상 필수 → 페이지 2개 + 가입 동의 체크 + 푸터 링크. 초안은 Claude, 최종 검토는 승헌씨</td><td><span class="badge b-who">공동</span></td></tr>
+    <tr><td>3</td><td><b>HTTPS 미적용</b></td><td>http://161.33.39.127 — 급여 데이터가 평문 이동 → 도메인 구매 후 certbot SSL (스크립트 준비됨)</td><td><span class="badge b-who">승헌씨</span></td></tr>
+    <tr><td>4</td><td><b>결제 = 토스 테스트 키</b></td><td>실결제 불가 상태 → <b>권장: v1.0은 결제 비활성 '무료 파트너 모드'</b> (가격표 유지, 카드 등록 → "문의"). 라이브 계약은 유료 전환 시점에</td><td><span class="badge b-who">결정 필요</span></td></tr>
+    <tr><td>5</td><td><b>슈퍼어드민 비번 1234</b></td><td>/saas 운영 계정이 문서화된 약한 비번 → 변경 스크립트 제공, 새 비번은 승헌씨만 보관</td><td><span class="badge b-who">공동</span></td></tr>
+  </table></div>
+
+  <h3><span class="badge b-p1">P1</span> 출시 주간 — 강력 권장</h3>
+  <div class="tblwrap"><table>
+    <tr><th style="width:30px;">#</th><th style="width:180px;">항목</th><th>내용</th></tr>
+    <tr><td>6</td><td>SMTP 실계정</td><td>급여명세 발송(§48)·웰컴메일이 데모 모드(로그만) → 실계정 설정 + 발송 테스트</td></tr>
+    <tr><td>7</td><td>에러 모니터링</td><td>지금은 에러가 나도 아무도 모름 → 최소: 일일 에러 로그 요약 메일 cron / 확장: Sentry 무료</td></tr>
+    <tr><td>8</td><td>랜딩 CTA 정리</td><td>'체험하기(데모)' vs '시작하기(실가입)' 동선 명확화 + 가입 직후 안내</td></tr>
+    <tr><td>9</td><td>백업 복원 리허설</td><td>백업은 돌지만 복원은 실전 미검증 → --restore 리허설 1회</td></tr>
+    <tr><td>10</td><td>랜딩 메타</td><td>파비콘·OG 태그·robots.txt</td></tr>
+  </table></div>
+
+  <h3><span class="badge b-p2">P2</span> 출시 후 순차</h3>
+  <div class="tblwrap"><table>
+    <tr><td>11. 가입 이메일 인증</td><td>12. 결제 도입 시 청구 실검증</td><td>13. PostgreSQL 전환 (유료 5개사 전)</td><td>14. 브라우저·접근성 QA</td></tr>
+  </table></div>
+
+  <h2><span class="num">2</span>출시 절차 (R5 실행 순서)</h2>
+  <ol class="steps">
+    <li>방침·약관 배포 (P0-2)</li>
+    <li>도메인 구매 + DNS A 레코드 → VM <span class="badge b-who">승헌씨</span></li>
+    <li>nginx + certbot SSL, http→https 리다이렉트</li>
+    <li>슈퍼어드민 비번 변경 + 데모 계정 점검</li>
+    <li>무료 파트너 모드(결제 비활성) 배포</li>
+    <li>SMTP 설정 + 실발송 테스트</li>
+    <li>최종 리허설 — 신규 테넌트 가입→CSV 임포트→근태→급여 확정 전 과정 + 전 라우트 스윕</li>
+    <li>백업 복원 리허설</li>
+    <li>디자인 파트너 1~2개사 온보딩 (지인 회사, 실데이터) <span class="badge b-who">승헌씨</span></li>
+    <li>오픈 + 모니터링 가동</li>
+  </ol>
+
+  <h2><span class="num">3</span>작업 분담</h2>
+  <div class="tblwrap"><table>
+    <tr><th style="width:120px;">주체</th><th>범위</th></tr>
+    <tr><td><b>Claude</b> (승인 시 v1.5.x)</td><td>방침·약관 페이지+동의 플로우 · 무료 파트너 모드 · 비번 변경 스크립트 · 에러 로그 요약 cron · 랜딩 CTA·메타 · SSL 셋업 스크립트</td></tr>
+    <tr><td><b>승헌씨</b></td><td>도메인 이름 결정·구매 · 방침·약관 법적 문구 최종 검토 · SMTP 계정 · 새 슈퍼어드민 비번 보관 · 디자인 파트너 섭외</td></tr>
+  </table></div>
+
+  <footer>TalentCore · 출시 준비 기획 (R4) · launch_plan.md 원본 · 2026-07-16</footer>
+</div>
+</body>
+</html>
