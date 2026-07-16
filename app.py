@@ -6703,6 +6703,286 @@ def compensation():
     )
 
 
+# ══ 연봉 조정안 — 제안↔반영 분리 + 적용일 지정 (R3-B, v1.4.1) ══════════════
+
+ADJUSTMENT_STATUS_LABEL = {
+    'draft': '작성 중', 'scheduled': '적용 예약', 'applied': '적용 완료', 'cancelled': '취소',
+}
+
+
+def _apply_salary_adjustment(db, adj):
+    """조정안 반영 — employee_salary 갱신 + salary_history 기록 (+선택 시 직원 알림)."""
+    items = db.execute(
+        'SELECT ai.* FROM salary_adjustment_items ai WHERE ai.adjustment_id=? AND ai.pct != 0',
+        (adj['id'],)
+    ).fetchall()
+    applied = 0
+    for it in items:
+        cur = db.execute('SELECT base_salary FROM employee_salary WHERE user_id=?',
+                         (it['user_id'],)).fetchone()
+        if not cur:
+            continue
+        db.execute(
+            'INSERT INTO salary_history (user_id, changed_by, old_base_salary, new_base_salary, reason) '
+            'VALUES (?,?,?,?,?)',
+            (it['user_id'], adj['created_by'], cur['base_salary'], it['new_salary'],
+             f'연봉 조정 「{adj["name"]}」 {it["pct"]:+.1f}%'
+             + (f' — {it["reason"]}' if it['reason'] else ''))
+        )
+        db.execute(
+            'UPDATE employee_salary SET base_salary=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?',
+            (it['new_salary'], it['user_id'])
+        )
+        applied += 1
+    db.execute(
+        "UPDATE salary_adjustments SET status='applied', applied_at=CURRENT_TIMESTAMP WHERE id=?",
+        (adj['id'],)
+    )
+    db.commit()
+    if adj['notify_employees']:
+        for it in items:
+            add_notification(
+                it['user_id'], 'info', 'salary',
+                '기본급이 조정되었습니다',
+                f'{adj["effective_date"]}부로 월 기본급이 {it["pct"]:+.1f}% 조정되었습니다. 자세한 내용은 급여명세서를 확인하세요.',
+                link='/payroll'
+            )
+    log_audit('update', 'salary', None,
+              f'연봉 조정 「{adj["name"]}」 적용 — {applied}명 (발효일 {adj["effective_date"]})')
+    return applied
+
+
+def _apply_due_salary_adjustments(db):
+    """발효일이 도래한 예약 조정안 자동 반영 (멱등 — 보상 화면 진입 시 확인)."""
+    due = db.execute(
+        "SELECT * FROM salary_adjustments WHERE status='scheduled' AND effective_date <= ?",
+        (date.today().isoformat(),)
+    ).fetchall()
+    for adj in due:
+        n = _apply_salary_adjustment(db, adj)
+        flash(f'예약된 연봉 조정 「{adj["name"]}」이 발효일 도래로 적용되었습니다 ({n}명).', 'success')
+
+
+@app.route('/compensation/adjustments')
+@admin_required
+def salary_adjustments():
+    db = get_db()
+    _apply_due_salary_adjustments(db)
+    rows = db.execute(
+        'SELECT a.*, u.name creator_name, '
+        '(SELECT COUNT(*) FROM salary_adjustment_items ai WHERE ai.adjustment_id=a.id) item_count, '
+        '(SELECT COUNT(*) FROM salary_adjustment_items ai WHERE ai.adjustment_id=a.id AND ai.pct != 0) target_count '
+        'FROM salary_adjustments a JOIN users u ON a.created_by=u.id '
+        'ORDER BY a.id DESC'
+    ).fetchall()
+    departments = db.execute(
+        "SELECT id, name FROM departments WHERE dept_type='team' OR dept_type IS NULL ORDER BY name"
+    ).fetchall()
+    cfg = get_company_config()
+    return render_template('payroll/adjustments.html',
+                           rows=rows, departments=departments, cfg=cfg,
+                           status_label=ADJUSTMENT_STATUS_LABEL,
+                           today=date.today().isoformat(),
+                           active_page='compensation')
+
+
+@app.route('/compensation/adjustments/new', methods=['POST'])
+@admin_required
+def salary_adjustment_new():
+    db   = get_db()
+    cfg  = get_company_config()
+    name = request.form.get('name', '').strip()
+    effective_date = request.form.get('effective_date', '').strip()
+    mode = request.form.get('mode', 'zero')          # zero | flat | merit
+    dept_id = request.form.get('dept_id', type=int)  # 선택 (없으면 전체)
+    try:
+        flat_pct = float(request.form.get('flat_pct', 0) or 0)
+    except ValueError:
+        flat_pct = 0
+
+    if not name or not effective_date:
+        flash('조정안 이름과 적용일을 입력해주세요.', 'error')
+        return redirect(url_for('salary_adjustments'))
+
+    scope_sql, scope_args = '', []
+    if dept_id:
+        scope_sql  = 'AND u.department_id=? '
+        scope_args = [dept_id]
+    emps = db.execute(
+        'SELECT u.id, s.base_salary, '
+        '(SELECT cr.final_grade FROM calibration_results cr '
+        ' JOIN performance_cycles pc ON cr.cycle_id=pc.id '
+        ' WHERE cr.user_id=u.id AND cr.final_grade IS NOT NULL '
+        ' ORDER BY pc.start_date DESC LIMIT 1) perf_grade '
+        'FROM users u JOIN employee_salary s ON u.id=s.user_id '
+        "WHERE u.status='active' AND u.role NOT IN ('admin','guest') AND s.base_salary > 0 "
+        + scope_sql, scope_args
+    ).fetchall()
+    if not emps:
+        flash('조정 대상 직원이 없습니다.', 'error')
+        return redirect(url_for('salary_adjustments'))
+
+    merit_rates = {'S': float(cfg.get('merit_s', 0.08) or 0), 'A': float(cfg.get('merit_a', 0.05) or 0),
+                   'B': float(cfg.get('merit_b', 0.03) or 0), 'C': float(cfg.get('merit_c', 0.0) or 0),
+                   'D': float(cfg.get('merit_d', -0.01) or 0)}
+
+    cur = db.execute(
+        'INSERT INTO salary_adjustments (name, effective_date, created_by) VALUES (?,?,?)',
+        (name, effective_date, session['user_id'])
+    )
+    adj_id = cur.lastrowid
+    for e in emps:
+        if mode == 'flat':
+            pct = flat_pct
+        elif mode == 'merit':
+            pct = round(merit_rates.get(e['perf_grade'] or '', 0) * 100, 1)
+        else:
+            pct = 0
+        new_salary = int(e['base_salary'] * (1 + pct / 100))
+        db.execute(
+            'INSERT INTO salary_adjustment_items (adjustment_id, user_id, old_salary, pct, new_salary) '
+            'VALUES (?,?,?,?,?)',
+            (adj_id, e['id'], e['base_salary'], pct, new_salary)
+        )
+    db.commit()
+    log_audit('create', 'salary', None, f'연봉 조정안 「{name}」 생성 ({len(emps)}명, 적용일 {effective_date})')
+    flash(f'조정안 「{name}」이 생성되었습니다. 인상률을 검토·수정한 뒤 적용하세요.', 'success')
+    return redirect(url_for('salary_adjustment_detail', adj_id=adj_id))
+
+
+@app.route('/compensation/adjustments/<int:adj_id>')
+@admin_required
+def salary_adjustment_detail(adj_id):
+    db = get_db()
+    _apply_due_salary_adjustments(db)
+    adj = db.execute('SELECT * FROM salary_adjustments WHERE id=?', (adj_id,)).fetchone()
+    if not adj:
+        abort(404)
+    items = db.execute(
+        'SELECT ai.*, u.name, d.name dept_name, p.name pos_name '
+        'FROM salary_adjustment_items ai '
+        'JOIN users u ON ai.user_id=u.id '
+        'LEFT JOIN departments d ON u.department_id=d.id '
+        'LEFT JOIN positions p ON u.position_id=p.id '
+        'WHERE ai.adjustment_id=? ORDER BY d.name, u.name',
+        (adj_id,)
+    ).fetchall()
+    # 최근 성과 등급 (참고 컬럼)
+    grades = {r['user_id']: r['final_grade'] for r in db.execute(
+        'SELECT cr.user_id, cr.final_grade FROM calibration_results cr '
+        'JOIN performance_cycles pc ON cr.cycle_id=pc.id '
+        'WHERE cr.id IN (SELECT MAX(cr2.id) FROM calibration_results cr2 GROUP BY cr2.user_id)'
+    ).fetchall()}
+    target_count = sum(1 for it in items if it['pct'] != 0)
+    avg_pct = round(sum(it['pct'] for it in items if it['pct'] != 0) / target_count, 2) if target_count else 0
+    total_increase = sum(it['new_salary'] - it['old_salary'] for it in items)
+    return render_template('payroll/adjustment_detail.html',
+                           adj=adj, items=items, grades=grades,
+                           target_count=target_count, avg_pct=avg_pct,
+                           total_increase=total_increase,
+                           status_label=ADJUSTMENT_STATUS_LABEL,
+                           today=date.today().isoformat(),
+                           active_page='compensation')
+
+
+@app.route('/compensation/adjustments/<int:adj_id>/save', methods=['POST'])
+@admin_required
+def salary_adjustment_save(adj_id):
+    db  = get_db()
+    adj = db.execute('SELECT * FROM salary_adjustments WHERE id=?', (adj_id,)).fetchone()
+    if not adj:
+        abort(404)
+    if adj['status'] != 'draft':
+        flash('작성 중 상태의 조정안만 수정할 수 있습니다. (예약된 조정안은 예약 취소 후 수정)', 'error')
+        return redirect(url_for('salary_adjustment_detail', adj_id=adj_id))
+
+    items = db.execute(
+        'SELECT id, user_id, old_salary FROM salary_adjustment_items WHERE adjustment_id=?', (adj_id,)
+    ).fetchall()
+    for it in items:
+        raw = request.form.get(f'pct_{it["id"]}', '').strip()
+        try:
+            pct = round(float(raw), 1) if raw != '' else 0.0
+        except ValueError:
+            continue
+        pct = max(-50.0, min(100.0, pct))
+        reason = request.form.get(f'reason_{it["id"]}', '').strip() or None
+        new_salary = int(it['old_salary'] * (1 + pct / 100))
+        db.execute(
+            'UPDATE salary_adjustment_items SET pct=?, new_salary=?, reason=? WHERE id=?',
+            (pct, new_salary, reason, it['id'])
+        )
+    # 적용일도 함께 수정 가능
+    eff = request.form.get('effective_date', '').strip()
+    if eff:
+        db.execute('UPDATE salary_adjustments SET effective_date=? WHERE id=?', (eff, adj_id))
+    db.commit()
+    flash('조정안이 저장되었습니다.', 'success')
+    return redirect(url_for('salary_adjustment_detail', adj_id=adj_id))
+
+
+@app.route('/compensation/adjustments/<int:adj_id>/apply', methods=['POST'])
+@admin_required
+def salary_adjustment_apply(adj_id):
+    db  = get_db()
+    adj = db.execute('SELECT * FROM salary_adjustments WHERE id=?', (adj_id,)).fetchone()
+    if not adj:
+        abort(404)
+    if adj['status'] not in ('draft', 'scheduled'):
+        flash('이미 적용되었거나 취소된 조정안입니다.', 'error')
+        return redirect(url_for('salary_adjustment_detail', adj_id=adj_id))
+
+    notify = 1 if request.form.get('notify_employees') else 0
+    db.execute('UPDATE salary_adjustments SET notify_employees=? WHERE id=?', (notify, adj_id))
+    db.commit()
+    adj = db.execute('SELECT * FROM salary_adjustments WHERE id=?', (adj_id,)).fetchone()
+
+    if adj['effective_date'] <= date.today().isoformat():
+        n = _apply_salary_adjustment(db, adj)
+        flash(f'연봉 조정 「{adj["name"]}」이 적용되었습니다 — {n}명 반영, salary_history 기록 완료.', 'success')
+    else:
+        db.execute("UPDATE salary_adjustments SET status='scheduled' WHERE id=?", (adj_id,))
+        db.commit()
+        log_audit('update', 'salary', None,
+                  f'연봉 조정 「{adj["name"]}」 적용 예약 (발효일 {adj["effective_date"]})')
+        flash(f'적용이 예약되었습니다 — {adj["effective_date"]} 발효. 발효일 전까지 예약 취소 후 수정할 수 있습니다.', 'success')
+    return redirect(url_for('salary_adjustment_detail', adj_id=adj_id))
+
+
+@app.route('/compensation/adjustments/<int:adj_id>/unschedule', methods=['POST'])
+@admin_required
+def salary_adjustment_unschedule(adj_id):
+    db  = get_db()
+    adj = db.execute('SELECT * FROM salary_adjustments WHERE id=?', (adj_id,)).fetchone()
+    if not adj:
+        abort(404)
+    if adj['status'] != 'scheduled':
+        flash('예약 상태의 조정안이 아닙니다.', 'error')
+    else:
+        db.execute("UPDATE salary_adjustments SET status='draft' WHERE id=?", (adj_id,))
+        db.commit()
+        flash('적용 예약이 취소되었습니다. 다시 수정할 수 있습니다.', 'success')
+    return redirect(url_for('salary_adjustment_detail', adj_id=adj_id))
+
+
+@app.route('/compensation/adjustments/<int:adj_id>/delete', methods=['POST'])
+@admin_required
+def salary_adjustment_delete(adj_id):
+    db  = get_db()
+    adj = db.execute('SELECT * FROM salary_adjustments WHERE id=?', (adj_id,)).fetchone()
+    if not adj:
+        abort(404)
+    if adj['status'] == 'applied':
+        flash('이미 적용된 조정안은 삭제할 수 없습니다. (이력 보존)', 'error')
+        return redirect(url_for('salary_adjustment_detail', adj_id=adj_id))
+    db.execute('DELETE FROM salary_adjustment_items WHERE adjustment_id=?', (adj_id,))
+    db.execute('DELETE FROM salary_adjustments WHERE id=?', (adj_id,))
+    db.commit()
+    log_audit('delete', 'salary', None, f'연봉 조정안 「{adj["name"]}」 삭제')
+    flash('조정안이 삭제되었습니다.', 'success')
+    return redirect(url_for('salary_adjustments'))
+
+
 # ── 기존 라우트 → /compensation 리디렉트 ──────────────────────────────────────
 @app.route('/admin/payroll-legacy')
 @admin_required

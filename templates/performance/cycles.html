@@ -116,7 +116,7 @@
             &nbsp;<a href="{{ url_for('performance_appeals', cycle=c.id) }}" style="color:var(--primary); font-weight:700;">이의신청 관리 →</a>
             {% endif %}
             {% if c.stage == 'closed' %}
-            &nbsp;<a href="{{ url_for('payroll_bulk_raise') }}" style="color:var(--primary); font-weight:700;">등급 연동 인상(Merit) →</a>
+            &nbsp;<a href="{{ url_for('salary_adjustments') }}" style="color:var(--primary); font-weight:700;">등급 연동 연봉 조정 →</a>
             {% endif %}
           </div>
 

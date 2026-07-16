@@ -1,0 +1,233 @@
+{% extends 'base.html' %}
+{% block title %}{{ adj.name }} — 연봉 조정{% endblock %}
+{% block page_title %}연봉 조정{% endblock %}
+
+{% block extra_css %}
+<style>
+.adj-status { font-size:11px; font-weight:800; padding:3px 11px; border-radius:20px; white-space:nowrap; }
+.adj-draft     { background:#f1f5f9; color:#475569; }
+.adj-scheduled { background:#fef3c7; color:#92400e; }
+.adj-applied   { background:#dcfce7; color:#16a34a; }
+.adj-chip {
+  font-size:12px; font-weight:700; padding:6px 13px; border-radius:10px;
+  background:var(--surface); border:1px solid var(--border); color:var(--tx-2);
+}
+.adj-chip b { font-weight:900; color:var(--tx-1); }
+.pct-input { width:74px; font-size:12px; padding:5px 8px; text-align:right; }
+.reason-input { width:150px; font-size:11.5px; padding:5px 8px; }
+.grade-mini { font-size:10.5px; font-weight:800; padding:1px 8px; border-radius:20px; }
+.gm-S { background:#f3e8ff; color:#7c3aed; } .gm-A { background:#dbeafe; color:#1d4ed8; }
+.gm-B { background:#ecfdf5; color:#047857; } .gm-C { background:#fef3c7; color:#b45309; }
+.gm-D { background:#fee2e2; color:#dc2626; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- 헤더 -->
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+  <a href="{{ url_for('salary_adjustments') }}" class="btn btn-ghost btn-sm">
+    <i class="fas fa-arrow-left"></i> 조정안 목록
+  </a>
+  <div>
+    <div style="font-size:16px; font-weight:800;">{{ adj.name }}
+      <span class="adj-status adj-{{ adj.status }}" style="margin-left:6px;">{{ status_label[adj.status] }}</span>
+    </div>
+    <div style="font-size:12px; color:var(--tx-3);">
+      적용일 {{ adj.effective_date }}
+      {% if adj.status == 'applied' %} · {{ adj.applied_at[:16] }} 반영 완료{% endif %}
+      {% if adj.status == 'scheduled' %} · 발효일에 자동 반영됩니다{% endif %}
+    </div>
+  </div>
+
+  <span style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">
+    {% if adj.status == 'draft' %}
+    <button type="submit" form="adj-form" class="btn btn-ghost">
+      <i class="fas fa-floppy-disk"></i> 임시저장
+    </button>
+    <button type="button" class="btn btn-primary"
+            onclick="document.getElementById('apply-modal').style.display='flex'">
+      <i class="fas fa-check"></i> 적용{{ '' if adj.effective_date <= today else ' 예약' }}
+    </button>
+    <form method="POST" action="{{ url_for('salary_adjustment_delete', adj_id=adj.id) }}"
+          onsubmit="return confirm('조정안 「{{ adj.name }}」을 삭제할까요?')">
+      <button type="submit" class="btn btn-ghost" style="color:var(--red);"><i class="fas fa-trash"></i></button>
+    </form>
+    {% elif adj.status == 'scheduled' %}
+    <form method="POST" action="{{ url_for('salary_adjustment_unschedule', adj_id=adj.id) }}">
+      <button type="submit" class="btn btn-ghost"><i class="fas fa-rotate-left"></i> 예약 취소 (수정하려면)</button>
+    </form>
+    {% endif %}
+  </span>
+</div>
+
+<!-- 시뮬레이션 요약 -->
+<div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+  <span class="adj-chip">대상 <b>{{ target_count }}명</b> <span style="color:var(--tx-3);">/ 전체 {{ items|length }}명</span></span>
+  <span class="adj-chip">평균 인상률 <b id="sum-avg" style="color:var(--green);">{{ '%+.2f'|format(avg_pct) }}%</b></span>
+  <span class="adj-chip">월 인건비 증가 <b id="sum-total" style="color:var(--green);">{{ '{:+,}'.format(total_increase) }}원</b></span>
+  {% if adj.status == 'draft' %}
+  <span style="font-size:11.5px; color:var(--tx-3); align-self:center;">
+    인상률을 수정하면 요약이 실시간 갱신됩니다 · 저장 전엔 반영되지 않습니다
+  </span>
+  {% endif %}
+</div>
+
+<!-- 워크시트 -->
+<form method="POST" action="{{ url_for('salary_adjustment_save', adj_id=adj.id) }}" id="adj-form">
+{% if adj.status == 'draft' %}
+<div style="display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
+  <label style="font-size:12px; color:var(--tx-2); display:flex; align-items:center; gap:6px;">
+    적용일 <input type="date" name="effective_date" class="input" value="{{ adj.effective_date }}" style="width:150px; font-size:12px; padding:5px 8px;">
+  </label>
+  <input type="text" id="adjSearch" class="input" style="width:160px; font-size:12px; padding:6px 10px;" placeholder="이름 검색...">
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="tbl-wrap" style="max-height:560px; overflow-y:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>직원</th>
+          <th>최근 등급</th>
+          <th>현재 기본급</th>
+          <th style="text-align:right;">인상률 (%)</th>
+          <th>조정 후</th>
+          <th>월 증가액</th>
+          <th>사유 (개별 조정 시)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        {% set g = grades.get(it.user_id) %}
+        <tr class="adj-row" data-emp-name="{{ it.name|lower }}">
+          <td>
+            <div class="u-cell">
+              <div class="avatar-xs">{{ it.name[0] }}</div>
+              <div>
+                <div class="u-name">{{ it.name }}</div>
+                <div style="font-size:11px; color:var(--tx-3);">{{ it.dept_name or '' }} · {{ it.pos_name or '' }}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            {% if g %}<span class="grade-mini gm-{{ g }}">{{ g }}</span>
+            {% else %}<span style="color:var(--tx-3); font-size:11px;">—</span>{% endif %}
+          </td>
+          <td style="font-variant-numeric:tabular-nums;">{{ '{:,}'.format(it.old_salary) }}원</td>
+          <td style="text-align:right;">
+            {% if adj.status == 'draft' %}
+            <input type="number" name="pct_{{ it.id }}" class="input pct-input adj-pct"
+                   value="{{ it.pct }}" step="0.1" min="-50" max="100"
+                   data-old="{{ it.old_salary }}" data-item="{{ it.id }}">
+            {% else %}
+            <span style="font-weight:800; color:{{ 'var(--green)' if it.pct > 0 else ('var(--red)' if it.pct < 0 else 'var(--tx-3)') }};">
+              {{ '%+.1f'|format(it.pct) }}%
+            </span>
+            {% endif %}
+          </td>
+          <td style="font-variant-numeric:tabular-nums; font-weight:700;" id="new-{{ it.id }}">
+            {{ '{:,}'.format(it.new_salary) }}원
+          </td>
+          <td style="font-variant-numeric:tabular-nums; color:var(--tx-3);" id="inc-{{ it.id }}">
+            {{ '{:+,}'.format(it.new_salary - it.old_salary) }}원
+          </td>
+          <td>
+            {% if adj.status == 'draft' %}
+            <input type="text" name="reason_{{ it.id }}" class="input reason-input"
+                   value="{{ it.reason or '' }}" placeholder="예: 핵심인재 추가 인상">
+            {% else %}
+            <span style="font-size:11.5px; color:var(--tx-3);">{{ it.reason or '—' }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+</form>
+
+<!-- 적용 확인 모달 -->
+{% if adj.status == 'draft' %}
+<div id="apply-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000;
+     align-items:center; justify-content:center;">
+  <div style="background:var(--surface); border-radius:14px; padding:26px; width:440px; max-width:94vw;">
+    <div style="font-size:15px; font-weight:800; margin-bottom:8px;">
+      <i class="fas fa-check-circle" style="color:var(--green);"></i> 조정안 적용
+    </div>
+    <div style="font-size:12.5px; color:var(--tx-2); line-height:1.7; margin-bottom:14px;">
+      대상 <strong>{{ target_count }}명</strong> · 평균 <strong>{{ '%+.2f'|format(avg_pct) }}%</strong> ·
+      월 인건비 <strong>{{ '{:+,}'.format(total_increase) }}원</strong><br>
+      {% if adj.effective_date <= today %}
+      적용일({{ adj.effective_date }})이 지났거나 오늘이므로 <strong style="color:var(--red);">즉시 반영</strong>됩니다.
+      {% else %}
+      <strong>{{ adj.effective_date }}</strong>에 자동 반영되도록 예약합니다. 발효 전까지 예약 취소로 수정할 수 있습니다.
+      {% endif %}
+      <br>반영 시 개별 급여가 갱신되고 salary_history에 기록됩니다.
+    </div>
+    <div style="font-size:11.5px; color:var(--orange); background:var(--orange-bg); border-radius:8px;
+                padding:8px 12px; margin-bottom:14px;">
+      <i class="fas fa-triangle-exclamation"></i> 저장하지 않은 인상률 변경은 적용에 포함되지 않습니다. 먼저 [임시저장]을 눌러주세요.
+    </div>
+    <form method="POST" action="{{ url_for('salary_adjustment_apply', adj_id=adj.id) }}">
+      <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; margin-bottom:16px; cursor:pointer;">
+        <input type="checkbox" name="notify_employees" value="1" checked>
+        반영 시 대상 직원에게 인앱 알림 발송 (조정률 안내)
+      </label>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button type="button" class="btn btn-ghost"
+                onclick="document.getElementById('apply-modal').style.display='none'">취소</button>
+        <button type="submit" class="btn btn-primary">
+          {{ '즉시 적용' if adj.effective_date <= today else '적용 예약' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 인상률 입력 → 조정 후 금액·요약 실시간 갱신 (R3-B)
+(function() {
+  var inputs = document.querySelectorAll('.adj-pct');
+  if (!inputs.length) return;
+
+  function fmt(n) { return n.toLocaleString('ko-KR'); }
+  function recalc() {
+    var totalInc = 0, pctSum = 0, cnt = 0;
+    inputs.forEach(function(inp) {
+      var old = parseInt(inp.dataset.old, 10);
+      var pct = parseFloat(inp.value) || 0;
+      var neu = Math.floor(old * (1 + pct / 100));
+      var inc = neu - old;
+      document.getElementById('new-' + inp.dataset.item).textContent = fmt(neu) + '원';
+      var incEl = document.getElementById('inc-' + inp.dataset.item);
+      incEl.textContent = (inc >= 0 ? '+' : '') + fmt(inc) + '원';
+      totalInc += inc;
+      if (pct !== 0) { pctSum += pct; cnt++; }
+    });
+    document.getElementById('sum-avg').textContent = (cnt ? (pctSum / cnt >= 0 ? '+' : '') + (pctSum / cnt).toFixed(2) : '+0.00') + '%';
+    document.getElementById('sum-total').textContent = (totalInc >= 0 ? '+' : '') + fmt(totalInc) + '원';
+  }
+  inputs.forEach(function(inp) { inp.addEventListener('input', recalc); });
+})();
+
+// 이름 검색
+(function() {
+  var q = document.getElementById('adjSearch');
+  if (!q) return;
+  var rows = document.querySelectorAll('.adj-row');
+  q.addEventListener('input', function() {
+    var v = q.value.trim().toLowerCase();
+    rows.forEach(function(r) {
+      r.style.display = (!v || (r.dataset.empName || '').indexOf(v) !== -1) ? '' : 'none';
+    });
+  });
+})();
+</script>
+{% endblock %}

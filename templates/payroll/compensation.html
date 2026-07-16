@@ -852,74 +852,24 @@
     </div>
     {% endif %}
 
-    <!-- 우: 일괄 인상 시뮬레이터 -->
+    <!-- 우: 연봉 조정 (R3-B — 즉시 적용 시뮬레이터 대체) -->
     <div class="card">
-      <div class="card-head"><span class="card-title">일괄 인상 시뮬레이터</span></div>
+      <div class="card-head"><span class="card-title">연봉 조정</span></div>
       <div style="padding:16px;">
-        <form method="POST" action="{{ url_for('compensation') }}" id="raise-form">
-          <input type="hidden" name="action" value="bulk_raise">
-          <input type="hidden" name="_tab" value="analysis">
-
-          <!-- 모드 선택 -->
-          <div style="display:flex; gap:8px; margin-bottom:16px;">
-            <label style="flex:1; cursor:pointer;">
-              <input type="radio" name="mode" value="flat" checked onchange="toggleMode(this.value)">
-              <div class="dur-btn active" id="mode-flat" style="margin-top:6px; text-align:center; font-size:12px;">
-                <div style="font-weight:800;">일괄 인상</div>
-                <div style="font-size:10px; color:var(--tx-3); margin-top:2px;">동일 % 적용</div>
-              </div>
-            </label>
-            <label style="flex:1; cursor:pointer;">
-              <input type="radio" name="mode" value="merit" onchange="toggleMode(this.value)">
-              <div class="dur-btn" id="mode-merit" style="margin-top:6px; text-align:center; font-size:12px;">
-                <div style="font-weight:800;">Merit 인상</div>
-                <div style="font-size:10px; color:var(--tx-3); margin-top:2px;">성과 등급 기반</div>
-              </div>
-            </label>
-          </div>
-
-          <!-- 일괄: 인상률 -->
-          <div id="flat-input" style="margin-bottom:12px;">
-            <label class="form-label">인상률 (%)</label>
-            <input type="number" name="pct" class="input" placeholder="예: 3" step="0.1" min="0" max="100">
-          </div>
-
-          <!-- Merit: 등급별 인상률 미리보기 -->
-          <div id="merit-info" style="display:none; margin-bottom:12px; padding:12px; background:var(--surface-3); border-radius:var(--r-sm);">
-            <div style="font-size:11px; font-weight:700; color:var(--tx-3); margin-bottom:8px;">Merit Matrix 기반 자동 적용</div>
-            {% for g, pct in [('S', cfg.merit_s or 0.08), ('A', cfg.merit_a or 0.05), ('B', cfg.merit_b or 0.03), ('C', cfg.merit_c or 0.0), ('D', cfg.merit_d or -0.01)] %}
-            <div style="display:flex; justify-content:space-between; font-size:12px; padding:3px 0;">
-              <span style="font-weight:700;">{{ g }} 등급</span>
-              <span style="color:var(--primary);">{{ '+%.1f'|format(pct|float * 100) }}%</span>
-            </div>
-            {% endfor %}
-          </div>
-
-          <div style="margin-bottom:12px;">
-            <label class="form-label">대상 부서 (선택 안 하면 전체)</label>
-            <select name="dept_id" class="input">
-              <option value="">전체 직원</option>
-              {% for d in departments %}
-              <option value="{{ d.id }}">{{ d.name }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div style="margin-bottom:16px;">
-            <label class="form-label">사유 (선택)</label>
-            <input type="text" name="reason" class="input" placeholder="예: 2026 연간 인상">
-          </div>
-
-          <!-- 예상 인원 미리보기 -->
-          <div style="font-size:12px; color:var(--tx-3); margin-bottom:14px; padding:10px; background:var(--surface-3); border-radius:var(--r-sm);">
-            <i class="fas fa-info-circle"></i>
-            인상 후 개별 급여는 salary_history에 기록됩니다. 되돌리기 불가.
-          </div>
-
-          <button type="submit" class="btn btn-primary" style="width:100%;"
-            onclick="return confirm('일괄 인상을 적용하시겠습니까? 되돌리기 불가합니다.')">
-            <i class="fas fa-arrow-up"></i> 인상 적용
-          </button>
-        </form>
+        <div style="font-size:13px; color:var(--tx-2); line-height:1.7; margin-bottom:14px;">
+          연봉 인상은 <strong>조정안</strong>으로 진행합니다:<br>
+          ① 조정안 작성 (등급 연동·일괄 % 프리필)<br>
+          ② 시뮬레이션·개인별 검토 (평균 인상률·재원 확인)<br>
+          ③ 적용일 지정 반영 (예약 가능, salary_history 기록)
+        </div>
+        <div style="font-size:11.5px; color:var(--tx-3); background:var(--surface-3); border-radius:var(--r-sm);
+                    padding:10px 12px; margin-bottom:14px;">
+          <i class="fas fa-shield-halved"></i>
+          기존 '즉시 적용' 방식은 조정안 플로우로 대체되었습니다 — 적용 전까지 실제 급여는 바뀌지 않습니다.
+        </div>
+        <a href="{{ url_for('salary_adjustments') }}" class="btn btn-primary" style="width:100%; justify-content:center;">
+          <i class="fas fa-arrow-trend-up"></i> 연봉 조정 열기
+        </a>
       </div>
     </div>
 
@@ -1136,14 +1086,6 @@ function mrToggleMatrix() {
   const open  = panel.style.display === 'none';
   panel.style.display = open ? '' : 'none';
   icon.className = open ? 'fas fa-chevron-up' : 'fas fa-chevron-down';
-}
-
-function toggleMode(mode) {
-  const isFlat = mode === 'flat';
-  document.getElementById('flat-input').style.display = isFlat ? '' : 'none';
-  document.getElementById('merit-info').style.display = isFlat ? 'none' : '';
-  document.getElementById('mode-flat').classList.toggle('active', isFlat);
-  document.getElementById('mode-merit').classList.toggle('active', !isFlat);
 }
 
 // 모달 배경 클릭으로 닫기

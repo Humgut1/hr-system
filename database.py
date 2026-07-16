@@ -789,6 +789,31 @@ def init_db(db_path: str = None):
         if 'acknowledged_at' not in cal_cols:
             c.execute('ALTER TABLE calibration_results ADD COLUMN acknowledged_at TIMESTAMP')
 
+        # 연봉 조정안 (v1.4.1 — R3-B): 제안↔반영 분리 + 적용일 지정
+        c.executescript('''
+            CREATE TABLE IF NOT EXISTS salary_adjustments (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                name           TEXT NOT NULL,
+                effective_date DATE NOT NULL,
+                status         TEXT NOT NULL DEFAULT 'draft'
+                               CHECK(status IN ('draft','scheduled','applied','cancelled')),
+                notify_employees INTEGER NOT NULL DEFAULT 0,
+                created_by     INTEGER NOT NULL REFERENCES users(id),
+                created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                applied_at     TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS salary_adjustment_items (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                adjustment_id INTEGER NOT NULL REFERENCES salary_adjustments(id) ON DELETE CASCADE,
+                user_id       INTEGER NOT NULL REFERENCES users(id),
+                old_salary    INTEGER NOT NULL,
+                pct           REAL NOT NULL DEFAULT 0,
+                new_salary    INTEGER NOT NULL,
+                reason        TEXT,
+                UNIQUE(adjustment_id, user_id)
+            );
+        ''')
+
         pg_cols = {r[1] for r in c.execute('PRAGMA table_info(performance_goals)').fetchall()}
         if 'approval_status' not in pg_cols:
             c.execute("ALTER TABLE performance_goals ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'draft'")

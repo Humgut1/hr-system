@@ -1,0 +1,157 @@
+{% extends 'base.html' %}
+{% block title %}연봉 조정{% endblock %}
+{% block page_title %}연봉 조정{% endblock %}
+
+{% block extra_css %}
+<style>
+.adj-status { font-size:11px; font-weight:800; padding:3px 11px; border-radius:20px; white-space:nowrap; }
+.adj-draft     { background:#f1f5f9; color:#475569; }
+.adj-scheduled { background:#fef3c7; color:#92400e; }
+.adj-applied   { background:#dcfce7; color:#16a34a; }
+.adj-cancelled { background:#fee2e2; color:#dc2626; }
+.mode-card { border:1.5px solid var(--border); border-radius:10px; padding:12px 14px; cursor:pointer; flex:1; text-align:center; }
+.mode-card.sel { border-color:var(--primary); background:var(--primary-bg, #eef2ff); }
+.mode-card b { display:block; font-size:13px; }
+.mode-card span { font-size:11px; color:var(--tx-3); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
+  <a href="{{ url_for('compensation', tab='ops') }}" class="btn btn-ghost btn-sm">
+    <i class="fas fa-arrow-left"></i> 보상 관리
+  </a>
+  <div>
+    <div style="font-size:16px; font-weight:800;">연봉 조정</div>
+    <div style="font-size:12px; color:var(--tx-3);">조정안 작성 → 시뮬레이션·검토 → 적용일에 반영 — 적용 전까지 실제 급여는 바뀌지 않습니다</div>
+  </div>
+  <button class="btn btn-primary" style="margin-left:auto;"
+          onclick="document.getElementById('new-adj-modal').style.display='flex'">
+    <i class="fas fa-plus"></i> 새 조정안
+  </button>
+</div>
+
+{% if rows %}
+<div class="card">
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>조정안</th><th>상태</th><th>적용일</th><th>대상</th><th>작성자</th><th>생성일</th><th style="text-align:right;"></th></tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td style="font-weight:700;">{{ r.name }}</td>
+          <td><span class="adj-status adj-{{ r.status }}">{{ status_label[r.status] }}</span></td>
+          <td style="font-variant-numeric:tabular-nums;
+                     {% if r.status == 'scheduled' and r.effective_date <= today %}color:var(--red); font-weight:800;{% endif %}">
+            {{ r.effective_date }}
+          </td>
+          <td style="color:var(--tx-3);">{{ r.target_count }} / {{ r.item_count }}명</td>
+          <td style="color:var(--tx-3);">{{ r.creator_name }}</td>
+          <td style="color:var(--tx-3); font-size:12px;">{{ r.created_at[:10] }}</td>
+          <td style="text-align:right;">
+            <a href="{{ url_for('salary_adjustment_detail', adj_id=r.id) }}"
+               class="btn btn-sm {{ 'btn-primary' if r.status in ('draft','scheduled') else 'btn-ghost' }}">
+              {{ '검토·수정' if r.status == 'draft' else ('보기' if r.status != 'scheduled' else '예약 확인') }}
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body" style="text-align:center; padding:60px; color:var(--tx-3);">
+    <i class="fas fa-arrow-trend-up" style="font-size:32px; opacity:.3; display:block; margin-bottom:12px;"></i>
+    아직 조정안이 없습니다. [새 조정안]으로 시작하세요.<br>
+    <span style="font-size:12px; display:block; margin-top:8px;">
+      등급 연동(Merit)·일괄 % 프리필 후 개인별로 다듬고, 적용일을 지정해 반영합니다.
+    </span>
+  </div>
+</div>
+{% endif %}
+
+<!-- 새 조정안 모달 -->
+<div id="new-adj-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000;
+     align-items:center; justify-content:center;">
+  <div style="background:var(--surface); border-radius:14px; padding:26px; width:460px; max-width:94vw;">
+    <div style="font-size:15px; font-weight:800; margin-bottom:16px;">
+      <i class="fas fa-plus" style="color:var(--primary);"></i> 새 연봉 조정안
+    </div>
+    <form method="POST" action="{{ url_for('salary_adjustment_new') }}">
+      <div style="margin-bottom:14px;">
+        <label class="form-label">조정안 이름 <span style="color:var(--orange);">*</span></label>
+        <input type="text" name="name" class="input" required placeholder="예: 2026 정기 연봉 조정">
+      </div>
+      <div style="margin-bottom:14px;">
+        <label class="form-label">적용일 (발효일) <span style="color:var(--orange);">*</span></label>
+        <input type="date" name="effective_date" class="input" required>
+        <div style="font-size:11px; color:var(--tx-3); margin-top:4px;">미래 날짜면 적용 예약 — 발효일에 자동 반영됩니다.</div>
+      </div>
+
+      <label class="form-label">인상률 프리필</label>
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <label class="mode-card sel" id="mc-zero">
+          <input type="radio" name="mode" value="zero" checked style="display:none;" onchange="adjMode('zero')">
+          <b>빈 시트</b><span>0%에서 직접 입력</span>
+        </label>
+        <label class="mode-card" id="mc-merit">
+          <input type="radio" name="mode" value="merit" style="display:none;" onchange="adjMode('merit')">
+          <b>등급 연동</b><span>S~D 인상률 자동</span>
+        </label>
+        <label class="mode-card" id="mc-flat">
+          <input type="radio" name="mode" value="flat" style="display:none;" onchange="adjMode('flat')">
+          <b>일괄 %</b><span>동일률 적용</span>
+        </label>
+      </div>
+
+      <div id="flat-pct-field" style="display:none; margin-bottom:12px;">
+        <label class="form-label">일괄 인상률 (%)</label>
+        <input type="number" name="flat_pct" class="input" step="0.1" min="-50" max="100" placeholder="예: 3.0">
+      </div>
+      <div id="merit-hint" style="display:none; margin-bottom:12px; font-size:12px; color:var(--tx-3);
+                                  background:var(--bg); border-radius:8px; padding:10px 12px;">
+        회사 설정의 등급별 인상률(S {{ '%.1f'|format((cfg.merit_s or 0.08)|float * 100) }}% ·
+        A {{ '%.1f'|format((cfg.merit_a or 0.05)|float * 100) }}% ·
+        B {{ '%.1f'|format((cfg.merit_b or 0.03)|float * 100) }}% ·
+        C {{ '%.1f'|format((cfg.merit_c or 0.0)|float * 100) }}% ·
+        D {{ '%.1f'|format((cfg.merit_d or -0.01)|float * 100) }}%)로 프리필합니다.
+        최근 확정 등급이 없는 직원은 0%.
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <label class="form-label">대상 부서 (선택 안 하면 전체)</label>
+        <select name="dept_id" class="input">
+          <option value="">전체 직원</option>
+          {% for d in departments %}
+          <option value="{{ d.id }}">{{ d.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button type="button" class="btn btn-ghost"
+                onclick="document.getElementById('new-adj-modal').style.display='none'">취소</button>
+        <button type="submit" class="btn btn-primary">조정안 생성</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function adjMode(m) {
+  ['zero','merit','flat'].forEach(function(k) {
+    document.getElementById('mc-' + k).classList.toggle('sel', k === m);
+  });
+  document.getElementById('flat-pct-field').style.display = (m === 'flat') ? '' : 'none';
+  document.getElementById('merit-hint').style.display = (m === 'merit') ? '' : 'none';
+}
+</script>
+{% endblock %}
