@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TalentCore — 흩어진 HR을, 하나의 흐름으로</title>
+  <meta name="description" content="인사·근태·급여·성과·보상을 하나로. 주52시간 감시, 연차촉진, 급여명세 발송까지 근로기준법 준수를 자동화하는 국내 중소기업용 HR SaaS.">
+  <meta property="og:title" content="TalentCore — 흩어진 HR을, 하나의 흐름으로">
+  <meta property="og:description" content="인사·근태·급여·성과·보상을 하나로. 근로기준법 준수 자동화 HR SaaS — 지금 무료 파트너로 시작하세요.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
   <style>
     * { box-sizing: border-box; }
@@ -59,8 +65,9 @@
         <a href="#ai" style="font-size: 14.5px; font-weight: 600; color: #4b5060;">AI 연동</a>
         <a href="#metrics" style="font-size: 14.5px; font-weight: 600; color: #4b5060;">현황</a>
         <div style="display: flex; align-items: center; gap: 10px; margin-left: 6px;">
+          <a href="{{ url_for('demo_login') }}" class="btn-ghost" style="font-size: 14.5px; font-weight: 700; padding: 9px 16px; border-radius: 10px;">데모 보기</a>
           <a href="{{ url_for('login') }}" class="btn-ghost" style="font-size: 14.5px; font-weight: 700; padding: 9px 16px; border-radius: 10px;">로그인</a>
-          <a href="{{ url_for('demo_login') }}" class="btn-primary" style="font-size: 14.5px; font-weight: 700; padding: 10px 20px; border-radius: 10px;">체험하기</a>
+          <a href="{{ url_for('signup') }}" class="btn-primary" style="font-size: 14.5px; font-weight: 700; padding: 10px 20px; border-radius: 10px;">무료로 시작하기</a>
         </div>
       </nav>
     </div>
@@ -77,8 +84,8 @@
       <h1 class="hero" style="font-size: 62px; line-height: 1.1; font-weight: 800; letter-spacing: -0.035em; margin: 0 0 22px;">흩어진 HR을,<br>하나의 흐름으로.</h1>
       <p style="font-size: 20px; line-height: 1.6; color: #565b6e; margin: 0 auto 38px; max-width: 620px;">인사·근태·급여·성과·채용·복리후생·온보딩·보상까지 —<br>하나의 플랫폼에서 관리하고, AI에게 바로 물어보세요.</p>
       <div style="display: flex; gap: 14px; justify-content: center; align-items: center; flex-wrap: wrap;">
-        <a href="{{ url_for('demo_login') }}" class="btn-primary" style="font-size: 16px; font-weight: 700; padding: 15px 30px; border-radius: 13px; box-shadow: 0 12px 28px rgba(79,70,229,0.32);">체험하기 →</a>
-        <a href="{{ url_for('login') }}" style="font-size: 16px; font-weight: 700; color: #2b2f3a; padding: 15px 28px; border-radius: 13px; border: 1px solid #e2e4ee; background: #fff;">로그인</a>
+        <a href="{{ url_for('signup') }}" class="btn-primary" style="font-size: 16px; font-weight: 700; padding: 15px 30px; border-radius: 13px; box-shadow: 0 12px 28px rgba(79,70,229,0.32);">무료로 시작하기 →</a>
+        <a href="{{ url_for('demo_login') }}" style="font-size: 16px; font-weight: 700; color: #2b2f3a; padding: 15px 28px; border-radius: 13px; border: 1px solid #e2e4ee; background: #fff;">샘플 데이터로 데모 보기</a>
       </div>
       <p style="font-size: 13.5px; color: #9096a6; margin-top: 18px;">설명도, 회원가입도 없이 · 바로 데모에 들어가 보세요</p>
     </div>
@@ -271,8 +278,8 @@
         <h2 style="font-size: 40px; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 16px;">HR을 다시 설계할 시간.</h2>
         <p style="font-size: 18px; color: rgba(255,255,255,0.85); margin: 0 0 34px;">지금 데모에 들어가 TalentCore를 직접 만져보세요.</p>
         <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
-          <a href="{{ url_for('demo_login') }}" style="font-size: 16px; font-weight: 800; color: #4f46e5; padding: 15px 32px; border-radius: 13px; background: #fff;">체험하기 →</a>
-          <a href="{{ url_for('login') }}" style="font-size: 16px; font-weight: 700; color: #fff; padding: 15px 30px; border-radius: 13px; border: 1px solid rgba(255,255,255,0.5);">로그인</a>
+          <a href="{{ url_for('signup') }}" style="font-size: 16px; font-weight: 800; color: #4f46e5; padding: 15px 32px; border-radius: 13px; background: #fff;">무료로 시작하기 →</a>
+          <a href="{{ url_for('demo_login') }}" style="font-size: 16px; font-weight: 700; color: #fff; padding: 15px 30px; border-radius: 13px; border: 1px solid rgba(255,255,255,0.5);">데모 보기</a>
         </div>
       </div>
     </div>

@@ -15682,6 +15682,18 @@ def landing():
     return render_template('landing/index.html', price_per_seat=1000)
 
 
+@app.route('/robots.txt')
+def robots_txt():
+    """검색엔진 크롤링 정책 (R5, v1.5.3)"""
+    return app.response_class(
+        'User-agent: *\n'
+        'Disallow: /demo\n'
+        'Disallow: /saas\n'
+        'Disallow: /api/\n'
+        'Disallow: /billing\n',
+        mimetype='text/plain')
+
+
 @app.route('/privacy')
 def privacy_policy():
     """개인정보처리방침 (공개 — R5, v1.5.0)"""
