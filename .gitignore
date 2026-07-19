@@ -35,3 +35,14 @@ _flask_kit_readme.md
 design_readme.txt
 backups/
 static/uploads/imports/
+
+# 런타임 로그·백업·임시 산출물 (레포 정리 v1.5.4)
+*.log
+*.bak
+*.bak2
+*.tar
+cookies.txt
+screenshot_log.txt
+take_screenshots.py
+static/proto/
+onboarding_plan.html
