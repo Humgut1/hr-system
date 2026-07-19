@@ -77,6 +77,10 @@ EMP_DOC_TYPE_LABEL = {
 }
 
 # ── 토스페이먼츠 키 ─────────────────────────────────────────
+# 무료 파트너 모드 (launch_plan P0-4, v1.5.1) — 기본 결제 비활성.
+# 유료 전환 시 .env에 BILLING_ENABLED=1 + 토스 라이브 키 설정.
+BILLING_ENABLED = os.environ.get('BILLING_ENABLED', '0') == '1'
+
 TOSS_CLIENT_KEY = os.environ.get(
     'TOSS_CLIENT_KEY', 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq'
 )
@@ -15763,6 +15767,9 @@ def signup():
 @login_required
 def billing_register():
     """카드 등록 페이지 — 토스 빌링 위젯 호출"""
+    if not BILLING_ENABLED:
+        flash('현재 무료 파트너 프로그램 운영 중이라 카드 등록이 필요하지 않습니다.', 'success')
+        return redirect(url_for('billing'))
     tenant_id = session.get('tenant_id', 1)
     tenant    = get_tenant(tenant_id)
     customer_key = f'tenant_{tenant_id}'  # 테넌트별 고정 키
@@ -15846,6 +15853,7 @@ def billing():
     seat_price     = get_plan_price(_current_plan())
     monthly_amount = (tenant['peak_headcount'] or active_count) * seat_price
     return render_template('billing/dashboard.html',
+                           billing_enabled=BILLING_ENABLED,
                            tenant=tenant,
                            logs=logs,
                            active_count=active_count,
@@ -15858,8 +15866,11 @@ def billing():
 def billing_charge():
     """
     월별 청구 실행 (관리자 수동 트리거 또는 cron 대용).
-    Peak headcount × 1,000원을 저장된 billing key로 결제.
+    Peak headcount × 요금제 단가를 저장된 billing key로 결제.
     """
+    if not BILLING_ENABLED:
+        flash('현재 무료 파트너 프로그램 운영 중으로 결제가 비활성화되어 있습니다.', 'error')
+        return redirect(url_for('billing'))
     tenant_id = session.get('tenant_id', 1)
     tenant    = get_tenant(tenant_id)
 
