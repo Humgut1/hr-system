@@ -74,6 +74,14 @@
       text-align: center; margin-top: 20px; font-size: .875rem; color: #888;
     }
     .login-link a { color: #4361ee; font-weight: 600; text-decoration: none; }
+    .agree-group { margin-bottom: 16px; }
+    .agree-item {
+      display: flex; align-items: flex-start; gap: 8px;
+      font-size: .84rem; color: #444; margin-bottom: 8px; cursor: pointer;
+    }
+    .agree-item input { margin-top: 3px; }
+    .agree-item a { color: #4361ee; font-weight: 600; }
+    .agree-item em { font-style: normal; color: #999; font-size: .78rem; }
   </style>
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <script src="{{ url_for('static', filename='js/csrf.js') }}"></script>
@@ -123,12 +131,25 @@
         <input type="password" name="password2" placeholder="비밀번호 재입력" required>
       </div>
 
+      <hr class="form-divider">
+
+      <div class="agree-group">
+        <label class="agree-item">
+          <input type="checkbox" name="agree_terms" value="1" required>
+          <span><a href="{{ url_for('terms_of_service') }}" target="_blank">이용약관</a>에 동의합니다 <em>(필수)</em></span>
+        </label>
+        <label class="agree-item">
+          <input type="checkbox" name="agree_privacy" value="1" required>
+          <span><a href="{{ url_for('privacy_policy') }}" target="_blank">개인정보 수집·이용</a>에 동의합니다 <em>(필수)</em></span>
+        </label>
+      </div>
+
       <button type="submit" class="btn-submit">{{ trial_days }}일 무료로 시작하기</button>
     </form>
 
     <div class="trial-badge">
       체험 기간 {{ trial_days }}일 동안 모든 기능 무제한 사용<br>
-      이후 ₩1,000/인·월 자동 구독 전환 (카드 등록 시)
+      체험 종료 후에도 요금제 선택 전까지 비용이 청구되지 않습니다
     </div>
 
     <p class="login-link">

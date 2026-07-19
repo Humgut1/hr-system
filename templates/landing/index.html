@@ -281,7 +281,11 @@
         <div style="width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, #4f46e5, #7c3aed);"></div>
         <span style="font-size: 16px; font-weight: 800;">TalentCore</span>
       </div>
-      <span style="font-size: 13px; color: #9096a6;">© 2026 TalentCore. All rights reserved.</span>
+      <div style="display: flex; align-items: center; gap: 18px; flex-wrap: wrap;">
+        <a href="{{ url_for('terms_of_service') }}" style="font-size: 13px; color: #6b7085; text-decoration: none;">이용약관</a>
+        <a href="{{ url_for('privacy_policy') }}" style="font-size: 13px; color: #33384a; font-weight: 700; text-decoration: none;">개인정보처리방침</a>
+        <span style="font-size: 13px; color: #9096a6;">© 2026 TalentCore. All rights reserved.</span>
+      </div>
     </div>
   </footer>
 

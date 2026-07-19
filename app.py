@@ -15678,6 +15678,18 @@ def landing():
     return render_template('landing/index.html', price_per_seat=1000)
 
 
+@app.route('/privacy')
+def privacy_policy():
+    """개인정보처리방침 (공개 — R5, v1.5.0)"""
+    return render_template('legal/privacy.html')
+
+
+@app.route('/terms')
+def terms_of_service():
+    """이용약관 (공개 — R5, v1.5.0)"""
+    return render_template('legal/terms.html')
+
+
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     """회사 가입 — 새 테넌트 생성 + 관리자 계정 생성"""
@@ -15698,6 +15710,8 @@ def signup():
         # ── 유효성 검사 ──────────────────────────────────────
         if not all([company_name, admin_name, email, password]):
             error = '모든 항목을 입력해주세요.'
+        elif not request.form.get('agree_terms') or not request.form.get('agree_privacy'):
+            error = '이용약관과 개인정보 수집·이용에 동의해야 가입할 수 있습니다.'
         elif password != password2:
             error = '비밀번호가 일치하지 않습니다.'
         elif validate_password(password):
