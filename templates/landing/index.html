@@ -1,504 +1,400 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="tc-html">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TalentCore — 흩어진 HR을, 하나의 흐름으로</title>
-  <meta name="description" content="인사·근태·급여·성과·보상을 하나로. 주52시간 감시, 연차촉진, 급여명세 발송까지 근로기준법 준수를 자동화하는 국내 중소기업용 HR SaaS.">
-  <meta property="og:title" content="TalentCore — 흩어진 HR을, 하나의 흐름으로">
-  <meta property="og:description" content="인사·근태·급여·성과·보상을 하나로. 근로기준법 준수 자동화 HR SaaS — 지금 무료 파트너로 시작하세요.">
+  <title>TalentCore — HR 데이터에게 말을 걸어보세요</title>
+  <meta name="description" content="Claude와 직접 연결되는 HR SaaS. 연차·근태·급여·성과를 질문 한 줄로 조회하고, 주 52시간·연차촉진·급여명세 발송까지 근로기준법 준수를 자동화합니다.">
+  <meta property="og:title" content="TalentCore — HR 데이터에게 말을 걸어보세요">
+  <meta property="og:description" content="Claude와 직접 연결되는 HR SaaS. 질문 한 줄로 조회하고, 근로기준법 준수는 자동으로.">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
   <style>
     * { box-sizing: border-box; }
-    body.tc-landing { margin: 0; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; color: #0f1222; background: #fff; -webkit-font-smoothing: antialiased; }
-    .tc-landing a { text-decoration: none; }
-    .tc-landing .wrap { max-width: 1120px; margin: 0 auto; padding: 0 40px; }
-    @keyframes tc-pulse { 0%, 100% { opacity: 0.45; transform: scale(1); } 50% { opacity: 1; transform: scale(1.25); } }
-    .tc-landing .card { background: #fff; border: 1px solid #edeef4; border-radius: 18px; padding: 26px 24px; transition: transform .2s, box-shadow .2s, border-color .2s; }
-    .tc-landing .card:hover { transform: translateY(-4px); box-shadow: 0 18px 40px rgba(20,16,60,0.10); border-color: #ded9fb; }
-    .tc-landing .btn-primary { color: #fff; background: #4f46e5; box-shadow: 0 6px 16px rgba(79,70,229,0.28); }
-    .tc-landing .btn-ghost { color: #2b2f3a; border: 1px solid #e5e7ef; background: #fff; }
     html.tc-html { scroll-behavior: smooth; }
-    @media (max-width: 860px) {
-      .tc-landing .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
-      .tc-landing .ai-grid, .tc-landing .metrics-grid { grid-template-columns: 1fr !important; }
-      .tc-landing h1.hero { font-size: 40px !important; }
-      .tc-landing .tour-stage { grid-template-columns: 1fr !important; }
-      .tc-landing .tour-sticky { position: relative !important; height: 260px !important; margin-top: 24px; }
+    body.tc-landing { margin: 0; font-family: Pretendard, -apple-system, BlinkMacSystemFont, sans-serif; background: #0b0e1c; color: #fff; -webkit-font-smoothing: antialiased; }
+    .tc-landing a { text-decoration: none; color: inherit; }
+    .tc-landing .wrap { max-width: 1200px; margin: 0 auto; padding: 0 40px; }
+    @keyframes tc-pulse { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+    @keyframes tc-blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+    @keyframes tc-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    .tc-landing .nav-link { color: #a5aabb; font-size: 14.5px; font-weight: 600; }
+    .tc-landing .nav-link:hover { color: #c4b5fd; }
+    .tc-landing .chip { display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); font-size: 13.5px; font-weight: 700; color: #d6d9e6; transition: all .2s; }
+    .tc-landing .chip:hover { background: rgba(124,58,237,0.15); border-color: rgba(124,58,237,0.45); }
+    .tc-landing .ex-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 20px 22px; transition: all .2s; }
+    .tc-landing .ex-card:hover { border-color: rgba(124,58,237,0.5); background: rgba(124,58,237,0.07); }
+    .tc-landing .how-card { position: relative; border: 1px solid #edeef4; border-radius: 20px; padding: 32px 30px; background: #fafaff; transition: all .2s; }
+    .tc-landing .how-card:hover { border-color: #ded9fb; box-shadow: 0 18px 40px rgba(20,16,60,0.08); }
+    .tc-landing .law-card { border: 1px solid #edeef4; border-radius: 16px; padding: 22px 24px; background: #fff; transition: all .2s; }
+    .tc-landing .law-card:hover { border-color: #ded9fb; box-shadow: 0 14px 32px rgba(20,16,60,0.07); }
+    @media (max-width: 1024px) {
+      .tc-landing .hero-grid, .tc-landing .ai-grid { grid-template-columns: 1fr !important; }
+      .tc-landing .sec-grid { grid-template-columns: 1fr !important; }
     }
-    .tc-landing .tour-stage { display: grid; grid-template-columns: 1fr 1fr; gap: 52px; align-items: start; }
-    .tc-landing .tour-step { padding: 52px 0 52px 28px; border-left: 2px solid #edeef4; opacity: .35; transition: opacity .3s; }
-    .tc-landing .tour-step.active { opacity: 1; border-left: 2px solid #4f46e5; }
-    .tc-landing .tour-step .num { font-size: 12px; font-weight: 800; color: #4f46e5; letter-spacing: .06em; }
-    .tc-landing .tour-step h3 { font-size: 24px; font-weight: 800; margin: 8px 0 10px; letter-spacing: -0.02em; }
-    .tc-landing .tour-step p { font-size: 15px; color: #565b6e; line-height: 1.7; margin: 0 0 12px; max-width: 400px; }
-    .tc-landing .tour-step ul { margin: 0; padding-left: 18px; color: #565b6e; font-size: 14px; line-height: 1.85; }
-    .tc-landing .tour-sticky { position: sticky; top: 96px; height: 500px; border-radius: 20px; overflow: hidden; background: linear-gradient(160deg,#f2f1fb,#fbfbff); border: 1px solid #edeef4; box-shadow: 0 24px 60px rgba(20,16,60,.10); }
-    .tc-landing .tour-sticky img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity .35s; display: block; }
-    .tc-landing .tour-sticky img.on { opacity: 1; }
-    .tc-landing .tour-mock { position: absolute; inset: 0; opacity: 0; transition: opacity .35s; display: flex; flex-direction: column; background: #fff; }
-    .tc-landing .tour-mock.on { opacity: 1; }
-    .tc-landing .tour-mock .mk-bar { display: flex; align-items: center; gap: 7px; padding: 13px 18px; border-bottom: 1px solid #f0eefb; background: #fbfaff; flex-shrink: 0; }
-    .tc-landing .tour-mock .mk-bar .mk-logo { width: 22px; height: 22px; border-radius: 7px; background: linear-gradient(135deg,#4f46e5,#7c3aed); }
-    .tc-landing .tour-mock .mk-bar .mk-title { font-size: 13px; font-weight: 800; color: #26293a; }
-    .tc-landing .tour-mock .mk-bar .mk-sub { font-size: 11px; color: #9aa0b2; margin-left: auto; }
-    .tc-landing .tour-mock .mk-body { flex: 1; padding: 22px; overflow: hidden; }
-    .tc-landing .tour-mock .mk-card { background: #fdfdff; border: 1px solid #eae7f7; border-radius: 12px; }
-    .tc-landing .tour-mock .mk-pill { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+    @media (max-width: 768px) {
+      .tc-landing h1.hero { font-size: 40px !important; }
+      .tc-landing .how-grid, .tc-landing .law-grid, .tc-landing .price-grid { grid-template-columns: 1fr !important; }
+      .tc-landing .sec-cards { grid-template-columns: 1fr !important; }
+      .tc-landing .nav-links { display: none !important; }
+    }
   </style>
 </head>
 <body class="tc-landing">
 
-  <!-- NAV -->
-  <header style="position: sticky; top: 0; z-index: 50; backdrop-filter: saturate(180%) blur(12px); background: rgba(255,255,255,0.82); border-bottom: 1px solid #eef0f5;">
+  <!-- ══ NAV ══ -->
+  <header style="position: sticky; top: 0; z-index: 50; backdrop-filter: blur(14px); background: rgba(11,14,28,0.8); border-bottom: 1px solid rgba(255,255,255,0.07);">
     <div class="wrap" style="height: 72px; display: flex; align-items: center; justify-content: space-between;">
       <div style="display: flex; align-items: center; gap: 10px;">
-        <div style="width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, #4f46e5, #7c3aed); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(79,70,229,0.35);"><div style="width: 12px; height: 12px; border-radius: 3px; background: #fff;"></div></div>
+        <div style="width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, #4f46e5, #7c3aed); display: flex; align-items: center; justify-content: center;"><div style="width: 12px; height: 12px; border-radius: 3px; background: #fff;"></div></div>
         <span style="font-size: 19px; font-weight: 800; letter-spacing: -0.02em;">TalentCore</span>
       </div>
-      <nav style="display: flex; align-items: center; gap: 30px;">
-        <a href="#features" style="font-size: 14.5px; font-weight: 600; color: #4b5060;">기능</a>
-        <a href="#tour" style="font-size: 14.5px; font-weight: 600; color: #4b5060;">제품 둘러보기</a>
-        <a href="#ai" style="font-size: 14.5px; font-weight: 600; color: #4b5060;">AI 연동</a>
-        <a href="#metrics" style="font-size: 14.5px; font-weight: 600; color: #4b5060;">현황</a>
-        <div style="display: flex; align-items: center; gap: 10px; margin-left: 6px;">
-          <a href="{{ url_for('demo_login') }}" class="btn-ghost" style="font-size: 14.5px; font-weight: 700; padding: 9px 16px; border-radius: 10px;">데모 보기</a>
-          <a href="{{ url_for('login') }}" class="btn-ghost" style="font-size: 14.5px; font-weight: 700; padding: 9px 16px; border-radius: 10px;">로그인</a>
-          <a href="{{ url_for('signup') }}" class="btn-primary" style="font-size: 14.5px; font-weight: 700; padding: 10px 20px; border-radius: 10px;">무료로 시작하기</a>
+      <nav style="display: flex; align-items: center; gap: 28px;">
+        <span class="nav-links" style="display: flex; gap: 28px;">
+          <a class="nav-link" href="#ai">AI 연동</a>
+          <a class="nav-link" href="#modules">모듈</a>
+          <a class="nav-link" href="#law">컴플라이언스</a>
+          <a class="nav-link" href="#pricing">요금제</a>
+        </span>
+        <div style="display: flex; gap: 10px;">
+          <a href="{{ url_for('login') }}" style="padding: 9px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.18); font-weight: 700; font-size: 14.5px; white-space: nowrap;">로그인</a>
+          <a href="{{ url_for('signup') }}" style="padding: 10px 20px; border-radius: 10px; background: #fff; color: #0b0e1c; font-weight: 700; font-size: 14.5px; white-space: nowrap;">무료로 시작하기</a>
         </div>
       </nav>
     </div>
   </header>
 
-  <!-- HERO -->
-  <section style="position: relative; padding: 96px 0 88px; text-align: center;">
-    <div style="position: absolute; top: -40px; left: 50%; transform: translateX(-50%); width: 820px; height: 480px; background: radial-gradient(ellipse at center, rgba(124,58,237,0.12), rgba(79,70,229,0.05) 42%, transparent 70%); pointer-events: none;"></div>
-    <div class="wrap" style="position: relative; max-width: 860px;">
-      <div style="display: inline-flex; align-items: center; gap: 8px; padding: 7px 15px; border-radius: 999px; background: #f2f1fe; border: 1px solid #e4e2fb; margin-bottom: 26px;">
-        <span style="width: 6px; height: 6px; border-radius: 50%; background: #4f46e5; animation: tc-pulse 2s infinite;"></span>
-        <span style="font-size: 13px; font-weight: 700; color: #4f46e5;">AI가 직접 답하는 HR 플랫폼</span>
+  <!-- ══ HERO ══ -->
+  <section style="position: relative; overflow: hidden;">
+    <div style="position: absolute; top: -120px; right: -80px; width: 640px; height: 640px; border-radius: 50%; background: radial-gradient(circle, rgba(124,58,237,0.26), transparent 65%); pointer-events: none;"></div>
+    <div style="position: absolute; bottom: -180px; left: -120px; width: 520px; height: 520px; border-radius: 50%; background: radial-gradient(circle, rgba(79,70,229,0.18), transparent 65%); pointer-events: none;"></div>
+    <div class="wrap hero-grid" style="position: relative; padding-top: 96px; padding-bottom: 88px; display: grid; grid-template-columns: 1.05fr 1fr; gap: 64px; align-items: center;">
+      <div>
+        <div style="display: inline-flex; align-items: center; gap: 8px; padding: 7px 15px; border-radius: 999px; background: rgba(124,58,237,0.16); border: 1px solid rgba(124,58,237,0.4); margin-bottom: 26px;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: #a78bfa; animation: tc-pulse 2s infinite;"></span>
+          <span style="font-size: 13px; font-weight: 700; color: #c4b5fd;">MCP로 Claude와 직접 연결되는 HR</span>
+        </div>
+        <h1 class="hero" style="font-size: 62px; line-height: 1.08; font-weight: 800; letter-spacing: -0.035em; margin: 0 0 22px;">HR 데이터에게<br>말을 걸어보세요.</h1>
+        <p style="font-size: 19px; line-height: 1.65; color: #a5aabb; margin: 0 0 36px;">대시보드 열고, 필터 걸고, 엑셀로 내려받고.<br>이제 그러지 않아도 돼요. "우리 팀 연차 얼마나 남았어?"<br>이 한마디면 됩니다.</p>
+        <div style="display: flex; gap: 14px; margin-bottom: 18px; flex-wrap: wrap;">
+          <a href="{{ url_for('signup') }}" style="font-size: 16px; font-weight: 700; padding: 15px 30px; border-radius: 13px; background: #fff; color: #0b0e1c; box-shadow: 0 12px 32px rgba(124,58,237,0.35);">무료로 시작하기 →</a>
+          <a href="{{ url_for('demo_login') }}" style="font-size: 16px; font-weight: 700; padding: 15px 28px; border-radius: 13px; border: 1px solid rgba(255,255,255,0.2);">데모에서 둘러보기</a>
+        </div>
+        <div style="font-size: 13.5px; color: #6b7192;">
+          가입 없이 볼 수 있는 데모에 150명 규모 샘플 회사가 통째로 들어 있어요.
+        </div>
       </div>
-      <h1 class="hero" style="font-size: 62px; line-height: 1.1; font-weight: 800; letter-spacing: -0.035em; margin: 0 0 22px;">흩어진 HR을,<br>하나의 흐름으로.</h1>
-      <p style="font-size: 20px; line-height: 1.6; color: #565b6e; margin: 0 auto 38px; max-width: 620px;">인사·근태·급여·성과·채용·복리후생·온보딩·보상까지 —<br>하나의 플랫폼에서 관리하고, AI에게 바로 물어보세요.</p>
-      <div style="display: flex; gap: 14px; justify-content: center; align-items: center; flex-wrap: wrap;">
-        <a href="{{ url_for('signup') }}" class="btn-primary" style="font-size: 16px; font-weight: 700; padding: 15px 30px; border-radius: 13px; box-shadow: 0 12px 28px rgba(79,70,229,0.32);">무료로 시작하기 →</a>
-        <a href="{{ url_for('demo_login') }}" style="font-size: 16px; font-weight: 700; color: #2b2f3a; padding: 15px 28px; border-radius: 13px; border: 1px solid #e2e4ee; background: #fff;">샘플 데이터로 데모 보기</a>
-      </div>
-      <p style="font-size: 13.5px; color: #9096a6; margin-top: 18px;">설명도, 회원가입도 없이 · 바로 데모에 들어가 보세요</p>
-    </div>
-  </section>
 
-  <!-- FEATURES -->
-  <section id="features" style="padding: 20px 0 90px;">
-    <div class="wrap">
-      <div style="text-align: center; margin-bottom: 46px;">
-        <span style="font-size: 14px; font-weight: 800; color: #4f46e5; letter-spacing: 0.02em;">ALL-IN-ONE</span>
-        <h2 style="font-size: 38px; font-weight: 800; letter-spacing: -0.03em; margin: 12px 0 0;">8개 모듈, 하나의 데이터</h2>
-      </div>
-      <div class="grid-4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px;">
-
-        <div class="card">
-          <div style="width: 46px; height: 46px; border-radius: 13px; background: #f2f1fe; color: #4f46e5; display: flex; align-items: center; justify-content: center; margin-bottom: 18px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-          <div style="font-size: 11.5px; font-weight: 800; color: #7c3aed; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px;">Core HR</div>
-          <div style="font-size: 17px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 7px;">인사 관리</div>
-          <div style="font-size: 13.5px; line-height: 1.55; color: #6b7085;">조직도와 인사 정보를 하나의 원장으로 관리합니다.</div>
+      <!-- 채팅 데모 (자동 재생) -->
+      <div style="animation: tc-float 7s ease-in-out infinite;">
+        <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); border-radius: 22px; overflow: hidden; backdrop-filter: blur(10px); box-shadow: 0 30px 80px rgba(0,0,0,0.45);">
+          <div style="display: flex; align-items: center; gap: 9px; padding: 15px 18px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+            <div style="width: 24px; height: 24px; border-radius: 7px; background: linear-gradient(135deg,#4f46e5,#7c3aed);"></div>
+            <span style="font-size: 13px; font-weight: 800;">Claude</span>
+            <span style="display: flex; align-items: center; gap: 5px; font-size: 11px; color: #7dd3a8; margin-left: auto;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #34d399;"></span>TalentCore MCP 연결됨</span>
+          </div>
+          <div id="tc-chat" style="padding: 22px 18px 16px; display: flex; flex-direction: column; gap: 13px; min-height: 330px;"></div>
+          <div style="padding: 0 18px 18px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 15px; border: 1px solid rgba(255,255,255,0.12); border-radius: 13px; color: #6b7192; font-size: 13.5px;">HR 데이터에 대해 무엇이든 물어보세요… <span style="width: 30px; height: 30px; border-radius: 9px; background: #4f46e5; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px;">↑</span></div>
+          </div>
         </div>
-
-        <div class="card">
-          <div style="width: 46px; height: 46px; border-radius: 13px; background: #f2f1fe; color: #4f46e5; display: flex; align-items: center; justify-content: center; margin-bottom: 18px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v6l4 2"/><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18"/></svg></div>
-          <div style="font-size: 11.5px; font-weight: 800; color: #7c3aed; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px;">Attendance</div>
-          <div style="font-size: 17px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 7px;">근태 관리</div>
-          <div style="font-size: 13.5px; line-height: 1.55; color: #6b7085;">출퇴근·연차·근무제를 자동으로 집계합니다.</div>
-        </div>
-
-        <div class="card">
-          <div style="width: 46px; height: 46px; border-radius: 13px; background: #f2f1fe; color: #4f46e5; display: flex; align-items: center; justify-content: center; margin-bottom: 18px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M2 10h20"/></svg></div>
-          <div style="font-size: 11.5px; font-weight: 800; color: #7c3aed; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px;">Payroll</div>
-          <div style="font-size: 17px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 7px;">급여</div>
-          <div style="font-size: 13.5px; line-height: 1.55; color: #6b7085;">급여 자동 계산과 명세서 발행을 한 번에.</div>
-        </div>
-
-        <div class="card">
-          <div style="width: 46px; height: 46px; border-radius: 13px; background: #f2f1fe; color: #4f46e5; display: flex; align-items: center; justify-content: center; margin-bottom: 18px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/></svg></div>
-          <div style="font-size: 11.5px; font-weight: 800; color: #7c3aed; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px;">Performance</div>
-          <div style="font-size: 17px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 7px;">성과 관리</div>
-          <div style="font-size: 13.5px; line-height: 1.55; color: #6b7085;">9박스·캘리브레이션으로 공정한 평가를.</div>
-        </div>
-
-        <div class="card">
-          <div style="width: 46px; height: 46px; border-radius: 13px; background: #f2f1fe; color: #4f46e5; display: flex; align-items: center; justify-content: center; margin-bottom: 18px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8"/><path d="M16 11l2 2 4-4"/></svg></div>
-          <div style="font-size: 11.5px; font-weight: 800; color: #7c3aed; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px;">Recruiting</div>
-          <div style="font-size: 17px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 7px;">채용 ATS</div>
-          <div style="font-size: 13.5px; line-height: 1.55; color: #6b7085;">지원자 추적부터 평가·확정까지 파이프라인.</div>
-        </div>
-
-        <div class="card">
-          <div style="width: 46px; height: 46px; border-radius: 13px; background: #f2f1fe; color: #4f46e5; display: flex; align-items: center; justify-content: center; margin-bottom: 18px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v9H4v-9"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7S12 3 15 3a2.5 2.5 0 0 1 0 5H12"/><path d="M12 7S12 3 9 3a2.5 2.5 0 0 0 0 5h3"/></svg></div>
-          <div style="font-size: 11.5px; font-weight: 800; color: #7c3aed; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px;">Benefits</div>
-          <div style="font-size: 17px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 7px;">복리후생</div>
-          <div style="font-size: 13.5px; line-height: 1.55; color: #6b7085;">복지 포인트와 혜택을 유연하게 운영합니다.</div>
-        </div>
-
-        <div class="card">
-          <div style="width: 46px; height: 46px; border-radius: 13px; background: #f2f1fe; color: #4f46e5; display: flex; align-items: center; justify-content: center; margin-bottom: 18px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-          <div style="font-size: 11.5px; font-weight: 800; color: #7c3aed; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px;">Onboarding</div>
-          <div style="font-size: 17px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 7px;">온보딩</div>
-          <div style="font-size: 13.5px; line-height: 1.55; color: #6b7085;">입사 체크리스트로 첫날을 완벽하게.</div>
-        </div>
-
-        <div class="card">
-          <div style="width: 46px; height: 46px; border-radius: 13px; background: #f2f1fe; color: #4f46e5; display: flex; align-items: center; justify-content: center; margin-bottom: 18px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg></div>
-          <div style="font-size: 11.5px; font-weight: 800; color: #7c3aed; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px;">Compensation</div>
-          <div style="font-size: 17px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 7px;">보상 관리</div>
-          <div style="font-size: 13.5px; line-height: 1.55; color: #6b7085;">연봉·인센티브 설계를 데이터 기반으로.</div>
-        </div>
-
+        <div style="text-align: center; margin-top: 14px; font-size: 12.5px; color: #6b7192;">시연용 대화 예시예요 · <a href="{{ url_for('demo_login') }}" style="color: #a78bfa; font-weight: 700;">데모 계정으로 직접 연결해 보세요 →</a></div>
       </div>
     </div>
   </section>
 
-  <!-- PRODUCT TOUR -->
-  <section id="tour" style="padding: 20px 0 100px;">
-    <div class="wrap">
-      <div style="text-align: center; margin-bottom: 40px;">
-        <span style="font-size: 14px; font-weight: 800; color: #4f46e5; letter-spacing: 0.02em;">PRODUCT TOUR</span>
-        <h2 style="font-size: 38px; font-weight: 800; letter-spacing: -0.03em; margin: 12px 0 0;">스크롤하며 화면으로 직접 확인하세요</h2>
+  <!-- ══ MODULE TICKER ══ -->
+  <section id="modules" style="border-top: 1px solid rgba(255,255,255,0.07); border-bottom: 1px solid rgba(255,255,255,0.07); padding: 24px 40px;">
+    <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: center; gap: 13px; flex-wrap: wrap;">
+      <div class="chip"><span style="color: #a78bfa;">◫</span>인사 관리</div>
+      <div class="chip"><span style="color: #a78bfa;">◔</span>근태</div>
+      <div class="chip"><span style="color: #a78bfa;">₩</span>급여</div>
+      <div class="chip"><span style="color: #a78bfa;">▣</span>성과</div>
+      <div class="chip"><span style="color: #a78bfa;">◈</span>입사 예정자</div>
+      <div class="chip"><span style="color: #a78bfa;">♥</span>복리후생</div>
+      <div class="chip"><span style="color: #a78bfa;">✓</span>온보딩</div>
+      <div class="chip"><span style="color: #a78bfa;">◎</span>보상</div>
+    </div>
+  </section>
+
+  <!-- ══ AI VALUE PROP ══ -->
+  <section id="ai" class="wrap ai-grid" style="padding-top: 110px; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center;">
+    <div>
+      <div style="display: inline-flex; padding: 6px 13px; border-radius: 999px; background: rgba(124,58,237,0.16); border: 1px solid rgba(124,58,237,0.4); font-size: 12.5px; font-weight: 800; color: #c4b5fd; margin-bottom: 22px;">MCP · Claude 연동</div>
+      <h2 style="font-size: 40px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.16; margin: 0 0 18px;">리포트를 뒤지지 마세요.<br>그냥 물어보세요.</h2>
+      <p style="font-size: 16.5px; line-height: 1.7; color: #a5aabb; margin: 0 0 30px;">보고서 하나 만들려고 데이터 뽑고, 표 만들고, 검산하고.<br>그 시간에 질문 한 줄이면 충분해요.</p>
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; gap: 14px; align-items: flex-start;">
+          <div style="width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px; background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.35); display: flex; align-items: center; justify-content: center; font-size: 15px; color: #a78bfa;">⌕</div>
+          <div>
+            <div style="font-size: 15.5px; font-weight: 800; margin-bottom: 3px;">그냥 물어보면 돼요</div>
+            <div style="font-size: 14px; line-height: 1.6; color: #8b90a8;">SQL도, 필터도 몰라도 괜찮아요. 연차·근태·급여·성과, 궁금한 걸 말로 물어보세요.</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 14px; align-items: flex-start;">
+          <div style="width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px; background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.35); display: flex; align-items: center; justify-content: center; font-size: 15px; color: #a78bfa;">⛨</div>
+          <div>
+            <div style="font-size: 15.5px; font-weight: 800; margin-bottom: 3px;">볼 수 있는 것만 답해요</div>
+            <div style="font-size: 14px; line-height: 1.6; color: #8b90a8;">팀장에겐 팀 데이터만, 직원에겐 본인 것만. 화면에서 안 보이는 데이터는 AI도 말하지 않아요.</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 14px; align-items: flex-start;">
+          <div style="width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px; background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.35); display: flex; align-items: center; justify-content: center; font-size: 15px; color: #a78bfa;">⚡</div>
+          <div>
+            <div style="font-size: 15.5px; font-weight: 800; margin-bottom: 3px;">바로 쓸 수 있는 모양으로 와요</div>
+            <div style="font-size: 14px; line-height: 1.6; color: #8b90a8;">숫자만 던지지 않아요. 표로, 요약으로, 명단으로 정리해서 — 그대로 복사해 쓰면 돼요.</div>
+          </div>
+        </div>
       </div>
-      <div class="tour-stage">
-        <div id="tourSteps"></div>
-        <div class="tour-sticky" id="tourSticky"></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <div class="ex-card">
+        <div style="font-size: 12px; font-weight: 800; color: #a78bfa; letter-spacing: .03em; margin-bottom: 8px;">근태 · 휴가</div>
+        <div style="font-size: 16px; font-weight: 700; margin-bottom: 6px;">"오늘 우리 팀 누가 휴가야?"</div>
+        <div style="font-size: 13.5px; line-height: 1.55; color: #8b90a8;">오늘 부재 인원과 사유, 복귀일까지 팀 근태 데이터에서 바로 답해요.</div>
+      </div>
+      <div class="ex-card">
+        <div style="font-size: 12px; font-weight: 800; color: #a78bfa; letter-spacing: .03em; margin-bottom: 8px;">결재</div>
+        <div style="font-size: 16px; font-weight: 700; margin-bottom: 6px;">"내가 처리할 결재 뭐 남았어?"</div>
+        <div style="font-size: 13.5px; line-height: 1.55; color: #8b90a8;">휴가·연장근로·목표 승인까지, 대기 중인 결재를 한 번에 모아 보여줘요.</div>
+      </div>
+      <div class="ex-card">
+        <div style="font-size: 12px; font-weight: 800; color: #a78bfa; letter-spacing: .03em; margin-bottom: 8px;">조직</div>
+        <div style="font-size: 16px; font-weight: 700; margin-bottom: 6px;">"부서별 인원 현황 알려줘"</div>
+        <div style="font-size: 13.5px; line-height: 1.55; color: #8b90a8;">재직 인원, 부서 구성, 이번 달 입사 예정까지 실시간 데이터로 답해요.</div>
       </div>
     </div>
   </section>
 
-  <!-- AI / MCP -->
-  <section id="ai" style="padding: 0 0 96px;">
-    <div class="wrap">
-      <div class="ai-grid" style="background: linear-gradient(180deg, #faf9ff, #f4f2fe); border: 1px solid #e9e6fb; border-radius: 28px; padding: 56px; display: grid; grid-template-columns: 1fr 1.05fr; gap: 52px; align-items: center;">
+  <!-- ══ LIGHT SECTIONS ══ -->
+  <div style="margin-top: 110px; background: #fff; color: #0f1222;">
+    <div class="wrap" style="padding-top: 96px; padding-bottom: 96px;">
+
+      <!-- HOW IT WORKS -->
+      <div id="how" style="text-align: center; margin-bottom: 56px;">
+        <span style="font-size: 14px; font-weight: 800; color: #4f46e5;">HOW IT WORKS</span>
+        <h2 style="font-size: 40px; font-weight: 800; letter-spacing: -0.03em; margin: 12px 0 0;">시작부터 질문까지, 3단계</h2>
+      </div>
+      <div class="how-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+        <div class="how-card">
+          <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg,#4f46e5,#7c3aed); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; margin-bottom: 18px;">1</div>
+          <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px;">직원 명단을 올리면</div>
+          <div style="font-size: 14.5px; line-height: 1.65; color: #6b7085;">CSV 한 번이면 직원 등록 끝. 인사·근태·급여·성과가 같은 데이터 위에서 돌아가요.</div>
+        </div>
+        <div class="how-card">
+          <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg,#4f46e5,#7c3aed); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; margin-bottom: 18px;">2</div>
+          <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px;">Claude를 연결하면</div>
+          <div style="font-size: 14.5px; line-height: 1.65; color: #6b7085;">Claude Desktop에 TalentCore MCP를 연결하면, 각자 권한 범위 안의 실시간 데이터로 답해요.</div>
+        </div>
+        <div class="how-card">
+          <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg,#4f46e5,#7c3aed); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; margin-bottom: 18px;">3</div>
+          <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px;">물어보면 끝</div>
+          <div style="font-size: 14.5px; line-height: 1.65; color: #6b7085;">연차 잔액, 팀 근태, 결재 대기, 급여명세까지. 물어보는 대로 바로요.</div>
+        </div>
+      </div>
+
+      <!-- 컴플라이언스 (팩트 기반 — 가상 지표 대체) -->
+      <div id="law" style="margin-top: 110px;">
+        <div style="text-align: center; margin-bottom: 18px;">
+          <span style="font-size: 14px; font-weight: 800; color: #4f46e5;">COMPLIANCE</span>
+          <h2 style="font-size: 40px; font-weight: 800; letter-spacing: -0.03em; margin: 12px 0 10px;">법이 요구하는 것들,<br>알아서 돌아갑니다</h2>
+          <p style="font-size: 16px; color: #6b7085; margin: 0;">인사담당자 한 명이 챙기기엔 너무 많은 근로기준법 의무 — TalentCore가 기본으로 해요.</p>
+        </div>
+        <div class="law-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 40px;">
+          <div class="law-card">
+            <div style="font-size: 12px; font-weight: 800; color: #7c3aed; margin-bottom: 6px;">근로기준법 §50·§53</div>
+            <div style="font-size: 16.5px; font-weight: 800; margin-bottom: 6px;">주 52시간, 넘기 전에 알려줘요</div>
+            <div style="font-size: 13.5px; line-height: 1.6; color: #6b7085;">출퇴근 기록으로 주간 누적을 실시간 계산하고, 위반 전에 본인·팀장·HR에게 경고를 보내요.</div>
+          </div>
+          <div class="law-card">
+            <div style="font-size: 12px; font-weight: 800; color: #7c3aed; margin-bottom: 6px;">근로기준법 §54·§56</div>
+            <div style="font-size: 16.5px; font-weight: 800; margin-bottom: 6px;">휴게·수당, 계산은 저희가</div>
+            <div style="font-size: 13.5px; line-height: 1.6; color: #6b7085;">법정 휴게시간 자동 공제, 연장·야간·휴일 수당 가산 자동 계산. 급여 생성에 그대로 반영돼요.</div>
+          </div>
+          <div class="law-card">
+            <div style="font-size: 12px; font-weight: 800; color: #7c3aed; margin-bottom: 6px;">근로기준법 §60·§61</div>
+            <div style="font-size: 16.5px; font-weight: 800; margin-bottom: 6px;">연차 발생부터 촉진까지</div>
+            <div style="font-size: 13.5px; line-height: 1.6; color: #6b7085;">연차 자동 발생·이월 관리에, 연차사용촉진 발송 이력까지 법적 증빙용으로 남겨요.</div>
+          </div>
+          <div class="law-card">
+            <div style="font-size: 12px; font-weight: 800; color: #7c3aed; margin-bottom: 6px;">근로기준법 §48</div>
+            <div style="font-size: 16.5px; font-weight: 800; margin-bottom: 6px;">급여명세서, 확정하면 발송</div>
+            <div style="font-size: 13.5px; line-height: 1.6; color: #6b7085;">급여 확정과 동시에 직원별 명세서가 공개·이메일 발송돼요. 교부 의무는 자동으로 이행.</div>
+          </div>
+          <div class="law-card">
+            <div style="font-size: 12px; font-weight: 800; color: #7c3aed; margin-bottom: 6px;">최저임금법 · 퇴직급여법</div>
+            <div style="font-size: 16.5px; font-weight: 800; margin-bottom: 6px;">놓치기 쉬운 것도 챙겨요</div>
+            <div style="font-size: 13.5px; line-height: 1.6; color: #6b7085;">최저임금 미달 경고, 퇴직금·미사용 연차수당 자동 정산까지 한 흐름에.</div>
+          </div>
+          <div class="law-card">
+            <div style="font-size: 12px; font-weight: 800; color: #7c3aed; margin-bottom: 6px;">기록 의무</div>
+            <div style="font-size: 16.5px; font-weight: 800; margin-bottom: 6px;">누가 뭘 봤는지 남아요</div>
+            <div style="font-size: 13.5px; line-height: 1.6; color: #6b7085;">민감정보 열람, 급여 변경, 데이터 내보내기가 전부 감사 로그로 기록돼요.</div>
+          </div>
+        </div>
+        <p style="text-align: center; font-size: 12.5px; color: #9096a6; margin-top: 20px;">급여·세액 계산 결과는 참고용이며, 최종 확정은 담당자 검토를 거칩니다.</p>
+      </div>
+
+      <!-- SECURITY -->
+      <div id="security" class="sec-grid" style="margin-top: 110px; border: 1px solid #e9e6fb; border-radius: 24px; background: linear-gradient(180deg,#faf9ff,#f4f2fe); padding: 44px 48px; display: grid; grid-template-columns: 1fr 1.2fr; gap: 48px; align-items: center;">
         <div>
-          <div style="display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px; border-radius: 999px; background: #fff; border: 1px solid #e4e2fb; margin-bottom: 22px;">
-            <span style="font-size: 12.5px; font-weight: 800; color: #4f46e5;">MCP · Claude 연동</span>
-          </div>
-          <h2 style="font-size: 36px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.18; margin: 0 0 18px;">HR 데이터를<br>AI에게 그냥 물어보세요.</h2>
-          <p style="font-size: 16.5px; line-height: 1.65; color: #565b6e; margin: 0 0 26px;">TalentCore는 MCP로 Claude와 직접 연결됩니다. 리포트를 뒤질 필요 없이, 대화하듯 질문하면 실시간 HR 데이터로 답합니다.</p>
-          <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px;">
-            <li style="display: flex; gap: 11px; align-items: flex-start; font-size: 15px; color: #33384a; font-weight: 600;"><span style="color: #4f46e5; font-weight: 900;">✓</span> 연차·근태·급여·성과 데이터를 자연어로 조회</li>
-            <li style="display: flex; gap: 11px; align-items: flex-start; font-size: 15px; color: #33384a; font-weight: 600;"><span style="color: #4f46e5; font-weight: 900;">✓</span> 권한 범위 안에서만 안전하게 응답</li>
-            <li style="display: flex; gap: 11px; align-items: flex-start; font-size: 15px; color: #33384a; font-weight: 600;"><span style="color: #4f46e5; font-weight: 900;">✓</span> 경쟁 HR SaaS엔 없는 연동 구조</li>
-          </ul>
+          <div style="font-size: 13px; font-weight: 800; color: #7c3aed; letter-spacing: .04em; margin-bottom: 10px;">SECURITY</div>
+          <div style="font-size: 28px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.25;">AI가 볼 수 있는 건,<br>그 사람이 볼 수 있는 것뿐.</div>
         </div>
-        <div style="background: #fff; border-radius: 22px; box-shadow: 0 24px 60px rgba(30,20,80,0.14); overflow: hidden; border: 1px solid #eee9fb;">
-          <div style="display: flex; align-items: center; gap: 9px; padding: 15px 18px; border-bottom: 1px solid #f0eefb; background: #fbfaff;">
-            <div style="width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg,#4f46e5,#7c3aed);"></div>
-            <span style="font-size: 13.5px; font-weight: 800;">Claude</span>
-            <span style="font-size: 11.5px; color: #9aa0b2; margin-left: auto;">TalentCore MCP 연결됨</span>
+        <div class="sec-cards" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <div style="background: #fff; border: 1px solid #e4e2fb; border-radius: 14px; padding: 18px;">
+            <div style="font-size: 14.5px; font-weight: 800; margin-bottom: 5px;">역할 기반 권한</div>
+            <div style="font-size: 13px; line-height: 1.55; color: #6b7085;">관리자·매니저·직원 권한 분리가 화면과 AI 응답에 똑같이 적용돼요.</div>
           </div>
-          <div style="padding: 20px 18px; display: flex; flex-direction: column; gap: 14px; background: #fdfdff;">
-            <div style="align-self: flex-end; max-width: 86%; background: #4f46e5; color: #fff; border-radius: 15px; padding: 12px 15px; font-size: 14px; line-height: 1.55;">우리 마케팅팀 이번 달 연차 소진율 알려줘</div>
-            <div style="align-self: flex-start; max-width: 86%; background: #f4f3fb; color: #26293a; border: 1px solid #eae7f7; border-radius: 15px; padding: 12px 15px; font-size: 14px; line-height: 1.55;">마케팅팀 6월 연차 소진율은 62%입니다. 12명 중 4명이 잔여 연차 5일 이상 보유 중이에요. 소진 독려 대상자 명단을 정리해 드릴까요?</div>
-            <div style="align-self: flex-end; max-width: 86%; background: #4f46e5; color: #fff; border-radius: 15px; padding: 12px 15px; font-size: 14px; line-height: 1.55;">응, 그리고 이번 분기 성과 캘리브레이션 편차 큰 팀도 알려줘</div>
-            <div style="align-self: flex-start; max-width: 86%; background: #f4f3fb; color: #26293a; border: 1px solid #eae7f7; border-radius: 15px; padding: 12px 15px; font-size: 14px; line-height: 1.55;">세일즈팀의 평가 편차가 가장 큽니다(σ 1.4). 관리자 3명 간 등급 기준 차이가 원인으로 보여요. 캘리브레이션 세션을 예약할까요?</div>
-            <div style="display: flex; align-items: center; gap: 10px; margin-top: 4px; padding: 12px 15px; border: 1px solid #ece9fb; border-radius: 14px; color: #a2a8ba; font-size: 13.5px;">HR 데이터에 대해 무엇이든 물어보세요…</div>
+          <div style="background: #fff; border: 1px solid #e4e2fb; border-radius: 14px; padding: 18px;">
+            <div style="font-size: 14.5px; font-weight: 800; margin-bottom: 5px;">회사별 데이터 격리</div>
+            <div style="font-size: 13px; line-height: 1.55; color: #6b7085;">고객사마다 데이터베이스를 분리해 저장해요. 섞일 일이 없어요.</div>
+          </div>
+          <div style="background: #fff; border: 1px solid #e4e2fb; border-radius: 14px; padding: 18px;">
+            <div style="font-size: 14.5px; font-weight: 800; margin-bottom: 5px;">감사 로그</div>
+            <div style="font-size: 13px; line-height: 1.55; color: #6b7085;">로그인, 민감정보 열람, 급여 변경, 내보내기까지 전부 기록돼요.</div>
+          </div>
+          <div style="background: #fff; border: 1px solid #e4e2fb; border-radius: 14px; padding: 18px;">
+            <div style="font-size: 14.5px; font-weight: 800; margin-bottom: 5px;">매일 자동 백업</div>
+            <div style="font-size: 13px; line-height: 1.55; color: #6b7085;">하루 한 번 전체 백업, 복원 절차까지 검증해 뒀어요.</div>
           </div>
         </div>
       </div>
-    </div>
-  </section>
 
-  <!-- METRICS -->
-  <section id="metrics" style="padding: 0 0 96px;">
-    <div class="wrap metrics-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; text-align: center;">
-      <div style="padding: 10px;"><div style="font-size: 46px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(120deg,#4f46e5,#7c3aed); -webkit-background-clip: text; background-clip: text; color: transparent;">128,000+</div><div style="font-size: 14.5px; font-weight: 600; color: #6b7085; margin-top: 8px;">관리 구성원</div></div>
-      <div style="padding: 10px;"><div style="font-size: 46px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(120deg,#4f46e5,#7c3aed); -webkit-background-clip: text; background-clip: text; color: transparent;">340+</div><div style="font-size: 14.5px; font-weight: 600; color: #6b7085; margin-top: 8px;">도입 기업</div></div>
-      <div style="padding: 10px;"><div style="font-size: 46px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(120deg,#4f46e5,#7c3aed); -webkit-background-clip: text; background-clip: text; color: transparent;">99.98%</div><div style="font-size: 14.5px; font-weight: 600; color: #6b7085; margin-top: 8px;">급여 처리 정확도</div></div>
-      <div style="padding: 10px;"><div style="font-size: 46px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(120deg,#4f46e5,#7c3aed); -webkit-background-clip: text; background-clip: text; color: transparent;">41%</div><div style="font-size: 14.5px; font-weight: 600; color: #6b7085; margin-top: 8px;">HR 업무 시간 절감</div></div>
-    </div>
-  </section>
-
-  <!-- PRICING -->
-  <section id="pricing" style="padding: 0 0 96px;">
-    <div class="wrap">
-      <div style="text-align:center; margin-bottom:44px;">
-        <h2 style="font-size:38px; font-weight:800; letter-spacing:-0.03em; margin:0 0 12px;">회사 규모에 맞는 요금제</h2>
-        <p style="font-size:16px; color:#6b7085; margin:0;">모든 요금제 14일 무료 체험 · 최소 인원 없음 · 인원수만큼만 청구</p>
-        <div style="display:inline-flex; align-items:center; gap:8px; margin-top:16px; background:#ecfdf5; border:1px solid #a7f3d0;
-                    border-radius:99px; padding:8px 20px; font-size:14px; font-weight:700; color:#047857;">
-          🤝 출시 기념 무료 파트너 프로그램 — 지금 가입하면 정식 유료화 전까지 모든 기능 무료 (유료 전환 30일 전 안내)
+      <!-- PRICING -->
+      <div id="pricing" style="margin-top: 110px;">
+        <div style="text-align: center; margin-bottom: 44px;">
+          <span style="font-size: 14px; font-weight: 800; color: #4f46e5;">PRICING</span>
+          <h2 style="font-size: 40px; font-weight: 800; letter-spacing: -0.03em; margin: 12px 0 12px;">회사 규모에 맞는 요금제</h2>
+          <p style="font-size: 16px; color: #6b7085; margin: 0;">모든 요금제 14일 무료 체험 · 최소 인원 없음 · 인원수만큼만 청구</p>
+          <div style="display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 99px; padding: 8px 20px; font-size: 14px; font-weight: 700; color: #047857;">
+            🤝 출시 기념 무료 파트너 프로그램 — 지금 가입하면 정식 유료화 전까지 모든 기능 무료 (유료 전환 30일 전 안내)
+          </div>
+        </div>
+        <div class="price-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px;">
+          <div style="border: 1px solid #eef0f5; border-radius: 20px; padding: 32px 28px; background: #fff;">
+            <div style="font-size: 15px; font-weight: 800; color: #4f46e5;">Core</div>
+            <div style="font-size: 36px; font-weight: 800; margin: 14px 0 2px;">₩2,500<span style="font-size: 14px; font-weight: 600; color: #9096a6;"> /인/월</span></div>
+            <div style="font-size: 13.5px; color: #6b7085; margin-bottom: 20px;">근로기준법 준수 자동화의 핵심</div>
+            <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; color: #33384a; line-height: 2.1;">
+              <li>✓ 인사기록 · 조직도 · CSV 임포트</li>
+              <li>✓ 근태 · 주52시간 감시 · 연차 관리</li>
+              <li>✓ 급여명세서 (4대보험 자동계산)</li>
+              <li>✓ 증명서 발급 · 전자결재 · 문서함</li>
+              <li>✓ 감사 로그 · 자동 백업</li>
+            </ul>
+          </div>
+          <div style="border: 2px solid #4f46e5; border-radius: 20px; padding: 32px 28px; background: #fff; position: relative; box-shadow: 0 18px 44px rgba(79,70,229,0.14);">
+            <div style="position: absolute; top: -13px; left: 50%; transform: translateX(-50%); background: linear-gradient(120deg,#4f46e5,#7c3aed); color: #fff; font-size: 12px; font-weight: 800; padding: 4px 14px; border-radius: 99px;">가장 인기</div>
+            <div style="font-size: 15px; font-weight: 800; color: #4f46e5;">Growth</div>
+            <div style="font-size: 36px; font-weight: 800; margin: 14px 0 2px;">₩4,500<span style="font-size: 14px; font-weight: 600; color: #9096a6;"> /인/월</span></div>
+            <div style="font-size: 13.5px; color: #6b7085; margin-bottom: 20px;">성장하는 팀의 성과 관리까지</div>
+            <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; color: #33384a; line-height: 2.1;">
+              <li>✓ Core의 모든 기능</li>
+              <li>✓ 성과 관리 (목표 · 평가 · 다면평가)</li>
+              <li>✓ 입사 예정자 관리 (외부 ATS 연동)</li>
+              <li>✓ 온보딩 자동화 (체크리스트 · 버디)</li>
+              <li>✓ 복지포인트 · 복리후생</li>
+            </ul>
+          </div>
+          <div style="border: 1px solid #eef0f5; border-radius: 20px; padding: 32px 28px; background: #fff;">
+            <div style="font-size: 15px; font-weight: 800; color: #4f46e5;">Enterprise</div>
+            <div style="font-size: 36px; font-weight: 800; margin: 14px 0 2px;">문의</div>
+            <div style="font-size: 13.5px; color: #6b7085; margin-bottom: 20px;">정교한 인재 전략이 필요한 조직</div>
+            <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; color: #33384a; line-height: 2.1;">
+              <li>✓ Growth의 모든 기능</li>
+              <li>✓ 채용 ATS (요청서 · 파이프라인 · 오퍼)</li>
+              <li>✓ 캘리브레이션 9박스 · Talent Card</li>
+              <li>✓ 급여 밴드 · Merit Matrix · ACR</li>
+              <li>✓ 후계자 계획 · HR 데이터 마법사</li>
+            </ul>
+          </div>
         </div>
       </div>
-      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:22px;" class="metrics-grid">
-        <div style="border:1px solid #eef0f5; border-radius:20px; padding:32px 28px; background:#fff;">
-          <div style="font-size:15px; font-weight:800; color:#4f46e5;">Core</div>
-          <div style="font-size:36px; font-weight:800; margin:14px 0 2px;">₩2,500<span style="font-size:14px; font-weight:600; color:#9096a6;"> /인/월</span></div>
-          <div style="font-size:13.5px; color:#6b7085; margin-bottom:20px;">근로기준법 준수 자동화의 핵심</div>
-          <ul style="list-style:none; padding:0; margin:0; font-size:14px; color:#33384a; line-height:2.1;">
-            <li>✓ 인사기록 · 조직도 · CSV 임포트</li>
-            <li>✓ 근태 · 주52시간 감시 · 연차 관리</li>
-            <li>✓ 급여명세서 (4대보험 자동계산)</li>
-            <li>✓ 증명서 발급 · 전자결재 · 문서함</li>
-            <li>✓ 감사 로그 · 자동 백업</li>
-          </ul>
-        </div>
-        <div style="border:2px solid #4f46e5; border-radius:20px; padding:32px 28px; background:#fff; position:relative; box-shadow:0 18px 44px rgba(79,70,229,0.14);">
-          <div style="position:absolute; top:-13px; left:50%; transform:translateX(-50%); background:linear-gradient(120deg,#4f46e5,#7c3aed); color:#fff; font-size:12px; font-weight:800; padding:4px 14px; border-radius:99px;">가장 인기</div>
-          <div style="font-size:15px; font-weight:800; color:#4f46e5;">Growth</div>
-          <div style="font-size:36px; font-weight:800; margin:14px 0 2px;">₩4,500<span style="font-size:14px; font-weight:600; color:#9096a6;"> /인/월</span></div>
-          <div style="font-size:13.5px; color:#6b7085; margin-bottom:20px;">성장하는 팀의 성과 관리까지</div>
-          <ul style="list-style:none; padding:0; margin:0; font-size:14px; color:#33384a; line-height:2.1;">
-            <li>✓ Core의 모든 기능</li>
-            <li>✓ 성과 관리 (목표 · 평가 · 다면평가)</li>
-            <li>✓ 입사 예정자 관리 (외부 ATS 연동)</li>
-            <li>✓ 온보딩 자동화 (체크리스트 · 버디)</li>
-            <li>✓ 복지포인트 · 복리후생</li>
-          </ul>
-        </div>
-        <div style="border:1px solid #eef0f5; border-radius:20px; padding:32px 28px; background:#fff;">
-          <div style="font-size:15px; font-weight:800; color:#4f46e5;">Enterprise</div>
-          <div style="font-size:36px; font-weight:800; margin:14px 0 2px;">문의<span style="font-size:14px; font-weight:600; color:#9096a6;"></span></div>
-          <div style="font-size:13.5px; color:#6b7085; margin-bottom:20px;">정교한 인재 전략이 필요한 조직</div>
-          <ul style="list-style:none; padding:0; margin:0; font-size:14px; color:#33384a; line-height:2.1;">
-            <li>✓ Growth의 모든 기능</li>
-            <li>✓ 채용 ATS (요청서 · 파이프라인 · 오퍼)</li>
-            <li>✓ 캘리브레이션 9박스 · Talent Card</li>
-            <li>✓ 급여 밴드 · Merit Matrix · ACR</li>
-            <li>✓ 후계자 계획 · HR 데이터 마법사</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
 
-  <!-- BOTTOM CTA -->
-  <section style="padding: 0 0 96px;">
-    <div class="wrap">
-      <div style="border-radius: 28px; background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 68px 40px; text-align: center; color: #fff; box-shadow: 0 30px 70px rgba(79,70,229,0.35);">
-        <h2 style="font-size: 40px; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 16px;">HR을 다시 설계할 시간.</h2>
-        <p style="font-size: 18px; color: rgba(255,255,255,0.85); margin: 0 0 34px;">지금 데모에 들어가 TalentCore를 직접 만져보세요.</p>
-        <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
-          <a href="{{ url_for('signup') }}" style="font-size: 16px; font-weight: 800; color: #4f46e5; padding: 15px 32px; border-radius: 13px; background: #fff;">무료로 시작하기 →</a>
-          <a href="{{ url_for('demo_login') }}" style="font-size: 16px; font-weight: 700; color: #fff; padding: 15px 30px; border-radius: 13px; border: 1px solid rgba(255,255,255,0.5);">데모 보기</a>
-        </div>
+    </div>
+  </div>
+
+  <!-- ══ CTA ══ -->
+  <section style="position: relative; overflow: hidden; text-align: center; padding: 110px 40px;">
+    <div style="position: absolute; top: -100px; left: 50%; transform: translateX(-50%); width: 760px; height: 440px; background: radial-gradient(ellipse, rgba(124,58,237,0.25), transparent 70%); pointer-events: none;"></div>
+    <div style="position: relative;">
+      <h2 style="font-size: 46px; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 16px;">첫 질문은 공짜입니다.</h2>
+      <p style="font-size: 17px; color: #a5aabb; margin: 0 0 34px;">가입 없이 데모부터 둘러보세요. 마음에 들면, 그대로 무료로 시작하면 돼요.</p>
+      <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
+        <a href="{{ url_for('signup') }}" style="font-size: 16px; font-weight: 800; color: #0b0e1c; padding: 15px 32px; border-radius: 13px; background: #fff;">무료로 시작하기 →</a>
+        <a href="{{ url_for('demo_login') }}" style="font-size: 16px; font-weight: 700; padding: 15px 30px; border-radius: 13px; border: 1px solid rgba(255,255,255,0.25);">데모 보기</a>
       </div>
     </div>
   </section>
 
-  <!-- FOOTER -->
-  <footer style="border-top: 1px solid #eef0f5; padding: 40px 0;">
-    <div class="wrap" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <div style="width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, #4f46e5, #7c3aed);"></div>
-        <span style="font-size: 16px; font-weight: 800;">TalentCore</span>
+  <!-- ══ FOOTER ══ -->
+  <footer style="border-top: 1px solid rgba(255,255,255,0.07); padding: 38px 40px;">
+    <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+      <div style="display: flex; align-items: center; gap: 9px;">
+        <div style="width: 24px; height: 24px; border-radius: 7px; background: linear-gradient(135deg,#4f46e5,#7c3aed);"></div>
+        <span style="font-size: 15px; font-weight: 800;">TalentCore</span>
       </div>
-      <div style="display: flex; align-items: center; gap: 18px; flex-wrap: wrap;">
-        <a href="{{ url_for('terms_of_service') }}" style="font-size: 13px; color: #6b7085; text-decoration: none;">이용약관</a>
-        <a href="{{ url_for('privacy_policy') }}" style="font-size: 13px; color: #33384a; font-weight: 700; text-decoration: none;">개인정보처리방침</a>
-        <span style="font-size: 13px; color: #9096a6;">© 2026 TalentCore. All rights reserved.</span>
+      <div style="display: flex; gap: 24px; font-size: 13px; color: #8b90a8; font-weight: 600; flex-wrap: wrap;">
+        <a href="#ai">AI 연동</a>
+        <a href="#law">컴플라이언스</a>
+        <a href="{{ url_for('terms_of_service') }}">이용약관</a>
+        <a href="{{ url_for('privacy_policy') }}" style="color: #c4b5fd;">개인정보처리방침</a>
       </div>
+      <span style="font-size: 12.5px; color: #6b7192;">© 2026 TalentCore. All rights reserved.</span>
     </div>
   </footer>
 
   <script>
-    const TOUR_MODULES = [
-      {
-        t: '근태관리', d: '출퇴근부터 연차, 초과근무까지 하나의 화면에서.',
-        items: ['체크인/체크아웃 원클릭 기록', '법정 근로시간 자동 감시(52시간)', '연차 신청부터 승인까지 한 화면'],
-        mock: `
-          <div class="mk-bar"><div class="mk-logo"></div><span class="mk-title">근태 홈</span><span class="mk-sub">2026.07.07 (월)</span></div>
-          <div class="mk-body" style="display:flex; flex-direction:column; gap:16px;">
-            <div class="mk-card" style="padding:18px; display:flex; align-items:center; justify-content:space-between;">
-              <div>
-                <div style="font-size:12px; color:#9aa0b2; font-weight:700; margin-bottom:4px;">오늘 근무</div>
-                <div style="font-size:22px; font-weight:800; color:#26293a;">09:02 <span style="color:#c7c9d6; font-weight:600;">→</span> 근무중</div>
-              </div>
-              <div style="display:flex; gap:8px;">
-                <div style="background:#4f46e5; color:#fff; font-size:12.5px; font-weight:700; padding:9px 16px; border-radius:9px;">체크아웃</div>
-              </div>
-            </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
-              <div class="mk-card" style="padding:16px;">
-                <div style="font-size:12px; color:#9aa0b2; font-weight:700; margin-bottom:10px;">이번 주 근로시간</div>
-                <div style="height:8px; border-radius:99px; background:#f0eefb; overflow:hidden;"><div style="width:74%; height:100%; background:linear-gradient(90deg,#4f46e5,#7c3aed);"></div></div>
-                <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:12px; color:#6b7085;"><span>38.5h</span><span>정상</span></div>
-              </div>
-              <div class="mk-card" style="padding:16px;">
-                <div style="font-size:12px; color:#9aa0b2; font-weight:700; margin-bottom:10px;">연차 잔여</div>
-                <div style="height:8px; border-radius:99px; background:#f0eefb; overflow:hidden;"><div style="width:55%; height:100%; background:linear-gradient(90deg,#22c58b,#4f46e5);"></div></div>
-                <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:12px; color:#6b7085;"><span>8.5일 사용</span><span>총 15일</span></div>
-              </div>
-            </div>
-            <div class="mk-card" style="padding:16px 18px;">
-              <div style="font-size:12px; color:#9aa0b2; font-weight:700; margin-bottom:12px;">승인 대기 (3)</div>
-              <div style="display:flex; flex-direction:column; gap:10px;">
-                <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;"><span style="font-weight:700; color:#33384a;">김도윤 · 연차 1일</span><span class="mk-pill" style="background:#fdeede; color:#b45309;">대기</span></div>
-                <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;"><span style="font-weight:700; color:#33384a;">이서연 · 반차(오후)</span><span class="mk-pill" style="background:#fdeede; color:#b45309;">대기</span></div>
-              </div>
-            </div>
-          </div>`
-      },
-      {
-        t: '급여·보상', d: '복잡한 급여 계산과 보상 체계를 자동화.',
-        items: ['4대보험 자동 계산 급여명세서', '직급×직군 연봉 밴드 관리', '성과 등급 연동 인상률 자동 제안'],
-        mock: `
-          <div class="mk-bar"><div class="mk-logo"></div><span class="mk-title">보상 관리</span><span class="mk-sub">2026년 6월 귀속</span></div>
-          <div class="mk-body" style="display:flex; flex-direction:column; gap:16px;">
-            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
-              <div class="mk-card" style="padding:14px;"><div style="font-size:11.5px; color:#9aa0b2; font-weight:700;">지급 총액</div><div style="font-size:18px; font-weight:800; margin-top:4px;">₩412,600,000</div></div>
-              <div class="mk-card" style="padding:14px;"><div style="font-size:11.5px; color:#9aa0b2; font-weight:700;">4대보험 공제</div><div style="font-size:18px; font-weight:800; margin-top:4px;">₩38,214,500</div></div>
-              <div class="mk-card" style="padding:14px;"><div style="font-size:11.5px; color:#9aa0b2; font-weight:700;">평균 Compa-Ratio</div><div style="font-size:18px; font-weight:800; margin-top:4px; color:#15803d;">1.02</div></div>
-            </div>
-            <div class="mk-card" style="padding:16px 18px;">
-              <div style="font-size:12px; color:#9aa0b2; font-weight:700; margin-bottom:12px;">직급별 연봉 밴드</div>
-              <div style="display:flex; flex-direction:column; gap:12px;">
-                <div>
-                  <div style="display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; color:#33384a; margin-bottom:5px;"><span>CL4 · 백엔드 엔지니어</span><span style="color:#6b7085; font-weight:600;">₩68M – ₩92M</span></div>
-                  <div style="height:7px; border-radius:99px; background:#f0eefb; position:relative;"><div style="position:absolute; left:61%; top:-3px; width:13px; height:13px; border-radius:99px; background:#4f46e5; border:2px solid #fff; box-shadow:0 0 0 1px #4f46e5;"></div></div>
-                </div>
-                <div>
-                  <div style="display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; color:#33384a; margin-bottom:5px;"><span>CL5 · 프로덕트 매니저</span><span style="color:#6b7085; font-weight:600;">₩82M – ₩110M</span></div>
-                  <div style="height:7px; border-radius:99px; background:#f0eefb; position:relative;"><div style="position:absolute; left:44%; top:-3px; width:13px; height:13px; border-radius:99px; background:#7c3aed; border:2px solid #fff; box-shadow:0 0 0 1px #7c3aed;"></div></div>
-                </div>
-              </div>
-            </div>
-            <div class="mk-card" style="padding:14px 18px; display:flex; align-items:center; justify-content:space-between;">
-              <span style="font-size:13px; font-weight:700; color:#33384a;">S등급 인상률 자동 제안</span>
-              <span class="mk-pill" style="background:#e7f6ec; color:#15803d;">+8.0%</span>
-            </div>
-          </div>`
-      },
-      {
-        t: '성과관리', d: '목표 설정부터 캘리브레이션까지 전 과정 지원.',
-        items: ['SMART 목표 + AI 어시스턴트', 'Start/Stop/Continue 다면평가', '9박스 캘리브레이션으로 등급 확정'],
-        mock: `
-          <div class="mk-bar"><div class="mk-logo"></div><span class="mk-title">캘리브레이션 · 9박스</span><span class="mk-sub">2026 상반기</span></div>
-          <div class="mk-body" style="display:flex; flex-direction:column; gap:14px;">
-            <div class="mk-card" style="padding:16px; flex:1; display:flex; flex-direction:column;">
-              <div style="font-size:12px; color:#9aa0b2; font-weight:700; margin-bottom:10px;">성과 × 잠재력</div>
-              <div style="display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); gap:5px; flex:1; min-height:190px;">
-                <div style="background:#f4f3fb; border-radius:6px;"></div><div style="background:#efeafb; border-radius:6px; position:relative;"></div><div style="background:#e7f6ec; border-radius:6px; display:flex; align-items:center; justify-content:center;"><div style="width:24px; height:24px; border-radius:99px; background:#4f46e5; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.15);"></div></div>
-                <div style="background:#f4f3fb; border-radius:6px;"></div><div style="background:#efeafb; border-radius:6px; display:flex; align-items:center; justify-content:center;"><div style="width:24px; height:24px; border-radius:99px; background:#7c3aed; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.15);"></div></div><div style="background:#e7f6ec; border-radius:6px;"></div>
-                <div style="background:#fdeced; border-radius:6px;"></div><div style="background:#f4f3fb; border-radius:6px; display:flex; align-items:center; justify-content:center;"><div style="width:24px; height:24px; border-radius:99px; background:#b45309; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.15);"></div></div><div style="background:#efeafb; border-radius:6px;"></div>
-              </div>
-              <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:#9aa0b2; font-weight:700;"><span>← 성과 낮음</span><span>성과 높음 →</span></div>
-            </div>
-            <div class="mk-card" style="padding:14px 18px; display:flex; align-items:center; gap:12px;">
-              <span class="mk-pill" style="background:#efeafb; color:#6d4ec9;">Start</span>
-              <span class="mk-pill" style="background:#fdeced; color:#b91c1c;">Stop</span>
-              <span class="mk-pill" style="background:#e7f6ec; color:#15803d;">Continue</span>
-              <span style="margin-left:auto; font-size:12px; color:#9aa0b2; font-weight:600;">응답자 5명 · 익명 공개</span>
-            </div>
-          </div>`
-      },
-      {
-        t: '채용', d: '파이프라인 관리부터 오퍼 발송까지 한 번에.',
-        items: ['드래그앤드롭 채용 파이프라인', '면접 라운드별 피드백 수집', '오퍼 발송부터 입사까지 자동 연동'],
-        mock: `
-          <div class="mk-bar"><div class="mk-logo"></div><span class="mk-title">채용 파이프라인</span><span class="mk-sub">백엔드 엔지니어 · 8명</span></div>
-          <div class="mk-body" style="display:flex; gap:12px; height:100%;">
-            <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
-              <div style="font-size:11px; font-weight:800; color:#9aa0b2;">서류심사 · 3</div>
-              <div class="mk-card" style="padding:11px; font-size:12px; font-weight:700; color:#33384a;">박지훈</div>
-              <div class="mk-card" style="padding:11px; font-size:12px; font-weight:700; color:#33384a;">최유나</div>
-              <div class="mk-card" style="padding:11px; font-size:12px; font-weight:700; color:#33384a;">한소희</div>
-            </div>
-            <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
-              <div style="font-size:11px; font-weight:800; color:#9aa0b2;">면접 · 2</div>
-              <div class="mk-card" style="padding:11px; border:1.5px solid #4f46e5;"><div style="font-size:12px; font-weight:700; color:#33384a;">정민재</div><div style="font-size:10.5px; color:#9aa0b2; margin-top:3px;">2차 면접 예정</div></div>
-              <div class="mk-card" style="padding:11px;"><div style="font-size:12px; font-weight:700; color:#33384a;">오세훈</div><div style="font-size:10.5px; color:#9aa0b2; margin-top:3px;">피드백 대기</div></div>
-            </div>
-            <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
-              <div style="font-size:11px; font-weight:800; color:#9aa0b2;">오퍼 · 2</div>
-              <div class="mk-card" style="padding:11px;"><div style="font-size:12px; font-weight:700; color:#33384a;">윤서준</div><span class="mk-pill" style="background:#e7f6ec; color:#15803d; margin-top:6px;">발송됨</span></div>
-              <div class="mk-card" style="padding:11px;"><div style="font-size:12px; font-weight:700; color:#33384a;">강하은</div><span class="mk-pill" style="background:#fdeede; color:#b45309; margin-top:6px;">작성중</span></div>
-            </div>
-          </div>`
-      },
-      {
-        t: '조직도', d: '조직 구조를 인터랙티브하게 탐색.',
-        items: ['클릭 한 번으로 팀 구조 탐색', '리포팅 라인 실시간 반영', '부서·직급 체계 한눈에 보기'],
-        mock: `
-          <div class="mk-bar"><div class="mk-logo"></div><span class="mk-title">조직도</span><span class="mk-sub">엔지니어링 본부</span></div>
-          <div class="mk-body" style="display:flex; flex-direction:column; align-items:center; gap:22px; padding-top:26px;">
-            <div class="mk-card" style="padding:12px 20px; text-align:center;"><div style="font-size:12.5px; font-weight:800; color:#26293a;">이한결</div><div style="font-size:11px; color:#9aa0b2;">CTO</div></div>
-            <div style="width:1px; height:18px; background:#e4e2fb;"></div>
-            <div style="display:flex; gap:26px;">
-              <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
-                <div class="mk-card" style="padding:10px 16px; text-align:center; border-color:#4f46e5;"><div style="font-size:12px; font-weight:800; color:#26293a;">서지우</div><div style="font-size:10.5px; color:#9aa0b2;">백엔드 팀장</div></div>
-                <div style="display:flex; gap:8px;">
-                  <div class="mk-card" style="width:64px; height:36px;"></div>
-                  <div class="mk-card" style="width:64px; height:36px;"></div>
-                  <div class="mk-card" style="width:64px; height:36px;"></div>
-                </div>
-              </div>
-              <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
-                <div class="mk-card" style="padding:10px 16px; text-align:center;"><div style="font-size:12px; font-weight:800; color:#26293a;">배수아</div><div style="font-size:10.5px; color:#9aa0b2;">프론트 팀장</div></div>
-                <div style="display:flex; gap:8px;">
-                  <div class="mk-card" style="width:64px; height:36px;"></div>
-                  <div class="mk-card" style="width:64px; height:36px;"></div>
-                </div>
-              </div>
-            </div>
-          </div>`
-      },
-      {
-        t: '분석·보고서', d: '데이터 기반 HR 의사결정을 지원.',
-        items: ['헤드카운트·이직률 추이', 'Pay Equity·Compa-Ratio 분석', '엑셀 내보내기 및 커스텀 리포트'],
-        mock: `
-          <div class="mk-bar"><div class="mk-logo"></div><span class="mk-title">People Analytics</span><span class="mk-sub">전사 기준</span></div>
-          <div class="mk-body" style="display:flex; flex-direction:column; gap:14px;">
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-              <div class="mk-card" style="padding:14px;"><div style="font-size:11.5px; color:#9aa0b2; font-weight:700;">전체 헤드카운트</div><div style="font-size:20px; font-weight:800; margin-top:4px;">214명</div></div>
-              <div class="mk-card" style="padding:14px;"><div style="font-size:11.5px; color:#9aa0b2; font-weight:700;">연간 이직률</div><div style="font-size:20px; font-weight:800; margin-top:4px; color:#b45309;">8.4%</div></div>
-            </div>
-            <div class="mk-card" style="padding:16px 18px; flex:1;">
-              <div style="font-size:12px; color:#9aa0b2; font-weight:700; margin-bottom:12px;">월별 헤드카운트 추이</div>
-              <div style="display:flex; align-items:flex-end; gap:9px; height:110px;">
-                <div style="flex:1; background:linear-gradient(180deg,#8b93e0,#4f46e5); border-radius:5px 5px 0 0; height:55%;"></div>
-                <div style="flex:1; background:linear-gradient(180deg,#8b93e0,#4f46e5); border-radius:5px 5px 0 0; height:62%;"></div>
-                <div style="flex:1; background:linear-gradient(180deg,#8b93e0,#4f46e5); border-radius:5px 5px 0 0; height:68%;"></div>
-                <div style="flex:1; background:linear-gradient(180deg,#8b93e0,#4f46e5); border-radius:5px 5px 0 0; height:74%;"></div>
-                <div style="flex:1; background:linear-gradient(180deg,#8b93e0,#4f46e5); border-radius:5px 5px 0 0; height:83%;"></div>
-                <div style="flex:1; background:linear-gradient(180deg,#7c3aed,#4f46e5); border-radius:5px 5px 0 0; height:100%;"></div>
-              </div>
-            </div>
-            <div class="mk-card" style="padding:12px 18px; display:flex; align-items:center; justify-content:space-between;">
-              <span style="font-size:12.5px; font-weight:700; color:#33384a;">엑셀 내보내기 — 인사·급여·근태 등 7종</span>
-              <span class="mk-pill" style="background:#217346; color:#fff;">.xlsx</span>
-            </div>
-          </div>`
-      },
+  // ── 히어로 채팅 자동 재생 (시연 스크립트) ──────────────────
+  (function () {
+    var script = [
+      { role: 'user', text: '우리 팀 이번 달 연차 사용 현황 알려줘' },
+      { role: 'ai',   text: '개발팀 12명 중 이번 달 연차 사용은 7명이에요. 팀 평균 잔여 연차는 6.2일이고, 잔여 10일 이상인 분이 2명 있네요.' },
+      { role: 'user', text: '그 두 명만 표로 정리해줘' },
+      { role: 'ai',   text: '정리했어요 — 김서연(잔여 11일) · 이준호(잔여 12일). 연차사용촉진 대상인지도 확인해 드릴까요?' }
     ];
+    var box = document.getElementById('tc-chat');
+    if (!box) return;
+    var step = 0, typingEl = null;
 
-    const tourSteps = document.getElementById('tourSteps');
-    const tourSticky = document.getElementById('tourSticky');
-
-    TOUR_MODULES.forEach((m, i) => {
-      const step = document.createElement('div');
-      step.className = 'tour-step' + (i === 0 ? ' active' : '');
-      step.dataset.i = i;
-      step.innerHTML = `<div class="num">MODULE ${String(i + 1).padStart(2, '0')}</div><h3>${m.t}</h3><p>${m.d}</p><ul>${m.items.map(x => `<li>${x}</li>`).join('')}</ul>`;
-      tourSteps.appendChild(step);
-
-      const mock = document.createElement('div');
-      mock.className = 'tour-mock' + (i === 0 ? ' on' : '');
-      mock.innerHTML = m.mock;
-      tourSticky.appendChild(mock);
-    });
-
-    const tourObserver = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          const i = e.target.dataset.i;
-          [...tourSteps.children].forEach(s => s.classList.remove('active'));
-          e.target.classList.add('active');
-          [...tourSticky.children].forEach((mock, idx) => mock.classList.toggle('on', String(idx) === i));
-        }
-      });
-    }, { threshold: 0, rootMargin: '-45% 0px -45% 0px' });
-    [...tourSteps.children].forEach(s => tourObserver.observe(s));
+    function bubble(msg) {
+      var d = document.createElement('div');
+      d.style.cssText = 'max-width:86%;border-radius:15px;padding:12px 15px;font-size:14px;line-height:1.6;white-space:pre-line;'
+        + (msg.role === 'user'
+           ? 'align-self:flex-end;background:#4f46e5;color:#fff;'
+           : 'align-self:flex-start;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.08);color:#d6d9e6;');
+      d.textContent = msg.text;
+      return d;
+    }
+    function typing() {
+      var d = document.createElement('div');
+      d.style.cssText = 'align-self:flex-start;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.08);border-radius:15px;padding:14px 18px;display:flex;gap:5px;';
+      for (var i = 0; i < 3; i++) {
+        var s = document.createElement('span');
+        s.style.cssText = 'width:6px;height:6px;border-radius:50%;background:#8b90a8;animation:tc-blink 1s ' + (i * 0.2) + 's infinite;';
+        d.appendChild(s);
+      }
+      return d;
+    }
+    function tick() {
+      if (typingEl) { typingEl.remove(); typingEl = null; }
+      if (step >= script.length) {          // 루프
+        box.innerHTML = '';
+        step = 0;
+      }
+      box.appendChild(bubble(script[step]));
+      step++;
+      if (step < script.length && script[step].role === 'ai') {
+        typingEl = typing();
+        box.appendChild(typingEl);
+      }
+    }
+    tick();
+    setInterval(tick, 2600);
+  })();
   </script>
-
 </body>
 </html>
