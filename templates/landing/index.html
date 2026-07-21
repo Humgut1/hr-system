@@ -59,7 +59,7 @@
         </span>
         <div style="display: flex; gap: 10px;">
           <a href="{{ url_for('login') }}" style="padding: 9px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.18); font-weight: 700; font-size: 14.5px; white-space: nowrap;">로그인</a>
-          <a href="{{ url_for('signup') }}" style="padding: 10px 20px; border-radius: 10px; background: #fff; color: #0b0e1c; font-weight: 700; font-size: 14.5px; white-space: nowrap;">무료로 시작하기</a>
+          <a href="{{ url_for('demo_login') }}" style="padding: 10px 20px; border-radius: 10px; background: #fff; color: #0b0e1c; font-weight: 700; font-size: 14.5px; white-space: nowrap;">데모 보기</a>
         </div>
       </nav>
     </div>
@@ -78,8 +78,8 @@
         <h1 class="hero" style="font-size: 62px; line-height: 1.08; font-weight: 800; letter-spacing: -0.035em; margin: 0 0 22px;">HR 데이터에게<br>말을 걸어보세요.</h1>
         <p style="font-size: 19px; line-height: 1.65; color: #a5aabb; margin: 0 0 36px;">대시보드 열고, 필터 걸고, 엑셀로 내려받고.<br>이제 그러지 않아도 돼요. "우리 팀 연차 얼마나 남았어?"<br>이 한마디면 됩니다.</p>
         <div style="display: flex; gap: 14px; margin-bottom: 18px; flex-wrap: wrap;">
-          <a href="{{ url_for('signup') }}" style="font-size: 16px; font-weight: 700; padding: 15px 30px; border-radius: 13px; background: #fff; color: #0b0e1c; box-shadow: 0 12px 32px rgba(124,58,237,0.35);">무료로 시작하기 →</a>
-          <a href="{{ url_for('demo_login') }}" style="font-size: 16px; font-weight: 700; padding: 15px 28px; border-radius: 13px; border: 1px solid rgba(255,255,255,0.2);">데모에서 둘러보기</a>
+          <a href="{{ url_for('demo_login') }}" style="font-size: 16px; font-weight: 700; padding: 15px 30px; border-radius: 13px; background: #fff; color: #0b0e1c; box-shadow: 0 12px 32px rgba(124,58,237,0.35);">데모에서 둘러보기 →</a>
+          <a href="{{ url_for('login') }}" style="font-size: 16px; font-weight: 700; padding: 15px 28px; border-radius: 13px; border: 1px solid rgba(255,255,255,0.2);">로그인</a>
         </div>
         <div style="font-size: 13.5px; color: #6b7192;">
           가입 없이 볼 수 있는 데모에 150명 규모 샘플 회사가 통째로 들어 있어요.
@@ -270,10 +270,9 @@
     <div style="position: absolute; top: -100px; left: 50%; transform: translateX(-50%); width: 760px; height: 440px; background: radial-gradient(ellipse, rgba(124,58,237,0.25), transparent 70%); pointer-events: none;"></div>
     <div style="position: relative;">
       <h2 style="font-size: 46px; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 16px;">우리 회사에 맞는 프로그램인지,<br>사용해보고 결정하세요.</h2>
-      <p style="font-size: 17px; color: #a5aabb; margin: 0 0 34px;">가입 없이 데모부터 둘러보세요. 마음에 들면, 그대로 무료로 시작하면 돼요.</p>
+      <p style="font-size: 17px; color: #a5aabb; margin: 0 0 34px;">가입 없이, 150명 규모 샘플 회사가 통째로 들어 있는 데모부터 둘러보세요.</p>
       <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
-        <a href="{{ url_for('signup') }}" style="font-size: 16px; font-weight: 800; color: #0b0e1c; padding: 15px 32px; border-radius: 13px; background: #fff;">무료로 시작하기 →</a>
-        <a href="{{ url_for('demo_login') }}" style="font-size: 16px; font-weight: 700; padding: 15px 30px; border-radius: 13px; border: 1px solid rgba(255,255,255,0.25);">데모 보기</a>
+        <a href="{{ url_for('demo_login') }}" style="font-size: 16px; font-weight: 800; color: #0b0e1c; padding: 15px 32px; border-radius: 13px; background: #fff;">데모 보러 가기 →</a>
       </div>
     </div>
   </section>
