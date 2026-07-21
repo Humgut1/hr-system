@@ -56,7 +56,6 @@
           <a class="nav-link" href="#ai">AI 연동</a>
           <a class="nav-link" href="#modules">모듈</a>
           <a class="nav-link" href="#law">컴플라이언스</a>
-          <a class="nav-link" href="#pricing">요금제</a>
         </span>
         <div style="display: flex; gap: 10px;">
           <a href="{{ url_for('login') }}" style="padding: 9px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.18); font-weight: 700; font-size: 14.5px; white-space: nowrap;">로그인</a>
@@ -259,57 +258,6 @@
           <div style="background: #fff; border: 1px solid #e4e2fb; border-radius: 14px; padding: 18px;">
             <div style="font-size: 14.5px; font-weight: 800; margin-bottom: 5px;">매일 자동 백업</div>
             <div style="font-size: 13px; line-height: 1.55; color: #6b7085;">하루 한 번 전체 백업, 복원 절차까지 검증해 뒀어요.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- PRICING -->
-      <div id="pricing" style="margin-top: 110px;">
-        <div style="text-align: center; margin-bottom: 44px;">
-          <span style="font-size: 14px; font-weight: 800; color: #4f46e5;">PRICING</span>
-          <h2 style="font-size: 40px; font-weight: 800; letter-spacing: -0.03em; margin: 12px 0 12px;">회사 규모에 맞는 요금제</h2>
-          <p style="font-size: 16px; color: #6b7085; margin: 0;">모든 요금제 14일 무료 체험 · 최소 인원 없음 · 인원수만큼만 청구</p>
-          <div style="display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 99px; padding: 8px 20px; font-size: 14px; font-weight: 700; color: #047857;">
-            🤝 출시 기념 무료 파트너 프로그램 — 지금 가입하면 정식 유료화 전까지 모든 기능 무료 (유료 전환 30일 전 안내)
-          </div>
-        </div>
-        <div class="price-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px;">
-          <div style="border: 1px solid #eef0f5; border-radius: 20px; padding: 32px 28px; background: #fff;">
-            <div style="font-size: 15px; font-weight: 800; color: #4f46e5;">Core</div>
-            <div style="font-size: 36px; font-weight: 800; margin: 14px 0 2px;">₩2,500<span style="font-size: 14px; font-weight: 600; color: #9096a6;"> /인/월</span></div>
-            <div style="font-size: 13.5px; color: #6b7085; margin-bottom: 20px;">근로기준법 준수 자동화의 핵심</div>
-            <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; color: #33384a; line-height: 2.1;">
-              <li>✓ 인사기록 · 조직도 · CSV 임포트</li>
-              <li>✓ 근태 · 주52시간 감시 · 연차 관리</li>
-              <li>✓ 급여명세서 (4대보험 자동계산)</li>
-              <li>✓ 증명서 발급 · 전자결재 · 문서함</li>
-              <li>✓ 감사 로그 · 자동 백업</li>
-            </ul>
-          </div>
-          <div style="border: 2px solid #4f46e5; border-radius: 20px; padding: 32px 28px; background: #fff; position: relative; box-shadow: 0 18px 44px rgba(79,70,229,0.14);">
-            <div style="position: absolute; top: -13px; left: 50%; transform: translateX(-50%); background: linear-gradient(120deg,#4f46e5,#7c3aed); color: #fff; font-size: 12px; font-weight: 800; padding: 4px 14px; border-radius: 99px;">가장 인기</div>
-            <div style="font-size: 15px; font-weight: 800; color: #4f46e5;">Growth</div>
-            <div style="font-size: 36px; font-weight: 800; margin: 14px 0 2px;">₩4,500<span style="font-size: 14px; font-weight: 600; color: #9096a6;"> /인/월</span></div>
-            <div style="font-size: 13.5px; color: #6b7085; margin-bottom: 20px;">성장하는 팀의 성과 관리까지</div>
-            <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; color: #33384a; line-height: 2.1;">
-              <li>✓ Core의 모든 기능</li>
-              <li>✓ 성과 관리 (목표 · 평가 · 다면평가)</li>
-              <li>✓ 입사 예정자 관리 (외부 ATS 연동)</li>
-              <li>✓ 온보딩 자동화 (체크리스트 · 버디)</li>
-              <li>✓ 복지포인트 · 복리후생</li>
-            </ul>
-          </div>
-          <div style="border: 1px solid #eef0f5; border-radius: 20px; padding: 32px 28px; background: #fff;">
-            <div style="font-size: 15px; font-weight: 800; color: #4f46e5;">Enterprise</div>
-            <div style="font-size: 36px; font-weight: 800; margin: 14px 0 2px;">문의</div>
-            <div style="font-size: 13.5px; color: #6b7085; margin-bottom: 20px;">정교한 인재 전략이 필요한 조직</div>
-            <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; color: #33384a; line-height: 2.1;">
-              <li>✓ Growth의 모든 기능</li>
-              <li>✓ 채용 ATS (요청서 · 파이프라인 · 오퍼)</li>
-              <li>✓ 캘리브레이션 9박스 · Talent Card</li>
-              <li>✓ 급여 밴드 · Merit Matrix · ACR</li>
-              <li>✓ 후계자 계획 · HR 데이터 마법사</li>
-            </ul>
           </div>
         </div>
       </div>

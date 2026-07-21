@@ -123,16 +123,6 @@ TalentCore는 **Model Context Protocol(MCP) 서버**를 내장합니다. Claude 
 
 ---
 
-## 요금제 (3계층)
-
-| | Core | Growth | Enterprise |
-|---|---|---|---|
-| 핵심 | 근로기준법 준수 자동화 | + 성과·온보딩·복리후생 | + 채용 ATS·정교한 인재 전략 |
-| 대표 기능 | 인사·근태·급여·증명서·감사로그 | 성과관리·입사예정자·복지포인트 | 캘리브레이션 9박스·급여밴드·후계자계획 |
-
-> 현재 **무료 파트너 프로그램**으로 운영 중입니다(`BILLING_ENABLED=0`). 결제 기능은 환경변수로 비활성화되어 있습니다.
-
----
 
 ## 기술 스택
 
@@ -192,9 +182,6 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your@email.com
 SMTP_PASSWORD=...
-
-# 결제 (기본 비활성)
-BILLING_ENABLED=0
 ```
 
 ### MCP 서버 연결 (선택)
