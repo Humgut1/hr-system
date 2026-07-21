@@ -4,7 +4,9 @@
 > MCP로 Claude와 직접 연결되는 근로기준법 준수 HR 플랫폼
 > Flask + SQLite · 비전공자 HR 주니어가 Claude Code로 단독 개발
 
-![TalentCore 랜딩](docs/screenshots/00-landing.png)
+![TalentCore 제품 데모](docs/talentcore-demo.gif)
+
+<sub>▶ 랜딩 채팅 데모 → 대시보드 · People Analytics · 보상 · 성과 · 조직도 · 직원 관리 순회 · [라이브 열기](https://talentcore.duckdns.org)</sub>
 
 ---
 
