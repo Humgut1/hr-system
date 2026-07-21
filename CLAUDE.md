@@ -27,7 +27,9 @@
     - v1.5.3 — 랜딩 CTA 재구성(가입 동선이 아예 없던 것 수정 — [무료로 시작하기] primary + [데모 보기] 보조), SVG 파비콘 전 화면, OG·description 메타, robots.txt
     - 백업 복원 리허설 완료 (VM에서 --restore 실행, integrity ok·147명 일치·.pre-restore 보존·서비스 정상)
     - ✅ **①도메인+HTTPS 완료 (2026-07-21)**: DuckDNS `talentcore.duckdns.org` → 161.33.39.127. `deploy/setup_ssl.sh`로 Let's Encrypt 발급(apex+www, 만료 2026-10-19), http→https 301 리다이렉트, certbot.timer 자동갱신. 외부망에서 https 200 확인. iptables·Oracle Security List 443 둘 다 이미 열려 있었음. → **라이브: https://talentcore.duckdns.org**
-    - **← 다음 (승헌씨 실행분): ②`venv/bin/python3 deploy/change_superadmin_pw.py hunie0709` 실행 후 새 비번 보관 ③방침·약관 문구 검토 ④SMTP 계정 준비(.env) ⑤디자인 파트너 섭외 → 완료 시 출시**
+    - ✅ **②슈퍼어드민 비번 변경 완료 (2026-07-21)**: VM에서 `venv/bin/python3 deploy/change_superadmin_pw.py hunie0709` 실행, 무작위 16자 비번 발급·승헌씨 보관 완료 (기본값 1234 폐기)
+    - ✅ **③방침·약관 검토 완료 (2026-07-21) — 결정: 현행 유지, 수정 불필요**: 검토 결과 (a) 과금 안 함 → 전자상거래법상 사업자정보·통신판매업 신고·결제 조항은 전부 무의미(무해하므로 존치) (b) 실사용자 개인정보 유입 없음(데모=가짜 시드만) → 개인정보보호법상 Claude/Oracle 국외이전 고지도 실질 불요. 수탁처리 구조·급여 참고용 고지는 이미 정합. **오픈소스 공개 예정 — 실데이터 없음이 전제. 방침은 운영 인스턴스 기준이며 self-host 시 각자 작성 원칙**
+    - **← 남은 것 (선택, 실사용 원할 때만): ④SMTP 계정 준비(.env) ⑤디자인 파트너 섭외. 실데이터 안 받는 포트폴리오/데모 운영이면 불요 → 출시 게이트 실질 완료**
 - **다음 작업: `saas_plan.md` §6 실행 순서를 따를 것 (Phase A부터 순서대로)**
   1. ~~Phase A-1: 웹훅 서명 검증~~ ✅ v0.96.0 완료
   2. ~~Phase A-2: CSRF 토큰 전면 적용~~ ✅ v0.97.0 완료
