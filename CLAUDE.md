@@ -26,7 +26,8 @@
     - v1.5.2 — 운영 도구: deploy/change_superadmin_pw.py(비번 변경, 무작위 생성·1회 출력), deploy/error_digest.py+setup_monitoring.sh(일일 에러 요약 cron, VM 등록 완료), deploy/setup_ssl.sh(도메인 SSL 원커맨드)
     - v1.5.3 — 랜딩 CTA 재구성(가입 동선이 아예 없던 것 수정 — [무료로 시작하기] primary + [데모 보기] 보조), SVG 파비콘 전 화면, OG·description 메타, robots.txt
     - 백업 복원 리허설 완료 (VM에서 --restore 실행, integrity ok·147명 일치·.pre-restore 보존·서비스 정상)
-    - **← 다음 (승헌씨 실행분): ①도메인 구매→`bash deploy/setup_ssl.sh <도메인>` ②`venv/bin/python3 deploy/change_superadmin_pw.py hunie0709` 실행 후 새 비번 보관 ③방침·약관 문구 검토 ④SMTP 계정 준비(.env) ⑤디자인 파트너 섭외 → 완료 시 출시**
+    - ✅ **①도메인+HTTPS 완료 (2026-07-21)**: DuckDNS `talentcore.duckdns.org` → 161.33.39.127. `deploy/setup_ssl.sh`로 Let's Encrypt 발급(apex+www, 만료 2026-10-19), http→https 301 리다이렉트, certbot.timer 자동갱신. 외부망에서 https 200 확인. iptables·Oracle Security List 443 둘 다 이미 열려 있었음. → **라이브: https://talentcore.duckdns.org**
+    - **← 다음 (승헌씨 실행분): ②`venv/bin/python3 deploy/change_superadmin_pw.py hunie0709` 실행 후 새 비번 보관 ③방침·약관 문구 검토 ④SMTP 계정 준비(.env) ⑤디자인 파트너 섭외 → 완료 시 출시**
 - **다음 작업: `saas_plan.md` §6 실행 순서를 따를 것 (Phase A부터 순서대로)**
   1. ~~Phase A-1: 웹훅 서명 검증~~ ✅ v0.96.0 완료
   2. ~~Phase A-2: CSRF 토큰 전면 적용~~ ✅ v0.97.0 완료
