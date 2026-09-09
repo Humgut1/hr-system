@@ -435,18 +435,22 @@
 
 </div>
 
-{% if 'recruiting' in plan_features %}
-<!-- ── 채용 ─────────────────────────────── -->
-<div class="section-heading">채용 (Recruiting)</div>
+{# 옛 내장 ATS는 T6에서 은퇴했지만, 그때까지 쌓인 지원자 데이터는 여기로 꺼낼 수 있게 남긴다.
+   요금제로 가리지 않는다 — 자기 데이터를 되찾는 길까지 막을 이유는 없다. #}
+{% if legacy_applicants %}
+<!-- ── 구 채용 데이터 보관 ─────────────────────────── -->
+<div class="section-heading">구 채용 데이터 (보관)</div>
 <div class="export-grid">
 
   <!-- 지원자 현황 -->
   <div class="export-card">
     <div class="export-card-header">
-      <div class="export-icon teal"><i class="fas fa-user-tie"></i></div>
+      <div class="export-icon teal"><i class="fas fa-box-archive"></i></div>
       <div>
-        <div class="export-card-title">지원자 현황</div>
-        <div class="export-card-desc">전체 공고별 지원자 목록 및 전형 단계 현황</div>
+        <div class="export-card-title">지원자 현황 (구 ATS)</div>
+        <div class="export-card-desc">
+          은퇴한 내장 ATS에 남아 있는 지원자 {{ legacy_applicants }}명. 지금 채용은 Hire에서 합니다.
+        </div>
       </div>
     </div>
     <a href="{{ url_for('export_applicants') }}" class="btn-export" target="_blank">

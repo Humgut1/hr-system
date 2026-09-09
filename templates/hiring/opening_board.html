@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+{% block title %}자리 대장{% endblock %}
+{% block page_title %}자리 대장{% endblock %}
+
+{% block extra_css %}
+<style>
+/* 자리 한 장이 한 줄이다. 부서 총원을 세는 화면이 아니라,
+   "지금 열려 있는 자리가 정확히 몇 개인가"를 세는 화면이다.
+   색은 상태에만 붙인다 — 숫자와 이름에는 붙이지 않는다. */
+.op-lead {
+  display:flex; align-items:flex-start; gap:9px; max-width:880px; margin-bottom:16px;
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:12px 15px; font-size:12.5px; line-height:1.75; color:var(--tx-2);
+}
+.op-lead i { color:var(--primary); margin-top:3px; }
+.op-lead b { color:var(--tx-1); }
+
+.op-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
+.op-tab {
+  padding:5px 14px; border-radius:20px; font-size:12.5px; font-weight:700;
+  background:var(--surface); border:1.5px solid var(--border); color:var(--tx-2);
+}
+.op-tab:hover { border-color:var(--primary); }
+.op-tab.on { background:var(--primary); border-color:var(--primary); color:#fff; }
+.op-tab .n { font-variant-numeric:tabular-nums; opacity:.75; margin-left:5px; }
+
+.op-tbl { width:100%; border-collapse:collapse; background:var(--surface);
+          border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.op-tbl th {
+  text-align:left; font-size:11.5px; font-weight:700; color:var(--tx-3);
+  padding:11px 14px; border-bottom:1px solid var(--border); white-space:nowrap;
+}
+.op-tbl td {
+  font-size:13px; color:var(--tx-2); padding:11px 14px;
+  border-bottom:1px solid var(--border); vertical-align:middle;
+}
+.op-tbl tr:last-child td { border-bottom:0; }
+.op-tbl tbody tr:hover { background:var(--bg); }
+.op-code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11.5px; color:var(--tx-3); }
+.op-title { font-weight:700; color:var(--tx-1); }
+
+/* 상태 — 여기만 색이 붙는다 */
+.op-st { display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:800; }
+.op-st.approved { background:var(--bg);       color:var(--tx-2); }
+.op-st.open     { background:var(--info-bg);  color:var(--primary); }
+.op-st.filled   { background:var(--green-bg); color:var(--green); }
+.op-st.closed   { background:var(--surface-3, var(--bg)); color:var(--tx-3); }
+
+.op-sub { font-size:11.5px; color:var(--tx-3); margin-top:2px; }
+
+/* Hire 로 보내기 — 자리 여러 장을 골라 공고 한 건으로 넘긴다.
+   고른 게 없으면 막대 자체가 보이지 않는다(빈 상태의 버튼을 두지 않는다). */
+.op-pick { width:34px; text-align:center; }
+.op-pick input { width:15px; height:15px; accent-color:var(--primary); cursor:pointer; }
+.op-pick input:disabled { cursor:not-allowed; opacity:.35; }
+.op-ref {
+  display:inline-block; margin-top:3px; font-size:11px; color:var(--tx-3);
+  font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.op-bar {
+  position:sticky; bottom:14px; z-index:5; margin-top:14px;
+  display:none; align-items:center; gap:12px; flex-wrap:wrap;
+  background:var(--surface); border:1.5px solid var(--primary); border-radius:10px;
+  padding:11px 15px; box-shadow:0 6px 20px rgba(0,0,0,.10);
+}
+.op-bar.on { display:flex; }
+.op-bar .cnt { font-size:13px; font-weight:800; color:var(--tx-1); }
+.op-bar .hint { font-size:12px; color:var(--tx-3); }
+.op-bar .sp { margin-left:auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="op-lead">
+  <i class="fas fa-id-badge"></i>
+  <div>
+    <b>한 줄이 한 자리입니다.</b>
+    승인된 채용 요청서가 요청 인원수만큼 자리 카드로 쪼개져 여기에 쌓입니다.
+    사람이 들어와도 나가도 카드는 남습니다 —
+    그래서 "이 자리는 원래 누구 자리였나"를 나중에도 알 수 있습니다.
+  </div>
+</div>
+
+<div class="op-tabs">
+  {% set tabs = [('live', '열려 있는 자리'), ('open', '채용 중'), ('filled', '채워짐'), ('closed', '닫힘')] %}
+  {% for key, label in tabs %}
+  <a href="{{ url_for('opening_board', status=key) }}" class="op-tab{% if status_filter == key %} on{% endif %}">
+    {{ label }}
+    <span class="n">{% if key == 'live' %}{{ (counts.get('approved', 0) + counts.get('open', 0)) }}{% else %}{{ counts.get(key, 0) }}{% endif %}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{% set pick = can_edit and hire_ready %}
+{% if pick %}<form method="POST" action="{{ url_for('opening_push') }}" id="pushForm">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+
+<table class="op-tbl">
+  <thead>
+    <tr>
+      {% if pick %}<th class="op-pick"></th>{% endif %}
+      <th>자리</th>
+      <th>부서 · 직급</th>
+      <th>유형</th>
+      <th>희망 입사일</th>
+      <th>상태</th>
+      {% if can_edit %}<th></th>{% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      {% if pick %}
+      <td class="op-pick">
+        {# 아직 열 수 있고, 아직 안 넘어간 자리만 고를 수 있다.
+           같은 요청서에서 나온 자리끼리만 묶인다 — 직무·부서·밴드가 같아야
+           공고 한 건의 내용이 거짓말이 되지 않는다(아래 스크립트가 막는다). #}
+        {% if r.status == 'approved' and not r.external_ref %}
+        <input type="checkbox" name="op_ids" value="{{ r.id }}"
+               data-req="{{ r.requisition_id }}" onchange="opPick()">
+        {% else %}
+        <input type="checkbox" disabled>
+        {% endif %}
+      </td>
+      {% endif %}
+      <td>
+        <div class="op-title">{{ r.title }}</div>
+        <div class="op-code">{{ r.code }}
+          {% if r.requester_name %}· 요청 {{ r.requester_name }}{% endif %}</div>
+        {% if r.external_ref %}<div class="op-ref">Hire {{ r.external_ref }}</div>{% endif %}
+      </td>
+      <td>
+        {{ r.dept_name or '-' }}
+        <div class="op-sub">{{ r.pos_name or ('L' ~ r.pos_level if r.pos_level else '직급 미지정') }} · {{ emp_type_labels.get(r.employment_type, r.employment_type) }}</div>
+      </td>
+      <td style="font-size:12px;">
+        {{ hire_type_labels.get(r.hire_type or 'new_planned', '-') }}
+        {% if r.backfill_name %}<div class="op-sub">{{ r.backfill_name }} 자리</div>{% endif %}
+      </td>
+      <td style="font-size:12px;">{{ r.target_start_date or '-' }}</td>
+      <td>
+        <span class="op-st {{ r.status }}">{{ opening_labels.get(r.status, r.status) }}</span>
+        {% if r.hired_name %}<div class="op-sub">{{ r.hired_name }}</div>
+        {% elif r.reserved_name %}<div class="op-sub">{{ r.reserved_name }} 입사 예정{% if r.reserved_start %} · {{ r.reserved_start }}{% endif %}</div>{% endif %}
+        {% if r.status == 'closed' and r.close_reason %}<div class="op-sub">{{ r.close_reason }}</div>{% endif %}
+      </td>
+      {% if can_edit %}
+      <td style="text-align:right; white-space:nowrap;">
+        {% if r.status in ('approved', 'open') %}
+        <form method="POST" action="{{ url_for('opening_close', op_id=r.id) }}" style="display:inline;"
+              onsubmit="var v=prompt('이 자리를 닫는 이유를 적어주세요.'); if(v===null) return false; this.reason.value=v;">
+          <input type="hidden" name="reason" value="">
+          <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px;">자리 닫기</button>
+        </form>
+        {% elif r.status == 'closed' %}
+        <form method="POST" action="{{ url_for('opening_reopen', op_id=r.id) }}" style="display:inline;">
+          <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px;">다시 열기</button>
+        </form>
+        {% endif %}
+      </td>
+      {% endif %}
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="{{ (6 if can_edit else 5) + (1 if pick else 0) }}" style="text-align:center; color:var(--tx-3); padding:36px;">
+        <i class="fas fa-id-badge" style="font-size:34px; display:block; margin-bottom:12px; color:var(--border);"></i>
+        아직 열린 자리가 없습니다.
+        <div style="margin-top:6px; font-size:12px;">
+          채용 요청서가 최종 승인되면 그 순간 이 대장에 자리가 생깁니다.
+        </div>
+        <div style="margin-top:16px;">
+          <a href="{{ url_for('requisition_list') }}" class="btn btn-primary btn-sm">채용 요청서 보기</a>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if pick %}
+<div class="op-bar" id="pushBar">
+  <span class="cnt"><b id="pushN">0</b>장 선택</span>
+  <span class="hint">고른 자리는 Hire 공고 <b>한 건</b>이 됩니다. 전형 단계는 Hire 에서 정합니다.</span>
+  <span class="sp"></span>
+  <button type="button" class="btn btn-ghost btn-sm" onclick="opClear()">선택 해제</button>
+  <button type="submit" class="btn btn-primary btn-sm">
+    <i class="fas fa-paper-plane"></i> Hire 로 보내기
+  </button>
+</div>
+</form>
+
+<script>
+/* 같은 요청서에서 나온 자리끼리만 묶는다.
+   한 장을 고르는 순간 다른 요청서의 자리는 잠긴다 — 고르고 나서
+   "안 된다"고 알려주는 것보다 애초에 못 고르게 하는 게 낫다. */
+function opPick() {
+  var all  = document.querySelectorAll('#pushForm input[name="op_ids"]');
+  var on   = document.querySelectorAll('#pushForm input[name="op_ids"]:checked');
+  var req  = on.length ? on[0].dataset.req : null;
+  all.forEach(function (c) { c.disabled = !!req && c.dataset.req !== req; });
+  document.getElementById('pushN').textContent = on.length;
+  document.getElementById('pushBar').classList.toggle('on', on.length > 0);
+}
+function opClear() {
+  document.querySelectorAll('#pushForm input[name="op_ids"]').forEach(function (c) {
+    c.checked = false; c.disabled = false;
+  });
+  opPick();
+}
+</script>
+{% endif %}
+
+{% endblock %}

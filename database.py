@@ -860,6 +860,15 @@ def init_db(db_path: str = None):
             )
         ''')
 
+        # 입사 예정자 ↔ 자리 카드 연결 (T5). Hire에서 오퍼가 수락되면 어느 카드로 들어오는지 남긴다.
+        ih_cols = {r[1] for r in c.execute('PRAGMA table_info(incoming_hires)').fetchall()}
+        if 'opening_id' not in ih_cols:
+            c.execute('ALTER TABLE incoming_hires ADD COLUMN opening_id INTEGER REFERENCES job_openings(id)')
+        if 'req_ref' not in ih_cols:
+            c.execute('ALTER TABLE incoming_hires ADD COLUMN req_ref TEXT')
+        if 'external_ref' not in ih_cols:
+            c.execute('ALTER TABLE incoming_hires ADD COLUMN external_ref TEXT')
+
         # 등급 이의제기 (주기당 1회 — UNIQUE 제약)
         c.execute('''
             CREATE TABLE IF NOT EXISTS grade_appeals (
@@ -1025,6 +1034,23 @@ def init_db(db_path: str = None):
                 d = get_depth(did)
                 dtype = depth_to_type.get(d, 'team')
                 c.execute('UPDATE departments SET dept_type=? WHERE id=?', (dtype, did))
+
+        # ── v1.7.1 부서장(조직 리더) 지정 ────────────────────────────
+        # 면접 조율에서 1차 면접관(HM)을 요청서 → 부서 → 부서장으로 자동 연결하려면
+        # 부서마다 리더가 '한 명'으로 확정돼 있어야 한다.
+        if 'leader_id' not in dept_cols:
+            c.execute('ALTER TABLE departments ADD COLUMN leader_id INTEGER REFERENCES users(id)')
+            # 기존 데이터: 그 부서 소속 manager/admin 중 직급 레벨이 가장 높은 사람으로 자동 시드
+            for (did,) in c.execute('SELECT id FROM departments').fetchall():
+                row = c.execute(
+                    """SELECT u.id FROM users u
+                       LEFT JOIN positions p ON u.position_id = p.id
+                       WHERE u.department_id=? AND u.status='active'
+                         AND u.role IN ('manager','admin')
+                       ORDER BY COALESCE(p.level, 0) DESC, u.id
+                       LIMIT 1""", (did,)).fetchone()
+                if row:
+                    c.execute('UPDATE departments SET leader_id=? WHERE id=?', (row[0], did))
 
         # ── v0.55.0 신규 테이블 ──────────────────────────────────────
         c.execute('''CREATE TABLE IF NOT EXISTS employee_skills (
@@ -1216,6 +1242,117 @@ def init_db(db_path: str = None):
             c.execute("ALTER TABLE job_requisitions ADD COLUMN track TEXT DEFAULT 'IC' CHECK(track IN ('IC','M'))")
         if 'salary_mid' not in req_cols:
             c.execute('ALTER TABLE job_requisitions ADD COLUMN salary_mid INTEGER DEFAULT 0')
+
+        # ── v1.7.0 채용 유형 · 결재선 · 자리 카드 ────────────────────────
+        # 정원(T/O) 방식을 걷어내고 "자리 한 장 = 카드 한 장"으로 바꾼다.
+        # status 는 기존 CHECK 목록을 그대로 쓴다(테이블 재작성 회피):
+        #   draft=작성중  pending_dept=결재 진행중(단계 수 무관)
+        #   approved=승인 완료(자리 카드 생성)  rejected=반려  posted=Hire로 넘김
+        if 'hire_type' not in req_cols:
+            c.execute("ALTER TABLE job_requisitions ADD COLUMN hire_type TEXT DEFAULT 'new_planned'")
+        if 'backfill_user_id' not in req_cols:
+            c.execute('ALTER TABLE job_requisitions ADD COLUMN backfill_user_id INTEGER REFERENCES users(id)')
+        if 'budget_note' not in req_cols:
+            c.execute('ALTER TABLE job_requisitions ADD COLUMN budget_note TEXT')
+        # v1.7.1 — 2차 면접의 '협업 리더'. 조직도로는 도출할 수 없는 정보라
+        # 요청서에서 직접 받아 Hire 면접 조율로 흘려보낸다.
+        if 'collab_leader_id' not in req_cols:
+            c.execute('ALTER TABLE job_requisitions ADD COLUMN collab_leader_id INTEGER REFERENCES users(id)')
+
+        # 결재선 서식 — 채용 유형별로 몇 단계를 누가 보는지 (관리자가 화면에서 수정)
+        c.execute('''CREATE TABLE IF NOT EXISTS requisition_flow_steps (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            hire_type  TEXT NOT NULL,
+            step_no    INTEGER NOT NULL,
+            role_kind  TEXT NOT NULL DEFAULT 'hr'
+                       CHECK(role_kind IN ('dept_head','hr','user')),
+            user_id    INTEGER REFERENCES users(id),
+            label      TEXT,
+            sla_days   INTEGER NOT NULL DEFAULT 2,
+            UNIQUE(hire_type, step_no)
+        )''')
+
+        # 실제 결재 기록 — 요청서 한 건이 밟아 온 단계들
+        c.execute('''CREATE TABLE IF NOT EXISTS requisition_approvals (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            requisition_id INTEGER NOT NULL REFERENCES job_requisitions(id),
+            step_no        INTEGER NOT NULL,
+            role_kind      TEXT NOT NULL DEFAULT 'hr',
+            label          TEXT,
+            approver_id    INTEGER REFERENCES users(id),
+            status         TEXT NOT NULL DEFAULT 'waiting'
+                           CHECK(status IN ('waiting','approved','rejected')),
+            comment        TEXT,
+            due_at         TIMESTAMP,
+            acted_at       TIMESTAMP,
+            created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(requisition_id, step_no)
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_reqappr_req ON requisition_approvals(requisition_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_reqappr_open ON requisition_approvals(status, approver_id)')
+
+        # 자리 카드 — 승인된 요청서 1건이 headcount 만큼의 카드로 쪼개진다.
+        # 사람이 나가도 카드는 남는다. Hire(ATS)로 넘어가는 단위가 바로 이 카드다.
+        c.execute('''CREATE TABLE IF NOT EXISTS job_openings (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            requisition_id    INTEGER NOT NULL REFERENCES job_requisitions(id),
+            seq               INTEGER NOT NULL DEFAULT 1,
+            code              TEXT,
+            title             TEXT NOT NULL,
+            department_id     INTEGER REFERENCES departments(id),
+            position_id       INTEGER REFERENCES positions(id),
+            job_family_id     INTEGER REFERENCES job_families(id),
+            employment_type   TEXT DEFAULT 'full_time',
+            hire_type         TEXT DEFAULT 'new_planned',
+            backfill_user_id  INTEGER REFERENCES users(id),
+            target_start_date TEXT,
+            salary_min        INTEGER DEFAULT 0,
+            salary_max        INTEGER DEFAULT 0,
+            status            TEXT NOT NULL DEFAULT 'approved'
+                              CHECK(status IN ('approved','open','filled','closed')),
+            hired_user_id     INTEGER REFERENCES users(id),
+            external_ref      TEXT,
+            close_reason      TEXT,
+            opened_at         TIMESTAMP,
+            filled_at         TIMESTAMP,
+            closed_at         TIMESTAMP,
+            created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(requisition_id, seq)
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_opening_status ON job_openings(status)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_opening_dept ON job_openings(department_id, status)')
+
+        # 레벨별 줄 — "L5 1명, L3 2명" 처럼 요청서 한 장이 서로 다른 레벨을 담을 수 있게 한다.
+        # 줄이 하나도 없는 옛 요청서는 headcount 를 그대로 쓰던 기존 방식으로 돌아간다.
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS requisition_lines (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                requisition_id  INTEGER NOT NULL REFERENCES job_requisitions(id),
+                seq             INTEGER NOT NULL DEFAULT 1,
+                position_id     INTEGER REFERENCES positions(id),
+                job_family_id   INTEGER REFERENCES job_families(id),
+                headcount       INTEGER NOT NULL DEFAULT 1,
+                salary_min      INTEGER DEFAULT 0,
+                salary_max      INTEGER DEFAULT 0,
+                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(requisition_id, seq)
+            )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_reqline_req ON requisition_lines(requisition_id, seq)')
+
+        # 기본 결재선 — 비어 있을 때만 심는다(관리자가 고친 값을 덮어쓰지 않기 위해).
+        if not c.execute('SELECT 1 FROM requisition_flow_steps LIMIT 1').fetchone():
+            c.executemany(
+                'INSERT INTO requisition_flow_steps (hire_type, step_no, role_kind, label, sla_days) '
+                'VALUES (?,?,?,?,?)', [
+                    ('backfill',      1, 'hr',        '인사팀 확인',        2),
+                    ('new_planned',   1, 'dept_head', '부서장 승인',        2),
+                    ('new_planned',   2, 'hr',        '인사팀 승인',        2),
+                    ('new_unplanned', 1, 'dept_head', '부서장 승인',        2),
+                    ('new_unplanned', 2, 'hr',        '인사팀 승인',        3),
+                    ('new_unplanned', 3, 'user',      '최종 승인 (경영진)', 5),
+                ])
 
         # ── v0.61.0 면접 관리 + 채용 컴플라이언스 로그 ─────────────────────
         c.execute('''CREATE TABLE IF NOT EXISTS interview_rounds (

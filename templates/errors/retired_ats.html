@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}은퇴한 화면{% endblock %}
+{% block page_title %}채용{% endblock %}
+{% block content %}
+<div style="max-width:620px; margin:60px auto; text-align:center; padding:0 20px;">
+  <div style="font-size:56px; color:var(--border); margin-bottom:18px;">
+    <i class="fas fa-box-archive"></i>
+  </div>
+  <h2 style="font-size:22px; font-weight:800; margin-bottom:10px;">이 화면은 은퇴했습니다</h2>
+  <p style="color:var(--tx-3); line-height:1.7; margin-bottom:28px;">
+    후보자·면접·오퍼는 이제 <strong>Hire</strong> 한 곳에서만 다룹니다.<br>
+    TalentCore는 <strong>채용 요청서 · 자리(정원) · 입사 예정자</strong>를 맡습니다.
+  </p>
+
+  <div style="display:grid; gap:10px; text-align:left; margin-bottom:28px;">
+    <a href="{{ url_for('requisition_list') }}" class="list-link-item"
+       style="display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--border); border-radius:10px; text-decoration:none;">
+      <i class="fas fa-file-signature" style="width:20px; color:var(--tx-3);"></i>
+      <span><strong>채용 요청서</strong><br><span style="font-size:12px; color:var(--tx-3);">누구를 몇 명 뽑을지 올리고 결재받는 곳</span></span>
+    </a>
+    <a href="{{ url_for('opening_board') }}" class="list-link-item"
+       style="display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--border); border-radius:10px; text-decoration:none;">
+      <i class="fas fa-id-card" style="width:20px; color:var(--tx-3);"></i>
+      <span><strong>자리 대장</strong><br><span style="font-size:12px; color:var(--tx-3);">승인된 자리 카드를 보고 Hire로 공고를 내는 곳</span></span>
+    </a>
+    <a href="{{ url_for('hires_list') }}" class="list-link-item"
+       style="display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--border); border-radius:10px; text-decoration:none;">
+      <i class="fas fa-user-plus" style="width:20px; color:var(--tx-3);"></i>
+      <span><strong>입사 예정자</strong><br><span style="font-size:12px; color:var(--tx-3);">Hire에서 오퍼를 수락한 사람이 도착하는 곳</span></span>
+    </a>
+    {% if hire_url %}
+    <a href="{{ hire_url }}" target="_blank" rel="noopener" class="list-link-item"
+       style="display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--border); border-radius:10px; text-decoration:none;">
+      <i class="fas fa-arrow-up-right-from-square" style="width:20px; color:var(--tx-3);"></i>
+      <span><strong>Hire 열기</strong><br><span style="font-size:12px; color:var(--tx-3);">후보자·면접·오퍼는 여기서</span></span>
+    </a>
+    {% endif %}
+  </div>
+
+  <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">
+    <i class="fas fa-home"></i> 대시보드로
+  </a>
+</div>
+{% endblock %}

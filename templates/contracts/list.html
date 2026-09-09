@@ -30,6 +30,28 @@
   {% endif %}
 </div>
 
+{% if pending_new %}
+<!-- 계약서를 아직 못 받은 신규 입사자 — 여기가 유일한 알림 자리다 -->
+<div class="card" style="margin-bottom:20px; border-left:3px solid var(--warning, #b5730b);">
+  <div style="padding:16px 18px;">
+    <div style="font-weight:600; margin-bottom:4px;">계약서를 아직 안 보낸 신규 입사자 {{ pending_new|length }}명</div>
+    <div class="muted body-sm" style="margin-bottom:12px;">
+      온보딩 목록에는 이미 '근로계약서 전자서명 완료'가 떠 있지만, 서명할 계약서가 아직 없습니다.
+    </div>
+    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+      {% for p in pending_new %}
+      <a href="{{ url_for('contract_issue', employee_id=p.id) }}" class="btn btn-outline btn-sm">
+        {{ p.name }}
+        <span class="muted" style="margin-left:6px; font-size:11px;">
+          {{ p.dept_name or '부서 미정' }} · {{ p.hire_date or '입사일 미정' }}
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- 계약서 목록 -->
 <div id="pane-contracts">
   {% if contracts %}

@@ -16,7 +16,7 @@
           <select name="employee_id" class="form-control" required>
             <option value="">-- 직원 선택 --</option>
             {% for emp in employees %}
-            <option value="{{ emp.id }}" {{ 'selected' if request.form.get('employee_id')|int == emp.id }}>
+            <option value="{{ emp.id }}" {{ 'selected' if (request.form.get('employee_id') or request.args.get('employee_id') or 0)|int == emp.id }}>
               {{ emp.name }}{% if emp.dept %} ({{ emp.dept }}){% endif %}
             </option>
             {% endfor %}

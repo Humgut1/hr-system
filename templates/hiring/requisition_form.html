@@ -173,12 +173,92 @@
   box-shadow: var(--shadow-ambient);
 }
 .req-actions-hint { font-size: 12px; color: var(--on-surface-muted); }
+
+/* 채용 유형 — 이 선택 하나가 결재선을 정한다. 그래서 맨 위에 둔다. */
+.ht-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+@media (max-width:720px) { .ht-cards { grid-template-columns:1fr; } }
+.ht-card {
+  border:1.5px solid var(--border); border-radius:var(--radius-sm);
+  padding:13px 14px; cursor:pointer; background:var(--surface); transition:.12s;
+}
+.ht-card:hover { border-color:var(--primary); }
+.ht-card.selected { border-color:var(--primary); background:var(--primary-bg, var(--bg)); }
+.ht-card .t { font-size:13.5px; font-weight:800; color:var(--tx-1); }
+.ht-card .d { margin-top:5px; font-size:11.5px; line-height:1.6; color:var(--tx-3); }
+
+/* 이 유형이면 결재가 몇 단계인지 — 고르는 순간 바로 보여 준다 */
+.flow-note {
+  margin-top:12px; padding:11px 13px; border-radius:var(--radius-sm);
+  background:var(--bg); border:1px solid var(--border);
+  font-size:12px; line-height:1.7; color:var(--tx-2);
+}
+.flow-note .h { font-weight:800; color:var(--tx-1); margin-bottom:5px; display:block; }
+.flow-chain { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.flow-pill {
+  padding:3px 10px; border-radius:20px; background:var(--surface);
+  border:1px solid var(--border); font-size:11.5px; font-weight:700; color:var(--tx-1);
+}
+.flow-arrow { color:var(--tx-3); font-size:11px; }
+.flow-days { font-size:11px; color:var(--tx-3); margin-left:2px; font-weight:600; }
+.iv-preview { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+.iv-slot { flex:1 1 180px; border:1px solid var(--border); border-radius:8px;
+           padding:10px 12px; display:flex; flex-direction:column; gap:4px;
+           background:var(--surface-container-low, var(--bg)); }
+.iv-badge { font-size:10px; font-weight:700; letter-spacing:.04em; color:var(--tx-3); }
+.iv-name  { font-size:14px; font-weight:600; color:var(--tx-1); }
+.iv-name.missing { color:var(--red); font-weight:500; }
+.iv-src   { font-size:11px; color:var(--tx-3); }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="req-wrap">
   <form method="POST" id="req-form">
+
+    <!-- 섹션 0: 채용 유형 — 결재선이 여기서 갈라진다 -->
+    <div class="req-section">
+      <div class="req-section-title">
+        <i class="fas fa-code-branch"></i> 채용 유형
+        <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;margin-left:4px;opacity:.6;">결재선이 이 선택으로 정해집니다</span>
+      </div>
+
+      <input type="hidden" name="hire_type" id="ht-hidden"
+             value="{{ req.hire_type if req and req.hire_type else 'new_planned' }}">
+      <div class="ht-cards">
+        {% for key, label in hire_type_labels.items() %}
+        <div class="ht-card {% if (req and req.hire_type == key) or (not req and key == 'new_planned') %}selected{% endif %}"
+             data-ht="{{ key }}" onclick="pickHireType('{{ key }}', this)">
+          <div class="t">{{ label }}</div>
+          <div class="d">{{ hire_type_hints.get(key, '') }}</div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="flow-note">
+        <span class="h">이 유형의 결재선</span>
+        <div class="flow-chain" id="flow-chain"></div>
+      </div>
+
+      {# 백필이라고 적으면 "누구 자리인가"를 반드시 밝히게 한다.
+         이게 없으면 몇 달 뒤에 이 자리가 충원이었는지 증원이었는지 아무도 모른다. #}
+      <div class="field" id="backfill-field" style="margin-top:14px; display:none;">
+        <label>누구 자리인가요? <span class="req-mark">*</span></label>
+        <select name="backfill_user_id" class="select" id="backfill-select">
+          <option value="">— 나간 사람 선택 —</option>
+          {% for u in leavers %}
+          <option value="{{ u.id }}" {% if req and req.backfill_user_id == u.id %}selected{% endif %}>
+            {{ u.name }}{% if u.dept_name %} · {{ u.dept_name }}{% endif %}{% if u.status != 'active' %} · 퇴사{% if u.termination_date %} {{ u.termination_date[:10] }}{% endif %}{% else %} · 재직 중(퇴사 예정){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field" id="budget-field" style="margin-top:14px; display:none;">
+        <label>예산에 없던 증원인 이유 <span class="req-mark">*</span></label>
+        <textarea name="budget_note" class="input" rows="2"
+                  placeholder="예: 신규 계약 3건 수주로 3분기 내 인력 부족 — 연 인건비 8,000만원 추가 발생">{{ req.budget_note if req and req.budget_note else '' }}</textarea>
+      </div>
+    </div>
 
     <!-- 섹션 1: 포지션 기본 정보 -->
     <div class="req-section">
@@ -197,7 +277,7 @@
         <div class="req-grid req-grid-2">
           <div class="field">
             <label>부서</label>
-            <select name="department_id" class="select">
+            <select name="department_id" class="select" id="dept-select">
               <option value="">— 부서 선택 —</option>
               {% for d in depts %}
               <option value="{{ d.id }}" {% if req and req.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
@@ -205,12 +285,15 @@
             </select>
           </div>
           <div class="field">
-            <label>채용 인원 <span class="req-mark">*</span></label>
-            <div class="headcount-wrap">
-              <button type="button" class="hc-btn minus" onclick="changeHC(-1)">−</button>
-              <input type="number" name="headcount" id="hc-input" class="input"
-                     value="{{ req.headcount if req else 1 }}" min="1" max="99" required>
-              <button type="button" class="hc-btn plus" onclick="changeHC(1)">+</button>
+            <label>채용 인원</label>
+            <div style="display:flex;align-items:baseline;gap:8px;padding:9px 12px;
+                        border:1px solid var(--line);border-radius:8px;background:var(--surface-2);">
+              <b id="hc-echo" style="font-size:20px;line-height:1;">0</b>
+              <span style="font-size:12px;color:var(--tx-3);">명</span>
+            </div>
+            <div style="margin-top:7px; font-size:11.5px; color:var(--tx-3); line-height:1.6;">
+              아래 <b style="color:var(--tx-1);">자리 구성</b>에서 레벨별로 담은 인원을 합친 숫자입니다.
+              이 숫자만큼 자리 카드가 만들어집니다.
             </div>
           </div>
         </div>
@@ -342,6 +425,47 @@
       </div>
     </div>
 
+    <!-- 섹션 3-1: 면접관 -->
+    <div class="req-section">
+      <div class="req-section-title">
+        <i class="fas fa-user-tie"></i> 면접관
+        <span style="font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;margin-left:6px;opacity:.6;">
+          이 요청서가 Hire로 넘어가면 이대로 면접 일정이 잡힙니다</span>
+      </div>
+
+      <div class="iv-preview" id="iv-preview">
+        <div class="iv-slot">
+          <span class="iv-badge">1차 · 60분</span>
+          <span class="iv-name" id="iv-hm">부서를 먼저 고르세요</span>
+          <span class="iv-src">채용 부서의 부서장 (자동)</span>
+        </div>
+        <div class="iv-slot">
+          <span class="iv-badge">2차 · 60분</span>
+          <span class="iv-name" id="iv-senior">부서를 먼저 고르세요</span>
+          <span class="iv-src">차상위 조직의 부서장 (자동)</span>
+        </div>
+        <div class="iv-slot">
+          <span class="iv-badge">2차 · 60분</span>
+          <span class="iv-name" id="iv-collab">아래에서 지정</span>
+          <span class="iv-src">협업 리더 (직접 지정)</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>협업 리더 <span style="color:var(--tx-3);font-weight:400;">— 2차 면접에 함께 들어갈 다른 조직의 리더</span></label>
+        <select name="collab_leader_id" class="select" id="collab-select">
+          <option value="">— 나중에 지정 —</option>
+          {% for u in collab_pool %}
+          <option value="{{ u.id }}" {% if req and req.collab_leader_id == u.id %}selected{% endif %}>
+            {{ u.name }}{% if u.dept_name %} · {{ u.dept_name }}{% endif %}{% if u.pos_name %} · {{ u.pos_name }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        <p class="hint" style="font-size:12px;color:var(--tx-3);margin:6px 0 0;">
+          조직도에는 없는 정보라 여기서 받습니다. 비워 두면 승인 뒤에도 지정할 수 있습니다.</p>
+      </div>
+    </div>
+
     <!-- 섹션 4: 급여 범위 -->
     <div class="req-section">
       <div class="req-section-title">
@@ -368,6 +492,41 @@
       <div style="margin-top:8px;font-size:11px;color:var(--on-surface-muted);">
         만원 단위 입력 · 예: 3000 → 3,000만원/년
       </div>
+    </div>
+
+    <!-- 섹션 4-2: 자리 구성 (레벨별 인원) -->
+    <div class="req-section">
+      <div class="req-section-title">
+        <i class="fas fa-chair"></i> 자리 구성
+        <span style="font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;margin-left:6px;opacity:.6;">레벨이 다르면 줄을 나눠 담으세요</span>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+                  padding:12px;border:1px dashed var(--line);border-radius:8px;">
+        <div id="seat-cur" style="flex:1 1 220px;font-size:12.5px;color:var(--tx-3);">
+          위에서 직군과 레벨을 먼저 고르세요.
+        </div>
+        <div class="headcount-wrap" style="flex:0 0 auto;">
+          <button type="button" class="hc-btn minus" onclick="changeAddN(-1)">−</button>
+          <input type="number" id="seat-n" class="input" value="1" min="1" max="99">
+          <button type="button" class="hc-btn plus" onclick="changeAddN(1)">+</button>
+        </div>
+        <button type="button" id="seat-add-btn" class="btn btn-primary" onclick="addSeatLine()"
+                style="flex:0 0 auto;">
+          <i class="fas fa-plus"></i> 이 레벨로 담기
+        </button>
+      </div>
+
+      <div id="seat-lines" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;"></div>
+
+      <div style="margin-top:12px;font-size:12px;color:var(--tx-3);line-height:1.7;">
+        합계 <b id="seat-total" style="color:var(--tx-1);font-size:14px;">0</b>명 —
+        승인되면 이 구성 그대로 자리 카드가 만들어집니다.
+        한 장이 한 자리이고, 카드에 적힌 레벨과 다른 사람은 그 자리에 앉힐 수 없습니다.
+      </div>
+
+      <input type="hidden" name="headcount" id="hc-input" value="0">
+      <div id="seat-hidden"></div>
     </div>
 
     <!-- 섹션 5: 채용 배경 & 요건 -->
@@ -414,6 +573,44 @@
 {% block scripts %}
 {{ super() }}
 <script>
+/* ── 채용 유형 → 결재선 ──────────────────────────────────────────
+   "몇 명까지 뽑아도 되나"가 아니라 "이 채용이 돈을 새로 쓰는가"가
+   결재 단계를 정한다. 고르는 순간 몇 단계를 밟게 되는지 바로 보여 준다. */
+var FLOW  = {{ flow_preview | tojson }};
+var ROLES = {'dept_head': '요청 부서의 부서장', 'hr': '인사팀', 'user': '지정한 사람'};
+
+function pickHireType(key, card) {
+  document.getElementById('ht-hidden').value = key;
+  document.querySelectorAll('.ht-card').forEach(function (c) { c.classList.remove('selected'); });
+  if (card) card.classList.add('selected');
+  renderFlow(key);
+}
+
+function renderFlow(key) {
+  var box = document.getElementById('flow-chain');
+  if (!box) return;
+  var steps = FLOW[key] || [];
+  var days  = 0;
+  var html  = '';
+  steps.forEach(function (st, i) {
+    days += (st.sla_days || 2);
+    if (i) html += '<span class="flow-arrow"><i class="fas fa-chevron-right"></i></span>';
+    html += '<span class="flow-pill">' + (i + 1) + '. ' +
+            (st.label || ROLES[st.role_kind] || '') + '</span>';
+  });
+  html += '<span class="flow-days">· 넉넉히 잡아 ' + days + '일</span>';
+  box.innerHTML = html || '<span class="flow-days">결재 단계가 없습니다.</span>';
+
+  document.getElementById('backfill-field').style.display = (key === 'backfill') ? '' : 'none';
+  document.getElementById('backfill-select').required     = (key === 'backfill');
+  document.getElementById('budget-field').style.display   = (key === 'new_unplanned') ? '' : 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  renderFlow(document.getElementById('ht-hidden').value);
+  renderSeatLines();
+});
+
 var IC_TITLES = {{ ic_track_title | tojson }};
 var M_TITLES  = {{ m_track_title  | tojson }};
 var MANAGER_MIN_LEVEL = {{ manager_track_min_level }};
@@ -430,11 +627,96 @@ document.querySelectorAll('.level-card').forEach(function(c) {
 updateTrackUI();
 if (_jfId && _level) loadBand();
 
-function changeHC(delta) {
-  var el = document.getElementById('hc-input');
-  var v = parseInt(el.value) + delta;
+// ── 자리 구성 ─────────────────────────────────────────────
+// 요청서 한 장에 레벨이 섞일 수 있다. "L5 1명 · L3 2명" 처럼 줄로 담고,
+// 승인되면 줄대로 자리 카드가 떨어진다. 카드마다 레벨이 박혀 있다.
+var _seatLines = [];
+
+function changeAddN(delta) {
+  var el = document.getElementById('seat-n');
+  var v = (parseInt(el.value) || 1) + delta;
   if (v < 1) v = 1; if (v > 99) v = 99;
   el.value = v;
+}
+
+function _curPick() {
+  var lv = document.querySelector('.level-card.selected');
+  var jf = document.querySelector('.jf-card.selected');
+  if (!lv || !jf) return null;
+  return {
+    pos_id:   lv.dataset.posId,
+    level:    parseInt(lv.dataset.level),
+    lv_label: (lv.querySelector('span') || {}).textContent || '',
+    jf_id:    jf.dataset.jfId,
+    jf_name:  (jf.querySelector('span:last-child') || {}).textContent || '',
+    smin:     parseInt(document.getElementById('inp-salary-min').value) || 0,
+    smax:     parseInt(document.getElementById('inp-salary-max').value) || 0
+  };
+}
+
+function updateSeatCur() {
+  var box = document.getElementById('seat-cur');
+  if (!box) return;
+  var p = _curPick();
+  if (!p) { box.innerHTML = '위에서 직군과 레벨을 먼저 고르세요.'; return; }
+  box.innerHTML = '지금 담을 자리 — <b style="color:var(--tx-1);">L' + p.level + ' ' + p.lv_label +
+                  '</b> · ' + p.jf_name +
+                  (p.smin || p.smax ? ' · ' + p.smin.toLocaleString() + '~' + p.smax.toLocaleString() + '만원' : '');
+}
+
+function addSeatLine() {
+  var p = _curPick();
+  if (!p) { alert('직군과 레벨을 먼저 고르세요.'); return; }
+  var n = parseInt(document.getElementById('seat-n').value) || 1;
+  // 같은 직군·같은 레벨이면 새 줄을 만들지 않고 인원만 더한다
+  for (var i = 0; i < _seatLines.length; i++) {
+    if (_seatLines[i].pos_id === p.pos_id && _seatLines[i].jf_id === p.jf_id) {
+      _seatLines[i].n += n;
+      renderSeatLines();
+      return;
+    }
+  }
+  p.n = n;
+  _seatLines.push(p);
+  renderSeatLines();
+}
+
+function removeSeatLine(i) {
+  _seatLines.splice(i, 1);
+  renderSeatLines();
+}
+
+function renderSeatLines() {
+  var list   = document.getElementById('seat-lines');
+  var hidden = document.getElementById('seat-hidden');
+  if (!list) return;
+  var total = 0, rows = '', inputs = '';
+  _seatLines.forEach(function (l, i) {
+    total += l.n;
+    rows += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;' +
+            'border:1px solid var(--line);border-radius:8px;background:var(--surface);">' +
+            '<span style="font-weight:700;font-size:13px;min-width:78px;">L' + l.level + ' ' + l.lv_label + '</span>' +
+            '<span style="font-size:12px;color:var(--tx-3);flex:1;">' + l.jf_name +
+            (l.smin || l.smax ? ' · ' + l.smin.toLocaleString() + '~' + l.smax.toLocaleString() + '만원' : '') +
+            '</span>' +
+            '<span style="font-size:13px;font-weight:700;">' + l.n + '명</span>' +
+            '<button type="button" onclick="removeSeatLine(' + i + ')" ' +
+            'title="이 줄 삭제" aria-label="L' + l.level + ' ' + l.lv_label + ' 줄 삭제" ' +
+            'style="border:none;background:none;cursor:pointer;color:var(--tx-3);font-size:13px;">' +
+            '<i class="fas fa-times"></i></button></div>';
+    inputs += '<input type="hidden" name="line_position_id"   value="' + l.pos_id + '">' +
+              '<input type="hidden" name="line_job_family_id" value="' + l.jf_id + '">' +
+              '<input type="hidden" name="line_headcount"     value="' + l.n + '">' +
+              '<input type="hidden" name="line_salary_min"    value="' + l.smin + '">' +
+              '<input type="hidden" name="line_salary_max"    value="' + l.smax + '">';
+  });
+  list.innerHTML = rows ||
+    '<div style="padding:14px;text-align:center;font-size:12px;color:var(--tx-3);">' +
+    '아직 담은 자리가 없습니다. 레벨을 고르고 [이 레벨로 담기]를 누르세요.</div>';
+  hidden.innerHTML = inputs;
+  document.getElementById('seat-total').textContent = total;
+  document.getElementById('hc-echo').textContent    = total;
+  document.getElementById('hc-input').value         = total;
 }
 
 function switchJFGroup(groupName, btn) {
@@ -453,6 +735,7 @@ function selectJF(el) {
   _jfId = el.dataset.jfId;
   document.getElementById('jf-hidden').value = _jfId;
   if (_level) loadBand();
+  updateSeatCur();
 }
 
 // 페이지 로드 시 선택된 직군이 있으면 해당 탭 활성화
@@ -485,6 +768,7 @@ function selectLevel(el) {
   }
   updateTrackTitle();
   if (_jfId) loadBand();
+  updateSeatCur();
 }
 
 function selectTrack(track) {
@@ -529,6 +813,7 @@ function loadBand() {
       document.getElementById('inp-salary-min').value = d.min_man;
       document.getElementById('inp-salary-mid').value = d.mid_man;
       document.getElementById('inp-salary-max').value = d.max_man;
+      updateSeatCur();
     });
 }
 
@@ -538,7 +823,13 @@ function selectEmpType(el) {
   document.getElementById('emp-type-hidden').value = el.dataset.val;
 }
 
-document.getElementById('req-form').addEventListener('submit', function() {
+document.getElementById('req-form').addEventListener('submit', function(e) {
+  if (!_seatLines.length) {
+    e.preventDefault();
+    alert('자리 구성에서 레벨별 인원을 최소 한 줄은 담아야 합니다.');
+    document.getElementById('seat-lines').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
   ['salary_min', 'salary_max'].forEach(function(name) {
     var el = document.querySelector('[name="' + name + '"]');
     if (el && el.value) el.value = parseInt(el.value) * 10000;
@@ -546,5 +837,33 @@ document.getElementById('req-form').addEventListener('submit', function() {
   var mid = document.getElementById('inp-salary-mid');
   if (mid && mid.value) mid.value = parseInt(mid.value) * 10000;
 });
+
+// ── 면접관 미리보기 — 부서를 고르면 1차/2차가 조직도에서 자동으로 따라온다
+(function () {
+  var LEADERS = {{ dept_leaders | tojson }};
+  var deptSel = document.getElementById('dept-select');
+  var collabSel = document.getElementById('collab-select');
+
+  function put(id, name, missingText) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (name) { el.textContent = name; el.classList.remove('missing'); }
+    else { el.textContent = missingText; el.classList.add('missing'); }
+  }
+  function refresh() {
+    var picked = deptSel ? deptSel.value : '';
+    var info = (picked && LEADERS[picked]) || {};
+    put('iv-hm', info.hm_name,
+        picked ? '부서장 미지정 — 조직 관리에서 지정하세요' : '부서를 먼저 고르세요');
+    put('iv-senior', info.senior_name,
+        picked ? '차상위 부서장 미지정' : '부서를 먼저 고르세요');
+    var opt = collabSel && collabSel.selectedOptions[0];
+    put('iv-collab', (collabSel && collabSel.value) ? opt.textContent.trim() : null,
+        '아직 지정 안 함');
+  }
+  if (deptSel) deptSel.addEventListener('change', refresh);
+  if (collabSel) collabSel.addEventListener('change', refresh);
+  refresh();
+})();
 </script>
 {% endblock %}

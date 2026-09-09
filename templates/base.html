@@ -96,11 +96,22 @@
           <i class="fas fa-chess-king"></i><span>후계자 계획</span>
         </a>
         {% endif %}
+        {# 채용 요청을 올리는 사람은 관리자가 아니라 팀장이다. 팀장 메뉴에 둔다. #}
+        {% if session.user_role == 'manager' %}
+        <a href="{{ url_for('requisition_list') }}" class="nav-item{% if active_page == 'requisition' %} active{% endif %}" title="채용 요청" data-tour="requisition">
+          <i class="fas fa-file-signature"></i><span>채용 요청</span>
+        </a>
+        <a href="{{ url_for('opening_board') }}" class="nav-item{% if active_page == 'opening' %} active{% endif %}" title="우리 팀 자리">
+          <i class="fas fa-id-badge"></i><span>우리 팀 자리</span>
+        </a>
+        {% endif %}
       </div>
       {% endif %}
 
       <!-- ── 관리자 ─────────────────────────────────── -->
-      {% if session.user_role == 'admin' or (session.user_role == 'recruiter' and 'recruiting' in plan_features) %}
+      {# 리크루터가 이 묶음(채용 요청·자리 대장)을 못 보면 할 일이 없다.
+         옛 ATS 요금제 기능('recruiting')에 묶여 있던 것을 T6에서 풀었다. #}
+      {% if session.user_role in ('admin', 'recruiter') %}
       <div class="nav-section-divider"></div>
       <div class="nav-section-body">
         <div class="nav-category-btn" style="cursor:default;"><span>관리자</span></div>
@@ -109,13 +120,37 @@
           <i class="fas fa-coins"></i><span>보상 관리</span>
         </a>
         {% endif %}
-        <!-- 채용 접이식 서브그룹 -->
-        {% if 'recruiting' in plan_features %}
-        {% set recruit_active = active_page in ('requisition','recruit_dashboard','recruit','recruit_pipeline','recruiter') %}
+        {# 채용요청서와 자리는 Core로 올라왔다 — 요금제 게이트를 걸지 않는다.
+           "사람이 필요합니다"를 올리고 결재하는 일은 채용 상품의 부가기능이 아니라
+           인사 시스템의 본체이고, 승인된 요청은 자리 카드가 되어 Hire로 넘어간다. #}
+        <a href="{{ url_for('requisition_list') }}" class="nav-item{% if active_page == 'requisition' %} active{% endif %}" title="채용 요청" data-tour="requisition">
+          <i class="fas fa-file-signature"></i><span>채용 요청</span>
+        </a>
+        <a href="{{ url_for('opening_board') }}" class="nav-item{% if active_page == 'opening' %} active{% endif %}" title="자리 대장" data-tour="opening">
+          <i class="fas fa-id-badge"></i><span>자리 대장</span>
+        </a>
+        {# 사슬의 마지막 칸 — Hire에서 오퍼를 수락한 사람이 도착하는 곳. T6까지 메뉴에 없었다. #}
+        <a href="{{ url_for('hires_list') }}" class="nav-item{% if active_page == 'hires' %} active{% endif %}" title="입사 예정자" data-tour="hires">
+          <i class="fas fa-door-open"></i><span>입사 예정자</span>
+        </a>
+        {% if session.user_role == 'admin' %}
+        <a href="{{ url_for('requisition_flow_settings') }}" class="nav-item{% if active_page == 'reqflow' %} active{% endif %}" title="채용 결재선">
+          <i class="fas fa-route"></i><span>채용 결재선</span>
+        </a>
+        <a href="{{ url_for('hire_settings') }}" class="nav-item{% if active_page == 'hiresettings' %} active{% endif %}" title="Hire 연동">
+          <i class="fas fa-link"></i><span>Hire 연동</span>
+        </a>
+        {% endif %}
+        {# 구 내장 ATS(공고·파이프라인·지원자·오퍼)는 Hire와 하는 일이 통째로 겹쳐
+           2026-09-02 메뉴에서 내렸고, 2026-09-04(T6) 주소까지 잠갔다 — 들어가면 은퇴 안내가 뜬다.
+           되살리려면 legacy_ats_nav 를 True 로 바꾸는 것만으로는 부족하고
+           app.py 의 @retired_ats 데코레이터도 함께 떼야 한다. #}
+        {% if legacy_ats_nav and 'recruiting' in plan_features %}
+        {% set recruit_active = active_page in ('recruit_dashboard','recruit','recruit_pipeline','recruiter') %}
         <button class="nav-subgroup-btn{% if recruit_active %} open active-group{% endif %}"
-                onclick="toggleSubgroup(this,'sg-recruit')" title="채용" data-tour="recruit">
+                onclick="toggleSubgroup(this,'sg-recruit')" title="채용(구)" data-tour="recruit">
           <i class="fas fa-user-tie sg-icon"></i>
-          <span class="sg-label">채용</span>
+          <span class="sg-label">채용(구)</span>
           <i class="fas fa-chevron-down sg-arrow"></i>
         </button>
         <div class="nav-subgroup-body{% if recruit_active %} open{% endif %}" id="sg-recruit">
@@ -124,9 +159,6 @@
           </a>
           <a href="{{ url_for('recruit_postings') }}" class="nav-item{% if active_page in ('recruit','recruit_pipeline','recruiter') %} active{% endif %}" title="채용 관리">
             <i class="fas fa-briefcase"></i><span>공고 · 파이프라인</span>
-          </a>
-          <a href="{{ url_for('requisition_list') }}" class="nav-item{% if active_page == 'requisition' %} active{% endif %}" title="채용 요청서">
-            <i class="fas fa-file-alt"></i><span>채용 요청서</span>
           </a>
         </div>
         {% endif %}
@@ -374,13 +406,17 @@ function toggleSubgroup(btn, bodyId) {
     {label:'팀원 관리', url:'{{ url_for("employees") }}', icon:'fa-users'},
     {label:'근태 승인', url:'{{ url_for("attendance") }}', icon:'fa-check-circle'},
     {label:'퇴직 처리 대기함', url:'{{ url_for("termination_requests") }}', icon:'fa-user-clock'},
+    {label:'자리 대장', url:'{{ url_for("opening_board") }}', icon:'fa-id-badge'},
     {% endif %}
     {% if session.user_role == 'admin' %}
     {label:'급여 관리', url:'{{ url_for("admin_payroll") }}', icon:'fa-coins'},
     {label:'급여 기준표', url:'{{ url_for("salary_table") }}', icon:'fa-table'},
-    {% if 'recruiting' in plan_features %}
-    {label:'채용 공고', url:'{{ url_for("recruit_postings") }}', icon:'fa-file-signature'},
-    {label:'채용 파이프라인', url:'{{ url_for("recruit_pipeline") }}', icon:'fa-user-tie'},
+    {label:'채용 요청', url:'{{ url_for("requisition_list") }}', icon:'fa-file-signature'},
+    {label:'채용 결재선 설정', url:'{{ url_for("requisition_flow_settings") }}', icon:'fa-route'},
+    {label:'Hire 연동 설정', url:'{{ url_for("hire_settings") }}', icon:'fa-link'},
+    {% if legacy_ats_nav and 'recruiting' in plan_features %}
+    {label:'채용 공고(구)', url:'{{ url_for("recruit_postings") }}', icon:'fa-file-signature'},
+    {label:'채용 파이프라인(구)', url:'{{ url_for("recruit_pipeline") }}', icon:'fa-user-tie'},
     {% endif %}
     {label:'입사 예정자', url:'{{ url_for("hires_list") }}', icon:'fa-door-open'},
     {label:'부서·직급 관리', url:'{{ url_for("departments") }}', icon:'fa-layer-group'},
@@ -567,9 +603,6 @@ function toggleSubgroup(btn, bodyId) {
       { sel: '[data-tour-page="comp-structure"]', title: '급여 구조', desc: '직급별 급여 밴드와 Merit Matrix(등급×Compa-Ratio 인상률표)를 설정합니다.' },
       { sel: '[data-tour-page="comp-acr"]', title: '성과 연동 급여 검토', desc: '캘리브레이션 등급을 반영한 인상안을 검토하고 일괄 반영합니다.' },
       { sel: '[data-tour-page="comp-analysis"]', title: '보상 분석', desc: 'Compa-Ratio 분포와 이상치를 분석합니다.' }
-    ],
-    recruit_pipeline: [
-      { sel: '#pipeBoard', title: '채용 파이프라인', desc: '지원자 카드를 드래그해서 서류/면접/오퍼 등 단계를 이동시킬 수 있습니다. 카드를 클릭하면 상세 정보로 이동합니다.' }
     ],
     performance_cycles: [
       { sel: '[data-tour-page="cycle-stepper"]', title: '주기 단계 스텝퍼', desc: '목표 수립 → 진행 중 → 평가 진행 → HR 조정 → 결과 공개·이의신청 → 종료 순서로 주기를 진행합니다. 「다음 단계」 버튼으로 전환합니다.' },

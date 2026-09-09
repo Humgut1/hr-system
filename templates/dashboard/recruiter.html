@@ -9,75 +9,74 @@
   <div style="z-index:1;">
     <div style="font-size:12px; font-weight:600; opacity:.6; text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px;">{{ today_str }}</div>
     <div class="welcome-greeting">{{ first_name }}님, {{ greet }}.</div>
-    <div class="welcome-sub">공개 채용 {{ open_postings }}건 · 파이프라인 {{ total_applicants }}명</div>
+    <div class="welcome-sub">열린 자리 {{ open_seats }}개 · 입사 예정 {{ hires_waiting_count }}명</div>
   </div>
   <i class="fas fa-user-tie welcome-icon"></i>
 </div>
 
 <!-- KPI Cards -->
 <div class="stat-grid" style="margin-bottom:24px;">
-  <a href="{{ url_for('recruit_postings', status='open') }}" class="stat-card" style="text-decoration:none;">
+  <a href="{{ url_for('requisition_list') }}" class="stat-card" style="text-decoration:none;">
     <div class="stat-ico ico-blue"><i class="fas fa-file-signature"></i></div>
     <div class="stat-body">
-      <div class="stat-val" style="color:var(--primary);">{{ open_postings }}</div>
-      <div class="stat-lbl">진행중 공고</div>
+      <div class="stat-val" style="{% if pending_reqs_n > 0 %}color:var(--primary);{% endif %}">{{ pending_reqs_n }}</div>
+      <div class="stat-lbl">결재 중인 요청서</div>
     </div>
   </a>
-  <a href="{{ url_for('recruit_pipeline') }}" class="stat-card" style="text-decoration:none;">
-    <div class="stat-ico ico-purple"><i class="fas fa-users"></i></div>
+  <a href="{{ url_for('opening_board') }}" class="stat-card" style="text-decoration:none;">
+    <div class="stat-ico ico-purple"><i class="fas fa-id-card"></i></div>
     <div class="stat-body">
-      <div class="stat-val">{{ total_applicants }}</div>
-      <div class="stat-lbl">전체 지원자</div>
+      <div class="stat-val">{{ open_seats }}</div>
+      <div class="stat-lbl">열려 있는 자리</div>
     </div>
   </a>
-  <a href="{{ url_for('recruit_pipeline') }}" class="stat-card" style="text-decoration:none;">
-    <div class="stat-ico ico-orange"><i class="fas fa-comments"></i></div>
+  <a href="{{ url_for('opening_board') }}" class="stat-card" style="text-decoration:none;">
+    <div class="stat-ico ico-orange"><i class="fas fa-paper-plane"></i></div>
     <div class="stat-body">
-      <div class="stat-val">{{ interview_count }}</div>
-      <div class="stat-lbl">면접 진행중</div>
+      <div class="stat-val" style="{% if ready_to_push > 0 %}color:var(--orange);{% endif %}">{{ ready_to_push }}</div>
+      <div class="stat-lbl">Hire로 보낼 자리</div>
     </div>
   </a>
-  <div class="stat-card">
-    <div class="stat-ico ico-green"><i class="fas fa-check-double"></i></div>
+  <a href="{{ url_for('hires_list') }}" class="stat-card" style="text-decoration:none;">
+    <div class="stat-ico ico-green"><i class="fas fa-user-plus"></i></div>
     <div class="stat-body">
-      <div class="stat-val" style="{% if hired_month > 0 %}color:var(--green);{% endif %}">{{ hired_month }}</div>
-      <div class="stat-lbl">이달 채용</div>
+      <div class="stat-val" style="{% if hires_waiting_count > 0 %}color:var(--green);{% endif %}">{{ hires_waiting_count }}</div>
+      <div class="stat-lbl">입사 예정자</div>
     </div>
-  </div>
+  </a>
 </div>
 
 <div class="grid-dash">
 
-  <!-- Left: Recent Applicants + Announcements -->
+  <!-- Left -->
   <div class="stack">
 
-    <!-- Recent Applicants -->
+    <!-- 채용 요청서 -->
     <div class="card">
       <div class="card-head">
-        <span class="card-title">최근 지원자</span>
-        <a href="{{ url_for('recruit_pipeline') }}" class="btn btn-ghost btn-sm">파이프라인</a>
+        <span class="card-title">채용 요청서</span>
+        <a href="{{ url_for('requisition_list') }}" class="btn btn-ghost btn-sm">전체 보기</a>
       </div>
-      {% if recent_applicants %}
+      {% if recent_reqs %}
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>이름</th><th>공고</th><th>단계</th><th>지원일</th></tr></thead>
+          <thead><tr><th>요청</th><th>부서</th><th>상태</th><th>자리</th></tr></thead>
           <tbody>
-            {% for a in recent_applicants %}
-            <tr>
+            {% for r in recent_reqs %}
+            <tr onclick="location.href='{{ url_for('requisition_detail', req_id=r.id) }}'" style="cursor:pointer;">
               <td>
-                <div class="u-cell">
-                  <div class="avatar-xs">{{ a.name[0] }}</div>
-                  <span class="u-name">{{ a.name }}</span>
-                </div>
+                <div class="body-sm" style="font-weight:600; color:var(--tx-1);">{{ r.title }}</div>
+                <div class="muted" style="font-size:11px;">REQ-{{ r.id }}</div>
               </td>
-              <td class="muted" style="font-size:12.5px; max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.posting_title or '—' }}</td>
+              <td class="muted" style="font-size:12.5px;">{{ r.dept_name or '—' }}</td>
               <td>
-                {% set s = a.stage %}
-                <span class="badge {% if s == 'hired' %}badge-active{% elif s == 'rejected' %}badge-reject{% elif s == 'offered' %}badge-info{% else %}badge-pending{% endif %}" style="font-size:11px;">
-                  {{ stage_map.get(s, s) }}
+                <span class="badge {% if r.status in ('approved', 'posted') %}badge-active{% elif r.status == 'rejected' %}badge-reject{% elif r.status == 'draft' %}badge-info{% else %}badge-pending{% endif %}" style="font-size:11px;">
+                  {{ req_status_map.get(r.status, r.status) }}
                 </span>
               </td>
-              <td class="muted" style="font-size:12px;">{{ a.created_at[:10] }}</td>
+              <td class="muted" style="font-size:12px; white-space:nowrap;">
+                {% if r.seats %}{{ r.filled }} / {{ r.seats }} 충원{% else %}—{% endif %}
+              </td>
             </tr>
             {% endfor %}
           </tbody>
@@ -85,13 +84,13 @@
       </div>
       {% else %}
       <div style="text-align:center; padding:40px;" class="muted">
-        <i class="fas fa-users" style="font-size:28px; opacity:.3; display:block; margin-bottom:10px;"></i>
-        아직 지원자가 없습니다.
+        <i class="fas fa-file-signature" style="font-size:28px; opacity:.3; display:block; margin-bottom:10px;"></i>
+        아직 올라온 채용 요청서가 없습니다.
       </div>
       {% endif %}
     </div>
 
-    <!-- Announcements -->
+    <!-- 공지사항 -->
     <div class="card">
       <div class="card-head">
         <span class="card-title">공지사항</span>
@@ -113,51 +112,63 @@
 
   </div><!-- /left -->
 
-  <!-- Right: Quick Actions + Pipeline Stages -->
+  <!-- Right -->
   <div class="stack">
 
-    <!-- Quick Actions -->
+    <!-- 빠른 실행 -->
     <div class="card" style="padding:20px;">
       <div class="label" style="margin-bottom:14px;">빠른 실행</div>
       <div class="quick-actions-grid">
-        <a href="{{ url_for('recruit_posting_new') }}" class="qa-btn">
+        <a href="{{ url_for('requisition_new') }}" class="qa-btn">
           <div class="qa-btn-ico ico-blue"><i class="fas fa-plus-circle"></i></div>
-          <span>공고 등록</span>
+          <span>채용 요청서</span>
         </a>
-        <a href="{{ url_for('recruit_postings') }}" class="qa-btn">
-          <div class="qa-btn-ico ico-purple"><i class="fas fa-file-signature"></i></div>
-          <span>전체 공고</span>
+        <a href="{{ url_for('opening_board') }}" class="qa-btn">
+          <div class="qa-btn-ico ico-purple"><i class="fas fa-id-card"></i></div>
+          <span>자리 대장</span>
         </a>
-        <a href="{{ url_for('recruit_pipeline') }}" class="qa-btn">
-          <div class="qa-btn-ico ico-orange"><i class="fas fa-columns"></i></div>
-          <span>파이프라인</span>
+        <a href="{{ url_for('hires_list') }}" class="qa-btn">
+          <div class="qa-btn-ico ico-green"><i class="fas fa-user-plus"></i></div>
+          <span>입사 예정자</span>
         </a>
+        {% if hire_url %}
+        <a href="{{ hire_url }}" target="_blank" rel="noopener" class="qa-btn">
+          <div class="qa-btn-ico ico-orange"><i class="fas fa-arrow-up-right-from-square"></i></div>
+          <span>Hire 열기</span>
+        </a>
+        {% else %}
         <a href="{{ url_for('profile') }}" class="qa-btn">
           <div class="qa-btn-ico ico-slate"><i class="fas fa-cog"></i></div>
           <span>설정</span>
         </a>
+        {% endif %}
       </div>
     </div>
 
-    <!-- Pipeline Stage Breakdown -->
+    <!-- 곧 들어올 사람 -->
     <div class="card" style="padding:22px;">
-      <div class="label" style="margin-bottom:16px;">파이프라인 단계</div>
-      <div style="display:flex; flex-direction:column; gap:12px;">
-        <div style="display:flex; align-items:center; justify-content:space-between;">
-          <span class="body-sm">전체 파이프라인</span>
-          <span style="font-weight:700; font-size:16px;">{{ total_applicants }}</span>
+      <div class="label" style="margin-bottom:16px;">곧 들어올 사람</div>
+      {% if upcoming_hires %}
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        {% for h in upcoming_hires %}
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div style="min-width:0;">
+            <div class="body-sm" style="font-weight:600; color:var(--tx-1);">{{ h.name }}</div>
+            <div class="muted" style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+              {{ h.department_name or '부서 미정' }}{% if h.job_title %} · {{ h.job_title }}{% endif %}
+            </div>
+          </div>
+          <span class="chip" style="font-size:11px; white-space:nowrap; flex-shrink:0;">
+            {{ h.start_date or '입사일 미정' }}
+          </span>
         </div>
-        <div style="display:flex; align-items:center; justify-content:space-between;">
-          <span class="body-sm">면접 진행중</span>
-          <span style="font-weight:700; color:var(--orange); font-size:16px;">{{ interview_count }}</span>
-        </div>
-        <div style="display:flex; align-items:center; justify-content:space-between;">
-          <span class="body-sm">이달 채용</span>
-          <span style="font-weight:700; color:var(--green); font-size:16px;">{{ hired_month }}</span>
-        </div>
+        {% endfor %}
       </div>
-      <a href="{{ url_for('recruit_pipeline') }}" class="btn btn-ghost btn-sm" style="margin-top:16px; width:100%; justify-content:center;">
-        전체 파이프라인 보기 <i class="fas fa-arrow-right" style="font-size:11px;"></i>
+      {% else %}
+      <div class="muted body-sm" style="padding:8px 0;">입사 예정자가 없습니다.</div>
+      {% endif %}
+      <a href="{{ url_for('hires_list') }}" class="btn btn-ghost btn-sm" style="margin-top:16px; width:100%; justify-content:center;">
+        입사 예정자 전체 보기 <i class="fas fa-arrow-right" style="font-size:11px;"></i>
       </a>
     </div>
 

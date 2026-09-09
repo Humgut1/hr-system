@@ -46,3 +46,8 @@ screenshot_log.txt
 take_screenshots.py
 static/proto/
 onboarding_plan.html
+
+# 작업 중 만든 백업본 (*.bak_t25, hr_system.db.bak-…) — 레포에 올리지 않는다
+*.bak_*
+*.db.bak*
+*.bak_t25/

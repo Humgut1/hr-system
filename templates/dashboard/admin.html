@@ -83,12 +83,13 @@
       <div class="stat-lbl">휴가 승인 대기</div>
     </div>
   </a>
-  {% if 'recruiting' in plan_features %}
-  <a href="{{ url_for('recruit_postings') }}" class="stat-card" style="text-decoration:none; cursor:pointer;">
-    <div class="stat-ico ico-purple"><i class="fas fa-file-signature"></i></div>
+  {# 자리 대장은 Core다 — 요금제로 가리지 않는다 (T6) #}
+  {% if true %}
+  <a href="{{ url_for('opening_board') }}" class="stat-card" style="text-decoration:none; cursor:pointer;">
+    <div class="stat-ico ico-purple"><i class="fas fa-id-card"></i></div>
     <div class="stat-body">
-      <div class="stat-val">{{ open_postings }}</div>
-      <div class="stat-lbl">채용 중인 공고</div>
+      <div class="stat-val">{{ open_seats }}</div>
+      <div class="stat-lbl">열려 있는 자리</div>
     </div>
   </a>
   {% else %}
@@ -204,27 +205,28 @@
     </div>
     {% endif %}
 
-    {% if 'open_positions' in enabled_widgets and 'recruiting' in plan_features %}
+    {% if 'open_positions' in enabled_widgets %}
     <div class="card">
       <div class="card-head">
-        <span class="card-title">채용 중인 포지션</span>
-        <a href="{{ url_for('recruit_postings') }}" class="btn btn-ghost btn-sm">전체 보기</a>
+        <span class="card-title">열려 있는 자리</span>
+        <a href="{{ url_for('opening_board') }}" class="btn btn-ghost btn-sm">전체 보기</a>
       </div>
       {% if open_jobs %}
       <div>
         {% for job in open_jobs %}
-        <div style="padding:13px 22px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between;">
+        <a href="{{ url_for('requisition_detail', req_id=job.req_id) }}" style="text-decoration:none; padding:13px 22px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between;">
           <div>
             <div class="body-sm" style="font-weight:600; color:var(--tx-1);">{{ job.title }}</div>
+            <div style="font-size:11px; color:var(--tx-3);">REQ-{{ job.req_id }}</div>
           </div>
-          <span class="chip" style="font-size:11px; white-space:nowrap;">지원자 {{ job.applicant_count }}명</span>
-        </div>
+          <span class="chip" style="font-size:11px; white-space:nowrap;">남은 자리 {{ job.open_count }} / {{ job.total_count }}</span>
+        </a>
         {% endfor %}
       </div>
       {% else %}
       <div style="padding:32px 22px; text-align:center;" class="muted body-sm">
         <i class="fas fa-briefcase" style="font-size:24px; opacity:.3; display:block; margin-bottom:10px;"></i>
-        진행 중인 채용이 없습니다.
+        열려 있는 자리가 없습니다.
       </div>
       {% endif %}
     </div>
@@ -313,10 +315,10 @@
           <div class="qa-btn-ico ico-purple"><i class="fas fa-chart-pie"></i></div>
           <span>분석·보고서</span>
         </a>
-        {% if 'recruiting' in plan_features %}
-        <a href="{{ url_for('recruit_posting_new') }}" class="qa-btn">
+        {% if true %}
+        <a href="{{ url_for('requisition_new') }}" class="qa-btn">
           <div class="qa-btn-ico ico-cyan"><i class="fas fa-file-signature"></i></div>
-          <span>공고 등록</span>
+          <span>채용 요청서</span>
         </a>
         {% else %}
         <a href="{{ url_for('hires_list') }}" class="qa-btn">

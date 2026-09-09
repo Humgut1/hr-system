@@ -7,6 +7,7 @@ import hmac
 import hashlib
 import time
 import urllib.request
+import urllib.error
 from datetime import datetime, date, timedelta
 from functools import wraps
 
@@ -273,6 +274,16 @@ def _current_plan():
     return g._tenant_plan
 
 
+# 구 내장 ATS(/recruit/* 공고·파이프라인·지원자·오퍼)를 메뉴에 보일지.
+# 2026-09-02 은퇴 — 채용은 Hire 한 곳에서만 한다. 코드는 지우지 않고 잠가 둔다.
+LEGACY_ATS_NAV = False
+
+
+@app.context_processor
+def inject_legacy_ats():
+    return {'legacy_ats_nav': LEGACY_ATS_NAV}
+
+
 @app.context_processor
 def inject_plan():
     if 'user_id' not in session:
@@ -505,6 +516,42 @@ def recruiter_or_admin(f):
             return redirect(request.referrer or url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated
+
+# 옛 채용 요청서 주소(/recruit/requisitions/*)로 들어오면 승격된 새 주소로 넘긴다.
+# 북마크와 예전 메일 링크가 깨지지 않게 하려는 것뿐, 화면은 하나다.
+@app.route('/recruit/requisitions')
+def _legacy_req_list():
+    return redirect(url_for('requisition_list'), code=301)
+
+
+@app.route('/recruit/requisitions/new')
+def _legacy_req_new():
+    return redirect(url_for('requisition_new'), code=301)
+
+
+@app.route('/recruit/requisitions/<int:req_id>')
+def _legacy_req_detail(req_id):
+    return redirect(url_for('requisition_detail', req_id=req_id), code=301)
+
+
+def retired_ats(f):
+    """옛 내장 ATS(/recruit/* 공고·파이프라인·지원자·오퍼) 잠금.
+
+    2026-09-04 T6 — 채용은 Hire 한 곳에서만 한다. 화면은 열리지 않고(410),
+    대신 지금 그 일을 하는 곳(요청서·자리 대장·입사 예정자·Hire)으로 안내한다.
+    코드와 데이터는 지우지 않는다 — 되살릴 일이 생기면 이 데코레이터만 떼면 된다.
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        try:
+            hire_url = _hire_config()['url']
+        except Exception:
+            hire_url = ''
+        return render_template('errors/retired_ats.html', hire_url=hire_url), 410
+    return decorated
+
 
 def superadmin_required(f):
     @wraps(f)
@@ -1179,8 +1226,9 @@ def dashboard():
         total_employees   = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
         total_departments = db.execute("SELECT COUNT(*) FROM departments").fetchone()[0]
         pending_leave     = db.execute("SELECT COUNT(*) FROM leave_requests WHERE status='pending'").fetchone()[0]
-        open_postings     = db.execute("SELECT COUNT(*) FROM job_postings WHERE status='open'").fetchone()[0]
-        total_applicants  = db.execute("SELECT COUNT(*) FROM applicants").fetchone()[0]
+        # T6 — 옛 ATS(job_postings/applicants) 대신 자리 카드가 채용 지표의 근거다.
+        open_seats        = db.execute(
+            "SELECT COUNT(*) FROM job_openings WHERE status IN ('approved','open')").fetchone()[0]
         hires_waiting_count = db.execute("SELECT COUNT(*) FROM incoming_hires WHERE status='waiting'").fetchone()[0]
         recent_employees  = db.execute(
             'SELECT u.name, d.name AS dept, p.name AS pos, u.hire_date '
@@ -1341,10 +1389,13 @@ def dashboard():
             "FROM payslips WHERE year=? AND month=?", (this_year, this_month_n)
         ).fetchone()
         payroll_summary = {'count': payroll_row['cnt'], 'total': payroll_row['total']}
+        # 열려 있는 자리를 요청서 단위로 묶어 보여준다 (T6)
         open_jobs = db.execute(
-            "SELECT jp.title, COUNT(a.id) as applicant_count "
-            "FROM job_postings jp LEFT JOIN applicants a ON jp.id=a.posting_id "
-            "WHERE jp.status='open' GROUP BY jp.id ORDER BY jp.created_at DESC LIMIT 5"
+            "SELECT r.id AS req_id, r.title, "
+            "  SUM(CASE WHEN o.status IN ('approved','open') THEN 1 ELSE 0 END) AS open_count, "
+            "  COUNT(o.id) AS total_count "
+            "FROM job_openings o JOIN job_requisitions r ON o.requisition_id=r.id "
+            "GROUP BY r.id HAVING open_count > 0 ORDER BY r.id DESC LIMIT 5"
         ).fetchall()
         week_ago = (date.today() - timedelta(days=7)).isoformat()
         ot_violations = db.execute(
@@ -1356,14 +1407,12 @@ def dashboard():
         ).fetchall()
         enabled_widgets = get_widget_prefs(uid, 'admin')
         widget_catalog  = WIDGET_CATALOG['admin']
-        if 'recruiting' not in PLAN_FEATURES.get(_current_plan(), _ENTERPRISE_FEATURES):
-            widget_catalog = [w for w in widget_catalog if w['key'] != 'open_positions']
         return render_template('dashboard/admin.html',
             greet=greet, today_str=today_str, first_name=first_name,
             total_employees=total_employees, total_departments=total_departments,
-            pending_leave=pending_leave, open_postings=open_postings,
+            pending_leave=pending_leave, open_seats=open_seats,
             hires_waiting_count=hires_waiting_count,
-            total_applicants=total_applicants, recent_employees=recent_employees,
+            recent_employees=recent_employees,
             recent_posts=recent_posts, who_out=who_out,
             inbox_items=inbox_items, inbox_count=inbox_count,
             payroll_summary=payroll_summary, open_jobs=open_jobs,
@@ -1482,32 +1531,45 @@ def dashboard():
             enabled_widgets=enabled_widgets, widget_catalog=widget_catalog)
 
     if role == 'recruiter':
-        open_postings     = db.execute("SELECT COUNT(*) FROM job_postings WHERE status='open'").fetchone()[0]
-        total_applicants  = db.execute('SELECT COUNT(*) FROM applicants').fetchone()[0]
-        interview_count   = db.execute("SELECT COUNT(*) FROM applicants WHERE stage='interview'").fetchone()[0]
-        month_start       = date.today().replace(day=1).isoformat()
-        hired_month       = db.execute(
-            "SELECT COUNT(*) FROM applicants WHERE stage='hired' AND created_at>=?", (month_start,)
+        # T6 — 리크루터가 TalentCore에서 하는 일은 '요청서·자리·입사 예정자' 셋이다.
+        # 후보자·면접·오퍼는 Hire 소관이라 여기서 세지 않는다.
+        pending_reqs_n = db.execute(
+            "SELECT COUNT(*) FROM job_requisitions WHERE status IN ('pending_dept','pending_hr')"
         ).fetchone()[0]
-        recent_applicants = db.execute(
-            'SELECT a.name, a.stage, a.created_at, jp.title AS posting_title '
-            'FROM applicants a LEFT JOIN job_postings jp ON a.posting_id=jp.id '
-            'ORDER BY a.created_at DESC LIMIT 6'
+        open_seats = db.execute(
+            "SELECT COUNT(*) FROM job_openings WHERE status IN ('approved','open')").fetchone()[0]
+        ready_to_push = db.execute(
+            "SELECT COUNT(*) FROM job_openings WHERE status='approved'").fetchone()[0]
+        hires_waiting_count = db.execute(
+            "SELECT COUNT(*) FROM incoming_hires WHERE status='waiting'").fetchone()[0]
+        recent_reqs = db.execute(
+            'SELECT r.id, r.title, r.status, r.created_at, d.name AS dept_name, '
+            "  (SELECT COUNT(*) FROM job_openings o WHERE o.requisition_id=r.id) AS seats, "
+            "  (SELECT COUNT(*) FROM job_openings o WHERE o.requisition_id=r.id AND o.status='filled') AS filled "
+            'FROM job_requisitions r LEFT JOIN departments d ON r.department_id=d.id '
+            'ORDER BY r.id DESC LIMIT 6'
         ).fetchall()
-        recent_posts      = db.execute(
+        upcoming_hires = db.execute(
+            'SELECT id, name, start_date, department_name, job_title '
+            "FROM incoming_hires WHERE status='waiting' "
+            "ORDER BY COALESCE(start_date, '9999-12-31') LIMIT 5"
+        ).fetchall()
+        recent_posts = db.execute(
             'SELECT id, title, pinned, created_at FROM announcements '
             'ORDER BY pinned DESC, created_at DESC LIMIT 5'
         ).fetchall()
-        STAGE_MAP = {
-            'applied':'지원접수','screening':'서류심사','interview':'면접',
-            'offered':'오퍼발송','hired':'입사확정','rejected':'불합격'
+        REQ_STATUS_MAP = {
+            'draft':'작성 중', 'pending_dept':'부서장 결재', 'pending_hr':'HR 결재',
+            'approved':'승인됨', 'rejected':'반려', 'posted':'공고 중',
         }
         return render_template('dashboard/recruiter.html',
             greet=greet, today_str=today_str, first_name=first_name,
-            open_postings=open_postings, total_applicants=total_applicants,
-            interview_count=interview_count, hired_month=hired_month,
-            recent_applicants=recent_applicants, recent_posts=recent_posts,
-            stage_map=STAGE_MAP, active_page='home')
+            pending_reqs_n=pending_reqs_n, open_seats=open_seats,
+            ready_to_push=ready_to_push, hires_waiting_count=hires_waiting_count,
+            recent_reqs=recent_reqs, upcoming_hires=upcoming_hires,
+            recent_posts=recent_posts, req_status_map=REQ_STATUS_MAP,
+            hire_url=_hire_config()['url'], active_page='home')
+
 
     # employee
     hire_row = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
@@ -2760,11 +2822,20 @@ def employee_new():
                     (new_id, from_hire_id)
                 )
                 # 연봉 정보가 있으면 employee_salary에 반영 (월 기본급 = 연봉/12)
-                hire_row = db.execute('SELECT salary FROM incoming_hires WHERE id=?', (from_hire_id,)).fetchone()
+                hire_row = db.execute('SELECT salary, opening_id FROM incoming_hires WHERE id=?',
+                                      (from_hire_id,)).fetchone()
                 if hire_row and hire_row['salary']:
                     db.execute(
                         'INSERT OR REPLACE INTO employee_salary (user_id, base_salary) VALUES (?, ?)',
                         (new_id, int(hire_row['salary'] / 12))
+                    )
+                # 예약해 둔 자리 카드에 도장을 찍는다 — 여기서 정원이 실제로 채워진다 (T5)
+                if hire_row and hire_row['opening_id']:
+                    db.execute(
+                        "UPDATE job_openings SET status='filled', hired_user_id=?, "
+                        "filled_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP "
+                        "WHERE id=? AND status IN ('approved','open')",
+                        (new_id, hire_row['opening_id'])
                     )
             # Enrollment Event 자동 생성
             from datetime import date, timedelta
@@ -3340,8 +3411,12 @@ def hires_list():
     if status_filter not in ('waiting', 'converted', 'cancelled', 'all'):
         status_filter = 'waiting'
 
-    q = ('SELECT h.*, u.name AS converted_name, u.emp_no AS converted_emp_no '
-         'FROM incoming_hires h LEFT JOIN users u ON h.converted_user_id=u.id ')
+    q = ('SELECT h.*, u.name AS converted_name, u.emp_no AS converted_emp_no, '
+         'o.code AS opening_code, p.level AS opening_level, p.name AS opening_pos '
+         'FROM incoming_hires h '
+         'LEFT JOIN users u ON h.converted_user_id=u.id '
+         'LEFT JOIN job_openings o ON h.opening_id=o.id '
+         'LEFT JOIN positions p ON o.position_id=p.id ')
     if status_filter != 'all':
         rows = db.execute(q + 'WHERE h.status=? ORDER BY h.start_date IS NULL, h.start_date, h.id',
                           (status_filter,)).fetchall()
@@ -3374,7 +3449,7 @@ def hires_list():
                            hires=hires, counts=counts, status_filter=status_filter,
                            source_label=HIRE_SOURCE_LABEL,
                            api_token=api_token,
-                           active_page='employees')
+                           active_page='hires')
 
 
 @app.route('/hires/new', methods=['POST'])
@@ -3512,7 +3587,12 @@ def hires_webhook():
 
     인증: X-API-Token 헤더 (테넌트별 토큰, /hires 화면에서 발급)
     본문: JSON {"name": 필수, "email", "phone", "start_date", "department",
-                "position", "job_title", "salary", "memo"}
+                "position", "job_title", "salary", "memo",
+                "opening_code" 또는 "opening_id", "req_ref", "candidate_ref"}
+
+    자리 카드(opening)를 함께 보내면 그 카드를 예약한다. 카드가 이미 찼거나
+    다른 합격자가 예약해 두었으면 409로 막는다 — 승인된 정원을 넘길 수 없다.
+    카드 없이 보내면 예전처럼 그냥 받되 "정원 밖"으로 남는다.
     """
     token = request.headers.get('X-API-Token', '')
     tenant = get_tenant_by_api_token(token)
@@ -3542,14 +3622,44 @@ def hires_webhook():
             if conn.execute("SELECT id FROM incoming_hires WHERE email=? AND status='waiting'",
                             (email,)).fetchone():
                 return {'ok': False, 'error': 'duplicate waiting hire'}, 409
+        # 어느 자리에 앉히는가 — 카드를 찾고, 앉힐 수 있는 상태인지 본다
+        op_code = str(payload.get('opening_code') or '').strip() or None
+        op_id   = payload.get('opening_id')
+        opening = None
+        if op_code or op_id:
+            if op_code:
+                opening = conn.execute(
+                    'SELECT * FROM job_openings WHERE code=?', (op_code,)).fetchone()
+            else:
+                opening = conn.execute(
+                    'SELECT * FROM job_openings WHERE id=?', (op_id,)).fetchone()
+            if not opening:
+                return {'ok': False, 'error': 'opening not found',
+                        'detail': op_code or op_id}, 404
+            if opening['status'] not in ('approved', 'open'):
+                return {'ok': False, 'error': 'opening not available',
+                        'detail': '자리 %s 는 이미 %s 상태입니다'
+                                  % (opening['code'], opening['status'])}, 409
+            taken = conn.execute(
+                "SELECT id, name FROM incoming_hires "
+                "WHERE opening_id=? AND status='waiting'", (opening['id'],)).fetchone()
+            if taken:
+                return {'ok': False, 'error': 'opening already claimed',
+                        'detail': '자리 %s 는 %s님이 이미 예약했습니다'
+                                  % (opening['code'], taken['name'])}, 409
+
         cur = conn.execute(
             'INSERT INTO incoming_hires (name, email, phone, start_date, department_name, '
-            "position_name, job_title, salary, memo, source) VALUES (?,?,?,?,?,?,?,?,?,'webhook')",
+            'position_name, job_title, salary, memo, source, opening_id, req_ref, external_ref) '
+            "VALUES (?,?,?,?,?,?,?,?,?,'webhook',?,?,?)",
             (name, email, str(payload.get('phone') or '').strip() or None, start,
              str(payload.get('department') or '').strip() or None,
              str(payload.get('position') or '').strip() or None,
              str(payload.get('job_title') or '').strip() or None,
-             salary, str(payload.get('memo') or '').strip() or None)
+             salary, str(payload.get('memo') or '').strip() or None,
+             opening['id'] if opening else None,
+             str(payload.get('req_ref') or '').strip() or None,
+             str(payload.get('candidate_ref') or '').strip() or None)
         )
         # 관리자에게 인앱 알림
         admins = conn.execute("SELECT id FROM users WHERE role='admin' AND status='active'").fetchall()
@@ -3557,13 +3667,178 @@ def hires_webhook():
             conn.execute(
                 'INSERT INTO notifications (user_id, type, category, title, content, link) VALUES (?,?,?,?,?,?)',
                 (a['id'], 'action', 'action', '입사 예정자 수신',
-                 f'외부 ATS에서 합격자 {name}님이 등록되었습니다.' + (f' 입사 예정일: {start}' if start else ''),
+                 f'외부 ATS에서 합격자 {name}님이 등록되었습니다.'
+                 + (f" 자리: {opening['code']}" if opening else '')
+                 + (f' 입사 예정일: {start}' if start else ''),
                  '/hires')
             )
         conn.commit()
-        return {'ok': True, 'id': cur.lastrowid}, 201
+        return {'ok': True, 'id': cur.lastrowid,
+                'opening_code': opening['code'] if opening else None}, 201
     finally:
         conn.close()
+
+
+@app.route('/api/openings', methods=['GET'])
+def openings_api():
+    """자리 카드 내주기 — Hire(ATS)가 "이 공고에 남은 자리가 몇이고, 각 자리는
+    몇 레벨인가"를 당겨갈 때 쓰는 문 (T5).
+
+    명부와 같은 이유로 당겨가기다. 자리는 채워지고 닫히고 늘어난다.
+    밀어주면 한 번 실패한 전송이 두 시스템을 어긋난 채로 남긴다.
+
+    인증: X-API-Token (/api/hires · /api/directory 와 같은 열쇠)
+    질의: ?req_ref=REQ-12  또는  ?codes=OP-12-1,OP-12-2
+
+    상태는 카드에 적힌 것 그대로 보낸다.
+      approved/open  아직 비어 있다
+      reserved       입사 예정자가 예약했다(오퍼 수락 → 아직 입사 전)
+      filled         사람이 앉았다
+      closed         닫혔다
+    """
+    tenant = get_tenant_by_api_token(request.headers.get('X-API-Token', ''))
+    if not tenant:
+        return {'ok': False, 'error': 'invalid token'}, 401
+
+    req_ref = (request.args.get('req_ref') or '').strip()
+    codes   = [c.strip() for c in (request.args.get('codes') or '').split(',') if c.strip()]
+    if not req_ref and not codes:
+        return {'ok': False, 'error': 'req_ref or codes required'}, 400
+
+    sql = ('SELECT o.*, p.level AS pos_level, p.name AS pos_name, jf.name AS jf_name, '
+           '       ih.name AS reserved_name, ih.start_date AS reserved_start, '
+           '       u.name AS hired_name '
+           'FROM job_openings o '
+           'LEFT JOIN positions p ON o.position_id=p.id '
+           'LEFT JOIN job_families jf ON o.job_family_id=jf.id '
+           "LEFT JOIN incoming_hires ih ON ih.opening_id=o.id AND ih.status='waiting' "
+           'LEFT JOIN users u ON o.hired_user_id=u.id ')
+    params = []
+    if req_ref:
+        try:
+            rid = int(str(req_ref).upper().replace('REQ-', '').strip())
+        except ValueError:
+            return {'ok': False, 'error': 'bad req_ref'}, 400
+        sql += 'WHERE o.requisition_id=? '
+        params.append(rid)
+    else:
+        sql += 'WHERE o.code IN (%s) ' % ','.join('?' * len(codes))
+        params.extend(codes)
+    sql += 'ORDER BY o.seq'
+
+    conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(sql, params).fetchall()
+    finally:
+        conn.close()
+
+    seats = []
+    for r in rows:
+        state = r['status']
+        if state in ('approved', 'open') and r['reserved_name']:
+            state = 'reserved'
+        seats.append({
+            'code':   r['code'],
+            'seq':    r['seq'],
+            'state':  state,
+            'open':   state in ('approved', 'open'),
+            'level':  r['pos_level'],
+            'level_label': (r['pos_name'] or ('L%s' % r['pos_level'] if r['pos_level'] else '')).strip()
+                           if r['pos_level'] else (r['pos_name'] or ''),
+            'family': r['jf_name'],
+            'band':   [int((r['salary_min'] or 0) // 10000), int((r['salary_max'] or 0) // 10000)],
+            'title':  r['title'],
+            'who':    r['hired_name'] or r['reserved_name'],
+            'start':  r['reserved_start'],
+            'req_ref': 'REQ-%d' % r['requisition_id'],
+        })
+    return {'ok': True, 'as_of': datetime.now().isoformat(timespec='seconds'),
+            'count': len(seats),
+            'open': sum(1 for s in seats if s['open']),
+            'seats': seats}
+
+
+@app.route('/api/directory', methods=['GET'])
+def directory_api():
+    """직원 명부 내주기 — Hire(ATS)가 면접관 명단을 당겨갈 때 쓰는 문 (T4).
+
+    왜 '당겨가기'인가:
+      조직도는 계속 바뀐다. 바뀔 때마다 밀어주면 한 번 실패한 전송이
+      두 시스템을 어긋난 채로 남긴다. 당겨가기는 다음 회차에 저절로 맞춰진다.
+      Greenhouse·Workday·Ashby 전부 이 방향이다.
+
+    인증: X-API-Token 헤더 (테넌트별 토큰, /hires 화면에서 발급 — /api/hires 와 같은 열쇠)
+
+    퇴사자를 빼고 보내지 않는다. 재직 여부를 active 로 붙여서 '전원'을 보낸다.
+    빠진 사람을 지우는 방식이면, 이쪽 필터가 한 번 잘못될 때 저쪽 면접관이
+    통째로 사라진다. 명단에서 지우는 판단은 받는 쪽이 하게 둔다.
+
+    이름·직함·부서·메일·재직여부는 TalentCore 것이다. 면접 역할·EA·알림 채널·
+    응답 기준은 Hire 것이라 여기서 보내지 않는다.
+    """
+    tenant = get_tenant_by_api_token(request.headers.get('X-API-Token', ''))
+    if not tenant:
+        return {'ok': False, 'error': 'invalid token'}, 401
+
+    conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            'SELECT u.id, u.emp_no, u.name, u.email, u.role, u.status, '
+            '       u.employment_type, u.hire_date, '
+            '       d.name AS dept, p.name AS position, p.level AS level, '
+            '       m.emp_no AS manager_emp_no '
+            'FROM users u '
+            'LEFT JOIN departments d ON d.id = u.department_id '
+            'LEFT JOIN positions   p ON p.id = u.position_id '
+            'LEFT JOIN users       m ON m.id = u.manager_id '
+            "WHERE COALESCE(u.role,'') != 'guest' "
+            'ORDER BY u.emp_no, u.id'
+        ).fetchall()
+    finally:
+        conn.close()
+
+    people = []
+    for r in rows:
+        # 사번이 없는 계정은 연결 열쇠가 없다 — 메일로 대신 잇게 두되 사번 칸은 비운다.
+        if not (r['emp_no'] or r['email']):
+            continue
+        people.append({
+            'emp_no': r['emp_no'] or '',
+            'name': r['name'] or '',
+            'email': (r['email'] or '').strip().lower() or None,
+            'title': r['position'] or '',
+            # 직급 레벨(1~9). Hire 가 '실장(L8) 이상이 면접관이면 발송 전에 한 번
+            # 확인' 규칙을 걸려면 이 값이 있어야 한다. 이름만으로는 판단이 안 된다.
+            'level': r['level'],
+            'dept': r['dept'] or '',
+            'role': r['role'] or 'employee',      # admin / manager / recruiter / employee
+            'active': (r['status'] or 'active') == 'active',
+            'employment_type': r['employment_type'] or None,
+            'hire_date': r['hire_date'] or None,
+            'manager_emp_no': r['manager_emp_no'] or None,
+        })
+
+    # 회사 이름도 같이 내준다. Hire 가 후보자에게 보내는 메일에 쓴다 —
+    # 회사 이름의 주인은 TalentCore 이므로 저쪽에 따로 적어 두게 하면 언젠가 어긋난다.
+    try:
+        conn2 = sqlite3.connect(get_tenant_db_path(tenant['id']))
+        conn2.row_factory = sqlite3.Row
+        row = conn2.execute("SELECT value FROM company_settings WHERE key='name'").fetchone()
+        conn2.close()
+        org = (row['value'] if row else '') or _COMPANY_DEFAULTS['name']
+    except Exception:
+        org = _COMPANY_DEFAULTS['name']
+
+    return {
+        'ok': True,
+        'as_of': datetime.now().isoformat(timespec='seconds'),
+        'org': org,
+        'count': len(people),
+        'active': sum(1 for p in people if p['active']),
+        'people': people,
+    }
 
 
 @app.route('/employees/<int:emp_id>/edit', methods=['GET', 'POST'])
@@ -4520,6 +4795,13 @@ def departments():
         elif action == 'delete_dept':
             db.execute('DELETE FROM departments WHERE id=?', (request.form.get('dept_id'),))
             db.commit()
+        elif action == 'set_leader':
+            # 부서장(조직 리더) 지정 — 면접 조율에서 1차 면접관(HM)의 출처가 된다
+            did = request.form.get('dept_id')
+            lid = request.form.get('leader_id') or None
+            if did:
+                db.execute('UPDATE departments SET leader_id=? WHERE id=?', (lid, did))
+                db.commit()
         elif action == 'add_pos':
             name  = request.form.get('name', '').strip()
             level = request.form.get('level', 1)
@@ -4532,18 +4814,55 @@ def departments():
         return redirect(url_for('departments'))
 
     depts = db.execute(
-        'SELECT d.*, p.name AS parent_name, p.dept_type AS parent_type, COUNT(u.id) AS member_count '
+        'SELECT d.*, p.name AS parent_name, p.dept_type AS parent_type, '
+        '       l.name AS leader_name, COUNT(u.id) AS member_count '
         'FROM departments d '
         'LEFT JOIN departments p ON d.parent_id = p.id '
+        'LEFT JOIN users l ON d.leader_id = l.id AND l.status="active" '
         'LEFT JOIN users u ON u.department_id = d.id AND u.status="active" '
         'GROUP BY d.id ORDER BY d.dept_type, d.parent_id NULLS FIRST, d.name'
     ).fetchall()
+    # 부서장 후보 — 조직당 그 조직과 그 아래 소속인원만 보여준다.
+    # 전직원을 드롭다운 49개에 전부 뿌리면 페이지가 1MB를 넘기고 고르기도 어렵다.
+    leader_pool = db.execute(
+        'SELECT u.id, u.name, u.department_id, d.name AS dept_name, p.name AS pos_name '
+        'FROM users u '
+        'LEFT JOIN departments d ON u.department_id = d.id '
+        'LEFT JOIN positions   p ON u.position_id   = p.id '
+        'WHERE u.status="active" ORDER BY COALESCE(p.level,0) DESC, u.name'
+    ).fetchall()
+    children = {}
+    for d in db.execute('SELECT id, parent_id FROM departments'):
+        children.setdefault(d['parent_id'], []).append(d['id'])
+
+    def _subtree(did):
+        out, stack = [], [did]
+        while stack:
+            cur = stack.pop()
+            out.append(cur)
+            stack.extend(children.get(cur, []))
+        return set(out)
+
+    by_dept = {}
+    for u in leader_pool:
+        by_dept.setdefault(u['department_id'], []).append(u)
+    leader_choices = {}
+    for d in depts:
+        scope = _subtree(d['id'])
+        mine = by_dept.get(d['id'], [])
+        below = [u for did in sorted(scope - {d['id']}) for u in by_dept.get(did, [])]
+        picked = {u['id'] for u in mine} | {u['id'] for u in below}
+        # 이미 지정된 부서장이 밖에 있으면 사라지지 않게 붙인다
+        outside = [u for u in leader_pool
+                   if d['leader_id'] and u['id'] == d['leader_id'] and u['id'] not in picked]
+        leader_choices[d['id']] = (mine, below, outside)
     all_depts = db.execute(
         'SELECT * FROM departments ORDER BY dept_type, parent_id NULLS FIRST, name'
     ).fetchall()
     poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
     return render_template('admin/departments.html',
                            depts=depts, all_depts=all_depts, poses=poses,
+                           leader_choices=leader_choices,
                            dept_types=DEPT_TYPES,
                            dept_type_label=DEPT_TYPE_LABEL,
                            dept_type_color=DEPT_TYPE_COLOR,
@@ -5780,6 +6099,39 @@ def approvals_hub():
         'sub': r['cycle_name'],
         'requested_at': r['created_at'],
         'link': url_for('performance_appeals', cycle=r['cycle_id']),
+    } for r in rows]})
+
+    # -- 채용 요청 --
+    #  결재 단계 수는 채용 유형이 정한다. '지금 내 차례인 단계'만 결재함에 띄운다.
+    #  지금까지는 채용 메뉴 안에만 있어서 결재함을 아무리 봐도 보이지 않았다.
+    base_sql = (
+        'SELECT r.id, r.title, r.headcount, r.created_at, r.hire_type, '
+        '       d.name AS dept_name, u.name AS requester_name, '
+        '       a.step_no, a.label AS step_label, a.role_kind, a.due_at '
+        'FROM job_requisitions r '
+        'JOIN requisition_approvals a ON a.requisition_id=r.id '
+        "     AND a.status='waiting' "
+        "     AND a.step_no = (SELECT MIN(step_no) FROM requisition_approvals "
+        "                      WHERE requisition_id=r.id AND status='waiting') "
+        'LEFT JOIN departments d ON r.department_id=d.id '
+        'LEFT JOIN users u ON r.requester_id=u.id '
+        "WHERE r.status IN ('pending_dept','pending_hr') ")
+    try:
+        if is_admin:
+            rows = db.execute(base_sql + 'ORDER BY r.created_at ASC').fetchall()
+        else:
+            rows = db.execute(
+                base_sql + "AND a.role_kind='dept_head' AND r.department_id=? "
+                'ORDER BY r.created_at ASC', (dept_id,)).fetchall()
+    except sqlite3.OperationalError:
+        rows = []
+    groups.append({'key': 'requisition', 'label': '채용 요청', 'icon': 'fa-file-signature', 'items': [{
+        'title': f"{r['requester_name'] or '—'} — {r['title']} {r['headcount']}명",
+        'sub': (r['dept_name'] or '부서 미지정')
+               + ' · ' + REQUISITION_HIRE_TYPE_LABEL.get(r['hire_type'] or 'new_planned', '')
+               + ' · %d단계 %s 대기' % (r['step_no'], r['step_label'] or ''),
+        'requested_at': r['created_at'],
+        'link': url_for('requisition_detail', req_id=r['id']),
     } for r in rows]})
 
     if is_admin:
@@ -9643,11 +9995,35 @@ def log_recruit(applicant_id, event_type, meta=None, round_id=None):
 
 REQUISITION_STATUS_LABEL = {
     'draft':        '작성 중',
-    'pending_dept': '부서장 승인 대기',
-    'pending_hr':   'HR 승인 대기',
+    'pending_dept': '결재 진행 중',
+    'pending_hr':   '결재 진행 중',
     'approved':     '승인 완료',
     'rejected':     '반려',
-    'posted':       '공고 전환 완료',
+    'posted':       'Hire로 넘김',
+}
+
+# 채용 유형 — 결재선이 갈라지는 기준. "몇 명까지 뽑아도 되나"가 아니라
+# "이 채용이 돈을 새로 쓰는가"가 승인 단계를 정한다.
+REQUISITION_HIRE_TYPE_LABEL = {
+    'backfill':      '결원 충원',
+    'new_planned':   '증원 · 예산 안',
+    'new_unplanned': '증원 · 예산 밖',
+}
+REQUISITION_HIRE_TYPE_HINT = {
+    'backfill':      '나간 사람 자리를 그대로 채웁니다. 인건비가 늘지 않습니다.',
+    'new_planned':   '올해 예산에 이미 잡혀 있던 증원입니다.',
+    'new_unplanned': '예산에 없던 증원입니다. 인건비가 새로 늘어납니다.',
+}
+FLOW_ROLE_LABEL = {
+    'dept_head': '요청 부서의 부서장',
+    'hr':        '인사팀',
+    'user':      '지정한 사람',
+}
+OPENING_STATUS_LABEL = {
+    'approved': '열 수 있음',
+    'open':     '채용 중',
+    'filled':   '채워짐',
+    'closed':   '닫힘',
 }
 
 REQUISITION_EMP_TYPE_LABEL = {
@@ -9732,7 +10108,202 @@ def api_salary_band():
 
 # ── Requisition 라우트 ────────────────────────────────────────────────
 
-@app.route('/recruit/requisitions')
+# ==============================================================
+#  결재선 엔진 + 자리 카드
+#  요청서는 "몇 명 뽑겠다"는 문서이고, 승인이 끝나면 그 수만큼
+#  자리 카드(job_openings)가 떨어진다. 사람이 나가도 카드는 남는다.
+#  결재 단계 수는 채용 유형이 정하고, 그 서식은 관리자가 고칠 수 있다.
+# ==============================================================
+
+DEFAULT_FLOW = {
+    'backfill':      [(1, 'hr',        '인사팀 확인',        2)],
+    'new_planned':   [(1, 'dept_head', '부서장 승인',        2),
+                      (2, 'hr',        '인사팀 승인',        2)],
+    'new_unplanned': [(1, 'dept_head', '부서장 승인',        2),
+                      (2, 'hr',        '인사팀 승인',        3),
+                      (3, 'user',      '최종 승인 (경영진)', 5)],
+}
+
+
+def _flow_template(db, hire_type):
+    """이 채용 유형이 밟아야 할 결재 단계 목록. 관리자가 고친 값이 우선."""
+    ht = hire_type if hire_type in DEFAULT_FLOW else 'new_planned'
+    rows = db.execute(
+        'SELECT * FROM requisition_flow_steps WHERE hire_type=? ORDER BY step_no', (ht,)
+    ).fetchall()
+    if rows:
+        return [dict(r) for r in rows]
+    return [{'step_no': n, 'role_kind': rk, 'user_id': None, 'label': lb, 'sla_days': sla}
+            for n, rk, lb, sla in DEFAULT_FLOW[ht]]
+
+
+def _hr_admin_ids(db):
+    return [r['id'] for r in db.execute("SELECT id FROM users WHERE role='admin'").fetchall()]
+
+
+def _step_approver_ids(db, req, step):
+    """한 단계를 '누가 눌러야 하는가'를 실제 사람 목록으로 바꾼다."""
+    kind = step['role_kind']
+    if kind == 'dept_head':
+        ids = [r['id'] for r in db.execute(
+            "SELECT id FROM users WHERE role IN ('manager','admin') "
+            "AND department_id=? AND id!=?",
+            (req['department_id'], req['requester_id'])).fetchall()]
+        return ids or _hr_admin_ids(db)
+    if kind == 'user':
+        return [step['user_id']] if step.get('user_id') else _hr_admin_ids(db)
+    return _hr_admin_ids(db)
+
+
+def _build_requisition_flow(db, req):
+    """요청서 한 건에 결재 단계들을 깔아 준다(이미 있으면 그대로 둔다)."""
+    if db.execute('SELECT 1 FROM requisition_approvals WHERE requisition_id=? LIMIT 1',
+                  (req['id'],)).fetchone():
+        return
+    cum = 0
+    for st in _flow_template(db, req['hire_type'] if 'hire_type' in req.keys() else None):
+        cum += int(st.get('sla_days') or 2)
+        db.execute(
+            'INSERT INTO requisition_approvals '
+            '(requisition_id, step_no, role_kind, label, due_at) VALUES (?,?,?,?,?)',
+            (req['id'], st['step_no'], st['role_kind'], st.get('label') or '',
+             (datetime.now() + timedelta(days=cum)).strftime('%Y-%m-%d %H:%M:%S')))
+    db.commit()
+
+
+def _flow_rows(db, req_id):
+    return db.execute(
+        'SELECT a.*, u.name AS approver_name FROM requisition_approvals a '
+        'LEFT JOIN users u ON a.approver_id=u.id '
+        'WHERE a.requisition_id=? ORDER BY a.step_no', (req_id,)).fetchall()
+
+
+def _current_step(db, req_id):
+    return db.execute(
+        "SELECT * FROM requisition_approvals WHERE requisition_id=? AND status='waiting' "
+        "ORDER BY step_no LIMIT 1", (req_id,)).fetchone()
+
+
+def _can_act_on_step(db, req, step, uid, role):
+    if step is None:
+        return False
+    if role == 'admin':
+        return True
+    return uid in _step_approver_ids(db, req, dict(step))
+
+
+def _notify_step(db, req, step):
+    """지금 차례인 사람에게만 알린다."""
+    for aid in _step_approver_ids(db, req, dict(step)):
+        if not aid:
+            continue
+        add_notification(aid, 'info', 'action', '채용 요청서 결재',
+                         u'"%s" 요청서가 %s 단계에서 결재를 기다립니다.'
+                         % (req['title'], step['label'] or FLOW_ROLE_LABEL.get(step['role_kind'], '')),
+                         link=url_for('requisition_detail', req_id=req['id']))
+    db.commit()
+
+
+def _parse_req_lines(f):
+    """요청서 작성 화면의 레벨별 줄을 읽는다. 인원 0인 줄은 버린다.
+
+    반환: [{'position_id','job_family_id','headcount','salary_min','salary_max'}, ...]
+    """
+    poss  = f.getlist('line_position_id')
+    heads = f.getlist('line_headcount')
+    jfs   = f.getlist('line_job_family_id')
+    lo    = f.getlist('line_salary_min')
+    hi    = f.getlist('line_salary_max')
+
+    def at(lst, i, dflt=''):
+        return lst[i] if i < len(lst) else dflt
+
+    def num(v):
+        try:
+            return int(str(v).strip() or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    out = []
+    for i in range(len(poss)):
+        n = max(0, num(at(heads, i, 1)))
+        if not poss[i] or not n:
+            continue
+        out.append({
+            'position_id':   num(poss[i]) or None,
+            'job_family_id': num(at(jfs, i)) or None,
+            'headcount':     n,
+            'salary_min':    num(at(lo, i)) * 10000,   # 화면은 만원, 저장은 원
+            'salary_max':    num(at(hi, i)) * 10000,
+        })
+    return out
+
+
+def _save_req_lines(db, req_id, lines):
+    """레벨별 줄을 저장하고, 요청서 요약값(인원·직급·밴드)을 줄에 맞춰 맞춘다."""
+    if not lines:
+        return 0
+    db.execute('DELETE FROM requisition_lines WHERE requisition_id=?', (req_id,))
+    for i, l in enumerate(lines, start=1):
+        db.execute(
+            'INSERT INTO requisition_lines '
+            '(requisition_id, seq, position_id, job_family_id, headcount, salary_min, salary_max) '
+            'VALUES (?,?,?,?,?,?,?)',
+            (req_id, i, l['position_id'], l['job_family_id'],
+             l['headcount'], l['salary_min'], l['salary_max']))
+    total = sum(l['headcount'] for l in lines)
+    lows  = [l['salary_min'] for l in lines if l['salary_min']]
+    highs = [l['salary_max'] for l in lines if l['salary_max']]
+    db.execute(
+        'UPDATE job_requisitions SET headcount=?, position_id=?, job_family_id=?, '
+        'salary_min=?, salary_max=? WHERE id=?',
+        (total, lines[0]['position_id'], lines[0]['job_family_id'],
+         min(lows) if lows else 0, max(highs) if highs else 0, req_id))
+    return total
+
+
+def _create_openings(db, req):
+    """승인 완료 → 요청한 인원수만큼 자리 카드를 뗀다.
+
+    레벨별 줄(requisition_lines)이 있으면 줄마다 그 줄의 직급·직군·밴드를 물려준다.
+    줄이 없는 옛 요청서는 요청서 값 그대로 headcount 장을 뗀다. 중복 생성은 막는다.
+    """
+    made = db.execute('SELECT COUNT(*) c FROM job_openings WHERE requisition_id=?',
+                      (req['id'],)).fetchone()['c']
+    if made:
+        return 0
+
+    rk    = req.keys()
+    lines = db.execute('SELECT * FROM requisition_lines WHERE requisition_id=? ORDER BY seq',
+                       (req['id'],)).fetchall()
+    if lines:
+        specs = [(l['position_id'], l['job_family_id'],
+                  l['salary_min'] or 0, l['salary_max'] or 0)
+                 for l in lines for _ in range(max(1, int(l['headcount'] or 1)))]
+    else:
+        n = max(1, int(req['headcount'] or 1))
+        specs = [(req['position_id'],
+                  req['job_family_id'] if 'job_family_id' in rk else None,
+                  req['salary_min'] or 0, req['salary_max'] or 0)] * n
+
+    for i, (pos_id, jf_id, s_min, s_max) in enumerate(specs, start=1):
+        db.execute(
+            'INSERT INTO job_openings '
+            '(requisition_id, seq, code, title, department_id, position_id, job_family_id, '
+            ' employment_type, hire_type, backfill_user_id, target_start_date, '
+            ' salary_min, salary_max, status) '
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'approved')",
+            (req['id'], i, 'OP-%d-%d' % (req['id'], i), req['title'],
+             req['department_id'], pos_id, jf_id,
+             req['employment_type'],
+             (req['hire_type'] if 'hire_type' in rk else None) or 'new_planned',
+             req['backfill_user_id'] if 'backfill_user_id' in rk else None,
+             req['target_start_date'], s_min, s_max))
+    db.commit()
+    return len(specs)
+
+
+@app.route('/requisitions')
 @login_required
 def requisition_list():
     db   = get_db()
@@ -9768,17 +10339,18 @@ def requisition_list():
     sql += ' ORDER BY r.created_at DESC'
     reqs = db.execute(sql, params).fetchall()
 
-    return render_template('recruit/requisition_list.html',
+    return render_template('hiring/requisition_list.html',
         reqs=reqs,
         status_filter=status_f,
         status_labels=REQUISITION_STATUS_LABEL,
         emp_type_labels=REQUISITION_EMP_TYPE_LABEL,
-        active_page='recruit'
+        hire_type_labels=REQUISITION_HIRE_TYPE_LABEL,
+        active_page='requisition'
     )
 
 
 def _requisition_submit_for_approval(req_id, uid):
-    """작성 완료 → 부서장 승인 요청 처리 (draft 상태 요청만). 성공 시 True."""
+    """작성 완료 → 결재 상신. 채용 유형이 정한 단계들을 깔고 1단계에만 알린다."""
     db  = get_db()
     req = db.execute('SELECT * FROM job_requisitions WHERE id=? AND requester_id=?', (req_id, uid)).fetchone()
     if not req or req['status'] != 'draft':
@@ -9787,30 +10359,77 @@ def _requisition_submit_for_approval(req_id, uid):
 
     db.execute(
         "UPDATE job_requisitions SET status='pending_dept', updated_at=CURRENT_TIMESTAMP WHERE id=?",
-        (req_id,)
-    )
+        (req_id,))
     db.commit()
 
-    approvers = db.execute(
-        "SELECT id FROM users WHERE role IN ('manager','admin') AND department_id=? AND id!=?",
-        (req['department_id'], uid)
-    ).fetchall()
-    for a in approvers:
-        add_notification(a['id'], 'info', 'action', '채용 요청서 승인 요청',
-                         f'"{req["title"]}" 채용 요청서 부서장 승인이 필요합니다.',
-                         link=url_for('requisition_detail', req_id=req_id))
-    db.commit()
-    flash('부서장 승인 요청이 전송되었습니다.', 'success')
+    _build_requisition_flow(db, req)
+    step = _current_step(db, req_id)
+    if step:
+        _notify_step(db, req, step)
+        flash('결재를 올렸습니다 — %s 단계부터 시작합니다.' % (step['label'] or ''), 'success')
+    else:
+        flash('결재를 올렸습니다.', 'success')
     return True
 
 
-@app.route('/recruit/requisitions/new', methods=['GET', 'POST'])
+def _dept_leader_chain(db, dept_id):
+    """부서 하나에서 면접관 두 자리를 뽑는다.
+
+    1차 = 그 부서의 부서장(HM).
+    2차 = 그 위 조직으로 한 칸씩 올라가며 처음 만나는 부서장(차상위 리더).
+    부서장이 비어 있으면 그 자리는 None — 화면에서 '지정 필요'로 보인다.
+    """
+    if not dept_id:
+        return {'hm_id': None, 'hm_name': None, 'senior_id': None, 'senior_name': None}
+    row = db.execute(
+        'SELECT d.id, d.parent_id, d.leader_id, l.name AS leader_name '
+        'FROM departments d LEFT JOIN users l ON d.leader_id=l.id AND l.status="active" '
+        'WHERE d.id=?', (dept_id,)).fetchone()
+    if not row:
+        return {'hm_id': None, 'hm_name': None, 'senior_id': None, 'senior_name': None}
+
+    hm_id, hm_name = row['leader_id'], row['leader_name']
+    senior_id = senior_name = None
+    pid, seen = row['parent_id'], {row['id']}
+    while pid and pid not in seen:
+        seen.add(pid)
+        up = db.execute(
+            'SELECT d.id, d.parent_id, d.leader_id, l.name AS leader_name '
+            'FROM departments d LEFT JOIN users l ON d.leader_id=l.id AND l.status="active" '
+            'WHERE d.id=?', (pid,)).fetchone()
+        if not up:
+            break
+        if up['leader_id'] and up['leader_id'] != hm_id:
+            senior_id, senior_name = up['leader_id'], up['leader_name']
+            break
+        pid = up['parent_id']
+    return {'hm_id': hm_id, 'hm_name': hm_name,
+            'senior_id': senior_id, 'senior_name': senior_name}
+
+
+@app.route('/requisitions/new', methods=['GET', 'POST'])
 @login_required
 def requisition_new():
     db    = get_db()
     depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
     poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
     jfs   = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
+    # 백필이면 "누구 자리인가"를 반드시 적게 한다 — 이게 없으면 백필인지 증원인지 아무도 모른다
+    leavers = db.execute(
+        "SELECT u.id, u.name, u.status, u.termination_date, d.name AS dept_name FROM users u "
+        "LEFT JOIN departments d ON u.department_id=d.id "
+        "ORDER BY (u.status='active'), COALESCE(u.termination_date,'') DESC, u.name"
+    ).fetchall()
+    flow_preview = {ht: _flow_template(db, ht) for ht in REQUISITION_HIRE_TYPE_LABEL}
+    # 2차 면접의 '협업 리더' 후보 — 조직도에 없는 정보라 요청서에서 직접 고른다
+    dept_leaders = {d['id']: _dept_leader_chain(db, d['id']) for d in depts}
+    collab_pool = db.execute(
+        "SELECT u.id, u.name, d.name AS dept_name, p.name AS pos_name "
+        "FROM users u "
+        "LEFT JOIN departments d ON u.department_id=d.id "
+        "LEFT JOIN positions   p ON u.position_id  =p.id "
+        "WHERE u.status='active' ORDER BY d.name, u.name"
+    ).fetchall()
 
     if request.method == 'POST':
         f = request.form
@@ -9819,8 +10438,9 @@ def requisition_new():
             '(title, department_id, position_id, job_family_id, track, '
             ' headcount, employment_type, reason, '
             ' required_skills, salary_min, salary_mid, salary_max, target_start_date, '
+            ' hire_type, backfill_user_id, budget_note, collab_leader_id, '
             ' status, requester_id) '
-            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
             (
                 f.get('title','').strip(),
                 f.get('department_id') or None,
@@ -9835,10 +10455,16 @@ def requisition_new():
                 int(f.get('salary_mid') or 0),
                 int(f.get('salary_max') or 0),
                 f.get('target_start_date','').strip() or None,
+                f.get('hire_type') if f.get('hire_type') in REQUISITION_HIRE_TYPE_LABEL else 'new_planned',
+                (f.get('backfill_user_id') or None) if f.get('hire_type') == 'backfill' else None,
+                f.get('budget_note','').strip() or None,
+                f.get('collab_leader_id') or None,
                 'draft',
                 session['user_id'],
             )
         ).lastrowid
+        # 레벨별 줄 — "L5 1명, L3 2명". 승인되면 이 줄대로 자리 카드가 떨어진다.
+        _save_req_lines(db, rid, _parse_req_lines(f))
         db.commit()
 
         action = f.get('action', 'save')
@@ -9846,18 +10472,22 @@ def requisition_new():
             _requisition_submit_for_approval(rid, session['user_id'])
         return redirect(url_for('requisition_detail', req_id=rid))
 
-    return render_template('recruit/requisition_form.html',
+    return render_template('hiring/requisition_form.html',
         req=None, depts=depts, poses=poses, jfs=jfs,
+        leavers=leavers, collab_pool=collab_pool, dept_leaders=dept_leaders,
         emp_type_labels=REQUISITION_EMP_TYPE_LABEL,
+        hire_type_labels=REQUISITION_HIRE_TYPE_LABEL,
+        hire_type_hints=REQUISITION_HIRE_TYPE_HINT,
+        flow_preview=flow_preview,
         track_labels=REQUISITION_TRACK_LABEL,
         manager_track_min_level=MANAGER_TRACK_MIN_LEVEL,
         ic_track_title=IC_TRACK_TITLE,
         m_track_title=M_TRACK_TITLE,
-        active_page='recruit'
+        active_page='requisition'
     )
 
 
-@app.route('/recruit/requisitions/<int:req_id>')
+@app.route('/requisitions/<int:req_id>')
 @login_required
 def requisition_detail(req_id):
     db  = get_db()
@@ -9867,9 +10497,12 @@ def requisition_detail(req_id):
     req = db.execute(
         'SELECT r.*, d.name AS dept_name, p.name AS pos_name, p.level AS pos_level, '
         'jf.name AS jf_name, jf.code AS jf_code, '
-        'u.name AS requester_name, da.name AS dept_approver_name, ha.name AS hr_approver_name '
+        'u.name AS requester_name, da.name AS dept_approver_name, ha.name AS hr_approver_name, '
+        'cl.name AS collab_leader_name, dl.name AS dept_leader_name '
         'FROM job_requisitions r '
         'LEFT JOIN departments d  ON r.department_id    = d.id '
+        'LEFT JOIN users       cl ON r.collab_leader_id = cl.id '
+        'LEFT JOIN users       dl ON d.leader_id        = dl.id '
         'LEFT JOIN positions   p  ON r.position_id      = p.id '
         'LEFT JOIN job_families jf ON r.job_family_id   = jf.id '
         'LEFT JOIN users       u  ON r.requester_id     = u.id '
@@ -9892,17 +10525,62 @@ def requisition_detail(req_id):
     if req['posting_id']:
         posting = db.execute('SELECT * FROM job_postings WHERE id=?', (req['posting_id'],)).fetchone()
 
-    return render_template('recruit/requisition_detail.html',
-        req=req, posting=posting,
+    # 옛 요청서(결재선이 생기기 전에 올라간 것)도 화면에서 열리는 순간 단계를 깔아 준다
+    if req['status'] in ('pending_dept', 'pending_hr'):
+        _build_requisition_flow(db, req)
+    steps = _flow_rows(db, req_id)
+    step  = _current_step(db, req_id)
+    # 자리 카드 — 레벨(직급)과, 그 자리를 예약해 둔 입사 예정자까지 같이 본다
+    openings = db.execute(
+        'SELECT o.*, u.name AS hired_name, p.name AS pos_name, p.level AS pos_level, '
+        '       jf.name AS jf_name, ih.id AS hire_id, ih.name AS reserved_name, '
+        '       ih.start_date AS reserved_start '
+        'FROM job_openings o '
+        'LEFT JOIN users u ON o.hired_user_id=u.id '
+        'LEFT JOIN positions p ON o.position_id=p.id '
+        'LEFT JOIN job_families jf ON o.job_family_id=jf.id '
+        "LEFT JOIN incoming_hires ih ON ih.opening_id=o.id AND ih.status='waiting' "
+        'WHERE o.requisition_id=? ORDER BY o.seq', (req_id,)).fetchall()
+    # 충원 현황은 상태값이 아니라 카드에서 센다 — 카드가 곧 정원이다
+    fill = {
+        'total':    len(openings),
+        'filled':   sum(1 for o in openings if o['status'] == 'filled'),
+        'reserved': sum(1 for o in openings if o['status'] != 'filled' and o['reserved_name']),
+    }
+    fill['left'] = fill['total'] - fill['filled'] - fill['reserved']
+    fill['done'] = bool(fill['total']) and fill['filled'] == fill['total']
+    lines = db.execute(
+        'SELECT l.*, p.name AS pos_name, p.level AS pos_level, jf.name AS jf_name '
+        'FROM requisition_lines l '
+        'LEFT JOIN positions p ON l.position_id=p.id '
+        'LEFT JOIN job_families jf ON l.job_family_id=jf.id '
+        'WHERE l.requisition_id=? ORDER BY l.seq', (req_id,)).fetchall()
+    backfill_of = None
+    if 'backfill_user_id' in req.keys() and req['backfill_user_id']:
+        backfill_of = db.execute('SELECT id, name, termination_date FROM users WHERE id=?',
+                                 (req['backfill_user_id'],)).fetchone()
+
+    # 이 요청서 한 장에서 면접관 세 자리가 결정된다 (1차 HM · 2차 차상위 · 2차 협업 리더)
+    chain = _dept_leader_chain(db, req['department_id'])
+
+    return render_template('hiring/requisition_detail.html',
+        req=req, posting=posting, chain=chain,
+        steps=steps, cur_step=step,
+        can_act=_can_act_on_step(db, req, step, uid, role),
+        openings=openings, backfill_of=backfill_of,
+        lines=lines, fill=fill,
         status_labels=REQUISITION_STATUS_LABEL,
         emp_type_labels=REQUISITION_EMP_TYPE_LABEL,
+        hire_type_labels=REQUISITION_HIRE_TYPE_LABEL,
+        role_labels=FLOW_ROLE_LABEL,
+        opening_labels=OPENING_STATUS_LABEL,
         ic_track_title=IC_TRACK_TITLE,
         m_track_title=M_TRACK_TITLE,
-        active_page='recruit'
+        active_page='requisition'
     )
 
 
-@app.route('/recruit/requisitions/<int:req_id>/submit', methods=['POST'])
+@app.route('/requisitions/<int:req_id>/submit', methods=['POST'])
 @login_required
 def requisition_submit(req_id):
     """작성 완료 → 부서장 승인 요청."""
@@ -9910,118 +10588,390 @@ def requisition_submit(req_id):
     return redirect(url_for('requisition_detail', req_id=req_id))
 
 
-@app.route('/recruit/requisitions/<int:req_id>/dept-approve', methods=['POST'])
+@app.route('/requisitions/<int:req_id>/act', methods=['POST'])
 @login_required
-def requisition_dept_approve(req_id):
-    """부서장 승인."""
+def requisition_act(req_id):
+    """지금 차례인 결재 한 단계를 처리한다. 승인/반려 버튼은 이 하나로 모인다."""
     db   = get_db()
     uid  = session['user_id']
     role = session.get('user_role')
-    if role not in ('admin', 'manager'):
-        flash('권한이 없습니다.', 'error')
-        return redirect(url_for('requisition_detail', req_id=req_id))
 
     req = db.execute('SELECT * FROM job_requisitions WHERE id=?', (req_id,)).fetchone()
-    if not req or req['status'] != 'pending_dept':
+    if not req or req['status'] not in ('pending_dept', 'pending_hr'):
         flash('처리할 수 없는 요청입니다.', 'error')
         return redirect(url_for('requisition_detail', req_id=req_id))
 
-    action = request.form.get('action', 'approve')
-    if action == 'approve':
+    _build_requisition_flow(db, req)
+    step = _current_step(db, req_id)
+    if not _can_act_on_step(db, req, step, uid, role):
+        flash('이 단계의 결재자가 아닙니다.', 'error')
+        return redirect(url_for('requisition_detail', req_id=req_id))
+
+    action  = request.form.get('action', 'approve')
+    comment = request.form.get('comment', '').strip()
+
+    if action != 'approve':
         db.execute(
-            "UPDATE job_requisitions SET status='pending_hr', "
-            "dept_approver_id=?, dept_approved_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP "
-            "WHERE id=?",
-            (uid, req_id)
-        )
-        # HR Admin에게 알림
-        hr_admins = db.execute("SELECT id FROM users WHERE role='admin'").fetchall()
-        for h in hr_admins:
-            add_notification(h['id'], 'info', 'action', 'HR 채용 요청서 승인 요청',
-                             f'"{req["title"]}" 요청서가 부서장 승인을 완료하고 HR 최종 승인을 기다립니다.',
-                             link=url_for('requisition_detail', req_id=req_id))
-        flash('부서장 승인 완료. HR 검토 단계로 이동했습니다.', 'success')
-    else:
-        reason = request.form.get('reject_reason', '')
+            "UPDATE requisition_approvals SET status='rejected', approver_id=?, comment=?, "
+            "acted_at=CURRENT_TIMESTAMP WHERE id=?", (uid, comment, step['id']))
         db.execute(
-            "UPDATE job_requisitions SET status='rejected', "
-            "dept_approver_id=?, dept_approved_at=CURRENT_TIMESTAMP, "
-            "dept_reject_reason=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            (uid, reason, req_id)
-        )
+            "UPDATE job_requisitions SET status='rejected', updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (req_id,))
+        db.commit()
         add_notification(req['requester_id'], 'info', 'action', '채용 요청서 반려',
-                         f'"{req["title"]}" 요청서가 부서장 검토에서 반려되었습니다. 사유: {reason}',
+                         u'"%s" 요청서가 %s 단계에서 반려되었습니다. 사유: %s'
+                         % (req['title'], step['label'] or '', comment or '(없음)'),
                          link=url_for('requisition_detail', req_id=req_id))
+        db.commit()
         flash('요청서를 반려했습니다.', 'success')
+        return redirect(url_for('requisition_detail', req_id=req_id))
 
+    db.execute(
+        "UPDATE requisition_approvals SET status='approved', approver_id=?, comment=?, "
+        "acted_at=CURRENT_TIMESTAMP WHERE id=?", (uid, comment, step['id']))
+    # 옛 화면들이 아직 보는 칸도 같이 채워 둔다
+    if step['role_kind'] == 'dept_head':
+        db.execute('UPDATE job_requisitions SET dept_approver_id=?, dept_approved_at=CURRENT_TIMESTAMP '
+                   'WHERE id=?', (uid, req_id))
+    elif step['role_kind'] == 'hr':
+        db.execute('UPDATE job_requisitions SET hr_approver_id=?, hr_approved_at=CURRENT_TIMESTAMP '
+                   'WHERE id=?', (uid, req_id))
     db.commit()
+
+    nxt = _current_step(db, req_id)
+    if nxt:
+        _notify_step(db, req, nxt)
+        flash(u'승인했습니다. 다음은 %s 단계입니다.' % (nxt['label'] or ''), 'success')
+        return redirect(url_for('requisition_detail', req_id=req_id))
+
+    # 마지막 단계 통과 → 승인 완료 + 자리 카드 발행
+    db.execute("UPDATE job_requisitions SET status='approved', updated_at=CURRENT_TIMESTAMP WHERE id=?",
+               (req_id,))
+    db.commit()
+    fresh = db.execute('SELECT * FROM job_requisitions WHERE id=?', (req_id,)).fetchone()
+    n = _create_openings(db, fresh)
+    add_notification(req['requester_id'], 'info', 'action', '채용 요청서 최종 승인',
+                     u'"%s" 요청서가 승인되어 자리 %d개가 열렸습니다.' % (req['title'], n or req['headcount']),
+                     link=url_for('requisition_detail', req_id=req_id))
+    db.commit()
+    flash(u'최종 승인 완료 — 자리 카드 %d장이 만들어졌습니다.' % (n or req['headcount']), 'success')
     return redirect(url_for('requisition_detail', req_id=req_id))
 
 
-@app.route('/recruit/requisitions/<int:req_id>/hr-approve', methods=['POST'])
+# ── 자리 대장 ────────────────────────────────────────────────────────
+@app.route('/openings')
 @login_required
-def requisition_hr_approve(req_id):
-    """HR 최종 승인 → 공고 자동 생성."""
-    db   = get_db()
-    uid  = session['user_id']
-    role = session.get('user_role')
-    if role != 'admin':
-        flash('HR Admin만 최종 승인할 수 있습니다.', 'error')
-        return redirect(url_for('requisition_detail', req_id=req_id))
+def opening_board():
+    """열려 있는 자리를 한 장씩 세는 화면. 부서 총원이 아니라 '자리'가 단위다."""
+    db     = get_db()
+    role   = session.get('user_role')
+    status = request.args.get('status', 'live')
 
-    req = db.execute('SELECT * FROM job_requisitions WHERE id=?', (req_id,)).fetchone()
-    if not req or req['status'] != 'pending_hr':
-        flash('처리할 수 없는 요청입니다.', 'error')
-        return redirect(url_for('requisition_detail', req_id=req_id))
+    sql = ('SELECT o.*, d.name AS dept_name, p.name AS pos_name, p.level AS pos_level, '
+           'r.requester_id, ru.name AS requester_name, bu.name AS backfill_name, '
+           'hu.name AS hired_name, ih.name AS reserved_name, ih.start_date AS reserved_start '
+           'FROM job_openings o '
+           'LEFT JOIN departments d ON o.department_id=d.id '
+           'LEFT JOIN positions   p ON o.position_id=p.id '
+           'LEFT JOIN job_requisitions r ON o.requisition_id=r.id '
+           'LEFT JOIN users ru ON r.requester_id=ru.id '
+           'LEFT JOIN users bu ON o.backfill_user_id=bu.id '
+           'LEFT JOIN users hu ON o.hired_user_id=hu.id '
+           "LEFT JOIN incoming_hires ih ON ih.opening_id=o.id AND ih.status='waiting' WHERE 1=1")
+    params = []
+    if role not in ('admin', 'recruiter'):
+        sql += ' AND o.department_id=?'
+        params.append(session.get('dept_id') or 0)
+    if status == 'live':
+        sql += " AND o.status IN ('approved','open')"
+    elif status in OPENING_STATUS_LABEL:
+        sql += ' AND o.status=?'
+        params.append(status)
+    sql += ' ORDER BY o.created_at DESC, o.seq'
+    rows = db.execute(sql, params).fetchall()
 
-    action = request.form.get('action', 'approve')
-    if action == 'approve':
-        # 채용 공고 자동 생성
-        posting_id = db.execute(
-            'INSERT INTO job_postings (title, department_id, position_id, description, '
-            'employment_type, salary_min, salary_max, status, created_by) '
-            'VALUES (?,?,?,?,?,?,?,?,?)',
-            (
-                req['title'],
-                req['department_id'],
-                req['position_id'],
-                req['reason'] or '',
-                req['employment_type'],
-                req['salary_min'] or 0,
-                req['salary_max'] or 0,
-                'draft',
-                uid,
-            )
-        ).lastrowid
+    counts = {r['status']: r['c'] for r in db.execute(
+        'SELECT status, COUNT(*) c FROM job_openings GROUP BY status').fetchall()}
 
-        db.execute(
-            "UPDATE job_requisitions SET status='posted', "
-            "hr_approver_id=?, hr_approved_at=CURRENT_TIMESTAMP, "
-            "posting_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            (uid, posting_id, req_id)
-        )
-        add_notification(req['requester_id'], 'info', 'action', '채용 요청서 최종 승인',
-                         f'"{req["title"]}" 요청서가 승인되어 채용 공고가 생성되었습니다.',
-                         link=url_for('requisition_detail', req_id=req_id))
-        flash('HR 승인 완료. 채용 공고(draft)가 자동 생성되었습니다.', 'success')
-    else:
-        reason = request.form.get('reject_reason', '')
-        db.execute(
-            "UPDATE job_requisitions SET status='rejected', "
-            "hr_approver_id=?, hr_approved_at=CURRENT_TIMESTAMP, "
-            "hr_reject_reason=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            (uid, reason, req_id)
-        )
-        add_notification(req['requester_id'], 'info', 'action', '채용 요청서 HR 반려',
-                         f'"{req["title"]}" 요청서가 HR 검토에서 반려되었습니다. 사유: {reason}',
-                         link=url_for('requisition_detail', req_id=req_id))
-        flash('요청서를 반려했습니다.', 'success')
+    return render_template('hiring/opening_board.html',
+        rows=rows, counts=counts, status_filter=status,
+        opening_labels=OPENING_STATUS_LABEL,
+        hire_type_labels=REQUISITION_HIRE_TYPE_LABEL,
+        emp_type_labels=REQUISITION_EMP_TYPE_LABEL,
+        can_edit=(role in ('admin', 'recruiter')),
+        # Hire 주소·열쇠가 없으면 '보내기'는 아예 나타나지 않는다.
+        # 눌러도 안 되는 버튼을 보여주는 게 제일 나쁘다.
+        hire_ready=_hire_config()['ready'],
+        active_page='opening'
+    )
 
+
+@app.route('/openings/<int:op_id>/close', methods=['POST'])
+@recruiter_or_admin
+def opening_close(op_id):
+    reason = request.form.get('reason', '').strip()
+    db = get_db()
+    db.execute("UPDATE job_openings SET status='closed', close_reason=?, "
+               "closed_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP "
+               "WHERE id=? AND status IN ('approved','open')", (reason, op_id))
     db.commit()
-    return redirect(url_for('requisition_detail', req_id=req_id))
+    flash('자리를 닫았습니다.', 'success')
+    return redirect(request.referrer or url_for('opening_board'))
+
+
+@app.route('/openings/<int:op_id>/reopen', methods=['POST'])
+@recruiter_or_admin
+def opening_reopen(op_id):
+    db = get_db()
+    db.execute("UPDATE job_openings SET status='approved', close_reason=NULL, closed_at=NULL, "
+               "updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='closed'", (op_id,))
+    db.commit()
+    flash('자리를 다시 열었습니다.', 'success')
+    return redirect(request.referrer or url_for('opening_board'))
+
+
+# ── Hire(Cadence) 연동 ───────────────────────────────────────────────
+# 승인된 자리 카드를 Hire 로 넘긴다. 방향은 한쪽뿐이다 —
+# 이쪽(TalentCore)이 밀고, Hire 는 받기만 한다. 조직·정원·결재는 여기 것이고
+# 전형 설계·후보자 관리는 Hire 것이라는 경계를 지키기 위해서다.
+#
+# 자리 카드 여러 장 → 공고 한 건. 같은 직무 3명을 뽑을 때 보드를 3개로
+# 쪼개면 지원자를 어느 보드에 넣을지 매번 골라야 한다(Greenhouse·Workday 도
+# 요청과 공고를 분리하고 자리 여러 개를 공고 하나에 매단다).
+
+def _hire_config():
+    """Hire 주소·토큰. 관리자가 /settings/hire 에서 넣는다."""
+    db = get_db()
+    rows = db.execute(
+        "SELECT key, value FROM company_settings WHERE key IN ('hire_url','hire_token')"
+    ).fetchall()
+    cfg = {r['key']: (r['value'] or '').strip() for r in rows}
+    url = cfg.get('hire_url', '').rstrip('/')
+    token = cfg.get('hire_token', '')
+    return {'url': url, 'token': token, 'ready': bool(url and token)}
+
+
+@app.route('/settings/hire', methods=['GET', 'POST'])
+@admin_required
+def hire_settings():
+    """Hire 가 어디에 있고 어떤 열쇠로 여는지 — 관리자가 한 번 넣어두면 끝난다."""
+    db = get_db()
+    if request.method == 'POST':
+        url   = request.form.get('hire_url', '').strip().rstrip('/')
+        token = request.form.get('hire_token', '').strip()
+        if url and not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+        for k, v in (('hire_url', url), ('hire_token', token)):
+            db.execute('INSERT INTO company_settings (key,value) VALUES (?,?) '
+                       'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (k, v))
+        db.commit()
+        flash('Hire 연결 정보를 저장했습니다.' if url and token
+              else '저장했습니다. 주소와 열쇠가 모두 있어야 보내기 버튼이 나타납니다.', 'success')
+        return redirect(url_for('hire_settings'))
+
+    cfg = _hire_config()
+    linked = db.execute(
+        "SELECT COUNT(*) c FROM job_openings WHERE external_ref IS NOT NULL AND external_ref<>''"
+    ).fetchone()['c']
+    return render_template('hiring/hire_settings.html',
+        cfg=cfg, linked=linked, active_page='hiresettings')
+
+
+@app.route('/openings/push', methods=['POST'])
+@recruiter_or_admin
+def opening_push():
+    """고른 자리 카드를 Hire 공고 한 건으로 만든다."""
+    db  = get_db()
+    cfg = _hire_config()
+    back = request.referrer or url_for('opening_board')
+
+    if not cfg['ready']:
+        flash('Hire 주소와 열쇠를 먼저 넣어 주세요. (설정 → Hire 연동)', 'error')
+        return redirect(back)
+
+    try:
+        op_ids = [int(x) for x in request.form.getlist('op_ids')]
+    except ValueError:
+        op_ids = []
+    if not op_ids:
+        flash('보낼 자리를 하나 이상 골라 주세요.', 'error')
+        return redirect(back)
+
+    q = ','.join('?' * len(op_ids))
+    rows = db.execute(
+        'SELECT o.*, d.name AS dept_name, p.name AS position_name FROM job_openings o '
+        'LEFT JOIN departments d ON o.department_id=d.id '
+        'LEFT JOIN positions p ON o.position_id=p.id '
+        'WHERE o.id IN (%s) ORDER BY o.seq' % q, op_ids).fetchall()
+
+    if len(rows) != len(op_ids):
+        flash('없는 자리가 섞여 있습니다. 화면을 새로 고친 뒤 다시 골라 주세요.', 'error')
+        return redirect(back)
+    # 이미 넘어간 자리를 또 보내면 Hire 에 같은 공고가 두 개 생긴다.
+    dup = [r for r in rows if r['external_ref']]
+    if dup:
+        flash('이미 Hire 로 넘어간 자리가 있습니다 — %s' % ', '.join(r['code'] for r in dup), 'error')
+        return redirect(back)
+    bad = [r for r in rows if r['status'] != 'approved']
+    if bad:
+        flash('아직 열 수 없는 자리가 있습니다 — %s' % ', '.join(r['code'] for r in bad), 'error')
+        return redirect(back)
+    # 직무·부서·밴드가 다른 자리를 한 공고에 묶으면 공고 내용이 거짓말이 된다.
+    req_ids = {r['requisition_id'] for r in rows}
+    if len(req_ids) != 1:
+        flash('한 번에 보낼 수 있는 자리는 같은 요청서에서 나온 것들뿐입니다.', 'error')
+        return redirect(back)
+
+    req = db.execute('SELECT * FROM job_requisitions WHERE id=?', (rows[0]['requisition_id'],)).fetchone()
+    if not req:
+        flash('원본 요청서를 찾을 수 없습니다.', 'error')
+        return redirect(back)
+
+    first = rows[0]
+
+    # 면접관 세 자리 — 요청서가 이미 알고 있는 사람들이다.
+    #   1차 = 그 부서의 부서장(HM)
+    #   2차 = 차상위 리더 + 요청서에서 고른 협업 리더 (이어서 60+60분)
+    # 이걸 안 보내면 Hire 는 공고를 '면접관 없음'으로 열고, 후보자가 인터뷰
+    # 단계에 서는 순간 조율이 통째로 막힌다. 사람 확인은 사번으로 한다 —
+    # 동명이인이 있는 회사에서 이름만 보내면 엉뚱한 사람에게 면접이 잡힌다.
+    chain = _dept_leader_chain(db, first['department_id'] or req['department_id'])
+
+    def _who(uid):
+        if not uid:
+            return None
+        u = db.execute('SELECT emp_no, name FROM users WHERE id=? AND status="active"',
+                       (uid,)).fetchone()
+        if not u:
+            return None
+        return {'emp_no': u['emp_no'] or '', 'name': u['name'] or ''}
+
+    panel = {
+        'hm':     _who(chain['hm_id']),
+        'upper':  _who(chain['senior_id']),
+        'collab': _who(req['collab_leader_id']),
+    }
+
+    jd_parts = []
+    if req['reason']:
+        jd_parts.append('[채용 배경]\n' + req['reason'])
+    if req['required_skills']:
+        jd_parts.append('[필요 역량]\n' + req['required_skills'])
+
+    payload = {
+        'title':        first['title'] or req['title'],
+        # 직급은 자리 카드가 들고 있는 값이다(L4 — Senior). 공고 제목과는 다르다 —
+        # 이걸 안 보내면 Hire 의 오퍼 초안이 '직급' 칸에 공고 제목을 넣어 버린다.
+        'level':        first['position_name'] or '',
+        'dept':         first['dept_name'] or '',
+        'emp':          REQUISITION_EMP_TYPE_LABEL.get(
+                            first['employment_type'] or req['employment_type'], '정규직'),
+        # Hire 의 밴드 단위는 만원이다. 여기 저장 단위는 원.
+        'band_lo':      int((first['salary_min'] or req['salary_min'] or 0) // 10000),
+        'band_hi':      int((first['salary_max'] or req['salary_max'] or 0) // 10000),
+        'jd':           '\n\n'.join(jd_parts),
+        'target_start': first['target_start_date'] or req['target_start_date'] or '',
+        'hire_type':    REQUISITION_HIRE_TYPE_LABEL.get(req['hire_type'], ''),
+        'req_ref':      'REQ-%d' % req['id'],
+        'openings':     [{'id': r['id'], 'code': r['code']} for r in rows],
+        'team':         first['dept_name'] or '',
+        'hiring_manager': (panel['hm'] or {}).get('name', ''),
+        'panel':        panel,
+    }
+
+    body = json.dumps(payload).encode('utf-8')
+    hreq = urllib.request.Request(
+        cfg['url'] + '/api/openings', data=body,
+        headers={'Content-Type': 'application/json', 'X-API-Token': cfg['token']})
+    try:
+        with urllib.request.urlopen(hreq, timeout=15) as resp:
+            out = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        detail = ''
+        try:
+            err = json.loads(e.read().decode('utf-8')) or {}
+            detail = err.get('message') or err.get('error') or ''
+        except Exception:
+            pass
+        flash('Hire 가 받지 않았습니다 (%s). %s' % (e.code, detail), 'error')
+        return redirect(back)
+    except Exception as e:
+        flash('Hire 에 연결하지 못했습니다 — %s' % e, 'error')
+        return redirect(back)
+
+    pid = (out or {}).get('position_id')
+    if not (out or {}).get('ok') or not pid:
+        flash('Hire 가 공고 번호를 돌려주지 않았습니다. 잠시 뒤 다시 시도해 주세요.', 'error')
+        return redirect(back)
+
+    for r in rows:
+        db.execute("UPDATE job_openings SET status='open', external_ref=?, "
+                   "opened_at=COALESCE(opened_at, CURRENT_TIMESTAMP), "
+                   "updated_at=CURRENT_TIMESTAMP WHERE id=?", (pid, r['id']))
+    # 이 요청서에서 아직 안 넘어간 자리가 없으면 요청서 자체를 '넘김'으로 닫는다.
+    left = db.execute("SELECT COUNT(*) c FROM job_openings "
+                      "WHERE requisition_id=? AND status='approved'", (req['id'],)).fetchone()['c']
+    if not left:
+        db.execute("UPDATE job_requisitions SET status='posted', updated_at=CURRENT_TIMESTAMP "
+                   "WHERE id=? AND status='approved'", (req['id'],))
+    if req['requester_id']:
+        add_notification(req['requester_id'], 'info', 'action', '채용 공고 개설',
+                         u'"%s" 자리 %d개가 Hire 공고로 열렸습니다.' % (req['title'], len(rows)),
+                         link=url_for('requisition_detail', req_id=req['id']))
+    db.commit()
+
+    flash(u'자리 %d장을 Hire 공고 %s 로 보냈습니다.' % (len(rows), pid), 'success')
+    return redirect(back)
+
+
+# ── 결재선 서식 관리 ─────────────────────────────────────────────────
+@app.route('/settings/requisition-flow', methods=['GET', 'POST'])
+@admin_required
+def requisition_flow_settings():
+    """채용 유형마다 누가 몇 단계로 보는지 — 관리자가 여기서 고친다."""
+    db = get_db()
+    if request.method == 'POST':
+        f = request.form
+        db.execute('DELETE FROM requisition_flow_steps')
+        for ht in REQUISITION_HIRE_TYPE_LABEL:
+            step_no = 0
+            for i in range(1, 7):
+                kind = f.get('%s_kind_%d' % (ht, i), '')
+                if kind not in FLOW_ROLE_LABEL:
+                    continue
+                step_no += 1
+                try:
+                    sla = max(1, int(f.get('%s_sla_%d' % (ht, i)) or 2))
+                except ValueError:
+                    sla = 2
+                db.execute(
+                    'INSERT INTO requisition_flow_steps '
+                    '(hire_type, step_no, role_kind, user_id, label, sla_days) VALUES (?,?,?,?,?,?)',
+                    (ht, step_no, kind,
+                     (f.get('%s_user_%d' % (ht, i)) or None) if kind == 'user' else None,
+                     f.get('%s_label_%d' % (ht, i), '').strip() or FLOW_ROLE_LABEL[kind],
+                     sla))
+        db.commit()
+        flash('결재선을 저장했습니다. 지금 결재 중인 요청서는 원래 단계를 그대로 밟습니다.', 'success')
+        return redirect(url_for('requisition_flow_settings'))
+
+    flows = {ht: _flow_template(db, ht) for ht in REQUISITION_HIRE_TYPE_LABEL}
+    people = db.execute(
+        "SELECT u.id, u.name, p.name AS pos_name, d.name AS dept_name FROM users u "
+        "LEFT JOIN positions p ON u.position_id=p.id "
+        "LEFT JOIN departments d ON u.department_id=d.id "
+        "WHERE u.status='active' ORDER BY u.name").fetchall()
+    return render_template('hiring/requisition_flow.html',
+        flows=flows, people=people,
+        hire_type_labels=REQUISITION_HIRE_TYPE_LABEL,
+        hire_type_hints=REQUISITION_HIRE_TYPE_HINT,
+        role_labels=FLOW_ROLE_LABEL,
+        active_page='reqflow'
+    )
 
 
 @app.route('/recruit/dashboard')
+@retired_ats
 @recruiter_or_admin
 def recruit_dashboard():
     db = get_db()
@@ -10123,6 +11073,7 @@ def recruit_dashboard():
 
 
 @app.route('/recruit/postings')
+@retired_ats
 @recruiter_or_admin
 def recruit_postings():
     db     = get_db()
@@ -10147,6 +11098,7 @@ def recruit_postings():
                            active_page='recruit')
 
 @app.route('/recruit/postings/new', methods=['GET', 'POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_posting_new():
     db    = get_db()
@@ -10182,6 +11134,7 @@ def recruit_posting_new():
                            active_page='recruit')
 
 @app.route('/recruit/postings/<int:posting_id>', methods=['GET', 'POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_posting_detail(posting_id):
     db      = get_db()
@@ -10234,6 +11187,7 @@ def recruit_posting_detail(posting_id):
                            active_page='recruit')
 
 @app.route('/recruit/postings/<int:posting_id>/edit', methods=['GET', 'POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_posting_edit(posting_id):
     db      = get_db()
@@ -10271,6 +11225,7 @@ def recruit_posting_edit(posting_id):
                            active_page='recruit')
 
 @app.route('/recruit/pipeline')
+@retired_ats
 @recruiter_or_admin
 def recruit_pipeline():
     db         = get_db()
@@ -10321,6 +11276,7 @@ def recruit_pipeline():
 
 
 @app.route('/recruit/applicants/<int:applicant_id>/stage', methods=['POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_stage_update(applicant_id):
     """AJAX — 드래그앤드롭 단계 변경"""
@@ -10371,6 +11327,7 @@ def _render_email_template(tpl_key, context):
 
 
 @app.route('/recruit/applicants/<int:applicant_id>/disqualify', methods=['POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_disqualify(applicant_id):
     """불합격 처리 — 어느 단계에서든, 사유 코드 기록 + 이메일 발송 옵션"""
@@ -10425,6 +11382,7 @@ def recruit_disqualify(applicant_id):
 
 
 @app.route('/recruit/applicants/<int:applicant_id>/offer-reject', methods=['POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_offer_reject(applicant_id):
     """오퍼 거절 처리 — offer 단계 후보자에 한해"""
@@ -10466,6 +11424,7 @@ def recruit_offer_reject(applicant_id):
 
 
 @app.route('/recruit/applicants/<int:applicant_id>/hire', methods=['POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_hire(applicant_id):
     """입사 확정 — 오퍼 데이터로 직원 레코드 자동 생성 + 온보딩 파이프라인 가동"""
@@ -10602,6 +11561,7 @@ def recruit_hire(applicant_id):
 # ── 오퍼 관리 ─────────────────────────────────────────────────────────────────
 
 @app.route('/recruit/applicants/<int:applicant_id>/offers', methods=['GET', 'POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_offers(applicant_id):
     """오퍼 목록 + 생성"""
@@ -10685,6 +11645,7 @@ def recruit_offers(applicant_id):
 
 
 @app.route('/recruit/offers/<int:offer_id>/update', methods=['POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_offer_update(offer_id):
     """오퍼 레터 인라인 편집 저장 (AJAX)"""
@@ -10723,6 +11684,7 @@ def recruit_offer_update(offer_id):
 
 
 @app.route('/recruit/offers/<int:offer_id>/letter')
+@retired_ats
 @recruiter_or_admin
 def recruit_offer_letter(offer_id):
     """오퍼 레터 페이지 (인라인 편집 + 인쇄)"""
@@ -10786,6 +11748,7 @@ def recruit_offer_letter(offer_id):
 
 
 @app.route('/recruit/offers/<int:offer_id>/send', methods=['POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_offer_send(offer_id):
     """오퍼 발송 처리"""
@@ -10835,6 +11798,7 @@ def recruit_offer_send(offer_id):
 # ── 이메일 발송 이력 / 미리보기 ───────────────────────────────────────────────
 
 @app.route('/recruit/applicants/<int:applicant_id>/emails')
+@retired_ats
 @recruiter_or_admin
 def recruit_email_logs(applicant_id):
     """발송 이메일 이력 JSON (상세 페이지 탭용 AJAX)"""
@@ -10848,6 +11812,7 @@ def recruit_email_logs(applicant_id):
 
 
 @app.route('/recruit/applicants/<int:applicant_id>/email-send', methods=['POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_email_send(applicant_id):
     """이메일 작성 모달에서 커스텀 이메일 발송 이력 저장"""
@@ -10867,6 +11832,7 @@ def recruit_email_send(applicant_id):
 
 
 @app.route('/recruit/email-preview', methods=['POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_email_preview():
     """이메일 템플릿 미리보기 JSON"""
@@ -10877,6 +11843,7 @@ def recruit_email_preview():
 
 
 @app.route('/recruit/rounds/<int:round_id>/notes/add', methods=['POST'])
+@retired_ats
 @login_required
 def recruit_round_note_add(round_id):
     """면접 라운드 빠른 메모 추가"""
@@ -10897,6 +11864,7 @@ def recruit_round_note_add(round_id):
 
 
 @app.route('/recruit/applicants/<int:applicant_id>/panel')
+@retired_ats
 @recruiter_or_admin
 def recruit_applicant_panel(applicant_id):
     """슬라이드인 패널용 JSON"""
@@ -10958,6 +11926,7 @@ def recruit_applicant_panel(applicant_id):
     })
 
 @app.route('/recruit/applicants/<int:applicant_id>', methods=['GET', 'POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_applicant_detail(applicant_id):
     db        = get_db()
@@ -11103,6 +12072,7 @@ def recruit_applicant_detail(applicant_id):
 
 
 @app.route('/recruit/applicants/<int:applicant_id>/documents/upload', methods=['POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_doc_upload(applicant_id):
     db = get_db()
@@ -11135,6 +12105,7 @@ def recruit_doc_upload(applicant_id):
 
 
 @app.route('/recruit/documents/<int:doc_id>/file')
+@retired_ats
 @login_required
 def recruit_doc_file(doc_id):
     db = get_db()
@@ -11147,6 +12118,7 @@ def recruit_doc_file(doc_id):
 
 
 @app.route('/recruit/documents/<int:doc_id>/delete', methods=['POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_doc_delete(doc_id):
     db = get_db()
@@ -11165,6 +12137,7 @@ def recruit_doc_delete(doc_id):
 
 
 @app.route('/recruit/applicants/<int:applicant_id>/rounds/new', methods=['POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_round_new(applicant_id):
     db = get_db()
@@ -11202,6 +12175,7 @@ def recruit_round_new(applicant_id):
 
 
 @app.route('/recruit/rounds/<int:round_id>/interviewers', methods=['POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_round_assign_interviewer(round_id):
     db = get_db()
@@ -11252,6 +12226,7 @@ def recruit_round_assign_interviewer(round_id):
 
 
 @app.route('/recruit/rounds/<int:round_id>/interviewers/<int:interviewer_id>/remove', methods=['POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_round_remove_interviewer(round_id, interviewer_id):
     db = get_db()
@@ -11268,6 +12243,7 @@ def recruit_round_remove_interviewer(round_id, interviewer_id):
 
 
 @app.route('/recruit/rounds/<int:round_id>/complete', methods=['POST'])
+@retired_ats
 @recruiter_or_admin
 def recruit_round_complete(round_id):
     db = get_db()
@@ -11293,6 +12269,7 @@ def recruit_round_complete(round_id):
 
 
 @app.route('/recruit/rounds/<int:round_id>/feedback', methods=['GET', 'POST'])
+@retired_ats
 @login_required
 def recruit_round_feedback(round_id):
     db   = get_db()
@@ -13720,8 +14697,14 @@ def export_hub():
     db     = get_db()
     cycles = db.execute('SELECT id, name FROM performance_cycles ORDER BY id DESC').fetchall()
     today  = date.today()
+    # 은퇴한 구 ATS에 지원자가 남아 있을 때만 '보관 데이터' 칸을 띄운다 (T6)
+    try:
+        legacy_applicants = db.execute('SELECT COUNT(*) FROM applicants').fetchone()[0]
+    except sqlite3.OperationalError:
+        legacy_applicants = 0
     return render_template('export/hub.html', active_page='export',
                            cycles=cycles,
+                           legacy_applicants=legacy_applicants,
                            today_year=today.year,
                            today_month=today.month)
 
@@ -14837,8 +15820,23 @@ def contracts_list():
             (uid,)
         ).fetchall()
     templates = db.execute("SELECT id, name, contract_type, created_at FROM contract_templates ORDER BY created_at DESC").fetchall()
+    # 계약서를 아직 한 장도 못 받은 신규 입사자.
+    # 채용에서 넘어온 사람은 온보딩 목록에 '근로계약서 전자서명 완료'가 이미 떠 있는데,
+    # 정작 서명할 계약서가 없으면 본인은 할 수 있는 일이 없다. 발행은 사람이 확인하고
+    # 하는 일이라 자동으로 만들지 않고, 대신 여기서 담당자에게 보이게 한다.
+    pending_new = []
+    if role in ('admin', 'manager'):
+        pending_new = db.execute(
+            "SELECT u.id, u.name, u.hire_date, d.name AS dept_name "
+            "FROM users u "
+            "LEFT JOIN departments d ON d.id = u.department_id "
+            "WHERE u.status='active' AND u.role='employee' "
+            "  AND u.hire_date >= date('now', '-90 days') "
+            "  AND NOT EXISTS (SELECT 1 FROM contracts c WHERE c.employee_id = u.id) "
+            "ORDER BY u.hire_date DESC, u.id DESC LIMIT 20"
+        ).fetchall()
     return render_template('contracts/list.html',
-        contracts=contracts, templates=templates,
+        contracts=contracts, templates=templates, pending_new=pending_new,
         type_labels=CONTRACT_TYPE_LABELS, active_page='contracts')
 
 

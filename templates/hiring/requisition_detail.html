@@ -1,0 +1,351 @@
+﻿{% extends 'base.html' %}
+{% block title %}채용 요청서 상세{% endblock %}
+{% block page_title %}채용 요청서 상세{% endblock %}
+
+{% block content %}
+
+{% set status_colors = {
+  'draft':        ('#f1f5f9','#475569'),
+  'pending_dept': ('#fef9c3','#854d0e'),
+  'pending_hr':   ('#fef9c3','#854d0e'),
+  'approved':     ('#dcfce7','#166534'),
+  'rejected':     ('#fee2e2','#991b1b'),
+  'posted':       ('#ede9fe','#5b21b6'),
+} %}
+{% set sc = status_colors.get(req.status, ('#f1f5f9','#475569')) %}
+
+<div style="max-width:800px;">
+
+  <!-- 헤더 -->
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+    <div>
+      <h2 style="margin:0 0 6px; font-size:22px;">{{ req.title }}</h2>
+      <span style="font-size:12px; padding:4px 12px; border-radius:99px;
+                   background:{{ sc[0] }}; color:{{ sc[1] }}; font-weight:700;">
+        {{ status_labels.get(req.status, req.status) }}
+      </span>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      {% if req.status == 'draft' and req.requester_id == session.user_id %}
+      <form method="POST" action="{{ url_for('requisition_submit', req_id=req.id) }}">
+        <button type="submit" class="btn btn-primary btn-sm"
+                onclick="return confirm('결재를 올립니다.');">
+          <i class="fas fa-paper-plane"></i> 결재 올리기
+        </button>
+      </form>
+      {% endif %}
+      <a href="{{ url_for('requisition_list') }}" class="btn btn-ghost btn-sm">
+        <i class="fas fa-arrow-left"></i> 목록
+      </a>
+    </div>
+  </div>
+
+  <!-- 결재 단계 — 채용 유형이 정한 단계를 그대로 그린다 -->
+  {% if steps %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head">
+      <span class="card-title">결재 진행</span>
+      <span style="font-size:11.5px; color:var(--tx-3);">
+        {{ hire_type_labels.get(req.hire_type or 'new_planned', '') }} · {{ steps|length }}단계
+      </span>
+    </div>
+    <div class="card-body" style="padding:16px 20px;">
+      {% for st in steps %}
+      <div style="display:flex; gap:12px; align-items:flex-start; padding:10px 0;
+                  {% if not loop.last %}border-bottom:1px solid var(--border);{% endif %}">
+        <div style="width:28px; height:28px; border-radius:50%; flex:none;
+                    display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800;
+                    background:{% if st.status == 'approved' %}var(--primary){% elif st.status == 'rejected' %}var(--red-bg){% elif cur_step and st.id == cur_step.id %}var(--orange-bg){% else %}var(--bg-3){% endif %};
+                    color:{% if st.status == 'approved' %}var(--surface){% elif st.status == 'rejected' %}var(--red){% elif cur_step and st.id == cur_step.id %}var(--orange){% else %}var(--tx-3){% endif %};">
+          {% if st.status == 'approved' %}<i class="fas fa-check"></i>
+          {% elif st.status == 'rejected' %}<i class="fas fa-times"></i>
+          {% else %}{{ st.step_no }}{% endif %}
+        </div>
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:13px; font-weight:700; color:var(--tx-1);">
+            {{ st.label or role_labels.get(st.role_kind, '') }}
+            <span style="font-weight:500; font-size:11.5px; color:var(--tx-3); margin-left:6px;">
+              {{ role_labels.get(st.role_kind, '') }}
+            </span>
+          </div>
+          <div style="font-size:11.5px; color:var(--tx-3); margin-top:3px;">
+            {% if st.status == 'approved' %}
+              {{ st.approver_name or '—' }} 승인 · {{ st.acted_at[:16] if st.acted_at else '' }}
+            {% elif st.status == 'rejected' %}
+              {{ st.approver_name or '—' }} 반려 · {{ st.acted_at[:16] if st.acted_at else '' }}
+            {% elif cur_step and st.id == cur_step.id %}
+              지금 이 단계 대기 중{% if st.due_at %} · {{ st.due_at[:10] }}까지{% endif %}
+            {% else %}
+              앞 단계가 끝나면 시작합니다
+            {% endif %}
+          </div>
+          {% if st.comment %}
+          <div style="margin-top:6px; font-size:12px; color:var(--tx-2); background:var(--bg);
+                      padding:7px 10px; border-radius:6px; white-space:pre-wrap;">{{ st.comment }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 반려 사유 배너 -->
+  {% if req.status == 'rejected' %}
+  {% set rj = (steps | selectattr('status', 'equalto', 'rejected') | list | last) if steps else None %}
+  <div class="info-banner" style="background:var(--red-bg); border-color:var(--red-bg); color:var(--red); margin-bottom:16px;">
+    <i class="fas fa-times-circle"></i>
+    <strong>반려됨</strong> —
+    {% if rj %}{{ rj.label or '' }} 단계 ({{ rj.approver_name or '—' }}): {{ rj.comment or '사유 없음' }}
+    {% elif req.hr_reject_reason %}HR 검토 반려: {{ req.hr_reject_reason }}
+    {% elif req.dept_reject_reason %}부서장 반려: {{ req.dept_reject_reason }}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+
+    <!-- 요청 내용 -->
+    <div class="card">
+      <div class="card-head"><span class="card-title">요청 내용</span></div>
+      <div class="card-body">
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          {% macro row(label, val) %}
+          <tr>
+            <td style="padding:6px 0; color:var(--tx-3); width:40%; vertical-align:top;">{{ label }}</td>
+            <td style="padding:6px 0; font-weight:600; color:var(--tx-1);">{{ val or '-' }}</td>
+          </tr>
+          {% endmacro %}
+          {{ row('채용 유형', hire_type_labels.get(req.hire_type or 'new_planned', '-')) }}
+          {% if backfill_of %}
+          {{ row('충원 대상', backfill_of.name ~ (' (퇴사 ' ~ backfill_of.termination_date[:10] ~ ')' if backfill_of.termination_date else '')) }}
+          {% endif %}
+          {% if req.budget_note %}
+          {{ row('예산 밖 사유', req.budget_note) }}
+          {% endif %}
+          {{ row('부서',      req.dept_name) }}
+          {{ row('직급',      req.pos_name) }}
+          {{ row('채용 인원', req.headcount ~ '명') }}
+          {{ row('고용 형태', emp_type_labels.get(req.employment_type, req.employment_type)) }}
+          {{ row('희망 입사일', req.target_start_date) }}
+          <tr>
+            <td style="padding:6px 0; color:var(--tx-3); width:40%; vertical-align:top;">면접관</td>
+            <td style="padding:6px 0; color:var(--tx-1);">
+              <div style="display:flex; flex-direction:column; gap:3px;">
+                <span><span style="font-size:11px;color:var(--tx-3);">1차 60분</span>
+                  <b style="margin-left:6px;{% if not chain.hm_name %}color:var(--red);font-weight:500;{% endif %}">
+                    {{ chain.hm_name or '부서장 미지정' }}</b></span>
+                <span><span style="font-size:11px;color:var(--tx-3);">2차 60분</span>
+                  <b style="margin-left:6px;{% if not chain.senior_name %}color:var(--red);font-weight:500;{% endif %}">
+                    {{ chain.senior_name or '차상위 부서장 미지정' }}</b></span>
+                <span><span style="font-size:11px;color:var(--tx-3);">2차 60분</span>
+                  <b style="margin-left:6px;{% if not req.collab_leader_name %}color:var(--red);font-weight:500;{% endif %}">
+                    {{ req.collab_leader_name or '협업 리더 미지정' }}</b></span>
+              </div>
+            </td>
+          </tr>
+          {% if req.salary_min or req.salary_max %}
+          {{ row('급여 범위',
+            ('{:,}'.format(req.salary_min // 10000) ~ '만원' if req.salary_min else '?') ~
+            ' ~ ' ~
+            ('{:,}'.format(req.salary_max // 10000) ~ '만원' if req.salary_max else '?')
+          ) }}
+          {% endif %}
+          {{ row('신청자',  req.requester_name) }}
+          {{ row('신청일',  req.created_at[:10]) }}
+        </table>
+      </div>
+    </div>
+
+    <!-- 채용 사유 & 스킬 -->
+    <div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-head"><span class="card-title">채용 사유</span></div>
+        <div class="card-body">
+          <p style="font-size:13px; color:var(--tx-1); line-height:1.7; margin:0; white-space:pre-wrap;">{{ req.reason or '-' }}</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">요구 스킬 / 자격요건</span></div>
+        <div class="card-body">
+          <p style="font-size:13px; color:var(--tx-1); line-height:1.7; margin:0; white-space:pre-wrap;">{{ req.required_skills or '-' }}</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 연결된 채용 공고 -->
+  {% if posting %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head">
+      <span class="card-title"><i class="fas fa-bullhorn" style="margin-right:6px; color:var(--primary);"></i>연결된 채용 공고</span>
+      <a href="{{ url_for('recruit_posting_detail', posting_id=posting.id) }}" class="btn btn-primary btn-sm">공고 보기 →</a>
+    </div>
+    <div class="card-body">
+      <div style="font-size:13px;">
+        <strong>{{ posting.title }}</strong>
+        <span style="margin-left:10px; font-size:11px; padding:2px 8px; border-radius:99px;
+                     background:{% if posting.status == 'open' %}var(--green-bg){% else %}var(--surface-3){% endif %};
+                     color:{% if posting.status == 'open' %}var(--green){% else %}var(--tx-2){% endif %};">
+          {{ '공개 중' if posting.status == 'open' else posting.status }}
+        </span>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 레벨별 구성 (승인 전에도 보인다) -->
+  {% if lines %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head">
+      <span class="card-title"><i class="fas fa-layer-group" style="margin-right:6px; color:var(--primary);"></i>자리 구성</span>
+      <span style="font-size:12px; color:var(--tx-3);">합계 {{ req.headcount }}명</span>
+    </div>
+    <div class="card-body" style="padding:0;">
+      <table class="data-table" style="margin:0;">
+        <thead><tr><th>레벨</th><th>직군</th><th>연봉 밴드</th><th style="text-align:right;">인원</th></tr></thead>
+        <tbody>
+        {% for l in lines %}
+        <tr>
+          <td style="font-size:12px; font-weight:700;">{{ l.pos_name or 'L' ~ l.pos_level }}</td>
+          <td style="font-size:12px; color:var(--tx-2);">{{ l.jf_name or '-' }}</td>
+          <td style="font-size:12px; color:var(--tx-2);">
+            {% if l.salary_min or l.salary_max %}{{ '{:,}'.format(l.salary_min // 10000) }}~{{ '{:,}'.format(l.salary_max // 10000) }}만원{% else %}-{% endif %}
+          </td>
+          <td style="font-size:12px; text-align:right; font-weight:700;">{{ l.headcount }}명</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 자리 카드 -->
+  {% if openings %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head">
+      <span class="card-title"><i class="fas fa-id-badge" style="margin-right:6px; color:var(--primary);"></i>이 요청서에서 열린 자리</span>
+      <a href="{{ url_for('opening_board') }}" class="btn btn-ghost btn-sm">자리 대장 →</a>
+    </div>
+    <div class="card-body" style="padding:14px 16px 0;">
+      <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+        <span style="font-size:20px; font-weight:800;">{{ fill.filled }}<span style="font-size:13px; font-weight:500; color:var(--tx-3);"> / {{ fill.total }}</span></span>
+        <span style="font-size:12px; color:var(--tx-3);">충원 완료</span>
+        {% if fill.reserved %}<span style="font-size:12px; color:var(--orange);">· 입사 예정 {{ fill.reserved }}명</span>{% endif %}
+        {% if fill.done %}
+        <span style="font-size:11px; font-weight:700; padding:3px 8px; border-radius:99px; background:var(--green-bg,#e7f6ec); color:var(--green,#0a9459);">모두 채워졌습니다</span>
+        {% else %}
+        <span style="font-size:12px; color:var(--tx-2);">· 남은 자리 {{ fill.left }}개</span>
+        {% endif %}
+      </div>
+      <div style="height:6px; border-radius:99px; background:var(--surface-2,#eee); overflow:hidden; display:flex;">
+        <div style="width:{{ (fill.filled * 100 // fill.total) if fill.total else 0 }}%; background:var(--green,#0a9459);"></div>
+        <div style="width:{{ (fill.reserved * 100 // fill.total) if fill.total else 0 }}%; background:var(--orange,#b5730b);"></div>
+      </div>
+    </div>
+    <div class="card-body" style="padding:12px 0 0;">
+      <table class="data-table" style="margin:0;">
+        <thead><tr><th>자리 번호</th><th>레벨</th><th>상태</th><th>채운 사람</th></tr></thead>
+        <tbody>
+        {% for o in openings %}
+        <tr>
+          <td style="font-family:monospace; font-size:12px;">{{ o.code }}</td>
+          <td style="font-size:12px;">{% if o.pos_level %}{{ o.pos_name or 'L' ~ o.pos_level }}{% else %}-{% endif %}</td>
+          <td style="font-size:12px;">
+            {{ opening_labels.get(o.status, o.status) }}
+            {% if o.status != 'filled' and o.reserved_name %}
+            <span style="font-size:11px; color:var(--orange); margin-left:4px;">· 예약됨</span>
+            {% endif %}
+          </td>
+          <td style="font-size:12px; color:var(--tx-2);">
+            {% if o.hired_name %}{{ o.hired_name }}
+            {% elif o.reserved_name %}{{ o.reserved_name }} <span style="color:var(--tx-3);">(입사 예정{% if o.reserved_start %} {{ o.reserved_start }}{% endif %})</span>
+            {% else %}-{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 지금 차례인 결재 -->
+  {% if cur_step and can_act %}
+  <div class="card" style="margin-bottom:16px; border:2px solid var(--orange);">
+    <div class="card-head" style="background:var(--orange-bg);">
+      <span class="card-title">
+        <i class="fas fa-user-check" style="margin-right:6px; color:var(--orange);"></i>
+        {{ cur_step.step_no }}단계 — {{ cur_step.label or role_labels.get(cur_step.role_kind, '') }} 차례입니다
+      </span>
+    </div>
+    <div class="card-body">
+      <p style="font-size:13px; color:var(--tx-2); margin-bottom:12px;">
+        {% if steps and cur_step.step_no == steps|length %}
+        이 단계가 마지막입니다. 승인하면 <strong>자리 카드 {{ req.headcount }}장</strong>이 만들어집니다.
+        {% else %}
+        승인하면 다음 단계로 넘어갑니다. 남은 단계 {{ steps|length - cur_step.step_no }}개.
+        {% endif %}
+      </p>
+      <form method="POST" action="{{ url_for('requisition_act', req_id=req.id) }}" style="margin:0;">
+        <input type="hidden" name="action" value="approve">
+        <textarea name="comment" class="form-control" rows="2" style="resize:none; margin-bottom:10px;"
+                  placeholder="의견 (선택)"></textarea>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="submit" class="btn btn-primary"
+                  onclick="return confirm('이 단계를 승인합니다.');">
+            <i class="fas fa-check"></i> 승인
+          </button>
+          <button type="button" class="btn btn-danger" onclick="showRejectModal()">
+            <i class="fas fa-times"></i> 반려
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% elif cur_step %}
+  <div class="info-banner" style="margin-bottom:16px;">
+    <i class="fas fa-hourglass-half"></i>
+    지금은 <strong>{{ cur_step.label or role_labels.get(cur_step.role_kind, '') }}</strong> 차례입니다.
+    {% if cur_step.due_at %} {{ cur_step.due_at[:10] }}까지 처리를 기다립니다.{% endif %}
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- 반려 모달 -->
+<div id="reject-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:var(--bg-1); border-radius:12px; padding:24px; width:400px; max-width:90vw;">
+    <h3 style="margin:0 0 12px; font-size:16px;" id="reject-modal-title">반려</h3>
+    <form id="reject-form" method="POST" action="{{ url_for('requisition_act', req_id=req.id) }}">
+      <input type="hidden" name="action" value="reject">
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label">반려 사유 <span style="color:var(--red);">*</span></label>
+        <textarea name="comment" class="form-control" rows="3" required
+                  style="resize:none;" placeholder="반려 사유를 입력해주세요."></textarea>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('reject-modal').style.display='none'">취소</button>
+        <button type="submit" class="btn btn-danger">반려</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% block scripts %}
+{{ super() }}
+<script>
+function showRejectModal() {
+  var t = document.getElementById('reject-modal-title');
+  t.textContent = '{{ (cur_step.label or "") if cur_step else "" }} 반려';
+  document.getElementById('reject-modal').style.display = 'flex';
+}
+document.getElementById('reject-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.style.display = 'none';
+});
+</script>
+{% endblock %}
+
+{% endblock %}
