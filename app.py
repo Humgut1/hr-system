@@ -2872,6 +2872,27 @@ def employee_new():
                 }, db_path=get_tenant_db_path(session.get('tenant_id', 1)))
             except Exception as _ie:
                 app.logger.warning(f'Integration error on employee_created: {_ie}')
+            # ── T5: 채용에서 넘어온 사람이면 계약서·온보딩·알림을 여기서 켠다 ──
+            if from_hire_id:
+                _op_code = None
+                _op = db.execute(
+                    'SELECT o.code FROM incoming_hires h '
+                    'JOIN job_openings o ON o.id = h.opening_id WHERE h.id=?',
+                    (from_hire_id,)).fetchone()
+                if _op:
+                    _op_code = _op['code']
+                try:
+                    _fired = ignite_after_hire(db, new_id, session['user_id'], _op_code)
+                    if _fired:
+                        flash('입사 확정 — ' + ' · '.join(_fired) + '까지 자동으로 처리했습니다.',
+                              'success')
+                    if '근로계약서 발송' not in _fired:
+                        flash('근로계약서는 아직 나가지 않았습니다. 계약서 화면에서 발행해 주세요.',
+                              'info')
+                except Exception as _te:
+                    app.logger.warning(f'T5 ignite failed for {new_id}: {_te}')
+                    flash('직원은 등록됐지만 계약서·온보딩 자동 처리가 실패했습니다. '
+                          '계약서 화면에서 직접 발행해 주세요.', 'error')
             return redirect(url_for('employees'))
 
     # 지원자→직원 전환 프리필 (기획서 P0: 오퍼 수락 시 /employees/new 프리필)
@@ -10759,9 +10780,10 @@ def hire_settings():
     if request.method == 'POST':
         url   = request.form.get('hire_url', '').strip().rstrip('/')
         token = request.form.get('hire_token', '').strip()
+        auto  = '1' if request.form.get('auto_contract') else '0'
         if url and not url.startswith(('http://', 'https://')):
             url = 'https://' + url
-        for k, v in (('hire_url', url), ('hire_token', token)):
+        for k, v in (('hire_url', url), ('hire_token', token), ('auto_contract', auto)):
             db.execute('INSERT INTO company_settings (key,value) VALUES (?,?) '
                        'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (k, v))
         db.commit()
@@ -10773,8 +10795,13 @@ def hire_settings():
     linked = db.execute(
         "SELECT COUNT(*) c FROM job_openings WHERE external_ref IS NOT NULL AND external_ref<>''"
     ).fetchone()['c']
+    auto_contract = _auto_contract_enabled(db)
+    ignited = db.execute(
+        "SELECT COUNT(*) c FROM job_openings WHERE status='filled' AND hired_user_id IS NOT NULL"
+    ).fetchone()['c']
     return render_template('hiring/hire_settings.html',
-        cfg=cfg, linked=linked, active_page='hiresettings')
+        cfg=cfg, linked=linked, auto_contract=auto_contract, ignited=ignited,
+        active_page='hiresettings')
 
 
 @app.route('/openings/push', methods=['POST'])
@@ -15800,6 +15827,133 @@ CONTRACT_DEFAULTS = {
 }
 
 
+# ── T5: 입사 확정 뒤 자동 점화 ──────────────────────────────────────────
+# 오퍼를 수락한 사람이 직원으로 전환되는 순간, 담당자가 다시 손대지 않아도
+# 계약서가 나가고 온보딩이 켜지고 담당자가 그 사실을 안다.
+# 이 한 칸이 비어 있으면 "채용요청 결재부터 온보딩까지 사람 손 없이 한 바퀴"라는
+# V1 약속이 마지막 걸음에서 끊긴다.
+
+def _auto_contract_enabled(db):
+    """자동 발송 스위치. 기본은 켜짐 — 끄려면 설정 → Hire 연동에서 끈다."""
+    row = db.execute(
+        "SELECT value FROM company_settings WHERE key='auto_contract'").fetchone()
+    return (row['value'] if row else '1') != '0'
+
+
+def _default_employment_template(db, created_by):
+    """표준 근로계약서 템플릿을 한 장 보장한다. 없으면 기본 서식으로 만들어 둔다."""
+    row = db.execute(
+        "SELECT id, content_html FROM contract_templates "
+        "WHERE contract_type='employment' ORDER BY id LIMIT 1").fetchone()
+    if row:
+        return row['id'], row['content_html']
+    content = CONTRACT_DEFAULTS.get('employment', '')
+    if not content:
+        return None, None
+    cur = db.execute(
+        "INSERT INTO contract_templates (name, contract_type, content_html, created_by) "
+        "VALUES (?,?,?,?)", ('표준 근로계약서', 'employment', content, created_by))
+    return cur.lastrowid, content
+
+
+def _fill_contract_vars(db, emp_id, content):
+    """{{변수}}를 그 사람의 실제 값으로 바꾼다. /contracts/issue 와 같은 표를 쓴다."""
+    emp = db.execute(
+        "SELECT u.name, u.hire_date, es.base_salary, d.name AS dept, p.name AS pos "
+        "FROM users u "
+        "LEFT JOIN departments d ON d.id=u.department_id "
+        "LEFT JOIN positions  p ON p.id=u.position_id "
+        "LEFT JOIN employee_salary es ON es.user_id=u.id "
+        "WHERE u.id=?", (emp_id,)).fetchone()
+    if not emp:
+        return content, None
+    company = get_company_info()
+    subst = {
+        '{{employee_name}}':   emp['name'] or '',
+        '{{department}}':      emp['dept'] or '',
+        '{{position}}':        emp['pos'] or '',
+        '{{hire_date}}':       emp['hire_date'] or '',
+        '{{start_date}}':      emp['hire_date'] or '',
+        '{{salary}}':          f"{int(emp['base_salary']):,}" if emp['base_salary'] else '0',
+        '{{company_name}}':    company.get('name', ''),
+        '{{company_address}}': company.get('address', ''),
+    }
+    for var, val in subst.items():
+        content = content.replace(var, val)
+    return content, emp
+
+
+def ignite_after_hire(db, emp_id, issuer_id, opening_code=None):
+    """입사 확정 직후 자동으로 켜지는 것들 — 계약서 · 온보딩 · 담당자 알림.
+
+    무엇이 실제로 켜졌는지 한국어 목록으로 돌려준다(그대로 화면에 보여주려고).
+    이미 되어 있는 건 건드리지 않는다 — 두 번 눌러도 계약서가 두 장 나가지 않는다.
+    """
+    fired = []
+
+    # ① 근로계약서 — 이미 한 장이라도 받은 사람은 건너뛴다
+    if _auto_contract_enabled(db):
+        already = db.execute(
+            'SELECT 1 FROM contracts WHERE employee_id=?', (emp_id,)).fetchone()
+        if not already:
+            tpl_id, content = _default_employment_template(db, issuer_id)
+            if content:
+                content, emp = _fill_contract_vars(db, emp_id, content)
+                if emp:
+                    title = f"{emp['name']} 근로계약서"
+                    db.execute(
+                        'INSERT INTO contracts (template_id, employee_id, issued_by, '
+                        'title, content_html) VALUES (?,?,?,?,?)',
+                        (tpl_id, emp_id, issuer_id, title, content))
+                    db.execute(
+                        'INSERT INTO notifications (user_id, type, category, title, content, link) '
+                        'VALUES (?,?,?,?,?,?)',
+                        (emp_id, 'action', 'contract', f'서명 요청 — {title}',
+                         '입사가 확정되어 근로계약서가 발송되었습니다. 확인 후 서명해 주세요.',
+                         url_for('contracts_list')))
+                    fired.append('근로계약서 발송')
+
+    # ② 온보딩 체크리스트 — 외부 연동이 꺼져 있거나 실패해도 반드시 깔린다.
+    #    보통은 on_employee_created 가 이미 깔아 두었다. 여기는 그물이다.
+    have = db.execute(
+        'SELECT COUNT(*) c FROM onboarding_progress WHERE user_id=?', (emp_id,)).fetchone()['c']
+    db.commit()          # 아래 시딩은 별도 연결로 같은 파일을 연다 — 먼저 잠금을 푼다
+    if not have:
+        try:
+            from integrations.dispatcher import _seed_onboarding_tasks
+            _seed_onboarding_tasks(get_tenant_db_path(session.get('tenant_id', 1)), emp_id)
+            have = db.execute(
+                'SELECT COUNT(*) c FROM onboarding_progress WHERE user_id=?',
+                (emp_id,)).fetchone()['c']
+        except Exception as e:
+            app.logger.warning(f'T5 onboarding seed failed for {emp_id}: {e}')
+    if have:
+        fired.append('온보딩 체크리스트 시작')
+
+    # ③ 담당자에게 "한 바퀴가 여기서 닫혔다"고 알린다.
+    #    자동 발송을 꺼 두었으면 계약서가 아직 안 나갔다는 사실 자체가 알려야 할 일이다.
+    emp = db.execute('SELECT name, hire_date FROM users WHERE id=?', (emp_id,)).fetchone()
+    if emp:
+        seat = f' · 자리 {opening_code}' if opening_code else ''
+        done = ' · '.join(fired) if fired else '자리 배정'
+        body = f"{emp['name']}님 입사가 확정되어 {done}까지 처리했습니다."
+        if emp['hire_date']:
+            body += f" 입사 예정일 {emp['hire_date']}."
+        if '근로계약서 발송' not in fired:
+            body += ' 근로계약서는 아직 나가지 않았습니다 — 계약서 화면에서 발행해 주세요.'
+        for a in db.execute(
+                "SELECT id FROM users WHERE role='admin' AND status='active'").fetchall():
+            if a['id'] == issuer_id:
+                continue
+            db.execute(
+                'INSERT INTO notifications (user_id, type, category, title, content, link) '
+                'VALUES (?,?,?,?,?,?)',
+                (a['id'], 'info', 'action', f"신규 입사자 확정 — {emp['name']}{seat}",
+                 body, url_for('contracts_list')))
+        db.commit()
+
+    return fired
+
 @app.route('/contracts')
 @login_required
 def contracts_list():
@@ -15821,9 +15975,10 @@ def contracts_list():
         ).fetchall()
     templates = db.execute("SELECT id, name, contract_type, created_at FROM contract_templates ORDER BY created_at DESC").fetchall()
     # 계약서를 아직 한 장도 못 받은 신규 입사자.
-    # 채용에서 넘어온 사람은 온보딩 목록에 '근로계약서 전자서명 완료'가 이미 떠 있는데,
-    # 정작 서명할 계약서가 없으면 본인은 할 수 있는 일이 없다. 발행은 사람이 확인하고
-    # 하는 일이라 자동으로 만들지 않고, 대신 여기서 담당자에게 보이게 한다.
+    # 채용(Hire)에서 넘어온 사람은 직원으로 전환되는 순간 계약서가 자동으로 나가므로(T5)
+    # 보통 여기 뜨지 않는다. 여기 남는 사람은 셋 중 하나다 —
+    # 자동 발송을 꺼 두었거나, 채용을 거치지 않고 직접 등록했거나, 자동 발송이 실패했거나.
+    # 어느 쪽이든 본인은 서명할 문서가 없어 아무것도 못 하므로 담당자에게 보이게 한다.
     pending_new = []
     if role in ('admin', 'manager'):
         pending_new = db.execute(

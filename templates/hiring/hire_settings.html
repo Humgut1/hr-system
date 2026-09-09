@@ -39,6 +39,11 @@
 
 .hs-steps { margin:0; padding-left:18px; font-size:12.5px; color:var(--tx-2); line-height:1.9; }
 .hs-steps b { color:var(--tx-1); }
+.hs-tg { display:flex; align-items:flex-start; gap:10px; cursor:pointer; }
+.hs-tg input { margin-top:2px; width:15px; height:15px; accent-color:var(--primary); }
+.hs-tg-t { font-size:13px; font-weight:700; color:var(--tx-1); }
+.hs-tg-d { font-size:11.5px; color:var(--tx-3); line-height:1.7; margin-top:3px; }
+
 .hs-steps code {
   font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11.5px;
   background:var(--bg); border:1px solid var(--border); border-radius:5px; padding:1px 5px;
@@ -91,6 +96,24 @@
       </div>
     </div>
 
+    <div class="hs-field" style="border-top:1px solid var(--border);padding-top:14px;">
+      <div class="hs-cap">입사 확정 뒤 자동 처리</div>
+      <label class="hs-tg">
+        <input type="checkbox" name="auto_contract" {% if auto_contract %}checked{% endif %}>
+        <span>
+          <span class="hs-tg-t">근로계약서를 자동으로 보낸다</span>
+          <span class="hs-tg-d">
+            Hire 에서 오퍼를 수락한 사람을 <b>입사 예정자 → 직원</b>으로 전환하는 순간,
+            표준 근로계약서에 그 사람의 부서·직급·연봉·입사일을 채워 서명 요청까지 보냅니다.
+            온보딩 체크리스트도 같이 켜집니다.
+            <br>계약서를 사람이 검토한 뒤 보내고 싶으면 이 칸을 꺼 두세요 —
+            그래도 온보딩과 담당자 알림은 그대로 켜집니다.
+            이미 계약서를 한 장이라도 받은 사람에게는 다시 보내지 않습니다.
+          </span>
+        </span>
+      </label>
+    </div>
+
     <div class="hs-actions">
       <button type="submit" class="btn btn-primary btn-sm">
         <i class="fas fa-save"></i> 저장
@@ -110,7 +133,15 @@
     <li><b>[Hire 로 보내기]</b> 를 누르면 그 묶음이 Hire 공고 <b>한 건</b>이 됩니다.</li>
     <li>자리 카드는 <b>채용 중</b>으로 바뀌고, 어느 공고로 갔는지 카드에 적힙니다.</li>
     <li>전형 단계(서류·1차·2차…)는 Hire 에서 담당자가 정합니다. 여기서 보내지 않습니다.</li>
+    <li>Hire 에서 <b>오퍼를 수락</b>하면 그 사람이 <b>입사 예정자</b>로 여기 돌아옵니다.</li>
+    <li><b>직원으로 전환</b>하는 순간 자리 카드에 도장이 찍히고,
+        근로계약서·온보딩 체크리스트가 자동으로 켜집니다. 한 바퀴가 여기서 닫힙니다.</li>
   </ol>
+  {% if ignited %}
+  <div class="hs-hint" style="margin-top:10px;">
+    지금까지 {{ ignited }}명이 이 경로로 자리에 앉았습니다.
+  </div>
+  {% endif %}
 </div>
 
 {% endblock %}
