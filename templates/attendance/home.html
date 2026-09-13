@@ -307,8 +307,8 @@
     <div class="wb-head">
       <span class="wb-title">이번 주 근무시간 <span style="font-size:11px; color:var(--tx-3); font-weight:400;">(§53 주 52시간)</span></span>
       <span class="wb-badge {{ wstate }}">
-        {% if weekly_hours.is_violation %}⚠ 위반 +{{ weekly_hours.over_h }}h
-        {% elif weekly_hours.is_warning %}⚠ 경고 {{ weekly_hours.remain_h }}h 남음
+        {% if weekly_hours.is_violation %}위반 +{{ weekly_hours.over_h }}h
+        {% elif weekly_hours.is_warning %}경고 {{ weekly_hours.remain_h }}h 남음
         {% else %}✓ 정상{% endif %}
       </span>
     </div>
@@ -1047,7 +1047,7 @@ function selectLeaveType(type) {
   var sickNote = '';
   if (type === 'sick' && meta.approval_hr_threshold) {
     sickNote = '<div style="margin-top:6px; font-size:11px; padding:6px 10px; background:var(--orange-bg); border-radius:6px; color:var(--orange);">'
-      + '⚠ ' + meta.approval_hr_threshold + '일 이하: 매니저만 / '
+      + '' + meta.approval_hr_threshold + '일 이하: 매니저만 / '
       + (meta.approval_hr_threshold+1) + '일 이상: 매니저→HR 추가 승인 + 진단서 필요</div>';
   }
 
@@ -1165,7 +1165,7 @@ function selectLeaveType(type) {
 
     <!-- 법령 -->
     <div class="law-box">
-      <div class="law-title">📋 ${meta.label} — ${meta.law || ''}</div>
+      <div class="law-title">${meta.label} — ${meta.law || ''}</div>
       ${meta.pay_info ? '<div class="law-row"><span class="law-key">임금</span><span class="law-val"><b>' + meta.pay_info + '</b></span></div>' : ''}
       ${meta.desc ? '<div class="law-row"><span class="law-key">안내</span><span class="law-val">' + meta.desc + '</span></div>' : ''}
       ${docsHtml}
@@ -1263,7 +1263,7 @@ function calcDays() {
     var h = sel ? parseFloat(sel.value) : 1;
     var d = Math.round(h / 8 * 10000) / 10000;
     if (h > ANNUAL_REMAIN * 8) {
-      prev.textContent = '⚠ 잔여 연차 부족 (' + ANNUAL_REMAIN + '일 = ' + (ANNUAL_REMAIN*8) + 'h)';
+      prev.textContent = '잔여 연차 부족 (' + ANNUAL_REMAIN + '일 = ' + (ANNUAL_REMAIN*8) + 'h)';
       prev.className = 'days-preview warn';
     } else {
       prev.textContent = h + '시간 → ' + d + '일 차감 (잔여 ' + ANNUAL_REMAIN + '일)';
@@ -1281,7 +1281,7 @@ function calcDays() {
   var selectedCard = document.querySelector('.lt-card.selected');
   var meta = selectedCard ? LEAVE_META[selectedCard.getAttribute('data-type')] : null;
   if (meta && meta.deduct === 'annual' && days > ANNUAL_REMAIN) {
-    prev.textContent = '⚠ 잔여 연차 부족 (잔여 ' + ANNUAL_REMAIN + '일, 신청 ' + days + '일)';
+    prev.textContent = '잔여 연차 부족 (잔여 ' + ANNUAL_REMAIN + '일, 신청 ' + days + '일)';
     prev.className = 'days-preview warn';
   } else {
     prev.textContent = '예상 ' + days + '일 (평일 기준)';

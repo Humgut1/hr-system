@@ -365,7 +365,7 @@
       {% set buddy_row = emp.buddy_id %}
       {% if emp.buddy_name %}
       <div style="display:flex;align-items:center;gap:.75rem">
-        <div style="width:36px;height:36px;border-radius:50%;background:var(--primary-light,var(--surface-2));display:flex;align-items:center;justify-content:center;font-size:1rem">🤝</div>
+        <div style="width:36px;height:36px;border-radius:50%;background:var(--primary-light,var(--surface-2));display:flex;align-items:center;justify-content:center;font-size:1rem"></div>
         <div>
           <a href="{{ url_for('employee_detail', emp_id=emp.buddy_id) }}" style="font-weight:600;color:var(--primary);text-decoration:none">{{ emp.buddy_name }}</a>
           <div style="font-size:.8rem;color:var(--tx-2)">{{ emp.buddy_dept or '' }} {{ emp.buddy_pos or '' }}</div>
@@ -636,7 +636,7 @@
     <div class="section-head" style="display:flex; justify-content:space-between; align-items:center;">
       <span>최근 급여명세서 (최대 6개월)</span>
       <a href="{{ url_for('total_compensation', uid=emp.id) }}" class="btn btn-ghost btn-sm" style="font-size:12px;">
-        💼 Total Comp Statement
+        Total Comp Statement
       </a>
     </div>
     {% if payslips %}
@@ -1206,11 +1206,11 @@
       {% for ev in life_events %}
       <div style="display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);">
         <div style="width:36px;height:36px;border-radius:50%;background:var(--info-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">
-          {% if ev.event_type == 'marriage' %}💍
-          {% elif ev.event_type == 'birth' or ev.event_type == 'adoption' %}👶
-          {% elif ev.event_type == 'divorce' or ev.event_type == 'death_of_dependent' %}📋
-          {% elif ev.event_type == 'disability_onset' %}♿
-          {% else %}📅{% endif %}
+          {% if ev.event_type == 'marriage' %}
+          {% elif ev.event_type == 'birth' or ev.event_type == 'adoption' %}
+          {% elif ev.event_type == 'divorce' or ev.event_type == 'death_of_dependent' %}
+          {% elif ev.event_type == 'disability_onset' %}
+          {% else %}{% endif %}
         </div>
         <div style="flex:1;">
           <div style="font-weight:600;font-size:.9rem;">{{ life_event_label.get(ev.event_type, ev.event_type) }}</div>

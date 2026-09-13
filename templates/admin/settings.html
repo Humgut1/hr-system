@@ -146,7 +146,7 @@
             <input type="radio" name="work_system" value="standard"
                    {{ 'checked' if config.get('work_system','standard')=='standard' else '' }}>
             <div class="radio-card-body">
-              <div class="radio-card-icon">🏢</div>
+              <div class="radio-card-icon"></div>
               <div>
                 <div class="radio-card-name">일반 근무제</div>
                 <div class="radio-card-desc">정해진 출퇴근 시간에 맞춰 근무</div>
@@ -168,7 +168,7 @@
             <input type="radio" name="work_system" value="elastic"
                    {{ 'checked' if config.get('work_system')=='elastic' else '' }}>
             <div class="radio-card-body">
-              <div class="radio-card-icon">📅</div>
+              <div class="radio-card-icon"></div>
               <div>
                 <div class="radio-card-name">탄력근로제 (§51)</div>
                 <div class="radio-card-desc">단위 기간 내 근로시간 조정</div>
@@ -179,7 +179,7 @@
             <input type="radio" name="work_system" value="autonomous"
                    {{ 'checked' if config.get('work_system')=='autonomous' else '' }}>
             <div class="radio-card-body">
-              <div class="radio-card-icon">🎯</div>
+              <div class="radio-card-icon"></div>
               <div>
                 <div class="radio-card-name">재량근로제 (§58)</div>
                 <div class="radio-card-desc">전문직 재량 근무</div>
@@ -272,7 +272,7 @@
             <input type="radio" name="leave_policy" value="legal"
                    {{ 'checked' if config.get('leave_policy','legal')=='legal' else '' }}>
             <div class="radio-card-body" style="flex-direction:column; gap:4px;">
-              <div class="radio-card-icon">⚖️</div>
+              <div class="radio-card-icon"></div>
               <div>
                 <div class="radio-card-name">법정 기준</div>
                 <div class="radio-card-desc">근로기준법 제60조</div>
@@ -283,7 +283,7 @@
             <input type="radio" name="leave_policy" value="fixed"
                    {{ 'checked' if config.get('leave_policy')=='fixed' else '' }}>
             <div class="radio-card-body" style="flex-direction:column; gap:4px;">
-              <div class="radio-card-icon">📌</div>
+              <div class="radio-card-icon"></div>
               <div>
                 <div class="radio-card-name">고정 부여</div>
                 <div class="radio-card-desc">매년 동일 일수</div>
@@ -294,7 +294,7 @@
             <input type="radio" name="leave_policy" value="generous"
                    {{ 'checked' if config.get('leave_policy')=='generous' else '' }}>
             <div class="radio-card-body" style="flex-direction:column; gap:4px;">
-              <div class="radio-card-icon">🎁</div>
+              <div class="radio-card-icon"></div>
               <div>
                 <div class="radio-card-name">법정 + 추가</div>
                 <div class="radio-card-desc">법정 + 추가 일수</div>
@@ -329,7 +329,7 @@
             <input type="radio" name="sick_policy" value="annual"
                    {{ 'checked' if config.get('sick_policy','annual')=='annual' else '' }}>
             <div class="radio-card-body" style="flex-direction:column; gap:4px;">
-              <div class="radio-card-icon">📋</div>
+              <div class="radio-card-icon"></div>
               <div><div class="radio-card-name">연차 차감</div></div>
             </div>
           </label>
@@ -337,7 +337,7 @@
             <input type="radio" name="sick_policy" value="separate"
                    {{ 'checked' if config.get('sick_policy')=='separate' else '' }}>
             <div class="radio-card-body" style="flex-direction:column; gap:4px;">
-              <div class="radio-card-icon">🏥</div>
+              <div class="radio-card-icon"></div>
               <div><div class="radio-card-name">별도 유급 병가</div></div>
             </div>
           </label>
@@ -345,7 +345,7 @@
             <input type="radio" name="sick_policy" value="unpaid"
                    {{ 'checked' if config.get('sick_policy')=='unpaid' else '' }}>
             <div class="radio-card-body" style="flex-direction:column; gap:4px;">
-              <div class="radio-card-icon">📝</div>
+              <div class="radio-card-icon"></div>
               <div><div class="radio-card-name">무급 병가</div></div>
             </div>
           </label>
@@ -403,7 +403,7 @@
             <input type="radio" name="perf_cycle" value="annual"
                    {{ 'checked' if config.get('perf_cycle')=='annual' else '' }}>
             <div class="radio-card-body" style="flex-direction:column; gap:4px;">
-              <div class="radio-card-icon">🗓️</div>
+              <div class="radio-card-icon"></div>
               <div><div class="radio-card-name">연간 (1회)</div></div>
             </div>
           </label>
@@ -411,7 +411,7 @@
             <input type="radio" name="perf_cycle" value="semiannual"
                    {{ 'checked' if config.get('perf_cycle','semiannual')=='semiannual' else '' }}>
             <div class="radio-card-body" style="flex-direction:column; gap:4px;">
-              <div class="radio-card-icon">📆</div>
+              <div class="radio-card-icon"></div>
               <div><div class="radio-card-name">반기 (2회)</div></div>
             </div>
           </label>
@@ -419,7 +419,7 @@
             <input type="radio" name="perf_cycle" value="quarterly"
                    {{ 'checked' if config.get('perf_cycle')=='quarterly' else '' }}>
             <div class="radio-card-body" style="flex-direction:column; gap:4px;">
-              <div class="radio-card-icon">📊</div>
+              <div class="radio-card-icon"></div>
               <div><div class="radio-card-name">분기 (4회)</div></div>
             </div>
           </label>
@@ -445,7 +445,7 @@
             <input type="radio" name="grade_system" value="SABCD"
                    {{ 'checked' if config.get('grade_system','SABCD')=='SABCD' else '' }}>
             <div class="radio-card-body">
-              <div class="radio-card-icon">🏆</div>
+              <div class="radio-card-icon"></div>
               <div><div class="radio-card-name">S / A / B / C / D</div><div class="radio-card-desc">5등급</div></div>
             </div>
           </label>
@@ -453,7 +453,7 @@
             <input type="radio" name="grade_system" value="15"
                    {{ 'checked' if config.get('grade_system')=='15' else '' }}>
             <div class="radio-card-body">
-              <div class="radio-card-icon">⭐</div>
+              <div class="radio-card-icon"></div>
               <div><div class="radio-card-name">1 ~ 5점</div><div class="radio-card-desc">숫자 점수제</div></div>
             </div>
           </label>
@@ -461,7 +461,7 @@
             <input type="radio" name="grade_system" value="EE_ME_ME_NI"
                    {{ 'checked' if config.get('grade_system')=='EE_ME_ME_NI' else '' }}>
             <div class="radio-card-body">
-              <div class="radio-card-icon">🌐</div>
+              <div class="radio-card-icon"></div>
               <div><div class="radio-card-name">EE / ME / NI</div><div class="radio-card-desc">글로벌 표준</div></div>
             </div>
           </label>
@@ -469,7 +469,7 @@
             <input type="radio" name="grade_system" value="OKR"
                    {{ 'checked' if config.get('grade_system')=='OKR' else '' }}>
             <div class="radio-card-body">
-              <div class="radio-card-icon">🎯</div>
+              <div class="radio-card-icon"></div>
               <div><div class="radio-card-name">OKR 달성률</div><div class="radio-card-desc">0~100%</div></div>
             </div>
           </label>
@@ -499,7 +499,7 @@
           <label class="radio-card">
             <input type="radio" name="preset" value="{{ key }}" {% if loop.first %}checked{% endif %}>
             <div class="radio-card-body">
-              <div class="radio-card-icon">{{ '🚀' if key == 'l_level' else '🏢' }}</div>
+              <div class="radio-card-icon">{{ '' if key == 'l_level' else '' }}</div>
               <div>
                 <div class="radio-card-name">{{ p.label }}</div>
                 <div class="radio-card-desc">{{ p.names[1] }} → {{ p.names[5] }} → {{ p.names[9] }}</div>

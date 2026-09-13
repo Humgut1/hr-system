@@ -51,9 +51,9 @@
                           {% elif val == 'hold' %}background:var(--surface)8e1; border-color:var(--orange); color:var(--orange);
                           {% else %}background:var(--red-bg); border-color:var(--late); color:var(--late);{% endif %}
                         {% endif %}">
-              {% if val == 'pass' %}✅ {{ label }}
+              {% if val == 'pass' %}{{ label }}
               {% elif val == 'hold' %}⏸ {{ label }}
-              {% else %}❌ {{ label }}{% endif %}
+              {% else %}{{ label }}{% endif %}
             </div>
           </label>
           {% endfor %}

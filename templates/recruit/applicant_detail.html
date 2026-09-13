@@ -122,7 +122,7 @@
           {% elif applicant.stage == 'rejected' %}background:var(--surface)3e0;color:var(--orange);
           {% else %}background:var(--red-bg);color:var(--red);{% endif %}
           font-size:13px;font-weight:700;">
-          {% if applicant.stage == 'accepted' %}🎉 최종 합격
+          {% if applicant.stage == 'accepted' %}최종 합격
             {% if applicant.hired_employee_id %}<div style="font-size:11px;margin-top:4px;">직원 전환 완료</div>{% endif %}
           {% elif applicant.stage == 'rejected' %}오퍼 거절
           {% else %}불합격
@@ -175,7 +175,7 @@
           <form action="{{ url_for('recruit_hire', applicant_id=applicant.id) }}" method="POST">
             <button type="submit" class="btn btn-sm" style="width:100%;background:var(--green);color:var(--surface);border:none;"
                     onclick="return confirm('입사자가 오퍼를 수락했나요?\n확인 시 직원이 자동 등록됩니다.')">
-              ✅ 입사 확정
+              입사 확정
             </button>
           </form>
           <button type="button" onclick="document.getElementById('offer-reject-modal').style.display='flex'"
@@ -377,7 +377,7 @@
               <div style="font-size:12px;font-weight:700;color:var(--tx-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">피드백</div>
               {% for fb in feedbacks %}
               <div style="padding:10px 0;border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;">
-                <div style="min-width:90px;font-size:13px;font-weight:700;color:var(--tx-1);">{{ fb.interviewer_name }}{% if fb.is_edited %}<span title="피드백 수정됨" style="font-size:10px;color:var(--warning);margin-left:2px;">⚠</span>{% endif %}</div>
+                <div style="min-width:90px;font-size:13px;font-weight:700;color:var(--tx-1);">{{ fb.interviewer_name }}{% if fb.is_edited %}<span title="피드백 수정됨" style="font-size:10px;color:var(--warning);margin-left:2px;"></span>{% endif %}</div>
                 <div style="min-width:50px;"><span style="font-size:11px;padding:3px 8px;border-radius:var(--r-sm);font-weight:700;{% if fb.recommendation == 'pass' %}background:var(--green-bg);color:var(--green);{% elif fb.recommendation == 'hold' %}background:var(--surface)8e1;color:var(--orange);{% else %}background:var(--red-bg);color:var(--red);{% endif %}">{{ recommendation_label.get(fb.recommendation, fb.recommendation) }}</span></div>
                 <div style="flex:1;font-size:12px;">
                   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px;">

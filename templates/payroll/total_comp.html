@@ -3,12 +3,12 @@
 {% block content %}
 <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
   <div>
-    <h1>💼 총보상 명세서</h1>
+    <h1>총보상 명세서</h1>
     <p class="page-subtitle">{{ emp.name }} · {{ emp.dept_name or '-' }} · {{ emp.pos_name or '-' }} · {{ year }}년도</p>
   </div>
   <div style="display:flex; gap:8px;">
     <a href="{{ url_for('employee_detail', emp_id=emp.id) }}" class="btn btn-ghost btn-sm">← 프로필</a>
-    <button onclick="window.print()" class="btn btn-primary btn-sm">🖨️ 인쇄</button>
+    <button onclick="window.print()" class="btn btn-primary btn-sm">인쇄</button>
   </div>
 </div>
 

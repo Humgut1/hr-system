@@ -170,8 +170,8 @@
     <div class="req-days">{{ req.days }}일</div>
     <div class="req-days-sub">
       {% if meta.deduct == 'annual' %}연차 차감{% else %}연차 비차감{% endif %}<br>
-      {% if status == 'approved' %}✅ 승인 완료
-      {% elif status == 'rejected' %}❌ 반려
+      {% if status == 'approved' %}승인 완료
+      {% elif status == 'rejected' %}반려
       {% elif status == 'cancelled' %}취소됨
       {% elif current_awaiting == 'hr' %}HR 검토 중
       {% else %}매니저 검토 중{% endif %}

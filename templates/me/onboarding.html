@@ -21,14 +21,14 @@
 <!-- 버디 카드 -->
 {% if buddy %}
 <div class="card" style="margin-bottom:1.5rem;padding:1.25rem;display:flex;align-items:center;gap:1rem;border-left:4px solid var(--primary)">
-  <div style="width:48px;height:48px;border-radius:50%;background:var(--primary-light,var(--surface-2));display:flex;align-items:center;justify-content:center;font-size:1.25rem">🤝</div>
+  <div style="width:48px;height:48px;border-radius:50%;background:var(--primary-light,var(--surface-2));display:flex;align-items:center;justify-content:center;font-size:1.25rem"></div>
   <div>
     <div style="font-weight:600">내 버디 (Buddy)</div>
     <div style="font-size:.9rem;color:var(--tx-2)">{{ buddy.name }} · {{ buddy.dept or '' }} {{ buddy.pos or '' }}</div>
     <a href="mailto:{{ buddy.email }}" style="font-size:.85rem;color:var(--primary)">{{ buddy.email }}</a>
   </div>
   <div style="margin-left:auto;text-align:right;font-size:.8rem;color:var(--tx-2)">
-    궁금한 점은 Slack DM으로<br>언제든지 물어보세요 😊
+    궁금한 점은 Slack DM으로<br>언제든지 물어보세요 
   </div>
 </div>
 {% endif %}
@@ -45,7 +45,7 @@
 
 <!-- Day 1 스케줄 -->
 <div class="card" style="margin-bottom:1.5rem;padding:1.25rem">
-  <div style="font-weight:600;margin-bottom:.75rem">📅 Day 1 스케줄 ({{ hire_date or '입사일' }})</div>
+  <div style="font-weight:600;margin-bottom:.75rem">Day 1 스케줄 ({{ hire_date or '입사일' }})</div>
   <div style="display:flex;flex-direction:column;gap:.5rem;font-size:.9rem">
     {% set schedule = [
       ('09:00', '로비 집결 — 버디 & HR 팀장 맞이'),
@@ -112,7 +112,7 @@
 
 {% if pct == 100 %}
 <div class="card" style="padding:2rem;text-align:center;background:linear-gradient(135deg,var(--primary) 0%,var(--primary) 100%);color:var(--on-primary);border:none;margin-bottom:2rem">
-  <div style="font-size:2.5rem;margin-bottom:.5rem">🎊</div>
+  <div style="font-size:2.5rem;margin-bottom:.5rem"></div>
   <div style="font-size:1.25rem;font-weight:700">온보딩 완료!</div>
   <div style="opacity:.9;margin-top:.25rem">이제 본격적인 업무를 시작할 준비가 되었어요. 화이팅!</div>
 </div>

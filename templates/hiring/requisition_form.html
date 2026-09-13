@@ -109,6 +109,7 @@
 .jf-card:hover { border-color: var(--primary); color: var(--primary); }
 .jf-card.selected { background: var(--primary); color: var(--on-primary); border-color: var(--primary); box-shadow: 0 4px 12px var(--surface-2); }
 .jf-card .jf-icon { font-size: 16px; display: block; margin-bottom: 4px; }
+.jf-icon:empty, .etc-icon:empty { display: none; }
 
 /* 레벨 선택 */
 .level-grid { display: grid; grid-template-columns: repeat(9,1fr); gap: 6px; }
@@ -312,11 +313,11 @@
           <label>직군 (Job Family)</label>
           <input type="hidden" name="job_family_id" id="jf-hidden" value="{{ req.job_family_id if req else '' }}">
           {% set jf_icons = {
-            'SWE':'💻','FE':'🖥️','DE':'📊','ML':'🤖','INFRA':'🔧','SEC':'🔒','QA':'🧪',
-            'PM':'🎯','UXR':'🔍','DESIGN':'🎨','TW':'📝',
-            'SALES':'🤝','BD':'🌐','CS':'🎧','MKT':'📣','GROWTH':'📈',
-            'FIN':'💰','LEGAL':'⚖️','STRAT':'🗺️','BIZ_OPS':'⚙️',
-            'HR':'👥','TA':'🎯','COMP':'💎'
+            'SWE':'','FE':'','DE':'','ML':'','INFRA':'','SEC':'','QA':'',
+            'PM':'','UXR':'','DESIGN':'','TW':'',
+            'SALES':'','BD':'','CS':'','MKT':'','GROWTH':'',
+            'FIN':'','LEGAL':'','STRAT':'','BIZ_OPS':'',
+            'HR':'','TA':'','COMP':''
           } %}
           {% set group_codes = [] %}
           {% for jf in jfs %}{% if jf.group_name and jf.group_name not in group_codes %}{% if group_codes.append(jf.group_name) %}{% endif %}{% endif %}{% endfor %}
@@ -338,7 +339,7 @@
             {% endif %}
             <div class="jf-card {% if req and req.job_family_id == jf.id %}selected{% endif %}"
                  data-jf-id="{{ jf.id }}" onclick="selectJF(this)">
-              <span class="jf-icon">{{ jf_icons.get(jf.code, '📁') }}</span>
+              <span class="jf-icon">{{ jf_icons.get(jf.code, '') }}</span>
               <span style="font-size:10px;">{{ jf.name }}</span>
             </div>
           {% endfor %}
@@ -371,12 +372,12 @@
           <div class="track-toggle">
             <div class="track-card ic {% if not req or req.track == 'IC' %}selected{% endif %}"
                  id="ic-track-card" onclick="selectTrack('IC')">
-              <div class="track-name">🔵 IC</div>
+              <div class="track-name">IC</div>
               <div class="track-desc">Individual Contributor<br>기술 전문가 트랙</div>
             </div>
             <div class="track-card m {% if req and req.track == 'M' %}selected{% endif %}"
                  id="m-track-card" onclick="selectTrack('M')">
-              <div class="track-name">🟢 M</div>
+              <div class="track-name">M</div>
               <div class="track-desc">Manager<br>L5+ 부터 선택 가능</div>
             </div>
           </div>
@@ -404,12 +405,12 @@
           <label>고용 형태</label>
           <input type="hidden" name="employment_type" id="emp-type-hidden"
                  value="{{ req.employment_type if req else 'full_time' }}">
-          {% set emp_icons = {'full_time':'🏢','part_time':'⏱️','contract':'📋','intern':'🎓','freelance':'🌐'} %}
+          {% set emp_icons = {'full_time':'','part_time':'','contract':'','intern':'','freelance':''} %}
           <div class="emp-type-grid">
             {% for key, label in emp_type_labels.items() %}
             <div class="emp-type-card {% if (req and req.employment_type == key) or (not req and key == 'full_time') %}selected{% endif %}"
                  data-val="{{ key }}" onclick="selectEmpType(this)">
-              <span class="etc-icon">{{ emp_icons.get(key, '📄') }}</span>
+              <span class="etc-icon">{{ emp_icons.get(key, '') }}</span>
               {{ label }}
             </div>
             {% endfor %}

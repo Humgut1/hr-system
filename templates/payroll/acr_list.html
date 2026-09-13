@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
   <div>
-    <h1>📋 연간 보상 검토 (ACR)</h1>
+    <h1>연간 보상 검토 (ACR)</h1>
     <p class="page-subtitle">연간 보상 검토 주기 관리 · 매니저 인상안 수집 → HR 승인 → 급여 자동 반영</p>
   </div>
   <button onclick="document.getElementById('newModal').style.display='flex'" class="btn btn-primary">
@@ -44,7 +44,7 @@
         {% if c.status == 'draft' %}
         <form method="post" action="{{ url_for('acr_open', cycle_id=c.id) }}"
               onsubmit="return confirm('ACR을 오픈하면 전 직원의 인상안 입력이 시작됩니다. 계속할까요?')">
-          <button type="submit" class="btn btn-primary btn-sm">🚀 오픈</button>
+          <button type="submit" class="btn btn-primary btn-sm">오픈</button>
         </form>
         {% elif c.status == 'open' %}
         <a href="{{ url_for('acr_detail', cycle_id=c.id) }}" class="btn btn-primary btn-sm">
@@ -67,7 +67,7 @@
 {% else %}
 <div class="card">
   <div style="padding:60px; text-align:center; color:var(--text-muted);">
-    <div style="font-size:48px; margin-bottom:12px;">📋</div>
+    <div style="font-size:48px; margin-bottom:12px;"></div>
     <p>생성된 ACR 주기가 없습니다.</p>
     <button onclick="document.getElementById('newModal').style.display='flex'" class="btn btn-primary" style="margin-top:8px;">
       첫 번째 ACR 주기 만들기

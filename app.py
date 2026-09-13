@@ -6686,7 +6686,7 @@ def compensation():
             db.commit()
             log_audit('update', 'salary', uid, f'개별 급여 수정 (기본급 {base:,}원)')
             flash('급여가 저장되었습니다.' if mw['ok'] else
-                  f'급여 저장 완료 — ⚠️ 최저임금 미달 (부족 {fmt_krw(mw["shortage"])}원)',
+                  f'급여 저장 완료 — 최저임금 미달 (부족 {fmt_krw(mw["shortage"])}원)',
                   'success' if mw['ok'] else 'warning')
 
         elif action == 'generate':
@@ -7569,7 +7569,7 @@ def admin_payroll():
             db.commit()
             log_audit('update', 'salary', uid, f'개별 급여 수정 (기본급 {base:,}원)')
             if not mw['ok']:
-                msg = (f'급여가 저장되었으나 ⚠️ 최저임금 미달입니다. '
+                msg = (f'급여가 저장되었으나 최저임금 미달입니다. '
                        f'(기본급 {fmt_krw(base)}원 < 최저임금 {fmt_krw(mw["min_monthly"])}원, '
                        f'부족액 {fmt_krw(mw["shortage"])}원)')
             else:
@@ -9206,7 +9206,7 @@ def performance_team_member_review(emp_uid):
         pending  = [u for u in _team_pending_uids(db, cycle, uid, session['user_role'], mgr_dept) if u != emp_uid]
         if pending:
             return redirect(url_for('performance_team_member', emp_uid=pending[0], cycle=cycle_id))
-        flash('이번 단계에서 처리할 팀원을 모두 완료했습니다. 🎉', 'success')
+        flash('이번 단계에서 처리할 팀원을 모두 완료했습니다. ', 'success')
         return redirect(url_for('performance', cycle=cycle_id))
     return redirect(url_for('performance_team_member', emp_uid=emp_uid, cycle=cycle_id))
 
@@ -9475,7 +9475,7 @@ def performance_cycle_stage(cycle_id):
             "WHERE cycle_id=? AND approval_status != 'confirmed'", (cycle_id,)
         ).fetchone()[0]
         if unconfirmed:
-            flash(f'⚠ 목표가 아직 확정되지 않은 직원이 {unconfirmed}명 있습니다. 목표 수립 단계가 지나면 신규 등록·제출이 제한됩니다.', 'error')
+            flash(f'목표가 아직 확정되지 않은 직원이 {unconfirmed}명 있습니다. 목표 수립 단계가 지나면 신규 등록·제출이 제한됩니다.', 'error')
     if direction == 'next' and new_stage == 'calibration':
         no_self = db.execute(
             "SELECT COUNT(DISTINCT user_id) FROM performance_goals "
@@ -9487,7 +9487,7 @@ def performance_cycle_stage(cycle_id):
             "AND NOT EXISTS (SELECT 1 FROM performance_reviews r WHERE r.goal_id=g.id)", (cycle_id,)
         ).fetchone()[0]
         if no_self or no_mgr:
-            flash(f'⚠ 자기평가 미제출 {no_self}명 · 매니저 미평가 목표 {no_mgr}개 상태로 조정 단계에 진입했습니다. 점수 없는 항목은 집계에서 빠집니다.', 'error')
+            flash(f'자기평가 미제출 {no_self}명 · 매니저 미평가 목표 {no_mgr}개 상태로 조정 단계에 진입했습니다. 점수 없는 항목은 집계에서 빠집니다.', 'error')
 
     # 일반 전환 (뒤로 갈 때 closed → 재활성화)
     db.execute('UPDATE performance_cycles SET stage=? WHERE id=?', (new_stage, cycle_id))
@@ -10003,7 +10003,7 @@ EMAIL_TEMPLATES = {
             '{name}님 안녕하세요.\n\n'
             '{company} 채용팀입니다.\n\n'
             '{posting_title} 포지션 최종 면접 결과,\n'
-            '합격하셨음을 알려드립니다. 축하드립니다! 🎉\n\n'
+            '합격하셨음을 알려드립니다. 축하드립니다! \n\n'
             '오퍼 레터 및 입사 관련 안내는 별도로 발송해 드릴 예정입니다.\n\n'
             '감사합니다.\n'
             '{company} 채용팀 드림'
@@ -11622,7 +11622,7 @@ def recruit_hire(applicant_id):
     except Exception as e:
         app.logger.warning(f'recruit_hire integration error: {e}')
 
-    flash(f'🎉 {name}({emp_no}) 입사 확정 완료! Jira·Slack·온보딩 체크리스트가 자동으로 준비됩니다.', 'success')
+    flash(f'{name}({emp_no}) 입사 확정 완료! Jira·Slack·온보딩 체크리스트가 자동으로 준비됩니다.', 'success')
     return redirect(url_for('employee_detail', emp_id=new_user_id))
 
 
@@ -13263,7 +13263,7 @@ def do_checkout():
                     url_for('overtime_monitor')
                 )
             flash(
-                f'⚠️ 주 52시간 초과! 이번 주 총 {weekly["total_h"]}시간 근무 '
+                f'주 52시간 초과! 이번 주 총 {weekly["total_h"]}시간 근무 '
                 f'(법정 한도 초과 {weekly["over_h"]}시간). HR 담당자에게 자동 알림이 발송됐습니다.',
                 'error'
             )
@@ -17379,7 +17379,7 @@ def slack_interactive():
                     f"[TalentCore] {req['start_date']} ~ {req['end_date']} 휴가가 승인됐습니다.")
         # 버튼 메시지 업데이트
         respond_to_interaction(response_url,
-            f"✅ {emp['name'] if emp else ''}님 휴가 승인 완료 ({req['start_date']} ~ {req['end_date']})")
+            f"{emp['name'] if emp else ''}님 휴가 승인 완료 ({req['start_date']} ~ {req['end_date']})")
         return '', 200
 
     # ── 휴가 반려 버튼 ────────────────────────────────────────
@@ -17404,7 +17404,7 @@ def slack_interactive():
             send_dm(emp['email'],
                     f"[TalentCore] {req['start_date']} ~ {req['end_date']} 휴가 신청이 반려됐습니다.")
         respond_to_interaction(response_url,
-            f"❌ {emp['name'] if emp else ''}님 휴가 반려 ({req['start_date']} ~ {req['end_date']})")
+            f"{emp['name'] if emp else ''}님 휴가 반려 ({req['start_date']} ~ {req['end_date']})")
         return '', 200
 
     return '', 200
