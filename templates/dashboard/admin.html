@@ -9,7 +9,7 @@
   {% if 'kpi_cards' in enabled_widgets %}<span class="rr">
     <a href="{{ url_for('employees') }}">재직 <b>{{ total_employees }}</b></a>
     <a href="{{ url_for('hires_list') }}">입사예정 <b>{{ hires_waiting_count }}</b></a>
-    <a href="{{ url_for('opening_board') }}">공석 <b>{{ open_seats }}</b></a>
+    <a href="{{ url_for('opening_board') }}">미충원 <b>{{ open_seats }}</b></a>
     <a href="{{ url_for('attendance_home') }}">금일 부재 <b>{{ out_today }}</b></a>
     <a href="{{ url_for('approvals_hub') }}" class="{% if inbox_late %}late{% endif %}">미결 <b>{{ inbox_count }}</b>{% if inbox_late %} · 기한 초과 <b>{{ inbox_late }}</b>{% endif %}</a>
   </span>{% endif %}
@@ -48,7 +48,7 @@
     <h2>미결</h2>
     <span class="cnt" style="{% if inbox_late %}color:var(--late);{% endif %}">{{ inbox_count }}건</span>
     <span class="sp"></span>
-    <a href="{{ url_for('approvals_hub') }}" class="btn btn-ghost btn-sm">결재 대기함</a>
+    <a href="{{ url_for('approvals_hub') }}" class="btn btn-ghost btn-sm">결재함</a>
   </div>
   <div class="tbl-wrap">
     <table class="qtable">
@@ -100,9 +100,9 @@
 
   {% if 'open_positions' in enabled_widgets %}
   <section>
-    <div class="sec-head"><h2>열린 자리</h2><span class="cnt">{{ open_seats }}석</span><span class="sp"></span><a href="{{ url_for('opening_board') }}">자리 대장</a></div>
+    <div class="sec-head"><h2>미충원 포지션</h2><span class="cnt">{{ open_seats }}건</span><span class="sp"></span><a href="{{ url_for('opening_board') }}">충원 현황</a></div>
     <table class="ltable">
-      <thead><tr><th>요청번호</th><th>직무</th><th class="r">공석 / 정원</th></tr></thead>
+      <thead><tr><th>요청번호</th><th>직무</th><th class="r">미충원 / 요청</th></tr></thead>
       <tbody>
         {% for job in open_jobs %}
         <tr><td class="m"><a href="{{ url_for('requisition_detail', req_id=job.req_id) }}">REQ-{{ job.req_id }}</a></td><td>{{ job.title }}</td><td class="m r">{{ job.open_count }} / {{ job.total_count }}</td></tr>

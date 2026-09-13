@@ -1,6 +1,6 @@
 ﻿{% extends 'base.html' %}
-{% block title %}채용 요청서 작성{% endblock %}
-{% block page_title %}채용 요청서 작성{% endblock %}
+{% block title %}채용 요청 작성{% endblock %}
+{% block page_title %}채용 요청 작성{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -239,12 +239,11 @@
         <div class="flow-chain" id="flow-chain"></div>
       </div>
 
-      {# 백필이라고 적으면 "누구 자리인가"를 반드시 밝히게 한다.
-         이게 없으면 몇 달 뒤에 이 자리가 충원이었는지 증원이었는지 아무도 모른다. #}
+      {# 결원 충원이면 퇴직(예정)자를 반드시 지정한다 — 충원/증원 구분의 근거 #}
       <div class="field" id="backfill-field" style="margin-top:14px; display:none;">
-        <label>누구 자리인가요? <span class="req-mark">*</span></label>
+        <label>결원 대상자 <span class="req-mark">*</span></label>
         <select name="backfill_user_id" class="select" id="backfill-select">
-          <option value="">— 나간 사람 선택 —</option>
+          <option value="">— 퇴직(예정)자 선택 —</option>
           {% for u in leavers %}
           <option value="{{ u.id }}" {% if req and req.backfill_user_id == u.id %}selected{% endif %}>
             {{ u.name }}{% if u.dept_name %} · {{ u.dept_name }}{% endif %}{% if u.status != 'active' %} · 퇴사{% if u.termination_date %} {{ u.termination_date[:10] }}{% endif %}{% else %} · 재직 중(퇴사 예정){% endif %}
@@ -254,7 +253,7 @@
       </div>
 
       <div class="field" id="budget-field" style="margin-top:14px; display:none;">
-        <label>예산에 없던 증원인 이유 <span class="req-mark">*</span></label>
+        <label>계획 외 증원 사유 <span class="req-mark">*</span></label>
         <textarea name="budget_note" class="input" rows="2"
                   placeholder="예: 신규 계약 3건 수주로 3분기 내 인력 부족 — 연 인건비 8,000만원 추가 발생">{{ req.budget_note if req and req.budget_note else '' }}</textarea>
       </div>
@@ -292,8 +291,7 @@
               <span style="font-size:12px;color:var(--tx-3);">명</span>
             </div>
             <div style="margin-top:7px; font-size:11.5px; color:var(--tx-3); line-height:1.6;">
-              아래 <b style="color:var(--tx-1);">자리 구성</b>에서 레벨별로 담은 인원을 합친 숫자입니다.
-              이 숫자만큼 자리 카드가 만들어집니다.
+              직급별 인원 합계 · 승인 시 동일 수의 포지션 생성
             </div>
           </div>
         </div>
@@ -494,17 +492,16 @@
       </div>
     </div>
 
-    <!-- 섹션 4-2: 자리 구성 (레벨별 인원) -->
+    <!-- 섹션 4-2: 직급별 인원 -->
     <div class="req-section">
       <div class="req-section-title">
-        <i class="fas fa-chair"></i> 자리 구성
-        <span style="font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;margin-left:6px;opacity:.6;">레벨이 다르면 줄을 나눠 담으세요</span>
+        <i class="fas fa-layer-group"></i> 직급별 인원
       </div>
 
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;
                   padding:12px;border:1px dashed var(--line);border-radius:8px;">
         <div id="seat-cur" style="flex:1 1 220px;font-size:12.5px;color:var(--tx-3);">
-          위에서 직군과 레벨을 먼저 고르세요.
+          직군 · 직급 미선택
         </div>
         <div class="headcount-wrap" style="flex:0 0 auto;">
           <button type="button" class="hc-btn minus" onclick="changeAddN(-1)">−</button>
@@ -513,16 +510,14 @@
         </div>
         <button type="button" id="seat-add-btn" class="btn btn-primary" onclick="addSeatLine()"
                 style="flex:0 0 auto;">
-          <i class="fas fa-plus"></i> 이 레벨로 담기
+          <i class="fas fa-plus"></i> 추가
         </button>
       </div>
 
       <div id="seat-lines" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;"></div>
 
       <div style="margin-top:12px;font-size:12px;color:var(--tx-3);line-height:1.7;">
-        합계 <b id="seat-total" style="color:var(--tx-1);font-size:14px;">0</b>명 —
-        승인되면 이 구성 그대로 자리 카드가 만들어집니다.
-        한 장이 한 자리이고, 카드에 적힌 레벨과 다른 사람은 그 자리에 앉힐 수 없습니다.
+        합계 <b id="seat-total" style="color:var(--tx-1);font-size:14px;">0</b>명 · 포지션별 직급 고정
       </div>
 
       <input type="hidden" name="headcount" id="hc-input" value="0">
@@ -658,8 +653,8 @@ function updateSeatCur() {
   var box = document.getElementById('seat-cur');
   if (!box) return;
   var p = _curPick();
-  if (!p) { box.innerHTML = '위에서 직군과 레벨을 먼저 고르세요.'; return; }
-  box.innerHTML = '지금 담을 자리 — <b style="color:var(--tx-1);">L' + p.level + ' ' + p.lv_label +
+  if (!p) { box.innerHTML = '직군 · 직급 미선택'; return; }
+  box.innerHTML = '선택 — <b style="color:var(--tx-1);">L' + p.level + ' ' + p.lv_label +
                   '</b> · ' + p.jf_name +
                   (p.smin || p.smax ? ' · ' + p.smin.toLocaleString() + '~' + p.smax.toLocaleString() + '만원' : '');
 }
@@ -712,7 +707,7 @@ function renderSeatLines() {
   });
   list.innerHTML = rows ||
     '<div style="padding:14px;text-align:center;font-size:12px;color:var(--tx-3);">' +
-    '아직 담은 자리가 없습니다. 레벨을 고르고 [이 레벨로 담기]를 누르세요.</div>';
+    '추가된 직급 없음</div>';
   hidden.innerHTML = inputs;
   document.getElementById('seat-total').textContent = total;
   document.getElementById('hc-echo').textContent    = total;
@@ -826,7 +821,7 @@ function selectEmpType(el) {
 document.getElementById('req-form').addEventListener('submit', function(e) {
   if (!_seatLines.length) {
     e.preventDefault();
-    alert('자리 구성에서 레벨별 인원을 최소 한 줄은 담아야 합니다.');
+    alert('직급별 인원을 1건 이상 추가하세요.');
     document.getElementById('seat-lines').scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }

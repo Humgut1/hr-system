@@ -838,6 +838,7 @@ def admin_setup():
             flash('설정 저장은 관리자만 가능합니다.', 'error')
             return redirect(url_for('admin_setup'))
         s = request.form
+        was_done = bool(get_company_config().get("setup_completed"))
 
         # ── Step 1: 회사 기본정보 ─────────────────────────────
         for key in ['name', 'reg_no', 'ceo', 'address', 'tel', 'founded', 'industry', 'employee_count']:
@@ -905,7 +906,7 @@ def admin_setup():
                 pay_day, default_meal_allowance, default_transport_allowance,
                 perf_cycle, use_peer_review, use_self_review, grade_system,
                 setup_completed, setup_step, updated_at
-            ) VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,5,?)
+            ) VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,9,?)
             ON CONFLICT(id) DO UPDATE SET
                 work_system=excluded.work_system,
                 work_start=excluded.work_start, work_end=excluded.work_end,
@@ -927,7 +928,7 @@ def admin_setup():
                 use_peer_review=excluded.use_peer_review,
                 use_self_review=excluded.use_self_review,
                 grade_system=excluded.grade_system,
-                setup_completed=1, setup_step=5,
+                setup_completed=1, setup_step=9,
                 updated_at=excluded.updated_at
         ''', (
             work_system, work_start, work_end, lunch_start, lunch_end,
@@ -961,15 +962,177 @@ def admin_setup():
                 'core_start=?, core_end=?, daily_hours_min=? WHERE is_default=1',
                 (ws_vals[1], ws_vals[0], ws_vals[2], ws_vals[3], ws_vals[4], ws_vals[5], ws_vals[6])
             )
+        notes = _setup_save_org(db, s)
+
         db.commit()
         session['onboarded'] = 1
-        flash('회사 설정이 완료되었습니다! TalentCore에 오신 것을 환영합니다. 🎉', 'success')
-        return redirect(url_for('dashboard'))
+        if notes:
+            flash('저장 완료 · 확인 필요: ' + ' / '.join(notes[:5]), 'warning')
+        else:
+            flash('초기 설정 저장 완료' if was_done else '초기 설정 완료', 'success')
+        return redirect(url_for('admin_setup') if was_done else url_for('dashboard'))
 
+    return render_template('admin/setup.html', **_setup_context(db))
+
+
+def _setup_context(db):
+    """초기 설정 화면 — 회사 정책 + 조직·정원·직급·결재선·Hire 현재값."""
+    from datetime import datetime as dt
+    fy = dt.now().year
     config  = get_company_config()
     company = get_company_info()
-    return render_template('admin/setup.html', config=config, company=company,
-                           benefit_catalog=BENEFIT_CATALOG)
+
+    depts = [dict(r) for r in db.execute(
+        'SELECT d.id, d.name, d.parent_id, d.dept_type, u.name AS leader_name '
+        'FROM departments d LEFT JOIN users u ON d.leader_id=u.id ORDER BY d.id').fetchall()]
+    active = {r[0]: r[1] for r in db.execute(
+        "SELECT department_id, COUNT(*) FROM users WHERE status='active' GROUP BY department_id").fetchall()}
+    target = {r[0]: r[1] for r in db.execute(
+        'SELECT department_id, target_count FROM department_headcount WHERE fiscal_year=?', (fy,)).fetchall()}
+    by_id = {d['id']: d for d in depts}
+    kids = {}
+    for d in depts:
+        kids.setdefault(d['parent_id'] if d['parent_id'] in by_id else None, []).append(d)
+    type_rank = {k: i for i, (k, *_r) in enumerate(DEPT_TYPES)}
+    dept_rows = []
+
+    def walk(pid, depth):
+        for d in sorted(kids.get(pid, []), key=lambda x: (type_rank.get(x['dept_type'], 9), x['id'])):
+            d.update(depth=depth, active=active.get(d['id'], 0), target=target.get(d['id']),
+                     parent_name=by_id[d['parent_id']]['name'] if d['parent_id'] in by_id else None)
+            dept_rows.append(d)
+            walk(d['id'], depth + 1)
+    walk(None, 0)
+
+    positions = db.execute(
+        "SELECT p.id, p.name, p.level, (SELECT COUNT(*) FROM users u WHERE u.position_id=p.id "
+        "AND u.status='active') AS cnt FROM positions p ORDER BY p.level, p.id").fetchall()
+
+    flows = {ht: _flow_template(db, ht) for ht in REQUISITION_HIRE_TYPE_LABEL}
+    people_map = {r['id']: r['name'] for r in db.execute("SELECT id, name FROM users").fetchall()}
+    hire = _hire_config()
+    benefit_enabled = {r['key']: bool(r['enabled']) for r in db.execute(
+        'SELECT key, enabled FROM benefit_configs').fetchall()}
+    active_total = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
+
+    readiness = {
+        'company': bool(company.get('name') and company.get('reg_no')),
+        'org':     bool(dept_rows) and bool(target),
+        'grade':   bool(positions),
+        'hiring':  bool(hire.get('url') and hire.get('token')),
+        'work':    bool(config.get('setup_completed')),
+        'leave':   bool(config.get('setup_completed')),
+        'pay':     bool(config.get('setup_completed')),
+        'benefit': bool(benefit_enabled),
+        'perf':    bool(config.get('setup_completed')),
+    }
+    return dict(
+        config=config, company=company, benefit_catalog=BENEFIT_CATALOG,
+        benefit_enabled=benefit_enabled, fiscal_year=fy,
+        dept_rows=dept_rows, dept_types=DEPT_TYPES, dept_type_label=DEPT_TYPE_LABEL,
+        hc_total=sum(v for k, v in target.items() if k in by_id),
+        active_in_depts=sum(v for k, v in active.items() if k in by_id),
+        positions=positions, flows=flows, people_map=people_map,
+        hire_type_labels=REQUISITION_HIRE_TYPE_LABEL, hire_type_hints=REQUISITION_HIRE_TYPE_HINT,
+        role_labels=FLOW_ROLE_LABEL,
+        hire_url=hire.get('url') or '', hire_token_set=bool(hire.get('token')),
+        hire_connected=bool(hire.get('url') and hire.get('token')),
+        active_total=active_total, readiness=readiness,
+    )
+
+
+def _setup_save_org(db, f):
+    """초기 설정 저장 — 조직·정원·직급·결재선·Hire. 이미 있는 항목은 중복 생성하지 않는다."""
+    from datetime import datetime as dt
+    fy = dt.now().year
+    notes = []
+
+    def upsert_hc(dept_id, raw):
+        raw = (raw or '').strip()
+        if raw == '':
+            return
+        try:
+            n = max(0, int(raw))
+        except ValueError:
+            return
+        db.execute('INSERT INTO department_headcount (department_id, target_count, fiscal_year) VALUES (?,?,?) '
+                   'ON CONFLICT(department_id, fiscal_year) DO UPDATE SET target_count=excluded.target_count',
+                   (dept_id, n, fy))
+
+    # 기존 조직 정원
+    for key in f.keys():
+        if key.startswith('hc_') and key[3:].isdigit():
+            upsert_hc(int(key[3:]), f.get(key))
+
+    # 조직 추가 — 입력 순서대로, 상위 조직은 이름으로 연결
+    names, types, parents, hcs = (f.getlist('nd_name'), f.getlist('nd_type'),
+                                  f.getlist('nd_parent'), f.getlist('nd_hc'))
+    for i, name in enumerate(names):
+        name = name.strip()
+        if not name:
+            continue
+        dtype = types[i] if i < len(types) and types[i] in DEPT_TYPE_LABEL else 'team'
+        pname = (parents[i] if i < len(parents) else '').strip()
+        parent = None
+        if pname:
+            parent = db.execute('SELECT id, dept_type FROM departments WHERE name=? ORDER BY id DESC LIMIT 1',
+                                (pname,)).fetchone()
+            if not parent:
+                notes.append('%s — 상위 조직 "%s" 없음' % (name, pname))
+                continue
+            if parent['dept_type'] not in DEPT_TYPE_PARENT_ALLOWED.get(dtype, []):
+                notes.append('%s(%s) — %s(%s) 하위 불가' % (
+                    name, DEPT_TYPE_LABEL[dtype], pname, DEPT_TYPE_LABEL.get(parent['dept_type'], '')))
+                continue
+        pid = parent['id'] if parent else None
+        row = db.execute('SELECT id FROM departments WHERE name=? AND parent_id IS ?', (name, pid)).fetchone()
+        if row:
+            did = row['id']
+        else:
+            did = db.execute('INSERT INTO departments (name, parent_id, dept_type) VALUES (?,?,?)',
+                             (name, pid, dtype)).lastrowid
+        upsert_hc(did, hcs[i] if i < len(hcs) else '')
+
+    # 직급 추가
+    for name, lv in zip(f.getlist('np_name'), f.getlist('np_level')):
+        name = name.strip()
+        if not name or db.execute('SELECT 1 FROM positions WHERE name=?', (name,)).fetchone():
+            continue
+        try:
+            level = max(1, int(lv))
+        except (TypeError, ValueError):
+            level = (db.execute('SELECT COALESCE(MAX(level),0) FROM positions').fetchone()[0] or 0) + 1
+        db.execute('INSERT INTO positions (name, level) VALUES (?,?)', (name, level))
+
+    # 결재선 — 단계 구성은 유지, 단계명·처리 기한만 반영
+    for ht in REQUISITION_HIRE_TYPE_LABEL:
+        steps = _flow_template(db, ht)
+        stored = db.execute('SELECT 1 FROM requisition_flow_steps WHERE hire_type=? LIMIT 1', (ht,)).fetchone()
+        for s in steps:
+            label = (f.get('fl_%s_%d_label' % (ht, s['step_no'])) or '').strip() or s['label']
+            try:
+                sla = max(1, int(f.get('fl_%s_%d_sla' % (ht, s['step_no'])) or s['sla_days']))
+            except ValueError:
+                sla = s['sla_days']
+            if stored:
+                db.execute('UPDATE requisition_flow_steps SET label=?, sla_days=? WHERE hire_type=? AND step_no=?',
+                           (label, sla, ht, s['step_no']))
+            else:
+                db.execute('INSERT INTO requisition_flow_steps (hire_type, step_no, role_kind, user_id, label, sla_days) '
+                           'VALUES (?,?,?,?,?,?)', (ht, s['step_no'], s['role_kind'], s.get('user_id'), label, sla))
+
+    # Hire 연동 — 토큰은 입력했을 때만 교체
+    if 'hire_url' in f:
+        url = f.get('hire_url', '').strip().rstrip('/')
+        if url and not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+        db.execute('INSERT INTO company_settings (key,value) VALUES (?,?) '
+                   'ON CONFLICT(key) DO UPDATE SET value=excluded.value', ('hire_url', url))
+    token = f.get('hire_token', '').strip()
+    if token:
+        db.execute('INSERT INTO company_settings (key,value) VALUES (?,?) '
+                   'ON CONFLICT(key) DO UPDATE SET value=excluded.value', ('hire_token', token))
+    return notes
 
 
 @app.route('/admin/integrations', methods=['GET', 'POST'])
@@ -3533,14 +3696,14 @@ def hires_webhook():
                         'detail': op_code or op_id}, 404
             if opening['status'] not in ('approved', 'open'):
                 return {'ok': False, 'error': 'opening not available',
-                        'detail': '자리 %s 는 이미 %s 상태입니다'
+                        'detail': '포지션 %s 는 이미 %s 상태입니다'
                                   % (opening['code'], opening['status'])}, 409
             taken = conn.execute(
                 "SELECT id, name FROM incoming_hires "
                 "WHERE opening_id=? AND status='waiting'", (opening['id'],)).fetchone()
             if taken:
                 return {'ok': False, 'error': 'opening already claimed',
-                        'detail': '자리 %s 는 %s님이 이미 예약했습니다'
+                        'detail': '포지션 %s 는 %s님이 이미 예약했습니다'
                                   % (opening['code'], taken['name'])}, 409
 
         cur = conn.execute(
@@ -3563,7 +3726,7 @@ def hires_webhook():
                 'INSERT INTO notifications (user_id, type, category, title, content, link) VALUES (?,?,?,?,?,?)',
                 (a['id'], 'action', 'action', '입사 예정자 수신',
                  f'외부 ATS에서 합격자 {name}님이 등록되었습니다.'
-                 + (f" 자리: {opening['code']}" if opening else '')
+                 + (f" 포지션: {opening['code']}" if opening else '')
                  + (f' 입사 예정일: {start}' if start else ''),
                  '/hires')
             )
@@ -4916,7 +5079,7 @@ WIDGET_CATALOG = {
         {'key': 'inbox',                'label': '미결 문서',              'icon': 'fa-inbox'},
         {'key': 'quick_actions',        'label': '바로가기',           'icon': 'fa-bolt'},
         {'key': 'payroll_summary',      'label': '당월 급여',           'icon': 'fa-won-sign'},
-        {'key': 'open_positions',       'label': '열린 자리',     'icon': 'fa-briefcase'},
+        {'key': 'open_positions',       'label': '미충원 포지션',     'icon': 'fa-briefcase'},
         {'key': 'overtime_violations',  'label': '주 52시간 초과',        'icon': 'fa-clock'},
         {'key': 'recent_employees',     'label': '최근 입사자',          'icon': 'fa-user-plus'},
         {'key': 'whos_out',             'label': '금일 부재',          'icon': 'fa-door-open'},
@@ -9905,13 +10068,13 @@ REQUISITION_STATUS_LABEL = {
 # "이 채용이 돈을 새로 쓰는가"가 승인 단계를 정한다.
 REQUISITION_HIRE_TYPE_LABEL = {
     'backfill':      '결원 충원',
-    'new_planned':   '증원 · 예산 안',
-    'new_unplanned': '증원 · 예산 밖',
+    'new_planned':   '계획 증원',
+    'new_unplanned': '계획 외 증원',
 }
 REQUISITION_HIRE_TYPE_HINT = {
-    'backfill':      '나간 사람 자리를 그대로 채웁니다. 인건비가 늘지 않습니다.',
-    'new_planned':   '올해 예산에 이미 잡혀 있던 증원입니다.',
-    'new_unplanned': '예산에 없던 증원입니다. 인건비가 새로 늘어납니다.',
+    'backfill':      '퇴직·휴직 결원 충원 · 인건비 증가 없음',
+    'new_planned':   '당해 인력계획 반영 증원',
+    'new_unplanned': '인력계획 외 증원 · 인건비 증가',
 }
 FLOW_ROLE_LABEL = {
     'dept_head': '요청 부서의 부서장',
@@ -10550,10 +10713,10 @@ def requisition_act(req_id):
     fresh = db.execute('SELECT * FROM job_requisitions WHERE id=?', (req_id,)).fetchone()
     n = _create_openings(db, fresh)
     add_notification(req['requester_id'], 'info', 'action', '채용 요청서 최종 승인',
-                     u'"%s" 요청서가 승인되어 자리 %d개가 열렸습니다.' % (req['title'], n or req['headcount']),
+                     u'채용 요청 "%s" 최종 승인 — 포지션 %d건 생성' % (req['title'], n or req['headcount']),
                      link=url_for('requisition_detail', req_id=req_id))
     db.commit()
-    flash(u'최종 승인 완료 — 자리 카드 %d장이 만들어졌습니다.' % (n or req['headcount']), 'success')
+    flash(u'최종 승인 완료 — 포지션 %d건 생성' % (n or req['headcount']), 'success')
     return redirect(url_for('requisition_detail', req_id=req_id))
 
 
@@ -10614,7 +10777,7 @@ def opening_close(op_id):
                "closed_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP "
                "WHERE id=? AND status IN ('approved','open')", (reason, op_id))
     db.commit()
-    flash('자리를 닫았습니다.', 'success')
+    flash('포지션을 마감했습니다.', 'success')
     return redirect(request.referrer or url_for('opening_board'))
 
 
@@ -10625,7 +10788,7 @@ def opening_reopen(op_id):
     db.execute("UPDATE job_openings SET status='approved', close_reason=NULL, closed_at=NULL, "
                "updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='closed'", (op_id,))
     db.commit()
-    flash('자리를 다시 열었습니다.', 'success')
+    flash('포지션을 재개했습니다.', 'success')
     return redirect(request.referrer or url_for('opening_board'))
 
 
@@ -10665,8 +10828,8 @@ def hire_settings():
             db.execute('INSERT INTO company_settings (key,value) VALUES (?,?) '
                        'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (k, v))
         db.commit()
-        flash('Hire 연결 정보를 저장했습니다.' if url and token
-              else '저장했습니다. 주소와 열쇠가 모두 있어야 보내기 버튼이 나타납니다.', 'success')
+        flash('Hire 연동 정보 저장 완료' if url and token
+              else '저장 완료 · 주소와 연동 토큰 모두 등록 시 공고 등록 가능', 'success')
         return redirect(url_for('hire_settings'))
 
     cfg = _hire_config()
@@ -10691,7 +10854,7 @@ def opening_push():
     back = request.referrer or url_for('opening_board')
 
     if not cfg['ready']:
-        flash('Hire 주소와 열쇠를 먼저 넣어 주세요. (설정 → Hire 연동)', 'error')
+        flash('Hire 주소·연동 토큰 미등록 (설정 > Hire 연동)', 'error')
         return redirect(back)
 
     try:
@@ -10699,7 +10862,7 @@ def opening_push():
     except ValueError:
         op_ids = []
     if not op_ids:
-        flash('보낼 자리를 하나 이상 골라 주세요.', 'error')
+        flash('포지션을 1건 이상 선택하세요.', 'error')
         return redirect(back)
 
     q = ','.join('?' * len(op_ids))
@@ -10710,21 +10873,21 @@ def opening_push():
         'WHERE o.id IN (%s) ORDER BY o.seq' % q, op_ids).fetchall()
 
     if len(rows) != len(op_ids):
-        flash('없는 자리가 섞여 있습니다. 화면을 새로 고친 뒤 다시 골라 주세요.', 'error')
+        flash('존재하지 않는 포지션이 포함되어 있습니다. 새로 고침 후 다시 선택하세요.', 'error')
         return redirect(back)
     # 이미 넘어간 자리를 또 보내면 Hire 에 같은 공고가 두 개 생긴다.
     dup = [r for r in rows if r['external_ref']]
     if dup:
-        flash('이미 Hire 로 넘어간 자리가 있습니다 — %s' % ', '.join(r['code'] for r in dup), 'error')
+        flash('이미 Hire 공고에 등록된 포지션 — %s' % ', '.join(r['code'] for r in dup), 'error')
         return redirect(back)
     bad = [r for r in rows if r['status'] != 'approved']
     if bad:
-        flash('아직 열 수 없는 자리가 있습니다 — %s' % ', '.join(r['code'] for r in bad), 'error')
+        flash('공고 등록 불가 포지션 — %s' % ', '.join(r['code'] for r in bad), 'error')
         return redirect(back)
     # 직무·부서·밴드가 다른 자리를 한 공고에 묶으면 공고 내용이 거짓말이 된다.
     req_ids = {r['requisition_id'] for r in rows}
     if len(req_ids) != 1:
-        flash('한 번에 보낼 수 있는 자리는 같은 요청서에서 나온 것들뿐입니다.', 'error')
+        flash('동일 채용 요청의 포지션끼리만 공고 1건으로 등록할 수 있습니다.', 'error')
         return redirect(back)
 
     req = db.execute('SELECT * FROM job_requisitions WHERE id=?', (rows[0]['requisition_id'],)).fetchone()
@@ -10821,11 +10984,11 @@ def opening_push():
                    "WHERE id=? AND status='approved'", (req['id'],))
     if req['requester_id']:
         add_notification(req['requester_id'], 'info', 'action', '채용 공고 개설',
-                         u'"%s" 자리 %d개가 Hire 공고로 열렸습니다.' % (req['title'], len(rows)),
+                         u'채용 요청 "%s" 포지션 %d건 Hire 공고 등록' % (req['title'], len(rows)),
                          link=url_for('requisition_detail', req_id=req['id']))
     db.commit()
 
-    flash(u'자리 %d장을 Hire 공고 %s 로 보냈습니다.' % (len(rows), pid), 'success')
+    flash(u'포지션 %d건 Hire 공고 %s 등록 완료' % (len(rows), pid), 'success')
     return redirect(back)
 
 
@@ -10857,7 +11020,7 @@ def requisition_flow_settings():
                      f.get('%s_label_%d' % (ht, i), '').strip() or FLOW_ROLE_LABEL[kind],
                      sla))
         db.commit()
-        flash('결재선을 저장했습니다. 지금 결재 중인 요청서는 원래 단계를 그대로 밟습니다.', 'success')
+        flash('결재선 저장 완료 · 진행 중인 요청서는 기존 결재선 유지', 'success')
         return redirect(url_for('requisition_flow_settings'))
 
     flows = {ht: _flow_template(db, ht) for ht in REQUISITION_HIRE_TYPE_LABEL}
@@ -12777,7 +12940,7 @@ def overtime_new():
         (uid, date_val, ot_start, ot_end, ot_minutes, reason, req_type)
     )
     db.commit()
-    flash('연장근무 신청이 접수되었습니다.', 'success')
+    flash('연장근로 신청이 접수되었습니다.', 'success')
     return redirect(url_for('attendance_home', tab='ot'))
 
 
@@ -13898,7 +14061,7 @@ def succession():
                     (pos_title, incumbent_id, candidate_id, readiness, note, session['user_id'])
                 )
                 db.commit()
-                flash('후계자 계획이 추가되었습니다.', 'success')
+                flash('승계 계획이 추가되었습니다.', 'success')
 
         elif action == 'delete':
             sp_id = int(request.form.get('sp_id'))
@@ -14725,7 +14888,7 @@ def export_payroll():
     ).fetchall()
 
     wb, ws = make_wb(f"{year}년 {month}월 급여")
-    headers = ['이름','부서','직위','기본급','식대','교통비','초과근무수당',
+    headers = ['이름','부서','직위','기본급','식대','교통비','연장근로수당',
                '총지급액','국민연금','건강보험','장기요양','고용보험',
                '소득세','지방소득세','총공제액','실수령액']
     write_header(ws, headers)
@@ -15280,7 +15443,7 @@ def export_succession():
     ).fetchall()
 
     READINESS_KO = {'ready_now':'즉시 가능','1_2_years':'1~2년 후','3_5_years':'3~5년 후','unknown':'미정'}
-    wb, ws = make_wb("후계자계획")
+    wb, ws = make_wb("승계계획")
     headers = ['포지션','현직자','현직자 사번','현직자 부서',
                '후보자','후보자 사번','후보자 부서',
                '승계 준비도','메모','등록자','등록일']
@@ -15295,7 +15458,7 @@ def export_succession():
             (r['created_at'] or '')[:10],
         ])
     auto_width(ws); freeze_header(ws)
-    fname = urllib.parse.quote("후계자계획.xlsx")
+    fname = urllib.parse.quote("승계계획.xlsx")
     return to_response(wb, fname)
 
 
@@ -15812,8 +15975,8 @@ def ignite_after_hire(db, emp_id, issuer_id, opening_code=None):
     #    자동 발송을 꺼 두었으면 계약서가 아직 안 나갔다는 사실 자체가 알려야 할 일이다.
     emp = db.execute('SELECT name, hire_date FROM users WHERE id=?', (emp_id,)).fetchone()
     if emp:
-        seat = f' · 자리 {opening_code}' if opening_code else ''
-        done = ' · '.join(fired) if fired else '자리 배정'
+        seat = f' · 포지션 {opening_code}' if opening_code else ''
+        done = ' · '.join(fired) if fired else '포지션 배정'
         body = f"{emp['name']}님 입사가 확정되어 {done}까지 처리했습니다."
         if emp['hire_date']:
             body += f" 입사 예정일 {emp['hire_date']}."

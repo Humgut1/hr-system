@@ -132,7 +132,7 @@
             {% elif h.req_ref %}
             <div style="font-size:11px; color:var(--tx-3); font-family:monospace; margin-top:2px;">{{ h.req_ref }}</div>
             {% else %}
-            <div style="font-size:11px; color:var(--orange, var(--wait)); margin-top:2px;">정원 밖 — 자리 미지정</div>
+            <div style="font-size:11px; color:var(--orange, var(--wait)); margin-top:2px;">포지션 미지정</div>
             {% endif %}
           </td>
           <td>{% if h.salary %}{{ '{:,}'.format(h.salary) }}원{% else %}—{% endif %}</td>

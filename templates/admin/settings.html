@@ -489,7 +489,7 @@
       <div style="font-size:13px; color:var(--tx-3); line-height:1.7; margin-bottom:18px;">
         회사에 맞는 직급 호칭 체계를 선택하세요. <strong>이름(라벨)만 일괄 변경</strong>되며
         내부 레벨(1~9)·직원 배정·연봉 밴드는 그대로 유지됩니다.
-        개별 직급 이름을 직접 수정하려면 <a href="{{ url_for('departments') }}" style="color:var(--primary); font-weight:700;">부서·직급 관리</a>에서 변경하세요.
+        개별 직급 이름을 직접 수정하려면 <a href="{{ url_for('departments') }}" style="color:var(--primary); font-weight:700;">조직·직급</a>에서 변경하세요.
       </div>
 
       <form method="POST" action="{{ url_for('admin_positions_preset') }}"
@@ -567,7 +567,7 @@
   <div class="settings-panel" id="tab-links" style="max-width:100%;">
     <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; padding-top:4px;">
       {% for icon, color, label, url in [
-        ('fa-layer-group',    'var(--surface-2):var(--tx-1)',  '부서·직급 관리',   url_for('departments')),
+        ('fa-layer-group',    'var(--surface-2):var(--tx-1)',  '조직·직급',       url_for('departments')),
         ('fa-calendar-alt',   'var(--orange-bg):var(--wait)',  '공휴일 관리',       url_for('admin_holidays')),
         ('fa-gift',           'var(--surface-2):var(--tx-1)',  '복리후생 설정',     url_for('admin_benefits')),
         ('fa-receipt',        'var(--green-bg):var(--done)',  '환급 신청 관리',    url_for('admin_benefit_claims')),
@@ -577,7 +577,7 @@
         ('fa-calendar-alt',   'var(--surface-2):var(--tx-1)',  '근무 스케줄',       url_for('admin_schedules')),
         ('fa-coins',          'var(--orange-bg):var(--wait)',  '복지포인트 관리',   url_for('admin_welfare_points')),
         ('fa-calendar-check', 'var(--green-bg):var(--done)',  '회사 설정',         url_for('admin_settings')),
-        ('fa-chart-pie',      'var(--surface-2):var(--tx-1)',  '분석·보고서',       url_for('people_analytics')),
+        ('fa-chart-pie',      'var(--surface-2):var(--tx-1)',  '인사 분석',         url_for('people_analytics')),
       ] %}
       {% set bg, fg = color.split(':') %}
       <a href="{{ url }}" style="display:flex;align-items:center;gap:12px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:box-shadow .15s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.08)'" onmouseout="this.style.boxShadow='none'">

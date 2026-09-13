@@ -56,10 +56,8 @@
 <div class="hs-lead">
   <i class="fas fa-link"></i>
   <div>
-    <b>승인된 자리를 Hire 로 넘기는 통로입니다.</b>
-    여기에 주소와 열쇠를 한 번 넣어두면, 자리 대장에서 자리를 골라 바로 공고로 만들 수 있습니다.
-    넘어가는 방향은 한쪽뿐입니다 — 조직·정원·결재는 이곳(TalentCore)이 갖고,
-    전형 단계와 후보자 관리는 Hire 가 갖습니다.
+    <b>Hire 연동</b>
+    조직 · 정원 · 채용 결재: TalentCore / 전형 · 후보자 · 처우 협의: Hire
   </div>
 </div>
 
@@ -80,35 +78,28 @@
       <input class="hs-in" type="text" name="hire_url" value="{{ cfg.url }}"
              placeholder="https://hire.example.com">
       <div class="hs-hint">
-        Hire 가 열려 있는 인터넷 주소입니다. 끝에 <code>/</code> 는 붙이지 않아도 됩니다.
-        이 서버에서 그 주소로 접속이 되어야 합니다 —
-        본인 PC에서만 켜 두는 <code>localhost</code> 주소는 여기서 닿지 않습니다.
+        외부에서 접속 가능한 주소 (<code>localhost</code> 불가)
       </div>
     </div>
 
     <div class="hs-field">
-      <div class="hs-cap">열쇠 (토큰)</div>
+      <div class="hs-cap">연동 토큰</div>
       <input class="hs-in" type="password" name="hire_token" value="{{ cfg.token }}"
-             placeholder="Hire 쪽에 넣어 둔 값과 똑같이" autocomplete="off">
+             placeholder="Hire CORE_INBOUND_TOKEN 값" autocomplete="off">
       <div class="hs-hint">
-        Hire 쪽 설정 파일의 <code>CORE_INBOUND_TOKEN</code> 과 <b>글자 하나까지 같아야</b> 합니다.
-        다르면 Hire 가 문을 열지 않습니다. 아무에게도 알려주지 마세요.
+        Hire <code>CORE_INBOUND_TOKEN</code> 과 동일 값 · 외부 공유 금지
       </div>
     </div>
 
     <div class="hs-field" style="border-top:1px solid var(--border);padding-top:14px;">
-      <div class="hs-cap">입사 확정 뒤 자동 처리</div>
+      <div class="hs-cap">직원 전환 시 자동 처리</div>
       <label class="hs-tg">
         <input type="checkbox" name="auto_contract" {% if auto_contract %}checked{% endif %}>
         <span>
-          <span class="hs-tg-t">근로계약서를 자동으로 보낸다</span>
+          <span class="hs-tg-t">근로계약서 자동 발송</span>
           <span class="hs-tg-d">
-            Hire 에서 오퍼를 수락한 사람을 <b>입사 예정자 → 직원</b>으로 전환하는 순간,
-            표준 근로계약서에 그 사람의 부서·직급·연봉·입사일을 채워 서명 요청까지 보냅니다.
-            온보딩 체크리스트도 같이 켜집니다.
-            <br>계약서를 사람이 검토한 뒤 보내고 싶으면 이 칸을 꺼 두세요 —
-            그래도 온보딩과 담당자 알림은 그대로 켜집니다.
-            이미 계약서를 한 장이라도 받은 사람에게는 다시 보내지 않습니다.
+            표준 근로계약서(부서·직급·연봉·입사일 기입) 서명 요청 발송.
+            해제 시 온보딩 · 담당자 알림만 생성. 기존 계약 보유자 제외.
           </span>
         </span>
       </label>
@@ -119,27 +110,25 @@
         <i class="fas fa-save"></i> 저장
       </button>
       {% if linked %}
-      <span class="hs-hint" style="margin:0;">지금까지 {{ linked }}개 자리가 Hire 로 넘어갔습니다.</span>
+      <span class="hs-hint" style="margin:0;">Hire 공고 등록 포지션 {{ linked }}건</span>
       {% endif %}
     </div>
   </form>
 </div>
 
 <div class="hs-block">
-  <div class="hs-head"><span class="hs-name">쓰는 순서</span></div>
+  <div class="hs-head"><span class="hs-name">처리 흐름</span></div>
   <ol class="hs-steps">
-    <li>채용 요청서가 <b>최종 승인</b>되면 요청 인원수만큼 자리 카드가 만들어집니다.</li>
-    <li><b>자리 대장</b>에서 넘길 자리를 체크합니다 — 같은 요청서에서 나온 자리끼리만 묶입니다.</li>
-    <li><b>[Hire 로 보내기]</b> 를 누르면 그 묶음이 Hire 공고 <b>한 건</b>이 됩니다.</li>
-    <li>자리 카드는 <b>채용 중</b>으로 바뀌고, 어느 공고로 갔는지 카드에 적힙니다.</li>
-    <li>전형 단계(서류·1차·2차…)는 Hire 에서 담당자가 정합니다. 여기서 보내지 않습니다.</li>
-    <li>Hire 에서 <b>오퍼를 수락</b>하면 그 사람이 <b>입사 예정자</b>로 여기 돌아옵니다.</li>
-    <li><b>직원으로 전환</b>하는 순간 자리 카드에 도장이 찍히고,
-        근로계약서·온보딩 체크리스트가 자동으로 켜집니다. 한 바퀴가 여기서 닫힙니다.</li>
+    <li>채용 요청 <b>최종 승인</b> — 요청 인원수만큼 포지션 생성</li>
+    <li><b>충원 현황</b>에서 포지션 선택 (동일 요청 건끼리만 묶음)</li>
+    <li><b>Hire 공고 등록</b> — 선택 포지션을 공고 1건으로 등록, 상태 <b>채용 진행</b></li>
+    <li>전형 단계 설정 · 후보자 관리: Hire</li>
+    <li>처우 수락 — <b>입사 예정자</b>로 수신</li>
+    <li><b>직원 전환</b> — 포지션 <b>충원</b> 처리, 근로계약서 · 온보딩 생성</li>
   </ol>
   {% if ignited %}
   <div class="hs-hint" style="margin-top:10px;">
-    지금까지 {{ ignited }}명이 이 경로로 자리에 앉았습니다.
+    연동 경로 입사자 {{ ignited }}명
   </div>
   {% endif %}
 </div>

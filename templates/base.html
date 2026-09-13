@@ -18,7 +18,7 @@
 <body class="app-layout">
 {#
   ══ 메뉴 정의 ════════════════════════════════════════
-  7개 대메뉴 + 설정. 각 항목: l=이름 u=주소 p=해당 화면(active_page) s=노출 조건 i=아이콘
+  좌측 메뉴: 7개 대메뉴 + 설정(하단). 마우스를 올리면 하위 메뉴가 아래로 펼쳐진다. 각 항목: l=이름 u=주소 p=해당 화면(active_page) s=노출 조건 i=아이콘
   하위 항목이 하나도 안 보이는 대메뉴는 통째로 숨긴다.
   구 내장 ATS(legacy_ats_nav)는 2026-09-04(T6) 은퇴 — 메뉴에 두지 않는다.
 #}
@@ -28,49 +28,50 @@
 {% set MGR = R in ('admin', 'manager') %}
 {% set TAB = request.args.get('tab', 'home') %}
 {% set MENU = [
-  {'key':'home', 'label':'홈', 'items':[
+  {'key':'home', 'label':'홈', 'gi':'fa-house', 'items':[
     {'l':'홈', 'u':url_for('dashboard'), 'p':['home','dashboard'], 's':True, 'i':'fa-house'},
-    {'l':'결재 대기함', 'u':url_for('approvals_hub'), 'p':['approvals'], 's':MGR, 'i':'fa-stamp'},
+    {'l':'결재함', 'u':url_for('approvals_hub'), 'p':['approvals'], 's':MGR, 'i':'fa-stamp'},
     {'l':'공지사항', 'u':url_for('announcements'), 'p':['announcements'], 's':True, 'i':'fa-bullhorn'},
     {'l':'알림', 'u':url_for('notifications'), 'p':['notifications'], 's':True, 'i':'fa-bell'},
   ]},
-  {'key':'seat', 'label':'자리', 'items':[
+  {'key':'hiring', 'label':'채용', 'gi':'fa-user-plus', 'items':[
     {'l':'채용 요청', 'u':url_for('requisition_list'), 'p':['requisition'], 's':R in ('admin','manager','recruiter'), 'i':'fa-file-signature'},
-    {'l':'자리 대장', 'u':url_for('opening_board'), 'p':['opening'], 's':R in ('admin','manager','recruiter'), 'i':'fa-id-badge'},
+    {'l':'충원 현황', 'u':url_for('opening_board'), 'p':['opening'], 's':R in ('admin','manager','recruiter'), 'i':'fa-id-badge'},
     {'l':'입사 예정자', 'u':url_for('hires_list'), 'p':['hires'], 's':R in ('admin','recruiter'), 'i':'fa-door-open'},
   ]},
-  {'key':'people', 'label':'구성원', 'items':[
-    {'l':'팀원 관리', 'u':url_for('employees'), 'p':['employees','termination_requests'], 's':MGR, 'i':'fa-users'},
+  {'key':'people', 'label':'인사', 'gi':'fa-users', 'items':[
+    {'l':'직원 관리', 'u':url_for('employees'), 'p':['employees','termination_requests'], 's':MGR, 'i':'fa-users'},
     {'l':'조직도', 'u':url_for('org_chart'), 'p':['org'], 's':True, 'i':'fa-sitemap'},
     {'l':'근로계약', 'u':url_for('contracts_list'), 'p':['contracts'], 's':ADM, 'i':'fa-file-contract'},
     {'l':'온보딩', 'u':url_for('me_onboarding'), 'p':['me_onboarding','onboarding'], 's':'onboarding' in PF, 'i':'fa-list-check'},
-    {'l':'후계자 계획', 'u':url_for('succession'), 'p':['succession'], 's':MGR and 'succession' in PF, 'i':'fa-chess-king'},
+    {'l':'승계 계획', 'u':url_for('succession'), 'p':['succession'], 's':MGR and 'succession' in PF, 'i':'fa-chess-king'},
   ]},
-  {'key':'work', 'label':'근무', 'items':[
-    {'l':'출퇴근', 'u':url_for('attendance_home'), 'p':['attendance_home'], 't':'home', 's':True, 'i':'fa-clock'},
+  {'key':'work', 'label':'근태', 'gi':'fa-clock', 'items':[
+    {'l':'출퇴근 기록', 'u':url_for('attendance_home'), 'p':['attendance_home'], 't':'home', 's':True, 'i':'fa-clock'},
     {'l':'휴가', 'u':url_for('attendance_home', tab='leaves'), 'p':['attendance_home','leave','leave_new','leave_promotion'], 't':'leaves', 's':True, 'i':'fa-umbrella-beach'},
-    {'l':'초과근무', 'u':url_for('attendance_home', tab='ot'), 'p':['attendance_home'], 't':'ot', 's':True, 'i':'fa-business-time'},
-    {'l':'근무 캘린더', 'u':url_for('attendance_home', tab='calendar'), 'p':['attendance_home'], 't':'calendar', 's':True, 'i':'fa-calendar'},
+    {'l':'연장근로', 'u':url_for('attendance_home', tab='ot'), 'p':['attendance_home'], 't':'ot', 's':True, 'i':'fa-business-time'},
+    {'l':'근무 일정', 'u':url_for('attendance_home', tab='calendar'), 'p':['attendance_home'], 't':'calendar', 's':True, 'i':'fa-calendar'},
     {'l':'근태 승인', 'u':url_for('attendance_home', tab='approvals'), 'p':['attendance_home','attendance'], 't':'approvals', 's':MGR, 'i':'fa-check-double'},
   ]},
-  {'key':'pay', 'label':'보상', 'items':[
-    {'l':'보상 관리', 'u':url_for('compensation'), 'p':['compensation','admin_payroll','salary_bands','acr','bulk_raise','bonus_pay','salary_table'], 's':ADM, 'i':'fa-coins'},
-    {'l':'내 문서', 'u':url_for('payroll_list'), 'p':['my_docs','payroll','certificates','termination_my'], 's':True, 'i':'fa-folder-open'},
+  {'key':'pay', 'label':'보상', 'gi':'fa-coins', 'items':[
+    {'l':'급여·보상 관리', 'u':url_for('compensation'), 'p':['compensation','admin_payroll','salary_bands','acr','bulk_raise','bonus_pay','salary_table'], 's':ADM, 'i':'fa-coins'},
+    {'l':'급여명세서·증명서', 'u':url_for('payroll_list'), 'p':['my_docs','payroll','certificates','termination_my'], 's':True, 'i':'fa-folder-open'},
     {'l':'복리후생', 'u':url_for('me_benefits'), 'p':['me_benefits'], 's':'welfare' in PF, 'i':'fa-gift'},
     {'l':'복리후생 설정', 'u':url_for('admin_benefits'), 'p':['benefits'], 's':ADM and 'welfare' in PF, 'i':'fa-sliders'},
   ]},
-  {'key':'perf', 'label':'성과', 'items':[
-    {'l':'성과', 'u':url_for('performance'), 'p':['performance','peer','performance_cycles'], 's':'performance' in PF, 'i':'fa-chart-line'},
+  {'key':'perf', 'label':'성과', 'gi':'fa-chart-line', 'items':[
+    {'l':'성과 평가', 'u':url_for('performance'), 'p':['performance','peer','performance_cycles'], 's':'performance' in PF, 'i':'fa-chart-line'},
     {'l':'다면평가 배정', 'u':url_for('peer_assignments'), 'p':['peer_assignments'], 's':MGR and 'peer_review' in PF and peer_enabled, 'i':'fa-comments'},
   ]},
-  {'key':'analytics', 'label':'분석', 'items':[
-    {'l':'분석·보고서', 'u':url_for('people_analytics'), 'p':['analytics'], 's':ADM, 'i':'fa-chart-pie'},
+  {'key':'analytics', 'label':'분석', 'gi':'fa-chart-pie', 'items':[
+    {'l':'인사 분석', 'u':url_for('people_analytics'), 'p':['analytics'], 's':ADM, 'i':'fa-chart-pie'},
     {'l':'데이터 내보내기', 'u':url_for('export_hub'), 'p':['export'], 's':ADM, 'i':'fa-file-arrow-down'},
   ]},
 ] %}
 {% set SETTINGS = [
+  {'l':'초기 설정', 'u':url_for('admin_setup'), 'p':['setup'], 's':ADM, 'i':'fa-list-check'},
   {'l':'회사 설정', 'u':url_for('admin_settings'), 'p':['settings','holidays','overtime_monitor','schedules','admin_welfare_points'], 's':ADM, 'i':'fa-building'},
-  {'l':'부서·직급', 'u':url_for('departments'), 'p':['departments'], 's':ADM, 'i':'fa-layer-group'},
+  {'l':'조직·직급', 'u':url_for('departments'), 'p':['departments'], 's':ADM, 'i':'fa-layer-group'},
   {'l':'채용 결재선', 'u':url_for('requisition_flow_settings'), 'p':['reqflow'], 's':ADM, 'i':'fa-route'},
   {'l':'Hire 연동', 'u':url_for('hire_settings'), 'p':['hiresettings'], 's':ADM, 'i':'fa-link'},
   {'l':'외부 연동', 'u':url_for('admin_integrations'), 'p':['integrations'], 's':ADM, 'i':'fa-plug'},
@@ -82,48 +83,57 @@
 {% set ns = namespace(group='', page='') %}
 {% for g in MENU %}{% for it in g['items'] if it.s %}{% if is_on(it) and not ns.group %}{% set ns.group = g.label %}{% set ns.page = it.l %}{% endif %}{% endfor %}{% endfor %}
 {% for it in SETTINGS if it.s %}{% if is_on(it) and not ns.group %}{% set ns.group = '설정' %}{% set ns.page = it.l %}{% endif %}{% endfor %}
-<div class="app-shell">
-
-  {% if session.demo_mode or R == 'guest' %}
-  <div class="mode-strip">
-    <span class="dot"></span>
-    <b>{% if session.demo_mode %}체험 모드{% else %}게스트 모드{% endif %}</b>
-    <span>저장·수정·삭제 제한</span>
-    <span class="sp">
-      {% if session.demo_mode %}<a href="{{ url_for('landing') }}">웹사이트</a>{% endif %}
-      <span>{% if session.demo_mode %}{{ session.user_email }}{% else %}guest@talentcore.com{% endif %}</span>
-    </span>
+{% macro snav_group(key, label, gi, vis, on) -%}
+  {% if vis|length == 1 %}
+  <div class="snav-grp single{% if on %} active{% endif %}" data-group="{{ key }}">
+    <a class="snav-top{% if is_on(vis[0]) %} on{% endif %}" href="{{ vis[0].u }}"><i class="fas {{ gi }}"></i><span>{{ label }}</span></a>
+  </div>
+  {% else %}
+  <div class="snav-grp{% if on %} active open{% endif %}" data-group="{{ key }}">
+    <button type="button" class="snav-top" aria-expanded="{{ 'true' if on else 'false' }}"><i class="fas {{ gi }}"></i><span>{{ label }}</span><i class="fas fa-chevron-down snav-caret"></i></button>
+    <div class="snav-sub"><div>
+      {% for it in vis %}<a href="{{ it.u }}" class="{% if is_on(it) %}on{% endif %}">{{ it.l }}</a>{% endfor %}
+    </div></div>
   </div>
   {% endif %}
+{%- endmacro %}
+<div class="app-shell">
 
-  <!-- ══ 상단 메뉴 ══════════════════════════════════ -->
-  <header class="gnb" id="appGnb">
-    <button class="hamburger" id="hamburgerBtn" aria-label="메뉴" aria-expanded="false"><i class="fas fa-bars"></i></button>
-    <a class="gnb-brand" href="{{ url_for('dashboard') }}">
+  <!-- ══ 좌측 메뉴 ══════════════════════════════════ -->
+  <aside class="snav" id="appNav">
+    <a class="snav-brand" href="{{ url_for('dashboard') }}">
       <span class="gnb-mark">TC</span><span class="gnb-name">TalentCore</span>
     </a>
+    <nav class="snav-menu">
+      {% for g in MENU %}{% set vis = g['items']|selectattr('s')|list %}{% if vis %}
+      {{ snav_group(g.key, g.label, g.gi, vis, ns.group == g.label) }}
+      {% endif %}{% endfor %}
+    </nav>
+    {% set svis = SETTINGS|selectattr('s')|list %}
+    {% if svis %}
+    <div class="snav-foot">
+      {{ snav_group('settings', '설정', 'fa-gear', svis, ns.group == '설정') }}
+    </div>
+    {% endif %}
+  </aside>
+  <div class="snav-scrim" id="navScrim"></div>
 
-    <ul class="gnb-menu" role="menubar">
-      {% for g in MENU %}
-      {% set vis = g['items']|selectattr('s')|list %}
-      {% if vis %}
-      <li class="gnb-item{% if ns.group == g.label %} active{% endif %}" data-group="{{ g.key }}">
-        <a class="gnb-top" href="{{ vis[0].u }}" aria-haspopup="true">{{ g.label }}{% if vis|length > 1 %}<i class="fas fa-chevron-down gnb-caret"></i>{% endif %}</a>
-        {% if vis|length > 1 %}
-        <div class="gnb-drop" role="menu">
-          <div class="gnb-drop-panel">
-            {% for it in vis %}
-            <a href="{{ it.u }}" role="menuitem" class="{% if is_on(it) %}on{% endif %}"><i class="fas {{ it.i }}"></i>{{ it.l }}</a>
-            {% endfor %}
-          </div>
-        </div>
-        {% endif %}
-      </li>
-      {% endif %}
-      {% endfor %}
-    </ul>
+  <!-- ══ 본문 ══════════════════════════════════════ -->
+  <div class="main-wrapper">
+    {% if session.demo_mode or R == 'guest' %}
+    <div class="mode-strip">
+      <span class="dot"></span>
+      <b>{% if session.demo_mode %}체험 모드{% else %}게스트 모드{% endif %}</b>
+      <span>저장·수정·삭제 제한</span>
+      <span class="sp">
+        {% if session.demo_mode %}<a href="{{ url_for('landing') }}">웹사이트</a>{% endif %}
+        <span>{% if session.demo_mode %}{{ session.user_email }}{% else %}guest@talentcore.com{% endif %}</span>
+      </span>
+    </div>
+    {% endif %}
 
-    <div class="gnb-right">
+    <header class="topbar" id="appTop">
+      <button class="hamburger" id="hamburgerBtn" aria-label="메뉴" aria-expanded="false"><i class="fas fa-bars"></i></button>
       <div class="global-search-wrap gnb-search" id="globalSearchWrap">
         <div class="global-search-inner">
           <i class="fas fa-magnifying-glass global-search-icon"></i>
@@ -134,68 +144,42 @@
         <div class="global-search-results" id="globalSearchResults" style="display:none;"></div>
       </div>
 
-      <a href="{{ url_for('notifications') }}" class="icon-btn" title="알림">
-        <i class="far fa-bell"></i>
-        {% if unread_notifications > 0 %}<span class="notif-badge">{{ unread_notifications }}</span>{% endif %}
-      </a>
-
-      {% set svis = SETTINGS|selectattr('s')|list %}
-      {% if svis %}
-      <div class="gnb-item{% if ns.group == '설정' %} active{% endif %}" style="height:var(--gnb-h);align-items:center;">
-        <a class="icon-btn" href="{{ svis[0].u }}" title="설정" aria-haspopup="true"><i class="fas fa-gear"></i></a>
-        <div class="gnb-drop right" role="menu">
-          <div class="gnb-drop-panel">
-            {% for it in svis %}
-            <a href="{{ it.u }}" role="menuitem" class="{% if is_on(it) %}on{% endif %}"><i class="fas {{ it.i }}"></i>{{ it.l }}</a>
-            {% endfor %}
+      <div class="gnb-right">
+        <a href="{{ url_for('notifications') }}" class="icon-btn" title="알림">
+          <i class="far fa-bell"></i>
+          {% if unread_notifications > 0 %}<span class="notif-badge">{{ unread_notifications }}</span>{% endif %}
+        </a>
+        <div class="gnb-item" id="userPill">
+          <button class="gnb-avatar-btn" type="button" onclick="toggleUserMenu()">
+            <span class="gnb-avatar">{{ session.user_name[0] if session.user_name else 'U' }}</span>
+            <span class="gnb-who">{{ session.user_name }}</span>
+            <i class="fas fa-chevron-down"></i>
+          </button>
+          <div class="gnb-drop right" id="userDropdown" role="menu">
+            <div class="gnb-drop-panel" style="min-width:220px;">
+              <div class="gnb-user-head">
+                <b>{{ session.user_name }}</b>
+                <span>{% if session.demo_mode %}HR 관리자 (체험){% elif R == 'admin' %}HR 관리자{% elif R == 'manager' %}팀장{% elif R == 'recruiter' %}채용담당자{% elif R == 'guest' %}게스트{% else %}{{ session.dept_name }}{% if session.pos_name %} · {{ session.pos_name }}{% endif %}{% endif %}</span>
+              </div>
+              <a href="{{ url_for('profile') }}" role="menuitem" class="{% if active_page == 'profile' %}on{% endif %}"><i class="fas fa-user"></i>내 정보</a>
+              <button type="button" class="gnb-link" onclick="startTour()"><i class="fas fa-circle-question"></i>화면 안내</button>
+              <div class="gnb-sep"></div>
+              <div class="gnb-drop-cap">화면 모드</div>
+              <div class="gnb-theme" id="themePick">
+                <button type="button" data-v="system">시스템</button>
+                <button type="button" data-v="light">밝게</button>
+                <button type="button" data-v="dark">어둡게</button>
+              </div>
+              <div class="gnb-sep"></div>
+              <form method="POST" action="{{ url_for('logout') }}" style="margin:0;">
+                <button type="submit" class="gnb-link"><i class="fas fa-arrow-right-from-bracket"></i>로그아웃</button>
+              </form>
+            </div>
           </div>
         </div>
       </div>
-      {% endif %}
+    </header>
 
-      <div class="gnb-item" id="userPill" style="height:var(--gnb-h);align-items:center;">
-        <button class="gnb-avatar" type="button" title="{{ session.user_name }}" onclick="toggleUserMenu()">{{ session.user_name[0] if session.user_name else 'U' }}</button>
-        <div class="gnb-drop right" id="userDropdown" role="menu">
-          <div class="gnb-drop-panel" style="min-width:220px;">
-            <div class="gnb-user-head">
-              <b>{{ session.user_name }}</b>
-              <span>{% if session.demo_mode %}HR 관리자 (체험){% elif R == 'admin' %}HR 관리자{% elif R == 'manager' %}팀장{% elif R == 'recruiter' %}채용담당자{% elif R == 'guest' %}게스트{% else %}{{ session.dept_name }}{% if session.pos_name %} · {{ session.pos_name }}{% endif %}{% endif %}</span>
-            </div>
-            <a href="{{ url_for('profile') }}" role="menuitem" class="{% if active_page == 'profile' %}on{% endif %}"><i class="fas fa-user"></i>내 정보</a>
-            <button type="button" class="gnb-link" onclick="startTour()"><i class="fas fa-circle-question"></i>화면 안내</button>
-            <div class="gnb-sep"></div>
-            <div class="gnb-drop-cap">화면 모드</div>
-            <div class="gnb-theme" id="themePick">
-              <button type="button" data-v="system">시스템</button>
-              <button type="button" data-v="light">밝게</button>
-              <button type="button" data-v="dark">어둡게</button>
-            </div>
-            <div class="gnb-sep"></div>
-            <form method="POST" action="{{ url_for('logout') }}" style="margin:0;">
-              <button type="submit" class="gnb-link"><i class="fas fa-arrow-right-from-bracket"></i>로그아웃</button>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <!-- 모바일 메뉴 -->
-  <nav class="m-nav" id="mNav">
-    {% for g in MENU %}{% set vis = g['items']|selectattr('s')|list %}{% if vis %}
-    <div class="m-group"><div class="m-cap">{{ g.label }}</div>
-      {% for it in vis %}<a href="{{ it.u }}">{{ it.l }}</a>{% endfor %}
-    </div>
-    {% endif %}{% endfor %}
-    {% set svis = SETTINGS|selectattr('s')|list %}{% if svis %}
-    <div class="m-group"><div class="m-cap">설정</div>
-      {% for it in svis %}<a href="{{ it.u }}">{{ it.l }}</a>{% endfor %}
-    </div>
-    {% endif %}
-  </nav>
-
-  <!-- ══ 본문 ══════════════════════════════════════ -->
-  <div class="main-wrapper">
     {% block page_head %}
     <div class="page-head">
       <div>
@@ -234,7 +218,7 @@ document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape') {
     var pill = document.getElementById('userPill');
     if (pill) pill.classList.remove('open');
-    if (document.activeElement && document.activeElement.closest && document.activeElement.closest('.gnb')) document.activeElement.blur();
+    if (document.activeElement && document.activeElement.closest && document.activeElement.closest('.topbar, .snav')) document.activeElement.blur();
   }
 });
 
@@ -259,16 +243,44 @@ document.addEventListener('keydown', function (e) {
   paint();
 }());
 
-// ── 모바일 메뉴 ────────────────────────────────
+// ── 좌측 메뉴: 올리면 펼침, 벗어나면 현재 메뉴로 복귀 ─────
 (function () {
-  var btn = document.getElementById('hamburgerBtn');
-  var nav = document.getElementById('mNav');
-  if (!btn || !nav) return;
-  btn.addEventListener('click', function () {
-    var open = nav.classList.toggle('open');
-    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    document.body.style.overflow = open ? 'hidden' : '';
+  var nav = document.getElementById('appNav');
+  if (!nav) return;
+  var grps = Array.prototype.slice.call(nav.querySelectorAll('.snav-grp:not(.single)'));
+  var enterT = null, leaveT = null;
+  function set(g) {
+    grps.forEach(function (x) {
+      var o = x === g || x.classList.contains('active');
+      x.classList.toggle('open', o);
+      x.querySelector('.snav-top').setAttribute('aria-expanded', o ? 'true' : 'false');
+    });
+  }
+  grps.forEach(function (g) {
+    g.addEventListener('mouseenter', function () {
+      clearTimeout(leaveT); clearTimeout(enterT);
+      enterT = setTimeout(function () { set(g); }, 140);
+    });
+    g.addEventListener('focusin', function () { clearTimeout(leaveT); set(g); });
+    g.querySelector('.snav-top').addEventListener('click', function () {
+      clearTimeout(enterT);
+      set(g.classList.contains('open') && !g.classList.contains('active') ? null : g);
+    });
   });
+  nav.addEventListener('mouseleave', function () {
+    clearTimeout(enterT);
+    leaveT = setTimeout(function () { set(null); }, 450);
+  });
+
+  // 모바일: 햄버거로 여닫기
+  var btn = document.getElementById('hamburgerBtn');
+  var scrim = document.getElementById('navScrim');
+  function mobile(open) {
+    document.body.classList.toggle('nav-open', open);
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  if (btn) btn.addEventListener('click', function () { mobile(!document.body.classList.contains('nav-open')); });
+  if (scrim) scrim.addEventListener('click', function () { mobile(false); });
 }());
 
 // ── 검색 ───────────────────────────────────────
@@ -283,7 +295,7 @@ document.addEventListener('keydown', function (e) {
     {label:'증명서 발급', group:'보상', url:'{{ url_for("certificates_hub") }}', icon:'fa-file-lines'},
     {label:'다면평가', group:'성과', url:'{{ url_for("peer_reviews_page") }}', icon:'fa-star'},
     {% if MGR %}
-    {label:'퇴직 처리', group:'구성원', url:'{{ url_for("termination_requests") }}', icon:'fa-user-clock'},
+    {label:'퇴직 처리', group:'인사', url:'{{ url_for("termination_requests") }}', icon:'fa-user-clock'},
     {% endif %}
     {% if ADM %}
     {label:'급여 기준표', group:'보상', url:'{{ url_for("salary_table") }}', icon:'fa-table'},
@@ -446,7 +458,7 @@ document.addEventListener('keydown', function (e) {
 (function () {
   // ── 1) 최초 진입 시: 사이드바 구조만 짧게 설명 ──
   var GLOBAL_TOUR = [
-    { sel: '#appGnb .gnb-menu', title: '메뉴', desc: '홈 · 자리 · 구성원 · 근무 · 보상 · 성과 · 분석. 메뉴에 마우스를 올리면 하위 메뉴 표시. 권한별 노출 항목 상이.' },
+    { sel: '#appNav', title: '메뉴', desc: '홈 · 채용 · 인사 · 근태 · 보상 · 성과 · 분석 · 설정. 마우스를 올리면 하위 메뉴 표시. 권한별 노출 항목 상이.' },
     { sel: '#globalSearchWrap', title: '검색', desc: '직원명 · 메뉴명 검색. 단축키 / 또는 Ctrl+K.' },
     { sel: 'a[title="알림"]', title: '알림', desc: '결재 요청 · 처리 결과 수신.' },
     { sel: '#userPill', title: '계정', desc: '내 정보 · 화면 모드(시스템/밝게/어둡게) · 화면 안내 · 로그아웃.' }
@@ -457,9 +469,9 @@ document.addEventListener('keydown', function (e) {
     attendance_home: [
       { sel: '[data-tab="home"]', title: '근태 홈', desc: '출퇴근 체크인/체크아웃, 이번 주 근무시간, 잔여 연차를 확인합니다.' },
       { sel: '[data-tab="leaves"]', title: '휴가', desc: '휴가를 신청하고 신청 내역·승인 상태를 확인합니다.' },
-      { sel: '[data-tab="ot"]', title: '초과근무', desc: '연장근무를 사전/사후로 신청하고 승인 상태를 확인합니다.' },
+      { sel: '[data-tab="ot"]', title: '연장근로', desc: '연장근로 사전·사후 신청, 승인 상태 조회.' },
       { sel: '[data-tab="calendar"]', title: '캘린더', desc: '한 달 단위로 출퇴근·휴가 현황을 달력으로 확인합니다.' },
-      { sel: '[data-tab="approvals"]', title: '승인', desc: '팀원의 근태·휴가·초과근무 신청을 검토하고 승인/반려합니다.' }
+      { sel: '[data-tab="approvals"]', title: '승인', desc: '근태·휴가·연장근로 신청 승인·반려.' }
     ],
     performance: [
       { sel: '[data-tour-page="perf-goals"]', title: '내 목표', desc: '이번 사이클 목표를 등록하고 진행률·자기평가를 입력합니다.' },

@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}자리 대장{% endblock %}
-{% block page_title %}자리 대장{% endblock %}
+{% block title %}충원 현황{% endblock %}
+{% block page_title %}충원 현황{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -43,7 +43,7 @@
   </a>
   {% endfor %}
   <span style="margin-left:auto;"></span>
-  <a href="{{ url_for('requisition_list') }}" class="btn btn-ghost btn-sm">채용 요청서</a>
+  <a href="{{ url_for('requisition_list') }}" class="btn btn-ghost btn-sm">채용 요청</a>
 </div>
 
 {% set pick = can_edit and hire_ready %}
@@ -55,7 +55,7 @@
   <thead>
     <tr>
       {% if pick %}<th class="op-pick"></th>{% endif %}
-      <th>자리번호</th>
+      <th>포지션 번호</th>
       <th>직무</th>
       <th>부서</th>
       <th>직급 · 고용형태</th>
@@ -71,7 +71,7 @@
     <tr class="row {{ r.status }}">
       {% if pick %}
       <td class="op-pick first">
-        {# 같은 요청서의 자리끼리만 공고 한 건으로 묶는다 #}
+        {# 같은 요청서의 포지션끼리만 공고 한 건으로 묶는다 #}
         {% if r.status == 'approved' and not r.external_ref %}
         <input type="checkbox" name="op_ids" value="{{ r.id }}" data-req="{{ r.requisition_id }}" onchange="opPick()">
         {% else %}
@@ -121,7 +121,7 @@
     </tr>
     {% else %}
     <tr>
-      <td colspan="{{ (9 if can_edit else 8) + (1 if pick else 0) }}" style="height:64px; text-align:center; color:var(--tx-3);">해당 자리 없음</td>
+      <td colspan="{{ (9 if can_edit else 8) + (1 if pick else 0) }}" style="height:64px; text-align:center; color:var(--tx-3);">해당 포지션 없음</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -130,7 +130,7 @@
 
 {% if pick %}
 <div class="op-bar" id="pushBar">
-  <span><b id="pushN">0</b>석 선택</span>
+  <span><b id="pushN">0</b>건 선택</span>
   <span class="sp"></span>
   <button type="button" class="btn btn-ghost btn-sm" onclick="opClear()">선택 해제</button>
   <button type="submit" class="btn btn-primary btn-sm">Hire 공고 등록</button>
@@ -138,7 +138,7 @@
 </form>
 
 <script>
-/* 첫 선택과 다른 요청서의 자리는 잠근다 */
+/* 첫 선택과 다른 요청서의 포지션은 잠근다 */
 function opPick() {
   var all = document.querySelectorAll('#pushForm input[name="op_ids"]');
   var on  = document.querySelectorAll('#pushForm input[name="op_ids"]:checked');

@@ -1,6 +1,6 @@
 ﻿{% extends 'base.html' %}
-{% block title %}Talent Card — {{ emp.name }}{% endblock %}
-{% block page_title %}성과{% endblock %}
+{% block title %}인재 카드 — {{ emp.name }}{% endblock %}
+{% block page_title %}성과 평가{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -468,7 +468,7 @@
         {% if session.get('user_role') in ('manager', 'admin') %}
         <div style="margin-top:14px; text-align:right;">
           <a href="{{ url_for('succession') }}" class="btn btn-ghost btn-sm">
-            <i class="fas fa-sitemap"></i> 후계자 계획 관리
+            <i class="fas fa-sitemap"></i> 승계 계획
           </a>
         </div>
         {% endif %}

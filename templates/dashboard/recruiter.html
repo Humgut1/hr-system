@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}대시보드{% endblock %}
-{% block page_title %}대시보드{% endblock %}
+{% block title %}홈{% endblock %}
+{% block page_title %}홈{% endblock %}
 
 {% block content %}
 
@@ -9,7 +9,7 @@
   <div style="z-index:1;">
     <div style="font-size:12px; font-weight:600; opacity:.6; text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px;">{{ today_str }}</div>
     <div class="welcome-greeting">{{ first_name }}님, {{ greet }}.</div>
-    <div class="welcome-sub">열린 자리 {{ open_seats }}개 · 입사 예정 {{ hires_waiting_count }}명</div>
+    <div class="welcome-sub">미충원 포지션 {{ open_seats }}건 · 입사 예정 {{ hires_waiting_count }}명</div>
   </div>
   <i class="fas fa-user-tie welcome-icon"></i>
 </div>
@@ -27,14 +27,14 @@
     <div class="stat-ico ico-purple"><i class="fas fa-id-card"></i></div>
     <div class="stat-body">
       <div class="stat-val">{{ open_seats }}</div>
-      <div class="stat-lbl">열려 있는 자리</div>
+      <div class="stat-lbl">미충원 포지션</div>
     </div>
   </a>
   <a href="{{ url_for('opening_board') }}" class="stat-card" style="text-decoration:none;">
     <div class="stat-ico ico-orange"><i class="fas fa-paper-plane"></i></div>
     <div class="stat-body">
       <div class="stat-val" style="{% if ready_to_push > 0 %}color:var(--orange);{% endif %}">{{ ready_to_push }}</div>
-      <div class="stat-lbl">Hire로 보낼 자리</div>
+      <div class="stat-lbl">공고 미등록</div>
     </div>
   </a>
   <a href="{{ url_for('hires_list') }}" class="stat-card" style="text-decoration:none;">
@@ -60,7 +60,7 @@
       {% if recent_reqs %}
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>요청</th><th>부서</th><th>상태</th><th>자리</th></tr></thead>
+          <thead><tr><th>요청</th><th>부서</th><th>상태</th><th>포지션</th></tr></thead>
           <tbody>
             {% for r in recent_reqs %}
             <tr onclick="location.href='{{ url_for('requisition_detail', req_id=r.id) }}'" style="cursor:pointer;">
@@ -125,7 +125,7 @@
         </a>
         <a href="{{ url_for('opening_board') }}" class="qa-btn">
           <div class="qa-btn-ico ico-purple"><i class="fas fa-id-card"></i></div>
-          <span>자리 대장</span>
+          <span>충원 현황</span>
         </a>
         <a href="{{ url_for('hires_list') }}" class="qa-btn">
           <div class="qa-btn-ico ico-green"><i class="fas fa-user-plus"></i></div>
