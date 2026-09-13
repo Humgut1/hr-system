@@ -520,6 +520,21 @@ def calc_simple_withholding(monthly_taxable: int, family_count: int = 1,
     }
 
 
+def calc_bonus_withholding(monthly_taxable: int, bonus: int, period_months: int = 1,
+                            family_count: int = 1, children_8_20: int = 0, rate_pct: int = 100) -> dict:
+    """
+    지급대상기간이 있는 상여의 원천징수 (소득세법 시행령 §194).
+    (월급여 + 상여/지급대상기간) 간이세액 × 지급대상기간 − 월급여 간이세액 × 지급대상기간
+    """
+    if not bonus or bonus <= 0:
+        return {'income_tax': 0, 'local_income_tax': 0, 'period_months': 0}
+    n = max(1, min(12, int(period_months or 1)))
+    with_bonus = calc_simple_withholding(monthly_taxable + bonus // n, family_count, children_8_20, rate_pct)
+    base = calc_simple_withholding(monthly_taxable, family_count, children_8_20, rate_pct)
+    income_tax = _trunc10(max(0, with_bonus['income_tax'] - base['income_tax']) * n)
+    return {'income_tax': income_tax, 'local_income_tax': _trunc10(income_tax * 0.1), 'period_months': n}
+
+
 def calc_insurance(monthly_taxable: int, pay_date=None) -> dict:
     """4대보험 근로자 부담분 (10원 미만 절사)"""
     r = get_insurance_rates(pay_date)
@@ -546,6 +561,8 @@ def calc_payslip(
     is_female: bool = False,
     rate_pct: int = 100,
     pay_date=None,
+    bonus_amount: int = 0,
+    bonus_period_months: int = 1,
 ) -> dict:
     """
     월 급여에서 공제액을 계산해 명세서 dict 반환.
@@ -568,6 +585,8 @@ def calc_payslip(
         is_female     : 부녀자공제 판정용
         rate_pct      : 원천징수 비율 80 / 100 / 120 (직원 선택)
         pay_date      : 급여 귀속 date 또는 (year, month) — 요율 적용 시점
+        bonus_amount  : 이 달 지급 성과상여 (지급대상기간 원천징수, 고용보험만 합산 부과)
+        bonus_period_months: 성과상여 지급대상기간(개월)
     """
     # ── 비과세 처리 (식대·교통비)
     TAX_FREE_MEAL      = 200_000
@@ -640,10 +659,19 @@ def calc_payslip(
     local_income_tax = wh['local_income_tax']
     child_tax_credit = wh['child_credit']
 
+    # ── 성과상여: 지급대상기간 원천징수 + 고용보험 (국민연금·건강보험은 기준월액 불변, 연말 정산)
+    bonus_amount = int(bonus_amount or 0)
+    bw = calc_bonus_withholding(taxable_monthly, bonus_amount, bonus_period_months,
+                                dep_result['num_dependents'], dep_result['children_tax_credit_count'], rate_pct)
+    if bonus_amount > 0:
+        income_tax       += bw['income_tax']
+        local_income_tax += bw['local_income_tax']
+        employment_insurance = _trunc10((taxable_monthly + bonus_amount) * ins['rates']['employment'])
+
     # ── 집계
     gross_pay = (
         base_salary + meal_allowance + transport_allowance
-        + overtime_pay + benefits_gross
+        + overtime_pay + benefits_gross + bonus_amount
     )
     total_deduction = (
         national_pension + health_insurance + long_term_care
@@ -683,6 +711,9 @@ def calc_payslip(
         'children_8_20':            dep_result['children_tax_credit_count'],
         'table_tax':                wh['table_tax'],
         'pension_base':             ins['pension_base'],
+        'perf_bonus':               bonus_amount,
+        'bonus_period_months':      bw['period_months'],
+        'bonus_income_tax':         bw['income_tax'],
     }
 
 

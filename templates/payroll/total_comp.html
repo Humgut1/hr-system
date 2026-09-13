@@ -1,193 +1,152 @@
-﻿{% extends 'base.html' %}
-{% block title %}총보상명세서 — {{ emp.name }}{% endblock %}
-{% block content %}
-<div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
-  <div>
-    <h1>총보상 명세서</h1>
-    <p class="page-subtitle">{{ emp.name }} · {{ emp.dept_name or '-' }} · {{ emp.pos_name or '-' }} · {{ year }}년도</p>
-  </div>
-  <div style="display:flex; gap:8px;">
-    <a href="{{ url_for('employee_detail', emp_id=emp.id) }}" class="btn btn-ghost btn-sm">← 프로필</a>
-    <button onclick="window.print()" class="btn btn-primary btn-sm">인쇄</button>
-  </div>
-</div>
+{% extends 'base.html' %}
+{% block title %}총보상 명세 — {{ emp.name }}{% endblock %}
+{% block page_title %}보상{% endblock %}
 
-<!-- 인쇄 스타일 -->
+{% block extra_css %}
 <style>
-@media print {
-  .sidebar, .header, .page-header .btn, nav { display: none !important; }
-  .main-content { margin: 0 !important; padding: 0 !important; }
-  body { background: white !important; }
-  .no-print { display: none !important; }
-}
+  .wh-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
+  .wh-head h1 { font-size:18px; font-weight:650; margin:0; }
+  .wh-head .who { font-size:12.5px; color:var(--tx-3); }
+  .wh-head .sp { margin-left:auto; }
+  .wh-ctl select { height:30px; padding:0 8px; font-size:12.5px; background:var(--surface); color:var(--tx-1); border:1px solid var(--line); border-radius:6px; }
+  .wh-sum { display:flex; flex-wrap:wrap; gap:6px 22px; font-size:12.5px; color:var(--tx-3); margin:0 0 18px; }
+  .wh-sum b { font:600 12.5px var(--mono); color:var(--tx-1); margin-left:6px; }
+  .wh-sum .wait b { color:var(--wait); }
+  .wh-basis { font-size:12px; color:var(--tx-3); margin:8px 0 0; line-height:1.7; }
+  .tc-grid { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:28px; margin:0 0 26px; }
+  @media (max-width: 1000px) { .tc-grid { grid-template-columns:1fr; } }
+  .tc-sec { margin:0 0 26px; }
+  .ltable tr.sub td:first-child { padding-left:22px; color:var(--tx-3); }
+  .ltable tr.sub td.m { color:var(--tx-3); }
+  .ltable tr.tot td { border-top:1px solid var(--line); font-weight:650; }
+  .ltable tr.tot td.m { color:var(--tx-1); font-weight:650; }
+  .ltable th.l { width:38%; }
 </style>
+{% endblock %}
 
-<!-- 문서 본문 -->
-<div id="total-comp-paper" style="background:white; max-width:800px; margin:0 auto;
-     border:1px solid var(--surface-3); border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,.08);">
-
-  <!-- 헤더 -->
-  <div style="background:linear-gradient(135deg,var(--info),var(--info)); color:white; padding:32px 40px;">
-    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-      <div>
-        <div style="font-size:11px; letter-spacing:2px; opacity:.8; margin-bottom:6px;">총보상 명세서</div>
-        <h2 style="margin:0; font-size:24px;">{{ emp.name }}</h2>
-        <div style="margin-top:8px; font-size:14px; opacity:.85;">
-          {{ emp.dept_name or '-' }} &nbsp;|&nbsp; {{ emp.pos_name or '-' }}
-          {% if emp.jf_name %} &nbsp;|&nbsp; {{ emp.jf_name }}{% endif %}
-        </div>
-      </div>
-      <div style="text-align:right; font-size:13px; opacity:.85;">
-        <div>{{ year }}년도 보상 내역</div>
-        {% if emp.hire_date %}<div style="margin-top:4px;">입사일: {{ emp.hire_date }}</div>{% endif %}
-        {% if perf_grade %}
-        <div style="margin-top:8px; font-size:20px; font-weight:800;">
-          성과등급 {{ perf_grade }}
-        </div>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- 총 보상 합계 강조 -->
-    <div style="margin-top:24px; background:rgba(255,255,255,.15); border-radius:8px; padding:16px 20px;
-                display:flex; align-items:center; justify-content:space-between;">
-      <div style="font-size:13px; opacity:.9;">{{ year }}년 총 보상 패키지 추정액</div>
-      <div style="font-size:28px; font-weight:800;">{{ '{:,}'.format(total_comp) }}원</div>
-    </div>
-  </div>
-
-  <!-- 본문 -->
-  <div style="padding:32px 40px;">
-
-    <!-- ① 기본 급여 -->
-    <div style="margin-bottom:28px;">
-      <h3 style="font-size:14px; color:var(--tx-3); letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">① 기본 급여</h3>
-      <div style="background:var(--surface-3); border-radius:8px; overflow:hidden;">
-        {% set rows = [
-          ('현재 연봉 (기본급)', base_salary, ''),
-          ('실지급 총액 (세전)', total_gross, months_paid ~ '개월 합산'),
-          ('실수령액 (세후)', total_net, '4대보험·소득세 공제 후'),
-          ('상여금 지급액', total_bonus, year ~ '년 실지급'),
-        ] %}
-        {% for label, amount, note in rows %}
-        <div style="display:flex; justify-content:space-between; align-items:center;
-                    padding:12px 16px; border-bottom:1px solid var(--surface-3);">
-          <div>
-            <span style="font-size:14px;">{{ label }}</span>
-            {% if note %}<span style="font-size:11px; color:var(--tx-3); margin-left:8px;">{{ note }}</span>{% endif %}
-          </div>
-          <strong style="font-size:15px;">{{ '{:,}'.format(amount) }}원</strong>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-
-    <!-- ② 복리후생 -->
-    {% if benefit_items %}
-    <div style="margin-bottom:28px;">
-      <h3 style="font-size:14px; color:var(--tx-3); letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">② 복리후생 (연간 추정)</h3>
-      <div style="background:var(--surface-3); border-radius:8px; overflow:hidden;">
-        {% for item in benefit_items %}
-        <div style="display:flex; justify-content:space-between; align-items:center;
-                    padding:10px 16px; border-bottom:1px solid var(--surface-3);">
-          <div style="font-size:14px;">
-            {{ item.name }}
-            {% if item.tax_exempt %}
-            <span style="font-size:10px; background:var(--green-bg); color:var(--green); padding:1px 6px; border-radius:4px; margin-left:6px;">비과세</span>
-            {% endif %}
-          </div>
-          <span style="font-size:14px;">{{ '{:,}'.format(item.annual) }}원</span>
-        </div>
-        {% endfor %}
-        <div style="display:flex; justify-content:space-between; padding:12px 16px;
-                    background:var(--green-bg); font-weight:700;">
-          <span>복리후생 소계</span>
-          <span style="color:var(--green);">{{ '{:,}'.format(benefit_total) }}원</span>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- ③ 퇴직금 적립 -->
-    <div style="margin-bottom:28px;">
-      <h3 style="font-size:14px; color:var(--tx-3); letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">③ 퇴직금 적립 (연간)</h3>
-      <div style="background:var(--surface-3); border-radius:8px; padding:14px 16px;
-                  display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <span style="font-size:14px;">퇴직금 적립 추정액</span>
-          <span style="font-size:11px; color:var(--tx-3); margin-left:8px;">연간 기본급 기준 (근로기준법 §34)</span>
-        </div>
-        <strong style="font-size:15px;">{{ '{:,}'.format(severance_accrual) }}원</strong>
-      </div>
-    </div>
-
-    <!-- ④ 성과 상여 예상 -->
-    {% if perf_grade %}
-    <div style="margin-bottom:28px;">
-      <h3 style="font-size:14px; color:var(--tx-3); letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">④ 성과 상여 예상 (PI)</h3>
-      <div style="background:var(--orange-bg); border:1px solid var(--orange); border-radius:8px; padding:16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <div>
-            <span style="font-size:14px;">성과등급 {{ perf_grade }} 기준</span>
-            <span style="font-size:12px; color:var(--orange); margin-left:8px;">월 기본급 × {{ bonus_months }}배</span>
-          </div>
-          <strong style="font-size:16px; color:var(--orange);">~ {{ '{:,}'.format(estimated_bonus) }}원</strong>
-        </div>
-        <p style="font-size:11px; color:var(--orange); margin:0;">
-          * 예상 금액이며 실제 지급액은 회사 정책에 따라 변동될 수 있습니다.
-        </p>
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- ⑤ 급여 밴드 포지션 -->
-    {% if band and band.mid_salary %}
-    <div style="margin-bottom:28px;">
-      <h3 style="font-size:14px; color:var(--tx-3); letter-spacing:1px; margin:0 0 12px; text-transform:uppercase;">⑤ 급여 밴드 포지션</h3>
-      <div style="background:var(--surface-3); border-radius:8px; padding:16px;">
-        <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--tx-3); margin-bottom:8px;">
-          <span>Min {{ '{:,}'.format(band.min_salary) }}원</span>
-          <span>Mid {{ '{:,}'.format(band.mid_salary) }}원</span>
-          <span>Max {{ '{:,}'.format(band.max_salary) }}원</span>
-        </div>
-        {% if band.max_salary > band.min_salary %}
-        {% set pct = [([(base_salary - band.min_salary) / (band.max_salary - band.min_salary) * 100, 0]|max), 100]|min %}
-        {% set mid_pct = (band.mid_salary - band.min_salary) / (band.max_salary - band.min_salary) * 100 %}
-        <div style="position:relative; height:10px; background:var(--surface-3); border-radius:5px;">
-          <div style="position:absolute; left:{{ mid_pct }}%; top:-3px; bottom:-3px; width:2px; background:var(--tx-3);"></div>
-          <div style="position:absolute; left:0; width:{{ pct }}%; height:100%; background:var(--info); border-radius:5px;"></div>
-          <div style="position:absolute; left:{{ pct }}%; top:50%; transform:translate(-50%,-50%);
-                      width:14px; height:14px; background:white; border:3px solid var(--info); border-radius:50%;"></div>
-        </div>
-        {% endif %}
-        {% if compa_ratio %}
-        <div style="text-align:center; margin-top:10px; font-size:13px;">
-          Compa-Ratio
-          <strong style="color:{% if compa_ratio < 0.9 %}var(--orange){% elif compa_ratio > 1.1 %}var(--info){% else %}var(--green){% endif %};">
-            {{ compa_ratio }}
-          </strong>
-          <span style="color:var(--tx-3); font-size:11px; margin-left:4px;">
-            ({% if compa_ratio < 0.9 %}밴드 하단{% elif compa_ratio > 1.1 %}밴드 상단{% else %}밴드 정상{% endif %})
-          </span>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- 합계 -->
-    <div style="background:var(--info); color:white; border-radius:10px; padding:20px 24px;
-                display:flex; justify-content:space-between; align-items:center;">
-      <div>
-        <div style="font-size:12px; opacity:.8; margin-bottom:4px;">{{ year }}년 총보상</div>
-        <div style="font-size:11px; opacity:.6;">실지급 총액 + 복리후생 + 퇴직금 적립 합산</div>
-      </div>
-      <div style="font-size:28px; font-weight:800;">{{ '{:,}'.format(total_comp) }}원</div>
-    </div>
-
-    <p style="font-size:11px; color:var(--tx-3); margin-top:16px; text-align:center;">
-      본 문서는 {{ year }}년도 보상 패키지 안내용이며, 법적 효력을 가지지 않습니다. · 발행일: {{ now[:10] if now else '2026-06-10' }}
-    </p>
-  </div>
+{% block content %}
+{% set stage_cls = {'pending':'wait','returned':'late','submitted':'wait','sign_wait':'wait','contract_rejected':'late','signed':'','applied':'done'} %}
+<div class="wh-head">
+  <h1>총보상 명세</h1>
+  <span class="who">{{ emp.name }} · {{ emp.dept_name or '부서 미지정' }} · {{ emp.pos_name or '-' }}</span>
+  <span class="sp"></span>
+  <form method="GET" class="wh-ctl">
+    <select name="year" onchange="this.form.submit()" aria-label="연도">
+      {% for y in years %}<option value="{{ y }}" {{ 'selected' if y == year }}>{{ y }}년</option>{% endfor %}
+    </select>
+  </form>
+  {% if is_admin %}<a class="btn btn-ghost btn-sm" href="{{ url_for('employee_detail', emp_id=emp.id) }}">인사 카드</a>{% endif %}
 </div>
+
+<div class="wh-sum">
+  <span>{{ year }}년 총보상 (추정)<b>{{ '{:,}'.format(total_comp) }}</b></span>
+  <span>확정 급여 총지급<b>{{ '{:,}'.format(sums.gross_pay) }}</b></span>
+  <span>확정 명세<b>{{ payslips | length }}개월</b></span>
+  <span class="{{ 'wait' if scheduled_bonus }}">성과상여 지급 예정<b>{{ '{:,}'.format(scheduled_bonus) }}</b></span>
+  <span>실수령 누계<b>{{ '{:,}'.format(sums.net_pay) }}</b></span>
+</div>
+
+<div class="tc-grid">
+  <section>
+    <div class="sec-head"><h2>구성</h2><span class="cnt">{{ year }}년 · 원</span></div>
+    <table class="ltable">
+      <thead><tr><th class="l">항목</th><th class="r">금액</th><th>기준</th></tr></thead>
+      <tbody>
+        <tr><td>확정 급여 총지급</td><td class="m r">{{ '{:,}'.format(sums.gross_pay) }}</td><td class="t2">확정 명세 {{ payslips | length }}개월</td></tr>
+        <tr class="sub"><td>기본급</td><td class="m r">{{ '{:,}'.format(sums.base_salary) }}</td><td></td></tr>
+        <tr class="sub"><td>식대·교통비·연장근로</td><td class="m r">{{ '{:,}'.format(sums.meal_allowance + sums.transport_allowance + sums.overtime_pay) }}</td><td></td></tr>
+        <tr class="sub"><td>복리후생 급여 반영</td><td class="m r">{{ '{:,}'.format(sums.bonus_pay) }}</td><td></td></tr>
+        <tr class="sub"><td>성과상여 지급</td><td class="m r">{{ '{:,}'.format(sums.perf_bonus) }}</td><td></td></tr>
+        <tr><td>성과상여 지급 예정</td><td class="m r">{{ '{:,}'.format(scheduled_bonus) }}</td><td class="t2">미확정 월 급여에 포함 예정</td></tr>
+        <tr><td>기타 상여</td><td class="m r">{{ '{:,}'.format(other_bonus) }}</td><td class="t2">별도 지급분</td></tr>
+        <tr><td>급여 외 복리후생</td><td class="m r">{{ '{:,}'.format(benefit_total) }}</td><td class="t2">연간 예산·환급 한도</td></tr>
+        {% for b in benefit_items %}
+        <tr class="sub"><td>{{ b.name }}</td><td class="m r">{{ '{:,}'.format(b.annual) }}</td><td class="t2">{{ b.type }}</td></tr>
+        {% endfor %}
+        <tr><td>퇴직급여 적립 (추정)</td><td class="m r">{{ '{:,}'.format(severance) }}</td><td class="t2">월평균 총지급 × 확정 개월 ÷ 12</td></tr>
+        <tr class="tot"><td>합계</td><td class="m r">{{ '{:,}'.format(total_comp) }}</td><td></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>현재 보상 위치</h2></div>
+    <table class="ltable">
+      <tbody>
+        <tr><td class="t2">월 기본급</td><td class="m r">{{ '{:,}'.format(base_salary) }}</td></tr>
+        <tr><td class="t2">연 기본급</td><td class="m r">{{ '{:,}'.format(base_salary * 12) }}</td></tr>
+        {% if band and band.mid_salary %}
+        <tr><td class="t2">급여 밴드 (연)</td><td class="m r">{{ '{:,}'.format(band.min_salary or 0) }} · {{ '{:,}'.format(band.mid_salary) }} · {{ '{:,}'.format(band.max_salary or 0) }}</td></tr>
+        <tr><td class="t2">Compa-Ratio</td><td class="m r">{{ '%.2f'|format(compa) if compa else '-' }}{% if compa %}<small class="t3">{{ '밴드 하단' if compa < 0.9 else '밴드 상단' if compa > 1.1 else '밴드 중간' }}</small>{% endif %}</td></tr>
+        {% else %}
+        <tr><td class="t2">급여 밴드</td><td class="m r">미등록</td></tr>
+        {% endif %}
+        <tr><td class="t2">최근 성과등급</td><td class="m r">{{ cal.final_grade if cal else '-' }}{% if cal %}<small class="t3">{{ cal.name }}</small>{% endif %}</td></tr>
+      </tbody>
+    </table>
+
+    <div class="sec-head" style="margin-top:22px;"><h2>최근 보상 검토</h2></div>
+    {% if review %}
+    <table class="ltable">
+      <tbody>
+        <tr><td class="t2">보상 검토</td><td class="r">{{ review.cycle_name }}</td></tr>
+        <tr><td class="t2">월 기본급</td><td class="m r">{{ '{:,}'.format(review.current_salary) }} → {{ '{:,}'.format(review.final_salary) }}</td></tr>
+        <tr><td class="t2">인상률</td><td class="m r">{{ '%+.1f'|format(review.final_pct) }}%</td></tr>
+        <tr><td class="t2">성과상여</td><td class="m r">{{ '{:,}'.format(review.proposed_bonus or 0) }}</td></tr>
+        <tr><td class="t2">적용일</td><td class="m r">{{ review.effective_date or '-' }}</td></tr>
+        <tr><td class="t2">단계</td><td class="r {{ stage_cls[review.stage] }}">{{ stage_label[review.stage] }}</td></tr>
+        {% if review.cid %}<tr><td class="t2">연봉계약서</td><td class="r"><a href="{{ url_for('contract_view', cid=review.cid) }}">{{ '서명하기' if review.contract_status == 'pending' and not is_admin else '보기' }}</a></td></tr>{% endif %}
+      </tbody>
+    </table>
+    {% else %}
+    <table class="ltable"><tbody><tr class="empty"><td>승인된 보상 검토 없음</td></tr></tbody></table>
+    {% endif %}
+  </section>
+</div>
+
+<section class="tc-sec">
+  <div class="sec-head"><h2>월별 확정 명세</h2><span class="cnt">{{ payslips | length }}</span></div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>월</th><th class="r">기본급</th><th class="r">수당</th><th class="r">복리후생</th><th class="r">성과상여</th><th class="r">총지급</th><th class="r">공제</th><th class="r">실지급</th></tr></thead>
+    <tbody>
+      {% for p in payslips %}
+      <tr>
+        <td class="m">{% if not is_admin %}<a href="{{ url_for('payroll_detail', year=p.year, month=p.month) }}">{{ p.year }}-{{ '%02d'|format(p.month) }}</a>{% else %}{{ p.year }}-{{ '%02d'|format(p.month) }}{% endif %}</td>
+        <td class="m r">{{ '{:,}'.format(p.base_salary or 0) }}</td>
+        <td class="m r">{{ '{:,}'.format((p.meal_allowance or 0) + (p.transport_allowance or 0) + (p.overtime_pay or 0)) }}</td>
+        <td class="m r">{{ '{:,}'.format(p.bonus_pay or 0) }}</td>
+        <td class="m r">{{ '{:,}'.format(p.perf_bonus or 0) if p.perf_bonus else '-' }}</td>
+        <td class="m r">{{ '{:,}'.format(p.gross_pay or 0) }}</td>
+        <td class="m r">{{ '{:,}'.format(p.total_deduction or 0) }}</td>
+        <td class="m r">{{ '{:,}'.format(p.net_pay or 0) }}</td>
+      </tr>
+      {% else %}
+      <tr class="empty"><td colspan="8">{{ year }}년 확정 명세 없음</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{% if bonuses %}
+<section class="tc-sec">
+  <div class="sec-head"><h2>상여 지급</h2><span class="cnt">{{ bonuses | length }}</span></div>
+  <table class="ltable">
+    <thead><tr><th>지급일</th><th>구분</th><th>내용</th><th class="r">금액</th><th class="r">지급대상기간</th></tr></thead>
+    <tbody>
+      {% for b in bonuses %}
+      <tr>
+        <td class="m">{{ b.pay_date }}</td>
+        <td class="t2">{{ '성과상여' if b.bonus_type == 'perf_bonus' else b.bonus_type }}</td>
+        <td class="t2">{{ b.note or '-' }}</td>
+        <td class="m r">{{ '{:,}'.format(b.amount) }}</td>
+        <td class="m r">{{ (b.period_months ~ '개월') if b.period_months else '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="wh-basis">성과상여 원천징수 — 지급대상기간 월평균(상여 ÷ 개월수)을 월급여에 더한 간이세액과 월급여만의 간이세액 차이 × 개월수 (소득세법 시행령 제194조) · 지방소득세 10% · 고용보험은 상여 포함 금액 기준</div>
+</section>
+{% endif %}
 {% endblock %}

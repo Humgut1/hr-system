@@ -1927,6 +1927,25 @@ def init_db(db_path: str = None):
             UNIQUE(user_id, task_key)
         )''')
 
+        # ── C1: 성과 → 보상 검토 → 연봉계약서 → 급여 반영 배선 ─────────
+        _c1_cols = {
+            'compensation_review_cycles': [('perf_cycle_id', 'INTEGER'), ('budget_pct', 'REAL DEFAULT 0'),
+                                           ('bonus_pay_date', 'TEXT')],
+            'compensation_reviews': [('perf_grade', 'TEXT'), ('suggested_pct', 'REAL'),
+                                     ('proposed_bonus', 'INTEGER DEFAULT 0'), ('contract_id', 'INTEGER'),
+                                     ('applied_at', 'TEXT'), ('bonus_payment_id', 'INTEGER'),
+                                     ('department_id', 'INTEGER')],
+            'contracts': [('comp_review_id', 'INTEGER')],
+            'bonus_payments': [('period_months', 'INTEGER DEFAULT 1')],
+            'payslips': [('perf_bonus', 'INTEGER NOT NULL DEFAULT 0'),
+                         ('bonus_period_months', 'INTEGER NOT NULL DEFAULT 0')],
+        }
+        for _tbl, _cols in _c1_cols.items():
+            _have = {r[1] for r in c.execute(f'PRAGMA table_info({_tbl})')}
+            for _col, _typ in _cols:
+                if _col not in _have:
+                    c.execute(f'ALTER TABLE {_tbl} ADD COLUMN {_col} {_typ}')
+
         conn.commit()
     finally:
         conn.close()

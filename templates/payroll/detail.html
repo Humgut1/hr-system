@@ -68,7 +68,8 @@
             ('기본급', slip.base_salary, ''),
             ('식대', slip.meal_allowance, '월 20만원까지 비과세'),
             ('교통비', slip.transport_allowance, '월 20만원까지 비과세'),
-            ('연장근로수당', slip.overtime_pay, '통상시급의 1.5배')
+            ('연장근로수당', slip.overtime_pay, '통상시급의 1.5배'),
+            ('성과상여', slip.perf_bonus or 0, '지급대상 %s개월' % (slip.bonus_period_months or 1))
         ] %}
         {% if amount > 0 %}
         <div style="display:flex; justify-content:space-between; align-items:center;

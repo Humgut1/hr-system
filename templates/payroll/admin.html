@@ -55,8 +55,8 @@
   <div class="card">
     <div class="card-head">
       <span class="card-title">월별 급여명세서 생성</span>
-      <a href="{{ url_for('payroll_bulk_raise') }}" class="btn btn-ghost btn-sm">
-        <i class="fas fa-chart-line"></i> 일괄 인상
+      <a href="{{ url_for('salary_adjustments') }}" class="btn btn-ghost btn-sm">
+        <i class="fas fa-chart-line"></i> 연봉 조정안
       </a>
     </div>
     <div class="card-body">
@@ -342,8 +342,8 @@
       <div style="font-size:16px; font-weight:800;">일괄 급여 인상</div>
       <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">전체 또는 부서별 % 인상 후 시뮬레이션 확인</div>
     </div>
-    <a href="{{ url_for('payroll_bulk_raise') }}" class="btn btn-primary">
-      <i class="fas fa-external-link-alt"></i> 일괄 인상 페이지 열기
+    <a href="{{ url_for('salary_adjustments') }}" class="btn btn-primary">
+      <i class="fas fa-external-link-alt"></i> 연봉 조정안 열기
     </a>
   </div>
   <div class="card">
@@ -351,9 +351,10 @@
       <i class="fas fa-chart-line" style="font-size:32px; margin-bottom:12px; display:block; opacity:.3;"></i>
       인상률 시뮬레이션 · 부서별 차등 적용 · 이력 자동 기록
       <br><br>
-      <a href="{{ url_for('payroll_bulk_raise') }}" class="btn btn-primary">
-        <i class="fas fa-chart-line"></i> 일괄 인상 시작
+      <a href="{{ url_for('salary_adjustments') }}" class="btn btn-primary">
+        <i class="fas fa-chart-line"></i> 연봉 조정안
       </a>
+      <a href="{{ url_for('acr_list') }}" class="btn btn-ghost">보상 검토 (등급 연동)</a>
     </div>
   </div>
 </div>

@@ -109,14 +109,19 @@
             {% if not loop.last %}<i class="fas fa-chevron-right stage-arrow"></i>{% endif %}
             {% endfor %}
           </div>
+          {% if c.status == 'closed' %}
+          <div style="font-size:11.5px; color:var(--tx-3); margin-top:8px;">
+            <a href="{{ url_for('acr_list', perf_cycle=c.id) }}" style="color:var(--primary); font-weight:700;">보상 검토 →</a>
+          </div>
+          {% endif %}
           {% if c.status == 'active' %}
           <div style="font-size:11.5px; color:var(--tx-3); margin-top:8px;">
             <i class="fas fa-info-circle" style="margin-right:4px;"></i>{{ cycle_stage_desc[c.stage] }}
             {% if c.stage in ('appeal', 'closed') %}
             &nbsp;<a href="{{ url_for('performance_appeals', cycle=c.id) }}" style="color:var(--primary); font-weight:700;">이의신청 관리 →</a>
             {% endif %}
-            {% if c.stage == 'closed' %}
-            &nbsp;<a href="{{ url_for('salary_adjustments') }}" style="color:var(--primary); font-weight:700;">등급 연동 연봉 조정 →</a>
+            {% if c.stage in ('calibration', 'appeal', 'closed') %}
+            &nbsp;<a href="{{ url_for('acr_list', perf_cycle=c.id) }}" style="color:var(--primary); font-weight:700;">보상 검토 →</a>
             {% endif %}
           </div>
 

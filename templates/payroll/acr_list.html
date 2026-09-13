@@ -1,110 +1,140 @@
-﻿{% extends 'base.html' %}
-{% block title %}ACR — 연간 보상 검토{% endblock %}
+{% extends 'base.html' %}
+{% block title %}보상 검토{% endblock %}
+{% block page_title %}보상{% endblock %}
+
+{% block extra_css %}
+<style>
+  .wh-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
+  .wh-head h1 { font-size:18px; font-weight:650; margin:0; }
+  .wh-head .sp { margin-left:auto; }
+  .wh-sum { display:flex; flex-wrap:wrap; gap:6px 22px; font-size:12.5px; color:var(--tx-3); margin:0 0 18px; }
+  .wh-sum b { font:600 12.5px var(--mono); color:var(--tx-1); margin-left:6px; }
+  .wh-sum .wait b { color:var(--wait); }
+  .wh-basis { font-size:12px; color:var(--tx-3); margin:0 0 18px; line-height:1.7; }
+  .acr-sec { margin:0 0 28px; }
+  .acr-stages { font-size:12px; color:var(--tx-3); }
+  .acr-stages span + span::before { content:' · '; color:var(--tx-4); }
+  .acr-stages b { font:600 12px var(--mono); color:var(--tx-2); margin-left:3px; }
+  .acr-stages .wait b { color:var(--wait); }
+  .acr-stages .late b { color:var(--late); }
+  .acr-stages .done b { color:var(--done); }
+  .acr-new { display:grid; grid-template-columns:minmax(220px,2fr) minmax(200px,2fr) repeat(3,minmax(130px,1fr)) auto; gap:10px; align-items:end; padding:14px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line-2); }
+  .acr-new label { display:block; font-size:11.5px; color:var(--tx-3); margin-bottom:5px; }
+  .acr-new input, .acr-new select { width:100%; height:30px; padding:0 8px; font-size:12.5px; background:var(--surface); color:var(--tx-1); border:1px solid var(--line); border-radius:6px; }
+  .acr-new input[type=number], .acr-new input[type=date] { font-family:var(--mono); }
+  @media (max-width: 1100px) { .acr-new { grid-template-columns:1fr 1fr; } }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
-  <div>
-    <h1>연간 보상 검토 (ACR)</h1>
-    <p class="page-subtitle">연간 보상 검토 주기 관리 · 매니저 인상안 수집 → HR 승인 → 급여 자동 반영</p>
-  </div>
-  <button onclick="document.getElementById('newModal').style.display='flex'" class="btn btn-primary">
-    <i class="fas fa-plus"></i> 새 ACR 주기
-  </button>
+{% set open_n = cycles | selectattr('status', 'equalto', 'open') | list | length %}
+<div class="wh-head">
+  <h1>보상 검토</h1>
+  <span class="sp"></span>
+  {% if is_admin %}
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('compensation', tab='acr') }}">인상 매트릭스·상여 기준</a>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('performance_cycles') }}">성과 주기</a>
+  {% endif %}
 </div>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% for cat, msg in messages %}
-    <div class="alert alert-{{ cat }}">{{ msg }}</div>
-  {% endfor %}
-{% endwith %}
+<div class="wh-sum">
+  <span>진행 중<b>{{ open_n }}</b></span>
+  <span>전체 주기<b>{{ cycles | length }}</b></span>
+  {% set todo = cycles | sum(attribute='todo') %}
+  <span class="{{ 'wait' if todo }}">인상안 작성 대기<b>{{ todo }}</b></span>
+</div>
 
-{% if cycles %}
-<div style="display:grid; gap:16px;">
-  {% for c in cycles %}
-  <div class="card">
-    <div style="padding:20px 24px; display:flex; align-items:center; gap:16px;">
-      <div style="flex:1;">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
-          <h3 style="margin:0; font-size:16px;">{{ c.name }}</h3>
-          {% if c.status == 'draft' %}
-            <span style="background:var(--surface-3);color:var(--tx-2);padding:2px 10px;border-radius:12px;font-size:12px;">초안</span>
-          {% elif c.status == 'open' %}
-            <span style="background:var(--green-bg);color:var(--green);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:700;">● 진행 중</span>
-          {% else %}
-            <span style="background:var(--surface-3);color:var(--tx-3);padding:2px 10px;border-radius:12px;font-size:12px;">마감</span>
-          {% endif %}
-        </div>
-        <div style="font-size:13px; color:var(--text-muted);">
-          {{ c.review_year }}년도
-          {% if c.effective_date %} · 적용일: {{ c.effective_date }}{% endif %}
-          · 생성: {{ c.creator_name or '-' }}
-          · {{ c.created_at[:10] }}
-        </div>
-      </div>
-      <div style="display:flex; gap:8px;">
-        {% if c.status == 'draft' %}
-        <form method="post" action="{{ url_for('acr_open', cycle_id=c.id) }}"
-              onsubmit="return confirm('ACR을 오픈하면 전 직원의 인상안 입력이 시작됩니다. 계속할까요?')">
-          <button type="submit" class="btn btn-primary btn-sm">오픈</button>
-        </form>
-        {% elif c.status == 'open' %}
-        <a href="{{ url_for('acr_detail', cycle_id=c.id) }}" class="btn btn-primary btn-sm">
-          <i class="fas fa-edit"></i> 검토·승인
-        </a>
-        <form method="post" action="{{ url_for('acr_close', cycle_id=c.id) }}"
-              onsubmit="return confirm('ACR을 마감하시겠습니까?')">
-          <button type="submit" class="btn btn-ghost btn-sm">마감</button>
-        </form>
-        {% else %}
-        <a href="{{ url_for('acr_detail', cycle_id=c.id) }}" class="btn btn-ghost btn-sm">
-          <i class="fas fa-eye"></i> 결과 보기
-        </a>
-        {% endif %}
-      </div>
+<div class="wh-basis">
+  성과 주기 보정 등급 → 인상 매트릭스(등급 × 밴드 위치)로 권장 인상률, 등급별 개월수로 성과상여 산정 → 부서장 인상안 제출 → HR 승인 시 연봉계약서 발송 → 서명 완료분은 적용일에 기본급 반영, 성과상여는 지급일 급여에 포함(원천징수)
+</div>
+
+<section class="acr-sec">
+  <div class="sec-head"><h2>주기</h2><span class="cnt">{{ cycles | length }}</span></div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead>
+      <tr>
+        <th>보상 검토</th><th>성과 주기</th><th>상태</th><th>적용일</th><th class="r">대상</th>
+        <th>진행</th><th class="r">연 인상액</th><th class="r">예산</th><th class="r">성과상여</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in cycles %}
+      <tr class="{{ 'dim' if c.status == 'closed' }}">
+        <td><a href="{{ url_for('acr_detail', cycle_id=c.id) }}">{{ c.name }}</a></td>
+        <td class="t2">{{ c.perf_name or '-' }}</td>
+        <td class="{{ 'wait' if c.status == 'open' }}">{{ {'draft':'초안','open':'진행 중','closed':'마감'}[c.status] }}</td>
+        <td class="m">{{ c.effective_date or '-' }}</td>
+        <td class="m r">{{ c.n }}</td>
+        <td class="acr-stages">
+          {% for k, label in stage_label.items() if c.stages.get(k) %}
+          <span class="{{ 'late' if k in ('returned','contract_rejected') else 'done' if k == 'applied' else 'wait' if k in ('pending','submitted','sign_wait') else '' }}">{{ label }}<b>{{ c.stages[k] }}</b></span>
+          {% else %}<span>{{ '오픈 시 대상자 생성' if c.status == 'draft' else '-' }}</span>{% endfor %}
+        </td>
+        <td class="m r {{ 'late' if c.over }}">{{ '{:,}'.format(c.used) if c.n else '-' }}</td>
+        <td class="m r">{% if c.budget_pct %}{{ '{:,}'.format(c.budget) if c.n else '-' }} <small class="t3">{{ '%.1f'|format(c.budget_pct) }}%</small>{% else %}-{% endif %}</td>
+        <td class="m r">{{ '{:,}'.format(c.bonus) if c.n else '-' }}</td>
+      </tr>
+      {% else %}
+      <tr class="empty"><td colspan="9">보상 검토 없음{% if is_admin %} · 아래에서 성과 주기를 선택해 생성{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{% if is_admin %}
+<section class="acr-sec">
+  <div class="sec-head"><h2>성과 주기에서 생성</h2><span class="cnt">{{ perf_cycles | length }}</span></div>
+  {% if perf_cycles %}
+  <form method="POST" action="{{ url_for('acr_new') }}" class="acr-new">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div>
+      <label for="acr-perf">성과 주기 (보정 등급 확정 인원)</label>
+      <select id="acr-perf" name="perf_cycle_id" required onchange="location.href='?perf_cycle='+this.value">
+        {% for p in perf_cycles %}
+        <option value="{{ p.id }}" {{ 'selected' if sel_perf and p.id == sel_perf.id }}>{{ p.name }} · {{ p.graded }}명{{ ' · 연결됨' if p.linked }}</option>
+        {% endfor %}
+      </select>
     </div>
-  </div>
-  {% endfor %}
-</div>
-{% else %}
-<div class="card">
-  <div style="padding:60px; text-align:center; color:var(--text-muted);">
-    <div style="font-size:48px; margin-bottom:12px;"></div>
-    <p>생성된 ACR 주기가 없습니다.</p>
-    <button onclick="document.getElementById('newModal').style.display='flex'" class="btn btn-primary" style="margin-top:8px;">
-      첫 번째 ACR 주기 만들기
-    </button>
-  </div>
-</div>
+    <div>
+      <label for="acr-name">이름</label>
+      <input id="acr-name" name="name" value="{{ defaults.name }}" placeholder="비우면 「성과 주기명 보상 검토」">
+    </div>
+    <div>
+      <label for="acr-eff">연봉 적용일</label>
+      <input id="acr-eff" type="date" name="effective_date" value="{{ defaults.effective_date }}" required>
+    </div>
+    <div>
+      <label for="acr-bonus">성과상여 지급월</label>
+      <input id="acr-bonus" type="date" name="bonus_pay_date" value="{{ defaults.bonus_pay_date }}">
+    </div>
+    <div>
+      <label for="acr-budget">인상 예산 (연 기본급 대비 %)</label>
+      <input id="acr-budget" type="number" name="budget_pct" value="{{ defaults.budget_pct }}" step="0.1" min="0" max="50">
+    </div>
+    <div><button type="submit" class="btn btn-primary btn-sm" {{ 'disabled' if not (sel_perf and sel_perf.graded) }}>생성</button></div>
+  </form>
+  {% if sel_perf and not sel_perf.graded %}
+  <div class="wh-basis" style="margin-top:8px;">「{{ sel_perf.name }}」 보정 등급 확정 인원 0명 · 보정 완료 후 생성</div>
+  {% endif %}
+  {% else %}
+  <table class="ltable"><tbody><tr class="empty"><td>보정·이의신청·종료 단계 성과 주기 없음</td></tr></tbody></table>
+  {% endif %}
+</section>
 {% endif %}
 
-<!-- 새 ACR 모달 -->
-<div id="newModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; align-items:center; justify-content:center;">
-  <div style="background:white; border-radius:12px; padding:28px; width:420px; box-shadow:0 20px 60px rgba(0,0,0,.3);">
-    <h3 style="margin:0 0 20px;">새 ACR 주기 생성</h3>
-    <form method="post" action="{{ url_for('acr_new') }}">
-      <div style="display:grid; gap:14px;">
-        <div>
-          <label style="font-size:12px; color:var(--tx-3); font-weight:600; display:block; margin-bottom:4px;">주기 이름 *</label>
-          <input type="text" name="name" class="form-control" placeholder="예) 2026 연간 보상 검토" required>
-        </div>
-        <div>
-          <label style="font-size:12px; color:var(--tx-3); font-weight:600; display:block; margin-bottom:4px;">검토 연도</label>
-          <input type="number" name="review_year" class="form-control" value="2026" min="2020" max="2030">
-        </div>
-        <div>
-          <label style="font-size:12px; color:var(--tx-3); font-weight:600; display:block; margin-bottom:4px;">급여 적용일</label>
-          <input type="date" name="effective_date" class="form-control">
-        </div>
-      </div>
-      <div style="display:flex; gap:8px; margin-top:20px; justify-content:flex-end;">
-        <button type="button" onclick="document.getElementById('newModal').style.display='none'" class="btn btn-ghost">취소</button>
-        <button type="submit" class="btn btn-primary">생성</button>
-      </div>
-    </form>
+<section class="acr-sec">
+  <div class="sec-head"><h2>등급별 보상 기준</h2><span class="cnt">인상 매트릭스 · 성과상여 개월수</span>
+    {% if is_admin %}<a class="sp btn btn-ghost btn-sm" href="{{ url_for('compensation', tab='acr') }}">수정</a>{% endif %}
   </div>
-</div>
-<script>
-document.getElementById('newModal').addEventListener('click', function(e){
-  if(e.target===this) this.style.display='none';
-});
-</script>
+  <table class="ltable" style="max-width:520px;">
+    <thead><tr><th>등급</th><th class="r">인상률 (밴드 중간)</th><th class="r">성과상여</th></tr></thead>
+    <tbody>
+      {% for g in grade_rewards %}
+      <tr><td>{{ g.grade }}</td><td class="m r">{{ '%+.1f'|format(g.pct) }}%</td><td class="m r">월 기본급 × {{ '%g'|format(g.months) }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
 {% endblock %}

@@ -99,10 +99,6 @@
           <input type="radio" name="mode" value="zero" checked style="display:none;" onchange="adjMode('zero')">
           <b>빈 시트</b><span>0%에서 직접 입력</span>
         </label>
-        <label class="mode-card" id="mc-merit">
-          <input type="radio" name="mode" value="merit" style="display:none;" onchange="adjMode('merit')">
-          <b>등급 연동</b><span>S~D 인상률 자동</span>
-        </label>
         <label class="mode-card" id="mc-flat">
           <input type="radio" name="mode" value="flat" style="display:none;" onchange="adjMode('flat')">
           <b>일괄 %</b><span>동일률 적용</span>
@@ -113,14 +109,8 @@
         <label class="form-label">일괄 인상률 (%)</label>
         <input type="number" name="flat_pct" class="input" step="0.1" min="-50" max="100" placeholder="예: 3.0">
       </div>
-      <div id="merit-hint" style="display:none; margin-bottom:12px; font-size:12px; color:var(--tx-3);
-                                  background:var(--bg); border-radius:8px; padding:10px 12px;">
-        회사 설정의 등급별 인상률(S {{ '%.1f'|format((cfg.merit_s or 0.08)|float * 100) }}% ·
-        A {{ '%.1f'|format((cfg.merit_a or 0.05)|float * 100) }}% ·
-        B {{ '%.1f'|format((cfg.merit_b or 0.03)|float * 100) }}% ·
-        C {{ '%.1f'|format((cfg.merit_c or 0.0)|float * 100) }}% ·
-        D {{ '%.1f'|format((cfg.merit_d or -0.01)|float * 100) }}%)로 프리필합니다.
-        최근 확정 등급이 없는 직원은 0%.
+      <div style="margin-bottom:12px; font-size:12px; color:var(--tx-3);">
+        성과등급 연동 인상·성과상여는 <a href="{{ url_for('acr_list') }}">보상 검토</a>에서 진행
       </div>
 
       <div style="margin-bottom:18px;">
@@ -147,11 +137,10 @@
 {% block scripts %}
 <script>
 function adjMode(m) {
-  ['zero','merit','flat'].forEach(function(k) {
+  ['zero','flat'].forEach(function(k) {
     document.getElementById('mc-' + k).classList.toggle('sel', k === m);
   });
   document.getElementById('flat-pct-field').style.display = (m === 'flat') ? '' : 'none';
-  document.getElementById('merit-hint').style.display = (m === 'merit') ? '' : 'none';
 }
 </script>
 {% endblock %}
