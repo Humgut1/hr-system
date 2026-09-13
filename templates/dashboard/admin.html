@@ -6,90 +6,87 @@
   <span><b>{{ today_iso }}</b> ({{ today_str.split()[-1][0] }})</span>
   <span>·</span>
   <span>{% if session.dept_name %}{{ session.dept_name }} {% endif %}{{ session.user_name }}</span>
-  {% if 'kpi_cards' in enabled_widgets %}<span class="rr">
-    <a href="{{ url_for('employees') }}">재직 <b>{{ total_employees }}</b></a>
-    <a href="{{ url_for('hires_list') }}">입사예정 <b>{{ hires_waiting_count }}</b></a>
-    <a href="{{ url_for('opening_board') }}">미충원 <b>{{ open_seats }}</b></a>
-    <a href="{{ url_for('attendance_home') }}">금일 부재 <b>{{ out_today }}</b></a>
-    <a href="{{ url_for('approvals_hub') }}" class="{% if inbox_late %}late{% endif %}">미결 <b>{{ inbox_count }}</b>{% if inbox_late %} · 기한 초과 <b>{{ inbox_late }}</b>{% endif %}</a>
-  </span>{% endif %}
 </div>
 {% endblock %}
 
 {% block content %}
+{% set MENU_KEYS = [
+  ('직원 등록', url_for('employee_new'), 'N E', 'ne'),
+  ('채용 요청서', url_for('requisition_new'), 'N R', 'nr'),
+  ('급여 계산', url_for('admin_payroll'), 'G P', 'gp'),
+  ('휴가 현황', url_for('attendance_home', tab='leaves'), 'G L', 'gl'),
+  ('조직도', url_for('org_chart'), 'G O', 'go'),
+  ('연장근로', url_for('overtime_monitor'), 'G T', 'gt'),
+  ('성과 평가', url_for('performance'), 'G V', 'gv'),
+  ('내보내기', url_for('export_hub'), 'G X', 'gx'),
+] %}
 
-<div class="home-hero">
-  <div class="home-cmd">
-    {% if 'quick_actions' in enabled_widgets %}
-    <div class="recent">
-      <span>바로가기</span>
-      <a href="{{ url_for('employee_new') }}">직원 등록</a>
-      <a href="{{ url_for('requisition_new') }}">채용 요청서</a>
-      <a href="{{ url_for('announcement_new') }}">공지 작성</a>
-      <a href="{{ url_for('compensation') }}">급여</a>
-      <a href="{{ url_for('overtime_monitor') }}">주 52시간</a>
-      <a href="{{ url_for('export_hub') }}">내보내기</a>
-    </div>
-    {% endif %}
-    <div class="global-search-wrap" id="homeSearchWrap">
+<div class="d-wrap">
+  <div class="d-panel">
+    <div class="global-search-wrap d-search" id="homeSearchWrap">
       <div class="global-search-inner">
         <i class="fas fa-magnifying-glass global-search-icon"></i>
-        <input type="text" id="homeSearchInput" class="global-search-input" placeholder="직원 이름, 메뉴 검색" autocomplete="off" spellcheck="false">
+        <input type="text" id="homeSearchInput" class="global-search-input" placeholder="직원 이름, 메뉴, 문서번호 검색" autocomplete="off" spellcheck="false">
         <kbd class="search-kbd">/</kbd>
       </div>
       <div class="global-search-results" id="homeSearchResults" style="display:none;"></div>
     </div>
-  </div>
-</div>
 
-{% if 'inbox' in enabled_widgets %}
-<section class="home-sec">
-  <div class="sec-head">
-    <h2>미결</h2>
-    <span class="cnt" style="{% if inbox_late %}color:var(--late);{% endif %}">{{ inbox_count }}건</span>
-    <span class="sp"></span>
-    <a href="{{ url_for('approvals_hub') }}" class="btn btn-ghost btn-sm">결재함</a>
-  </div>
-  <div class="tbl-wrap">
-    <table class="qtable">
-      <thead><tr>
-        <th class="c-id">문서번호</th><th class="c-ty">구분</th><th class="c-tg">대상</th>
-        <th class="c-rq">요청자</th><th class="c-du">기한</th><th class="c-st">상태</th>
-      </tr></thead>
-      <tbody>
-        {% for r in inbox_items[:8] %}
-        <tr class="q {{ r.state }}" onclick="location.href='{{ r.link }}'">
-          <td class="c-id">{{ r.doc }}</td>
-          <td class="c-ty">{{ r.kind }}</td>
-          <td class="c-tg">{{ r.target }}<em>{{ r.detail }}</em></td>
-          <td class="c-rq">{{ r.requester }}</td>
-          <td class="c-du">{{ r.due or '—' }}</td>
-          <td class="c-st">{{ r.due_label if r.due else '대기' }}</td>
-        </tr>
-        {% else %}
-        <tr class="empty"><td colspan="6">미결 문서 없음</td></tr>
+    {% if 'inbox' in enabled_widgets %}
+    <div class="d-grp">
+      <h3><span>처리 필요</span><span class="{% if inbox_late %}late{% endif %}">{{ inbox_count }}건{% if inbox_late %} · 기한 초과 {{ inbox_late }}{% endif %}</span></h3>
+      {% for r in inbox_items[:5] %}
+      <a class="d-row{% if loop.first %} sel{% endif %}" href="{{ r.link }}" data-k="{{ loop.index }}">
+        <span class="k">{{ loop.index }}</span>
+        <span class="x">{{ r.kind }} · {{ r.target }}<em>{{ r.detail }}</em></span>
+        <span class="d {{ r.state }}">{{ r.due_label if r.due else '대기' }}</span>
+        <span class="go">Enter</span>
+      </a>
+      {% else %}
+      <div class="d-empty">미결 문서 없음</div>
+      {% endfor %}
+      {% if inbox_count > 5 %}
+      <a class="d-more" href="{{ url_for('approvals_hub') }}">외 {{ inbox_count - 5 }}건 · 결재함에서 보기</a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if 'quick_actions' in enabled_widgets %}
+    <div class="d-grp">
+      <h3><span>자주 쓰는 메뉴</span></h3>
+      <div class="d-menu">
+        {% for m in MENU_KEYS %}
+        <a href="{{ m[1] }}" data-seq="{{ m[3] }}">{{ m[0] }}<span>{{ m[2] }}</span></a>
         {% endfor %}
-      </tbody>
-    </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="d-foot">
+      <span>↑↓ 이동</span><span>Enter 열기</span><span>1–5 바로 열기</span><span>G · N 다음 키로 메뉴 이동</span>
+    </div>
   </div>
-  {% if inbox_count > 8 %}
-  <div style="margin-top:8px; font:500 12px var(--mono); color:var(--tx-3);">
-    <a href="{{ url_for('approvals_hub') }}" style="color:var(--tx-2);">외 {{ inbox_count - 8 }}건</a>
+
+  {% if 'kpi_cards' in enabled_widgets %}
+  <div class="d-status">
+    <a href="{{ url_for('employees') }}">재직<b>{{ total_employees }}</b></a>
+    <a href="{{ url_for('attendance_home', tab='leaves') }}">금일 부재<b>{{ out_today }}</b></a>
+    <a href="{{ url_for('hires_list') }}">입사 예정<b>{{ hires_waiting_count }}</b></a>
+    <a href="{{ url_for('opening_board') }}">미충원<b>{{ open_seats }}</b></a>
+    <a href="{{ url_for('approvals_hub') }}" class="{% if inbox_late %}late{% endif %}">기한 초과<b>{{ inbox_late }}</b></a>
   </div>
   {% endif %}
-</section>
-{% endif %}
+</div>
 
-<div class="home-grid">
-
+<div class="d-bottom">
   {% if 'whos_out' in enabled_widgets %}
   <section>
-    <div class="sec-head"><h2>금일 부재</h2><span class="cnt">{{ out_today }}명</span><span class="sp"></span><a href="{{ url_for('attendance_home') }}">근태</a></div>
+    <div class="sec-head"><h2>금일 부재</h2><span class="cnt">{{ out_today }}명</span><span class="sp"></span><a href="{{ url_for('attendance_home', tab='leaves') }}">휴가</a></div>
     <table class="ltable">
       <thead><tr><th>성명</th><th>부서</th><th>구분</th><th class="r">복귀 예정</th></tr></thead>
       <tbody>
         {% for p in who_out %}
-        <tr><td>{{ p.name }}</td><td style="color:var(--tx-2);">{{ p.dept or '—' }}</td><td style="color:var(--tx-2);">{{ labels.get(p.type, p.type) }}</td><td class="m r">{{ p.end_date }}</td></tr>
+        <tr><td>{{ p.name }}</td><td class="t2">{{ p.dept or '—' }}</td><td class="t2">{{ labels.get(p.type, p.type) }}</td><td class="m r">{{ p.end_date }}</td></tr>
         {% else %}
         <tr class="empty"><td colspan="4">해당 없음</td></tr>
         {% endfor %}
@@ -98,6 +95,44 @@
   </section>
   {% endif %}
 
+  {% if 'payroll_summary' in enabled_widgets %}
+  <section>
+    <div class="sec-head"><h2>이번 달 기한</h2><span class="cnt">{{ today_iso[:7] }}</span><span class="sp"></span><a href="{{ url_for('admin_payroll') }}">급여</a></div>
+    <table class="ltable">
+      <thead><tr><th>항목</th><th>기한</th><th class="r">상태</th></tr></thead>
+      <tbody>
+        {% for m in month_dues %}
+        <tr class="{% if m.state == 'past' or m.state == 'done' %}dim{% endif %}">
+          <td>{{ m.label }}{% if m.sub %}<small class="t3"> {{ m.sub }}</small>{% endif %}</td>
+          <td class="m">{{ m.iso[5:] }}</td>
+          <td class="m r {{ m.state }}">{{ m.due_label }}</td>
+        </tr>
+        {% endfor %}
+        <tr><td class="t2">당월 급여 실지급</td><td class="m">{{ payroll_summary.count }}명</td><td class="m r">{{ '{:,}'.format(payroll_summary.total|int) }}원</td></tr>
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if 'announcements' in enabled_widgets %}
+  <section>
+    <div class="sec-head"><h2>공지</h2><span class="sp"></span><a href="{{ url_for('announcements') }}">전체</a></div>
+    <table class="ltable">
+      <thead><tr><th>제목</th><th class="r">게시일</th></tr></thead>
+      <tbody>
+        {% for post in recent_posts %}
+        <tr><td class="ell">{% if post.pinned %}<span class="chip d-pin">고정</span>{% endif %}<a href="{{ url_for('announcement_detail', post_id=post.id) }}">{{ post.title }}</a></td><td class="m r">{{ post.created_at[:10] }}</td></tr>
+        {% else %}
+        <tr class="empty"><td colspan="2">해당 없음</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+</div>
+
+{% if 'open_positions' in enabled_widgets or 'overtime_violations' in enabled_widgets or 'recent_employees' in enabled_widgets %}
+<div class="d-bottom d-bottom2">
   {% if 'open_positions' in enabled_widgets %}
   <section>
     <div class="sec-head"><h2>미충원 포지션</h2><span class="cnt">{{ open_seats }}건</span><span class="sp"></span><a href="{{ url_for('opening_board') }}">충원 현황</a></div>
@@ -130,19 +165,6 @@
   </section>
   {% endif %}
 
-  {% if 'payroll_summary' in enabled_widgets %}
-  <section>
-    <div class="sec-head"><h2>당월 급여</h2><span class="cnt">{{ today_iso[:7] }}</span><span class="sp"></span><a href="{{ url_for('compensation') }}">급여</a></div>
-    <table class="ltable">
-      <tbody>
-        <tr><td style="color:var(--tx-2);">지급 인원</td><td class="m r">{{ payroll_summary.count }}명</td></tr>
-        <tr><td style="color:var(--tx-2);">지급 총액(실지급)</td><td class="m r">{{ '{:,}'.format(payroll_summary.total|int) }}원</td></tr>
-        <tr><td style="color:var(--tx-2);">상태</td><td class="m r {% if payroll_summary.count == 0 %}late{% endif %}">{% if payroll_summary.count == 0 %}미실행{% else %}생성됨{% endif %}</td></tr>
-      </tbody>
-    </table>
-  </section>
-  {% endif %}
-
   {% if 'recent_employees' in enabled_widgets %}
   <section>
     <div class="sec-head"><h2>최근 입사</h2><span class="sp"></span><a href="{{ url_for('employees') }}">직원 목록</a></div>
@@ -150,7 +172,7 @@
       <thead><tr><th>성명</th><th>부서</th><th>직급</th><th class="r">입사일</th></tr></thead>
       <tbody>
         {% for emp in recent_employees %}
-        <tr><td>{{ emp.name }}</td><td style="color:var(--tx-2);">{{ emp.dept or '—' }}</td><td style="color:var(--tx-2);">{{ emp.pos or '—' }}</td><td class="m r">{{ emp.hire_date or '—' }}</td></tr>
+        <tr><td>{{ emp.name }}</td><td class="t2">{{ emp.dept or '—' }}</td><td class="t2">{{ emp.pos or '—' }}</td><td class="m r">{{ emp.hire_date or '—' }}</td></tr>
         {% else %}
         <tr class="empty"><td colspan="4">해당 없음</td></tr>
         {% endfor %}
@@ -158,34 +180,51 @@
     </table>
   </section>
   {% endif %}
-
-  {% if 'announcements' in enabled_widgets %}
-  <section>
-    <div class="sec-head"><h2>공지</h2><span class="sp"></span><a href="{{ url_for('announcements') }}">전체</a></div>
-    <table class="ltable">
-      <thead><tr><th>제목</th><th class="r">게시일</th></tr></thead>
-      <tbody>
-        {% for post in recent_posts %}
-        <tr><td style="max-width:0; width:100%; overflow:hidden; text-overflow:ellipsis;">{% if post.pinned %}<span class="chip" style="height:20px; font-size:11px; margin-right:6px;">고정</span>{% endif %}<a href="{{ url_for('announcement_detail', post_id=post.id) }}">{{ post.title }}</a></td><td class="m r">{{ post.created_at[:10] }}</td></tr>
-        {% else %}
-        <tr class="empty"><td colspan="2">해당 없음</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
-  {% endif %}
-
 </div>
+{% endif %}
 
-<details style="margin-top:36px; font-size:12.5px; color:var(--tx-3);">
-  <summary style="cursor:pointer; width:max-content;">홈 구성</summary>
-  <form method="POST" action="{{ url_for('dashboard_widgets_save') }}" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:6px 18px; align-items:center;">
+<details class="d-prefs">
+  <summary>홈 구성</summary>
+  <form method="POST" action="{{ url_for('dashboard_widgets_save') }}">
     {% for w in widget_catalog %}
-    <label style="display:inline-flex; align-items:center; gap:6px; color:var(--tx-2);">
-      <input type="checkbox" name="w_{{ w.key }}" {% if w.key in enabled_widgets %}checked{% endif %} style="accent-color:var(--tx-1);">{{ w.label }}
-    </label>
+    <label><input type="checkbox" name="w_{{ w.key }}" {% if w.key in enabled_widgets %}checked{% endif %}>{{ w.label }}</label>
     {% endfor %}
     <button type="submit" class="btn btn-secondary btn-sm">저장</button>
   </form>
 </details>
+
+<script>
+(function () {
+  var rows = Array.prototype.slice.call(document.querySelectorAll('.d-row'));
+  var seq = {};
+  document.querySelectorAll('.d-menu a[data-seq]').forEach(function (a) { seq[a.dataset.seq] = a.href; });
+  var sel = 0, prefix = '', prefixTimer;
+  function mark(i) {
+    if (!rows.length) return;
+    sel = (i + rows.length) % rows.length;
+    rows.forEach(function (r, k) { r.classList.toggle('sel', k === sel); });
+  }
+  rows.forEach(function (r, k) { r.addEventListener('mouseenter', function () { mark(k); }); });
+  var input = document.getElementById('homeSearchInput');
+  if (input) input.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown' && !input.value.trim() && rows.length) { e.preventDefault(); input.blur(); mark(0); }
+  });
+  document.addEventListener('keydown', function (e) {
+    var t = document.activeElement ? document.activeElement.tagName : '';
+    if (['INPUT', 'TEXTAREA', 'SELECT'].indexOf(t) >= 0 || e.metaKey || e.ctrlKey || e.altKey) return;
+    var k = e.key.toLowerCase();
+    if (prefix) {
+      var href = seq[prefix + k];
+      prefix = ''; clearTimeout(prefixTimer);
+      if (href) { e.preventDefault(); location.href = href; }
+      return;
+    }
+    if (k === 'g' || k === 'n') { prefix = k; prefixTimer = setTimeout(function () { prefix = ''; }, 1200); return; }
+    if (e.key === 'ArrowDown' && rows.length) { e.preventDefault(); mark(sel + 1); }
+    else if (e.key === 'ArrowUp' && rows.length) { e.preventDefault(); mark(sel - 1); }
+    else if (e.key === 'Enter' && rows[sel] && t !== 'A' && t !== 'BUTTON') { e.preventDefault(); location.href = rows[sel].href; }
+    else if (/^[1-5]$/.test(e.key) && rows[+e.key - 1]) { e.preventDefault(); location.href = rows[+e.key - 1].href; }
+  });
+})();
+</script>
 {% endblock %}

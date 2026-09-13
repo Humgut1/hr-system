@@ -1371,6 +1371,47 @@ def _tenure(hire_date_str):
         return None
 
 # ── Dashboard ────────────────────────────────────────────────
+def _admin_month_dues(db, cfg, payslip_count):
+    """홈 '이번 달 기한': 급여일·법정 신고일·성과 사이클 마감을 날짜순으로."""
+    import calendar as _cal
+    t = date.today()
+    last = _cal.monthrange(t.year, t.month)[1]
+    def d(day):
+        return date(t.year, t.month, max(1, min(day, last)))
+    pay_day = int(cfg.get('pay_day', 25) or 25)
+    prev_first = (t.replace(day=1) - timedelta(days=1)).replace(day=1)
+    prev_hires = db.execute(
+        "SELECT COUNT(*) FROM users WHERE hire_date>=? AND hire_date<?",
+        (prev_first.isoformat(), t.replace(day=1).isoformat())).fetchone()[0]
+    rows = [
+        {'label': '원천세 신고·납부', 'sub': '전월 지급분', 'date': d(10), 'done': None},
+        {'label': '4대보험 취득신고', 'sub': f'전월 입사 {prev_hires}명', 'date': d(15), 'done': None},
+        {'label': '근태 마감', 'sub': '', 'date': d(pay_day - 7), 'done': None},
+        {'label': '급여 확정', 'sub': '', 'date': d(pay_day - 3), 'done': payslip_count > 0},
+        {'label': '급여 지급', 'sub': '', 'date': d(pay_day), 'done': None},
+    ]
+    month_start, month_end = t.replace(day=1).isoformat(), d(last).isoformat()
+    for c in db.execute("SELECT name, goal_deadline, review_deadline FROM performance_cycles "
+                        "WHERE status='active'").fetchall():
+        for col, lab in (('goal_deadline', '목표 수립 마감'), ('review_deadline', '평가 마감')):
+            v = c[col]
+            if v and month_start <= v[:10] <= month_end:
+                rows.append({'label': lab, 'sub': c['name'], 'date': date.fromisoformat(v[:10]), 'done': None})
+    for r in rows:
+        n = (r['date'] - t).days
+        r['iso'] = r['date'].isoformat()
+        if r['done']:
+            r['state'], r['due_label'] = 'done', '완료'
+        elif n < 0:
+            r['state'], r['due_label'] = 'past', '경과'
+        elif n == 0:
+            r['state'], r['due_label'] = 'late', '오늘'
+        else:
+            r['state'], r['due_label'] = ('wait' if n <= 3 else ''), f'D-{n}'
+    rows.sort(key=lambda r: r['date'])
+    return rows
+
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -1441,9 +1482,11 @@ def dashboard():
             "GROUP BY c.user_id HAVING SUM(c.overtime_min) > 720 "
             "ORDER BY ot_min DESC LIMIT 5", (week_ago,)
         ).fetchall()
+        month_dues = _admin_month_dues(db, cfg, payroll_summary['count'])
         enabled_widgets = get_widget_prefs(uid, 'admin')
         widget_catalog  = WIDGET_CATALOG['admin']
         return render_template('dashboard/admin.html',
+            month_dues=month_dues,
             greet=greet, today_str=today_str, first_name=first_name,
             total_employees=total_employees, total_departments=total_departments,
             pending_leave=pending_leave, open_seats=open_seats,
@@ -5078,7 +5121,7 @@ WIDGET_CATALOG = {
         {'key': 'kpi_cards',            'label': '인원 현황',           'icon': 'fa-chart-bar'},
         {'key': 'inbox',                'label': '미결 문서',              'icon': 'fa-inbox'},
         {'key': 'quick_actions',        'label': '바로가기',           'icon': 'fa-bolt'},
-        {'key': 'payroll_summary',      'label': '당월 급여',           'icon': 'fa-won-sign'},
+        {'key': 'payroll_summary',      'label': '이번 달 기한',           'icon': 'fa-won-sign'},
         {'key': 'open_positions',       'label': '미충원 포지션',     'icon': 'fa-briefcase'},
         {'key': 'overtime_violations',  'label': '주 52시간 초과',        'icon': 'fa-clock'},
         {'key': 'recent_employees',     'label': '최근 입사자',          'icon': 'fa-user-plus'},
