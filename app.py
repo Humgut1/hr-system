@@ -174,8 +174,95 @@ def get_company_config():
         'default_meal_allowance': 200000, 'default_transport_allowance': 100000,
         'perf_cycle': 'semiannual','use_peer_review': 1,
         'use_self_review': 1,      'grade_system': 'SABCD',
+        'grade_dist_mode': 'recommended', 'grade_dist_scope': 'company',
+        'grade_dist_s': 10, 'grade_dist_a': 20, 'grade_dist_b': 40,
+        'grade_dist_c': 20, 'grade_dist_d': 10,
         'setup_completed': 0,      'setup_step': 0,
     }
+
+
+GRADE_DIST_DEFAULT = {'S': 10, 'A': 20, 'B': 40, 'C': 20, 'D': 10}
+GRADE_DIST_MIN_DEPT = 10   # 부서 단위 배분은 10명 이상 부서만 개별 적용, 나머지는 합산
+
+
+def get_grade_dist(cfg=None):
+    """등급 배분 정책 — mode(forced|recommended), scope(company|dept), pct(등급별 %)."""
+    cfg = cfg or get_company_config()
+    pct = {}
+    for g in 'SABCD':
+        try:
+            pct[g] = int(cfg.get('grade_dist_' + g.lower()) if cfg.get('grade_dist_' + g.lower()) is not None else GRADE_DIST_DEFAULT[g])
+        except (TypeError, ValueError):
+            pct[g] = GRADE_DIST_DEFAULT[g]
+    if sum(pct.values()) != 100:
+        pct = dict(GRADE_DIST_DEFAULT)
+    mode = cfg.get('grade_dist_mode') if cfg.get('grade_dist_mode') in ('forced', 'recommended') else 'recommended'
+    scope = cfg.get('grade_dist_scope') if cfg.get('grade_dist_scope') in ('company', 'dept') else 'company'
+    return {'mode': mode, 'scope': scope, 'pct': pct,
+            'label': '강제 배분' if mode == 'forced' else '권장 배분'}
+
+
+def save_grade_dist(db, f):
+    """초기 설정·회사 설정 공통 저장. 합계가 100이 아니면 비율은 저장하지 않고 안내 문구 반환."""
+    if 'grade_dist_mode' not in f:
+        return None
+    mode = f.get('grade_dist_mode') if f.get('grade_dist_mode') in ('forced', 'recommended') else 'recommended'
+    scope = f.get('grade_dist_scope') if f.get('grade_dist_scope') in ('company', 'dept') else 'company'
+    db.execute('UPDATE company_config SET grade_dist_mode=?, grade_dist_scope=? WHERE id=1', (mode, scope))
+    try:
+        pct = {g: max(0, min(100, int(f.get('grade_dist_' + g.lower(), '') or 0))) for g in 'SABCD'}
+    except ValueError:
+        return '등급 배분 비율은 숫자로 입력'
+    total = sum(pct.values())
+    if total != 100:
+        return f'등급 배분 비율 합계 {total}% (100%가 되어야 저장)'
+    db.execute('UPDATE company_config SET grade_dist_s=?, grade_dist_a=?, grade_dist_b=?, '
+               'grade_dist_c=?, grade_dist_d=? WHERE id=1',
+               (pct['S'], pct['A'], pct['B'], pct['C'], pct['D']))
+    return None
+
+
+def grade_dist_groups(db, cycle_id, gd, override=None):
+    """배분 적용 단위별 인원·확정 등급 수. override=(user_id, grade)는 확정 직전 검사용."""
+    emps = db.execute(
+        "SELECT u.id, u.department_id, d.name dn, cr.final_grade FROM users u "
+        "LEFT JOIN departments d ON u.department_id=d.id "
+        "LEFT JOIN calibration_results cr ON cr.user_id=u.id AND cr.cycle_id=? "
+        "WHERE u.status='active' AND u.role NOT IN ('admin','guest')", (cycle_id,)
+    ).fetchall()
+    size = {}
+    for e in emps:
+        size[e['department_id'] or 0] = size.get(e['department_id'] or 0, 0) + 1
+    groups, member = {}, {}
+    for e in emps:
+        dk = e['department_id'] or 0
+        if gd['scope'] == 'dept' and size[dk] >= GRADE_DIST_MIN_DEPT:
+            key, label = dk, (e['dn'] or '부서 미지정')
+        elif gd['scope'] == 'dept':
+            key, label = 'small', f'{GRADE_DIST_MIN_DEPT}명 미만 부서 합산'
+        else:
+            key, label = 'all', '전사'
+        grp = groups.setdefault(key, {'key': key, 'label': label, 'total': 0, 'confirmed': 0,
+                                      'dist': {g: 0 for g in 'SABCD'}})
+        grp['total'] += 1
+        grade = e['final_grade']
+        if override and e['id'] == override[0]:
+            grade = override[1]
+        if grade in grp['dist']:
+            grp['dist'][grade] += 1
+            grp['confirmed'] += 1
+        member[e['id']] = key
+    import math
+    for grp in groups.values():
+        n = grp['total']
+        grp['cap'] = {g: math.ceil(n * gd['pct'][g] / 100) for g in 'SA'}
+        grp['min'] = {g: math.floor(n * gd['pct'][g] / 100) for g in 'CD'}
+        over = [f'{g} {grp["dist"][g]}명 > 상한 {grp["cap"][g]}명' for g in 'SA' if grp['dist'][g] > grp['cap'][g]]
+        under = [f'{g} {grp["dist"][g]}명 < 하한 {grp["min"][g]}명' for g in 'CD' if grp['dist'][g] < grp['min'][g]]
+        grp['over'], grp['under'] = over, under
+        grp['done'] = grp['confirmed'] >= n
+    ordered = sorted(groups.values(), key=lambda x: (x['key'] == 'small', x['label']))
+    return ordered, member
 
 
 @app.context_processor
@@ -963,6 +1050,9 @@ def admin_setup():
                 (ws_vals[1], ws_vals[0], ws_vals[2], ws_vals[3], ws_vals[4], ws_vals[5], ws_vals[6])
             )
         notes = _setup_save_org(db, s)
+        gd_note = save_grade_dist(db, s)
+        if gd_note:
+            notes.insert(0, gd_note)
 
         db.commit()
         session['onboarded'] = 1
@@ -1217,8 +1307,12 @@ def admin_settings():
             s.get('grade_system','SABCD'),
             dt.now().isoformat()
         ))
+        gd_note = save_grade_dist(db, s)
         db.commit()
-        flash('설정이 저장되었습니다.', 'success')
+        if gd_note:
+            flash('설정 저장 · ' + gd_note, 'warning')
+        else:
+            flash('설정이 저장되었습니다.', 'success')
         return redirect(url_for('admin_settings'))
 
     config  = get_company_config()
@@ -13450,6 +13544,15 @@ def calibration():
                         flash('등급을 낮출 경우 반드시 조정 사유를 입력해야 합니다.', 'error')
                         return redirect(url_for('calibration', cycle=cycle_id))
 
+                gd = get_grade_dist()
+                if gd['mode'] == 'forced' and final_grade in ('S', 'A'):
+                    groups, member = grade_dist_groups(db, cid, gd, override=(uid, final_grade))
+                    grp = next((x for x in groups if x['key'] == member.get(uid)), None)
+                    if grp and grp['dist'][final_grade] > grp['cap'][final_grade]:
+                        flash(f'강제 배분 초과 — {grp["label"]} {final_grade}등급 상한 {grp["cap"][final_grade]}명 '
+                              f'({grp["total"]}명 × {gd["pct"][final_grade]}%)', 'error')
+                        return redirect(url_for('calibration', cycle=cycle_id, dept=request.args.get('dept') or None))
+
                 summary = generate_calibration_summary(
                     row['name'], row['self_avg'], row['peer_avg'],
                     row['mgr_avg'], row['upward_avg']
@@ -13483,6 +13586,14 @@ def calibration():
         # 직원에게 공개 = 이의신청 단계 시작 (등급 공개 + 7일 이의기간)
         elif action == 'publish':
             cid = int(request.form.get('cycle_id'))
+            gd = get_grade_dist()
+            if gd['mode'] == 'forced':
+                groups, _m = grade_dist_groups(db, cid, gd)
+                issues = [f'{x["label"]} ' + ', '.join(x['over'] + x['under'])
+                          for x in groups if x['over'] or x['under']]
+                if issues:
+                    flash('강제 배분 미충족으로 공개 불가 — ' + ' / '.join(issues[:4]), 'error')
+                    return redirect(url_for('calibration', cycle=cycle_id))
             appeal_until = (date.today() + timedelta(days=7)).isoformat()
             db.execute('UPDATE calibration_results SET is_shared=1 WHERE cycle_id=?', (cid,))
             db.execute("UPDATE performance_cycles SET stage='appeal', appeal_until=? WHERE id=?",
@@ -13584,8 +13695,11 @@ def calibration():
         "SELECT COUNT(*) FROM grade_appeals WHERE cycle_id=? AND status='pending'", (cycle_id,)
     ).fetchone()[0] if cycle_id else 0
 
-    # 권장 배분 가이드 (%) — 분포 바 점선 기준
-    target_dist = {'S': 10, 'A': 20, 'B': 40, 'C': 20, 'D': 10}
+    # 등급 배분 기준 (회사 설정) — 적용 단위별 상한·하한
+    grade_dist_cfg = get_grade_dist()
+    target_dist = grade_dist_cfg['pct']
+    dist_groups = grade_dist_groups(db, cycle_id, grade_dist_cfg)[0] if cycle_id else []
+    dist_blocked = grade_dist_cfg['mode'] == 'forced' and any(x['over'] or x['under'] for x in dist_groups)
     anomaly_count = sum(1 for r in all_rows if r['anomaly'])
 
     return render_template('performance/calibration.html',
@@ -13594,6 +13708,8 @@ def calibration():
                            cycle_id=cycle_id, rows=rows,
                            dept_list=dept_list, selected_dept=selected_dept,
                            dept_info=dept_info, target_dist=target_dist,
+                           grade_dist_cfg=grade_dist_cfg, dist_groups=dist_groups,
+                           dist_blocked=dist_blocked,
                            grade_dist=grade_dist, confirmed_count=confirmed_count,
                            total_count=total_count, publish_ready=publish_ready,
                            active_acr=active_acr,

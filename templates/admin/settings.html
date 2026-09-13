@@ -475,6 +475,39 @@
           </label>
         </div>
 
+        {% set gd_mode = config.get('grade_dist_mode') or 'recommended' %}
+        {% set gd_scope = config.get('grade_dist_scope') or 'company' %}
+        <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);letter-spacing:.08em;margin:20px 0 12px;">등급 배분</div>
+        <div class="radio-cards">
+          {% for v, t, d in [('forced','강제 배분','상대평가 · 상한 초과 확정 불가, 미충족 시 결과 공개 불가'),('recommended','권장 비율','비율 표시 · 이탈 시 경고')] %}
+          <label class="radio-card">
+            <input type="radio" name="grade_dist_mode" value="{{ v }}" {{ 'checked' if gd_mode == v else '' }}>
+            <div class="radio-card-body"><div><div class="radio-card-name">{{ t }}</div><div class="radio-card-desc">{{ d }}</div></div></div>
+          </label>
+          {% endfor %}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:16px;">
+          {% for g in ['S','A','B','C','D'] %}
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">{{ g }}{% if g in 'SA' %} 상한{% elif g in 'CD' %} 하한{% endif %} (%)</label>
+            <input type="number" class="input gd-pct" name="grade_dist_{{ g|lower }}" min="0" max="100" style="text-align:right;"
+                   value="{{ config.get('grade_dist_' ~ g|lower, {'S':10,'A':20,'B':40,'C':20,'D':10}[g]) }}">
+          </div>
+          {% endfor %}
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">합계</label>
+            <div class="input" id="gdSum" style="text-align:right;background:var(--surface-2);">100%</div>
+          </div>
+        </div>
+        <div class="radio-cards">
+          {% for v, t, d in [('company','전사','전 직원 한 단위'),('dept','부서별','10명 이상 부서는 부서 단위 · 미만 부서는 합산')] %}
+          <label class="radio-card">
+            <input type="radio" name="grade_dist_scope" value="{{ v }}" {{ 'checked' if gd_scope == v else '' }}>
+            <div class="radio-card-body"><div><div class="radio-card-name">배분 단위 · {{ t }}</div><div class="radio-card-desc">{{ d }}</div></div></div>
+          </label>
+          {% endfor %}
+        </div>
+
         <div style="margin-top:24px;">
           <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 저장</button>
         </div>
@@ -636,5 +669,15 @@
       if (el) el.style.display = this.value === 'separate' ? 'block' : 'none';
     });
   });
+</script>
+<script>
+(function () {
+  var ins = document.querySelectorAll('input.gd-pct'), out = document.getElementById('gdSum');
+  function sum() {
+    var s = 0; ins.forEach(function (i) { s += parseInt(i.value || '0', 10) || 0; });
+    out.textContent = s + '%'; out.style.color = s === 100 ? '' : 'var(--late)';
+  }
+  ins.forEach(function (i) { i.addEventListener('input', sum); }); sum();
+})();
 </script>
 {% endblock %}

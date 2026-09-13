@@ -4,6 +4,12 @@
 
 {% block extra_css %}
 <style>
+  .cal-sum { display:flex; flex-wrap:wrap; gap:6px 22px; font-size:12.5px; color:var(--tx-3); margin:0 0 18px; }
+  .cal-sum b { font:600 12.5px var(--mono); color:var(--tx-1); margin-left:6px; }
+  .cal-sum .wait b { color:var(--wait); }
+  .ltable td.wait { color:var(--wait); }
+  .ltable td.late { color:var(--late); }
+  .ltable td.done { color:var(--done); }
 .grade-chip {
   display:inline-flex; align-items:center; justify-content:center;
   width:30px; height:30px; border-radius:50%;
@@ -117,7 +123,9 @@
       {% endfor %}
     </select>
     {% endif %}
-    {% if selected_cycle and confirmed_count > 0 and selected_cycle.stage in ('review','calibration') %}
+    {% if selected_cycle and confirmed_count > 0 and selected_cycle.stage in ('review','calibration') and dist_blocked %}
+    <button type="button" class="btn btn-secondary" disabled title="등급 배분 기준 표 참조">강제 배분 미충족 · 공개 불가</button>
+    {% elif selected_cycle and confirmed_count > 0 and selected_cycle.stage in ('review','calibration') %}
     <form method="POST">
       <input type="hidden" name="action" value="publish">
       <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
@@ -166,40 +174,41 @@
 </div>
 {% endif %}
 
-<!-- 요약 카드 (전 직원 기준) -->
-<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); gap:10px; margin-bottom:20px;">
-  <div class="card" style="margin:0; text-align:center;">
-    <div class="card-body" style="padding:14px;">
-      <div style="font-size:22px; font-weight:900; color:var(--primary);">{{ total_count }}</div>
-      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">전체 직원</div>
-    </div>
-  </div>
-  <div class="card" style="margin:0; text-align:center;">
-    <div class="card-body" style="padding:14px;">
-      <div style="font-size:22px; font-weight:900; color:var(--green);">{{ confirmed_count }}</div>
-      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">등급 확정</div>
-    </div>
-  </div>
-  <div class="card" style="margin:0; text-align:center;">
-    <div class="card-body" style="padding:14px;">
-      <div style="font-size:22px; font-weight:900; color:var(--orange);">{{ total_count - confirmed_count }}</div>
-      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">미확정</div>
-    </div>
-  </div>
-  <div class="card" style="margin:0; text-align:center;">
-    <div class="card-body" style="padding:14px;">
-      <div style="font-size:22px; font-weight:900; color:{% if anomaly_count > 0 %}var(--orange){% else %}var(--green){% endif %};">{{ anomaly_count }}</div>
-      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">이상 감지</div>
-    </div>
-  </div>
-  {% for g, color in [('S','var(--done)'),('A','var(--tx-1)'),('B','var(--done)'),('C','var(--wait)'),('D','var(--late)')] %}
-  <div class="card" style="margin:0; text-align:center;">
-    <div class="card-body" style="padding:14px;">
-      <div style="font-size:22px; font-weight:900; color:{{ color }};">{{ grade_dist.get(g, 0) }}</div>
-      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">{{ g }}등급</div>
-    </div>
-  </div>
-  {% endfor %}
+<!-- 등급 배분 기준 -->
+<div class="cal-sum">
+  <span>전체<b>{{ total_count }}</b></span>
+  <span>확정<b>{{ confirmed_count }}</b></span>
+  <span>미확정<b>{{ total_count - confirmed_count }}</b></span>
+  <span class="{% if anomaly_count %}wait{% endif %}">이상 감지<b>{{ anomaly_count }}</b></span>
+</div>
+<div class="sec-head">
+  <h2>등급 배분 기준</h2>
+  <span class="cnt">{{ grade_dist_cfg.label }} · {{ '부서별' if grade_dist_cfg.scope == 'dept' else '전사' }} · S {{ target_dist.S }} / A {{ target_dist.A }} / B {{ target_dist.B }} / C {{ target_dist.C }} / D {{ target_dist.D }}%</span>
+  <span class="sp"></span>
+  <a href="{{ url_for('admin_settings') }}?tab=perf">설정 변경</a>
+</div>
+<div style="overflow-x:auto; margin-bottom:22px;">
+<table class="ltable">
+  <thead><tr><th>적용 단위</th><th class="r">인원</th><th class="r">확정</th><th class="r">S / 상한</th><th class="r">A / 상한</th><th class="r">B</th><th class="r">C / 하한</th><th class="r">D / 하한</th><th class="r">상태</th></tr></thead>
+  <tbody>
+    {% set bad = 'late' if grade_dist_cfg.mode == 'forced' else 'wait' %}
+    {% for x in dist_groups %}
+    <tr>
+      <td>{{ x.label }}</td>
+      <td class="m r">{{ x.total }}</td>
+      <td class="m r">{{ x.confirmed }}</td>
+      {% for g in ['S','A'] %}<td class="m r {% if x.dist[g] > x.cap[g] %}{{ bad }}{% endif %}">{{ x.dist[g] }} / {{ x.cap[g] }}</td>{% endfor %}
+      <td class="m r">{{ x.dist.B }}</td>
+      {% for g in ['C','D'] %}<td class="m r {% if x.done and x.dist[g] < x.min[g] %}{{ bad }}{% endif %}">{{ x.dist[g] }} / {{ x.min[g] }}</td>{% endfor %}
+      <td class="m r {% if x.over or (x.done and x.under) %}{{ bad }}{% elif x.done %}done{% else %}t2{% endif %}">
+        {% if x.over %}상한 초과{% elif x.done and x.under %}하한 미달{% elif x.under %}하한 미달 · 진행 중{% elif x.done %}충족{% else %}진행 중{% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr class="empty"><td colspan="9">해당 없음</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
 </div>
 
 <!-- ── 팀 단위 진행 (R1-C): 좌 팀 목록 + 우 본문 ── -->
@@ -215,7 +224,7 @@
       <a href="?cycle={{ selected_cycle.id }}&dept={{ d.dept_id }}" class="cal-team {{ 'sel' if selected_dept == d.dept_id else '' }}">
         <span>{{ d.dept_name }}</span>
         <small style="{% if d.confirmed >= d.total %}color:var(--green); font-weight:800;{% endif %}">
-          {{ d.confirmed }}/{{ d.total }}{% if d.confirmed >= d.total %} ✓{% endif %}
+          {{ d.confirmed }}/{{ d.total }}{% if d.confirmed >= d.total %} 완료{% endif %}
         </small>
       </a>
       {% endfor %}
@@ -231,7 +240,7 @@
   <div class="card" style="margin-bottom:16px;">
     <div class="card-body" style="padding:16px 20px;">
       <div style="font-size:12px; font-weight:800; margin-bottom:12px;">전체 등급 분포
-        <span style="font-weight:600; color:var(--tx-3); margin-left:8px;">확정 {{ confirmed_count }}명 기준 · 괄호는 권장 배분</span>
+        <span style="font-weight:600; color:var(--tx-3); margin-left:8px;">확정 {{ confirmed_count }}명 기준 · 괄호는 {{ grade_dist_cfg.label }}</span>
       </div>
       <div class="dist-bar-wrap">
         {% set max_cnt = [grade_dist.get('S',0), grade_dist.get('A',0), grade_dist.get('B',0), grade_dist.get('C',0), grade_dist.get('D',0)]|max %}
@@ -286,7 +295,7 @@
   <div class="card" style="margin-bottom:14px;">
     <div class="card-body" style="padding:14px 20px;">
       <div style="font-size:12px; font-weight:800; margin-bottom:10px;">{{ dept_info.dept_name }} 등급 분포
-        <span style="font-weight:600; color:var(--tx-3); margin-left:8px;">확정 {{ dept_info.confirmed }}/{{ dept_info.total }}명 · 괄호는 권장 배분</span>
+        <span style="font-weight:600; color:var(--tx-3); margin-left:8px;">확정 {{ dept_info.confirmed }}/{{ dept_info.total }}명 · 괄호는 {{ grade_dist_cfg.label }}</span>
       </div>
       <div class="dist-bar-wrap" style="height:60px;">
         {% set d_dist = dept_info.dist %}

@@ -908,6 +908,19 @@ def init_db(db_path: str = None):
             if col not in cc_cols:
                 c.execute(f'ALTER TABLE company_config ADD COLUMN {col} REAL DEFAULT {default}')
 
+        # 등급 배분 (강제 배분/권장 비율, 전사/부서 단위, 등급별 %)
+        for col, ddl in [
+            ('grade_dist_mode',  "TEXT DEFAULT 'recommended'"),
+            ('grade_dist_scope', "TEXT DEFAULT 'company'"),
+            ('grade_dist_s', 'INTEGER DEFAULT 10'),
+            ('grade_dist_a', 'INTEGER DEFAULT 20'),
+            ('grade_dist_b', 'INTEGER DEFAULT 40'),
+            ('grade_dist_c', 'INTEGER DEFAULT 20'),
+            ('grade_dist_d', 'INTEGER DEFAULT 10'),
+        ]:
+            if col not in cc_cols:
+                c.execute(f'ALTER TABLE company_config ADD COLUMN {col} {ddl}')
+
         # salary_grades 컬럼 마이그레이션 (v0.51 — Salary Band)
         sg_cols = {r[1] for r in c.execute('PRAGMA table_info(salary_grades)').fetchall()}
         for col, default in [

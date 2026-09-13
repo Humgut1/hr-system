@@ -462,8 +462,31 @@
       </div>
       <div class="su-sec">등급 체계</div>
       <div class="opts c4">
-        {% for v, t, d in [('SABCD','S · A · B · C · D','5등급 상대평가'),('15','1 ~ 5점','점수 절대평가'),('EE_ME_ME_NI','EE · ME · NI','기대 대비 3단계'),('OKR','OKR 달성률','목표 대비 0~100%')] %}
+        {% for v, t, d in [('SABCD','S · A · B · C · D','5등급'),('15','1 ~ 5점','점수 절대평가'),('EE_ME_ME_NI','EE · ME · NI','기대 대비 3단계'),('OKR','OKR 달성률','목표 대비 0~100%')] %}
         <label class="opt"><input type="radio" name="grade_system" value="{{ v }}" {{ 'checked' if config.get('grade_system','SABCD') == v }}>
+          <div><div class="t">{{ t }}</div><div class="d">{{ d }}</div></div></label>
+        {% endfor %}
+      </div>
+      {% set gd_mode = config.get('grade_dist_mode') or 'recommended' %}
+      {% set gd_scope = config.get('grade_dist_scope') or 'company' %}
+      <div class="su-sec">등급 배분 <span class="aside">S · A · B · C · D 기준</span></div>
+      <div class="opts c2">
+        {% for v, t, d in [('forced','강제 배분','상대평가 · 상한 초과 확정 불가, 미충족 시 결과 공개 불가'),('recommended','권장 비율','비율 표시 · 이탈 시 경고')] %}
+        <label class="opt"><input type="radio" name="grade_dist_mode" value="{{ v }}" {{ 'checked' if gd_mode == v }}>
+          <div><div class="t">{{ t }}</div><div class="d">{{ d }}</div></div></label>
+        {% endfor %}
+      </div>
+      <div class="grid" style="grid-template-columns:repeat(6, minmax(0,1fr)); margin-top:12px;">
+        {% for g in ['S','A','B','C','D'] %}
+        <div class="fld"><label>{{ g }}{% if g in 'SA' %} <span class="hint">상한</span>{% elif g in 'CD' %} <span class="hint">하한</span>{% endif %}</label>
+          <div class="amt"><input type="number" class="inp num gd-pct" name="grade_dist_{{ g|lower }}" min="0" max="100" value="{{ config.get('grade_dist_' ~ g|lower, {'S':10,'A':20,'B':40,'C':20,'D':10}[g]) }}"><span>%</span></div></div>
+        {% endfor %}
+        <div class="fld"><label>합계</label><div class="inp num" id="gdSum" style="display:flex;align-items:center;justify-content:flex-end;background:var(--surface-2);">100%</div></div>
+      </div>
+      <div class="su-sec">배분 단위</div>
+      <div class="opts c2">
+        {% for v, t, d in [('company','전사','전 직원 한 단위'),('dept','부서별','10명 이상 부서는 부서 단위 · 미만 부서는 합산')] %}
+        <label class="opt"><input type="radio" name="grade_dist_scope" value="{{ v }}" {{ 'checked' if gd_scope == v }}>
           <div><div class="t">{{ t }}</div><div class="d">{{ d }}</div></div></label>
         {% endfor %}
       </div>
@@ -567,6 +590,16 @@
   bindRadio('sick_policy', function (v) { document.getElementById('sickDaysField').hidden = v !== 'separate'; });
   var rc = document.querySelector('input[name="remote_allowed"]');
   rc.addEventListener('change', function () { document.getElementById('remoteOptions').hidden = !rc.checked; });
+})();
+</script>
+<script>
+(function () {
+  var ins = document.querySelectorAll('input.gd-pct'), out = document.getElementById('gdSum');
+  function sum() {
+    var s = 0; ins.forEach(function (i) { s += parseInt(i.value || '0', 10) || 0; });
+    out.textContent = s + '%'; out.style.color = s === 100 ? '' : 'var(--late)';
+  }
+  ins.forEach(function (i) { i.addEventListener('input', sum); }); sum();
 })();
 </script>
 </body>
