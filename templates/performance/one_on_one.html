@@ -1,0 +1,222 @@
+{% extends 'base.html' %}
+{% block title %}1:1 · {{ m.employee_name }}{% endblock %}
+{% block page_title %}성과{% endblock %}
+
+{% block extra_css %}
+<style>
+  .wh-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
+  .wh-head h1 { font-size:18px; font-weight:650; margin:0; }
+  .wh-head .sp { margin-left:auto; }
+  .wh-sum { display:flex; flex-wrap:wrap; gap:6px 22px; font-size:12.5px; color:var(--tx-3); margin:0 0 18px; }
+  .wh-sum b { font:600 12.5px var(--mono); color:var(--tx-1); margin-left:6px; }
+  .wh-sum .wait b { color:var(--wait); }
+  .wh-sum .done b { color:var(--done); }
+  .oo-grid { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr); gap:32px; align-items:start; }
+  @media (max-width: 1000px) { .oo-grid { grid-template-columns:1fr; } }
+  .oo-sec { margin:0 0 26px; }
+  .oo-list { list-style:none; margin:0; padding:0; border-top:1px solid var(--line); }
+  .oo-list li { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line-2); font-size:13px; }
+  .oo-list li .grow { flex:1; min-width:0; }
+  .oo-list li.is-done .grow { color:var(--tx-3); text-decoration:line-through; }
+  .oo-list li small { color:var(--tx-3); font-size:11.5px; }
+  .oo-list li.empty { color:var(--tx-3); font-size:12.5px; }
+  .oo-list form { margin:0; display:inline; }
+  .oo-chk { width:18px; height:18px; border:1px solid var(--line-strong, var(--line)); border-radius:4px; background:var(--surface); cursor:pointer; padding:0; display:inline-flex; align-items:center; justify-content:center; color:var(--done); font-size:11px; }
+  .oo-x { border:0; background:none; color:var(--tx-4); cursor:pointer; font-size:12px; padding:2px 4px; }
+  .oo-x:hover { color:var(--tx-2); }
+  .oo-add { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .oo-add .input { height:30px; font-size:12.5px; }
+  .oo-add .grow { flex:1; min-width:180px; }
+  .oo-notes { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width: 700px) { .oo-notes { grid-template-columns:1fr; } }
+  .oo-notes label { display:block; font-size:11.5px; color:var(--tx-3); margin-bottom:5px; }
+  .oo-notes .textarea { width:100%; min-height:150px; font-size:13px; }
+  .oo-notes .btn { margin-top:6px; }
+  .oo-side .row { padding:8px 0; border-bottom:1px solid var(--line-2); font-size:12.5px; }
+  .oo-side .row:first-of-type { border-top:1px solid var(--line); }
+  .oo-side .row .t { color:var(--tx-1); }
+  .oo-side .row .s { color:var(--tx-3); font-size:11.5px; margin-top:2px; }
+  .oo-side .row .s .done { color:var(--done); } .oo-side .row .s .wait { color:var(--wait); } .oo-side .row .s .late { color:var(--late); }
+  .oo-side .row.empty { color:var(--tx-3); }
+  .oo-close { display:flex; gap:10px; align-items:end; flex-wrap:wrap; padding:14px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line-2); }
+  .oo-close label { display:block; font-size:11.5px; color:var(--tx-3); margin-bottom:5px; }
+  .oo-close .input { height:30px; font-size:12.5px; font-family:var(--mono); }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set live = m.status == 'scheduled' %}
+{% set uid = session.get('user_id') %}
+<div class="wh-head">
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('one_on_ones') }}"><i class="fa-solid fa-arrow-left"></i></a>
+  <h1>{{ m.employee_name }} · {{ m.manager_name }} 1:1</h1>
+  <span class="sp"></span>
+  {% if is_mgr %}
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('feedback_home', tab='team', emp=m.employee_id) }}">피드백 기록</a>
+  {% endif %}
+</div>
+
+<div class="wh-sum">
+  <span>일시<b>{{ m.scheduled_at }}</b></span>
+  <span class="{{ 'wait' if live else 'done' if m.status == 'done' }}">상태<b>{{ status_label[m.status] }}</b></span>
+  <span>팀원<b>{{ m.employee_name }}</b> <small>{{ m.emp_dept or '' }}{{ ' · ' ~ m.emp_pos if m.emp_pos }}</small></span>
+  {% set open_here = actions | selectattr('status', 'equalto', 'open') | list | length %}
+  <span class="{{ 'wait' if open_here + carry|length }}">미완료 액션<b>{{ open_here + carry|length }}</b></span>
+</div>
+
+<div class="oo-grid">
+<div>
+  <section class="oo-sec" id="topics">
+    <div class="sec-head"><h2>안건</h2><span class="cnt">{{ topics | length }} · 두 사람 모두 추가</span></div>
+    <ul class="oo-list">
+      {% for tp in topics %}
+      <li class="{{ 'is-done' if tp.is_done }}">
+        <form method="POST"><input type="hidden" name="action" value="topic_toggle"><input type="hidden" name="item_id" value="{{ tp.id }}">
+          <button class="oo-chk" type="submit" aria-label="논의 완료 표시">{% if tp.is_done %}<i class="fa-solid fa-check"></i>{% endif %}</button></form>
+        <span class="grow">{{ tp.content }}</span>
+        <small>{{ tp.author_name }}</small>
+        {% if tp.author_id == uid %}
+        <form method="POST"><input type="hidden" name="action" value="topic_del"><input type="hidden" name="item_id" value="{{ tp.id }}">
+          <button class="oo-x" type="submit" aria-label="안건 삭제"><i class="fa-solid fa-xmark"></i></button></form>
+        {% endif %}
+      </li>
+      {% else %}
+      <li class="empty">안건 없음 · 면담 전에 이야기할 주제를 적어두세요</li>
+      {% endfor %}
+    </ul>
+    <form method="POST" class="oo-add">
+      <input type="hidden" name="action" value="topic_add">
+      <input class="input grow" name="content" maxlength="500" placeholder="안건 추가" required>
+      <button class="btn btn-ghost btn-sm" type="submit">추가</button>
+    </form>
+  </section>
+
+  <section class="oo-sec" id="notes">
+    <div class="sec-head"><h2>메모</h2></div>
+    <div class="oo-notes">
+      <form method="POST">
+        <input type="hidden" name="action" value="notes">
+        <label for="oo-shared">공유 메모 · 두 사람 모두 봄</label>
+        <textarea id="oo-shared" class="textarea" name="content" maxlength="10000" placeholder="논의 내용·합의 사항">{{ m.notes or '' }}</textarea>
+        <button class="btn btn-ghost btn-sm" type="submit">저장</button>
+      </form>
+      <form method="POST">
+        <input type="hidden" name="action" value="private">
+        <label for="oo-private">내 비공개 메모 · 나만 봄{% if private and private.updated_at %} · {{ private.updated_at[:16] }}{% endif %}</label>
+        <textarea id="oo-private" class="textarea" name="content" maxlength="10000" placeholder="상대에게 보이지 않음">{{ private.content if private else '' }}</textarea>
+        <button class="btn btn-ghost btn-sm" type="submit">저장</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="oo-sec" id="actions">
+    <div class="sec-head"><h2>액션 아이템</h2><span class="cnt">{{ actions | length }} · 미완료는 다음 면담에 이어서 표시</span></div>
+    <ul class="oo-list">
+      {% for a in actions %}
+      <li class="{{ 'is-done' if a.status == 'done' }}">
+        <form method="POST"><input type="hidden" name="action" value="action_toggle"><input type="hidden" name="item_id" value="{{ a.id }}">
+          <button class="oo-chk" type="submit" aria-label="완료 표시">{% if a.status == 'done' %}<i class="fa-solid fa-check"></i>{% endif %}</button></form>
+        <span class="grow">{{ a.content }}</span>
+        <small>{{ a.owner_name or '-' }}{% if a.due_date %} · <span class="{{ 'late' if a.status == 'open' and a.due_date < today_iso }}">{{ a.due_date }}</span>{% endif %}</small>
+      </li>
+      {% else %}
+      <li class="empty">액션 아이템 없음</li>
+      {% endfor %}
+    </ul>
+    <form method="POST" class="oo-add">
+      <input type="hidden" name="action" value="action_add">
+      <input class="input grow" name="content" maxlength="500" placeholder="할 일" required>
+      <select class="input" name="owner_id" style="width:auto;">
+        <option value="{{ m.employee_id }}">{{ m.employee_name }}</option>
+        <option value="{{ m.manager_id }}">{{ m.manager_name }}</option>
+      </select>
+      <input class="input" type="date" name="due_date" style="width:auto; font-family:var(--mono);">
+      <button class="btn btn-ghost btn-sm" type="submit">추가</button>
+    </form>
+  </section>
+
+  {% if live %}
+  <section class="oo-sec">
+    <div class="sec-head"><h2>면담 마무리</h2></div>
+    <form method="POST" class="oo-close">
+      <input type="hidden" name="action" value="complete">
+      <div>
+        <label for="oo-next">다음 1:1 · 권장 {{ pc.cadence }}일 뒤 · 비우면 미정</label>
+        <input id="oo-next" class="input" type="datetime-local" name="next_at" value="{{ next_default }}">
+      </div>
+      <button class="btn btn-primary btn-sm" type="submit">면담 완료</button>
+    </form>
+    <form method="POST" class="oo-close" style="border-top:0;">
+      <input type="hidden" name="action" value="reschedule">
+      <div>
+        <label for="oo-when">일정 변경</label>
+        <input id="oo-when" class="input" type="datetime-local" name="scheduled_at" value="{{ when_value }}" required>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="submit">변경</button>
+      <span style="margin-left:auto;"></span>
+    </form>
+    <form method="POST" style="margin-top:8px;" onsubmit="return confirm('이 1:1을 취소할까요?');">
+      <input type="hidden" name="action" value="cancel">
+      <button class="btn btn-ghost btn-sm" type="submit">면담 취소</button>
+    </form>
+  </section>
+  {% endif %}
+</div>
+
+<aside class="oo-side">
+  <section class="oo-sec">
+    <div class="sec-head"><h2>목표·체크인</h2><span class="cnt">{{ goals | length }}</span></div>
+    {% for g in goals %}
+    {% set ck = cks.get(g.id) %}
+    <div class="row">
+      <div class="t">{{ g.title }}</div>
+      <div class="s"><span class="m">{{ g.progress or 0 }}%</span> · 가중치 {{ g.weight or 0 }}%
+        {% if ck %} · <span class="{{ ck_cls[ck.status] }}">{{ ck_label[ck.status] }}</span> {{ ck.created_at[:10] }}{% if ck.comment %} · {{ ck.comment }}{% endif %}
+        {% else %} · 체크인 없음{% endif %}</div>
+    </div>
+    {% else %}
+    <div class="row empty">진행 중 사이클 목표 없음</div>
+    {% endfor %}
+  </section>
+
+  <section class="oo-sec">
+    <div class="sec-head"><h2>최근 피드백</h2><span class="cnt">90일</span>
+      <a class="sp btn btn-ghost btn-sm" href="{{ url_for('feedback_home', to=m.employee_id if is_mgr else m.manager_id) }}#give">피드백 주기</a></div>
+    {% for f in feedback_rows %}
+    <div class="row">
+      <div class="t">{{ f.content | truncate(90) }}</div>
+      <div class="s">{{ kind_label[f.kind] }} · {{ f.from_name }} · {{ f.created_at[:10] }}</div>
+    </div>
+    {% else %}
+    <div class="row empty">볼 수 있는 피드백 없음</div>
+    {% endfor %}
+  </section>
+
+  <section class="oo-sec">
+    <div class="sec-head"><h2>이전 미완료 액션</h2><span class="cnt">{{ carry | length }}</span></div>
+    {% for a in carry %}
+    <div class="row" style="display:flex; gap:10px; align-items:center;">
+      <form method="POST" style="margin:0;"><input type="hidden" name="action" value="action_toggle"><input type="hidden" name="item_id" value="{{ a.id }}">
+        <button class="oo-chk" type="submit" aria-label="완료 표시"></button></form>
+      <div style="flex:1; min-width:0;">
+        <div class="t">{{ a.content }}</div>
+        <div class="s">{{ a.owner_name or '-' }} · {{ a.meeting_at[:10] }} 면담{% if a.due_date %} · 기한 <span class="{{ 'late' if a.due_date < today_iso }}">{{ a.due_date }}</span>{% endif %}</div>
+      </div>
+    </div>
+    {% else %}
+    <div class="row empty">없음</div>
+    {% endfor %}
+  </section>
+
+  <section class="oo-sec">
+    <div class="sec-head"><h2>이전 1:1</h2><span class="cnt">{{ history | length }}</span></div>
+    {% for h in history %}
+    <div class="row"><a href="{{ url_for('one_on_one', mid=h.id) }}" class="t">{{ h.scheduled_at }}</a>
+      <div class="s">{{ status_label[h.status] }} · 안건 {{ h.topic_n }}</div></div>
+    {% else %}
+    <div class="row empty">첫 면담</div>
+    {% endfor %}
+  </section>
+</aside>
+</div>
+{% endblock %}

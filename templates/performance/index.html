@@ -548,8 +548,18 @@
                    oninput="this.nextElementSibling.textContent=this.value+'%'"
                    style="flex:1; accent-color:var(--primary);">
             <span style="font-size:11px; color:var(--tx-3); min-width:32px;">{{ g.progress or 0 }}%</span>
-            <button type="submit" class="btn btn-ghost btn-sm">저장</button>
+            <select name="status" class="input" style="width:auto; height:28px; font-size:12px;" aria-label="체크인 상태">
+              {% for k, label in ck_label.items() %}<option value="{{ k }}" {{ 'selected' if goal_checkin.get(g.id) and goal_checkin[g.id].status == k }}>{{ label }}</option>{% endfor %}
+            </select>
+            <input name="comment" class="input" maxlength="500" placeholder="체크인 메모 (선택)" style="flex:1; height:28px; font-size:12px; min-width:120px;">
+            <button type="submit" class="btn btn-ghost btn-sm">체크인</button>
           </form>
+          {% endif %}
+          {% set ck = goal_checkin.get(g.id) %}
+          {% if ck %}
+          <div style="font-size:11.5px; color:var(--tx-3); margin-top:6px;">
+            최근 체크인 <span style="font-family:var(--mono);">{{ ck.created_at[:10] }}</span> · <span style="color:var(--{{ ck_cls[ck.status] }});">{{ ck_label[ck.status] }}</span> · {{ ck.progress }}%{% if ck.comment %} · {{ ck.comment }}{% endif %}
+          </div>
           {% endif %}
         </div>
 

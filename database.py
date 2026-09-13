@@ -1946,6 +1946,69 @@ def init_db(db_path: str = None):
                 if _col not in _have:
                     c.execute(f'ALTER TABLE {_tbl} ADD COLUMN {_col} {_typ}')
 
+        # ── C2: 1:1 면담 · 피드백 · 목표 체크인 ───────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS one_on_one_topics (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            meeting_id  INTEGER NOT NULL REFERENCES one_on_ones(id) ON DELETE CASCADE,
+            author_id   INTEGER NOT NULL REFERENCES users(id),
+            content     TEXT NOT NULL,
+            is_done     INTEGER NOT NULL DEFAULT 0,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS one_on_one_private_notes (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            meeting_id  INTEGER NOT NULL REFERENCES one_on_ones(id) ON DELETE CASCADE,
+            user_id     INTEGER NOT NULL REFERENCES users(id),
+            content     TEXT,
+            updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(meeting_id, user_id)
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS feedback_requests (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            requester_id INTEGER NOT NULL REFERENCES users(id),
+            subject_id   INTEGER NOT NULL REFERENCES users(id),
+            responder_id INTEGER NOT NULL REFERENCES users(id),
+            question     TEXT NOT NULL,
+            status       TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','done','declined')),
+            due_date     TEXT,
+            feedback_id  INTEGER,
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS feedback (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_id     INTEGER NOT NULL REFERENCES users(id),
+            to_id       INTEGER NOT NULL REFERENCES users(id),
+            kind        TEXT NOT NULL CHECK(kind IN ('praise','suggest','response')),
+            content     TEXT NOT NULL,
+            goal_id     INTEGER,
+            visibility  TEXT NOT NULL DEFAULT 'private' CHECK(visibility IN ('private','manager','public')),
+            request_id  INTEGER REFERENCES feedback_requests(id),
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS goal_checkins (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            goal_id     INTEGER NOT NULL REFERENCES performance_goals(id) ON DELETE CASCADE,
+            user_id     INTEGER NOT NULL REFERENCES users(id),
+            progress    INTEGER NOT NULL DEFAULT 0,
+            status      TEXT NOT NULL DEFAULT 'on_track' CHECK(status IN ('on_track','at_risk','off_track')),
+            comment     TEXT,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_feedback_to ON feedback(to_id, created_at)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_goal_checkins_goal ON goal_checkins(goal_id, created_at)')
+        _c2_cols = {
+            'one_on_ones': [('done_at', 'TEXT')],
+            'company_config': [('one_on_one_cadence_days', 'INTEGER DEFAULT 14'),
+                               ('feedback_public_praise', 'INTEGER DEFAULT 1')],
+        }
+        for _tbl, _cols in _c2_cols.items():
+            _have = {r[1] for r in c.execute(f'PRAGMA table_info({_tbl})')}
+            if not _have:
+                continue
+            for _col, _typ in _cols:
+                if _col not in _have:
+                    c.execute(f'ALTER TABLE {_tbl} ADD COLUMN {_col} {_typ}')
+
         conn.commit()
     finally:
         conn.close()

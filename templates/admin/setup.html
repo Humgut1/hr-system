@@ -447,7 +447,7 @@
     <!-- 09 성과 평가 -->
     <section class="su-panel" id="p9">
       <div class="su-h"><h2>성과 평가</h2></div>
-      <p class="su-sub">평가 주기 · 평가 구성 · 등급 체계 · 평가 시즌은 성과 평가에서 개시</p>
+      <p class="su-sub">평가 주기 · 평가 구성 · 등급 체계 · 1:1·피드백 운영 기준 · 평가 시즌은 성과 평가에서 개시</p>
       <div class="su-sec" style="margin-top:0;">평가 주기</div>
       <div class="opts c3">
         {% for v, t, d in [('annual','연 1회','연말 정기평가'),('semiannual','반기','상반기 · 하반기'),('quarterly','분기','분기별 평가')] %}
@@ -489,6 +489,18 @@
         <label class="opt"><input type="radio" name="grade_dist_scope" value="{{ v }}" {{ 'checked' if gd_scope == v }}>
           <div><div class="t">{{ t }}</div><div class="d">{{ d }}</div></div></label>
         {% endfor %}
+      </div>
+      {% set oo_cad = config.get('one_on_one_cadence_days') or 14 %}
+      <div class="su-sec">1:1 면담 권장 주기</div>
+      <div class="opts c3">
+        {% for v, t, d in [(7,'매주','팀원별 7일'),(14,'격주','팀원별 14일 · 일반 권장'),(30,'매월','팀원별 30일')] %}
+        <label class="opt"><input type="radio" name="one_on_one_cadence_days" value="{{ v }}" {{ 'checked' if oo_cad == v }}>
+          <div><div class="t">{{ t }}</div><div class="d">{{ d }}</div></div></label>
+        {% endfor %}
+      </div>
+      <div class="su-sec">피드백</div>
+      <div class="chks">
+        <label class="chk"><input type="checkbox" name="feedback_public_praise" value="1" {{ 'checked' if config.get('feedback_public_praise', 1) }}> 칭찬 전사 공개 허용</label>
       </div>
     </section>
 

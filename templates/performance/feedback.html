@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+{% block title %}피드백{% endblock %}
+{% block page_title %}성과{% endblock %}
+
+{% block extra_css %}
+<style>
+  .wh-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
+  .wh-head h1 { font-size:18px; font-weight:650; margin:0; }
+  .wh-head .sp { margin-left:auto; }
+  .wh-sum { display:flex; flex-wrap:wrap; gap:6px 22px; font-size:12.5px; color:var(--tx-3); margin:0 0 18px; }
+  .wh-sum b { font:600 12.5px var(--mono); color:var(--tx-1); margin-left:6px; }
+  .wh-sum .wait b { color:var(--wait); }
+  .wh-basis { font-size:12px; color:var(--tx-3); margin:8px 0 0; line-height:1.7; }
+  .fb-forms { display:grid; grid-template-columns:1fr 1fr; gap:28px; margin:0 0 28px; }
+  @media (max-width: 1000px) { .fb-forms { grid-template-columns:1fr; } }
+  .fb-form { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:14px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line-2); }
+  .fb-form .full { grid-column:1 / -1; }
+  .fb-form label { display:block; font-size:11.5px; color:var(--tx-3); margin-bottom:5px; }
+  .fb-form input:not([type=checkbox]), .fb-form select { width:100%; height:30px; padding:0 8px; font-size:12.5px; background:var(--surface); color:var(--tx-1); border:1px solid var(--line); border-radius:6px; }
+  .fb-form input[type=date] { font-family:var(--mono); }
+  .fb-form .textarea { width:100%; min-height:84px; font-size:13px; }
+  .fb-form .foot { grid-column:1 / -1; display:flex; align-items:center; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--tx-3); }
+  .fb-form .foot .btn { margin-left:auto; }
+  .fb-body { white-space:pre-line; line-height:1.6; max-width:640px; }
+  .fb-q { color:var(--tx-3); font-size:11.5px; display:block; margin-bottom:2px; }
+  .fb-ans { display:flex; gap:8px; align-items:flex-start; margin-top:8px; }
+  .fb-ans .textarea { flex:1; min-height:60px; font-size:12.5px; }
+  .fb-ans form { margin:0; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set uid = session.get('user_id') %}
+<div class="wh-head">
+  <h1>피드백</h1>
+  <span class="sp"></span>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('one_on_ones') }}">1:1 면담</a>
+</div>
+
+<div class="wh-sum">
+  <span>받음 90일<b>{{ sums.received }}</b></span>
+  <span>보냄 90일<b>{{ sums.sent }}</b></span>
+  <span class="{{ 'wait' if sums.to_answer }}">응답할 요청<b>{{ sums.to_answer }}</b></span>
+  <span>응답 대기<b>{{ sums.waiting }}</b></span>
+</div>
+
+<div class="fb-forms">
+  <section id="give">
+    <div class="sec-head"><h2>피드백 주기</h2><span class="cnt">수시 · 동료·매니저·팀원 누구나</span></div>
+    <form method="POST" action="{{ url_for('feedback_give') }}" class="fb-form">
+      <input type="hidden" name="next" value="{{ request.full_path }}">
+      <div>
+        <label for="fb-to">받는 사람</label>
+        <select id="fb-to" name="to_id" required>
+          <option value="">선택</option>
+          {% for p in people %}<option value="{{ p.id }}" {{ 'selected' if pre_to == p.id }}>{{ p.name }}{{ ' · ' ~ p.dept_name if p.dept_name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="fb-kind">종류</label>
+        <select id="fb-kind" name="kind" onchange="document.getElementById('fb-pub-wrap').hidden = this.value !== 'praise';">
+          <option value="praise">칭찬</option>
+          <option value="suggest">개선 제안</option>
+        </select>
+      </div>
+      <div class="full">
+        <label for="fb-content">내용 · 구체적인 상황과 영향</label>
+        <textarea id="fb-content" class="textarea" name="content" maxlength="2000" required placeholder="예) 9월 고객사 이슈 대응 때 원인 정리를 먼저 공유해줘서 팀 전체가 빠르게 움직일 수 있었습니다"></textarea>
+      </div>
+      <div class="foot">
+        {% if pc.public_praise %}
+        <label id="fb-pub-wrap" style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" name="public" value="1"> 칭찬 피드에 공개</label>
+        {% endif %}
+        <span>개선 제안은 받는 사람·그 매니저만 봄</span>
+        <button class="btn btn-primary btn-sm" type="submit">보내기</button>
+      </div>
+    </form>
+  </section>
+
+  <section id="ask">
+    <div class="sec-head"><h2>피드백 요청</h2><span class="cnt">{{ '나 또는 팀원에 대한 의견' if reports else '나에 대한 의견' }}</span></div>
+    <form method="POST" action="{{ url_for('feedback_request_new') }}" class="fb-form">
+      <input type="hidden" name="next" value="{{ url_for('feedback_home', tab='requests') }}">
+      <div>
+        <label for="rq-subject">대상</label>
+        <select id="rq-subject" name="subject_id">
+          <option value="{{ uid }}">본인</option>
+          {% for r in reports %}<option value="{{ r.id }}" {{ 'selected' if pre_subject == r.id }}>{{ r.name }} (팀원)</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="rq-responder">의견 줄 사람</label>
+        <select id="rq-responder" name="responder_id" required>
+          <option value="">선택</option>
+          {% for p in people %}<option value="{{ p.id }}">{{ p.name }}{{ ' · ' ~ p.dept_name if p.dept_name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="full">
+        <label for="rq-q">질문</label>
+        <input id="rq-q" name="question" maxlength="500" required placeholder="예) 이번 프로젝트에서 협업 방식 중 계속했으면 하는 것과 바꿨으면 하는 것은?">
+      </div>
+      <div>
+        <label for="rq-due">응답 기한</label>
+        <input id="rq-due" type="date" name="due_date">
+      </div>
+      <div class="foot" style="grid-column:auto; align-self:end;">
+        <button class="btn btn-ghost btn-sm" type="submit">요청</button>
+      </div>
+      <div class="foot"><span>팀원에 대한 요청의 응답은 요청한 매니저만 봄 · 평가 참고 패널에 표시</span></div>
+    </form>
+  </section>
+</div>
+
+<div class="fchips">
+  {% for k, label in tabs %}
+  <a class="fchip {{ 'on' if tab == k }}" href="{{ url_for('feedback_home', tab=k) }}">{{ label }}{% if k == 'requests' and sums.to_answer %} <b style="color:var(--wait);">{{ sums.to_answer }}</b>{% endif %}</a>
+  {% endfor %}
+</div>
+
+{% if tab == 'requests' %}
+<section style="margin:0 0 28px;">
+  <div class="sec-head"><h2>받은 요청</h2><span class="cnt">{{ incoming | length }}</span></div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>요청자</th><th>대상</th><th>질문 · 응답</th><th>기한</th><th>상태</th></tr></thead>
+    <tbody>
+      {% for q in incoming %}
+      <tr class="{{ 'dim' if q.status != 'pending' }}">
+        <td>{{ q.requester_name }}</td>
+        <td class="t2">{{ '본인' if q.subject_id == q.requester_id else q.subject_name }}</td>
+        <td>
+          <div class="fb-body">{{ q.question }}</div>
+          {% if q.status == 'pending' %}
+          <div class="fb-ans">
+            <form method="POST" action="{{ url_for('feedback_request_respond', rid=q.id) }}" style="flex:1; display:flex; gap:8px;">
+              <input type="hidden" name="action" value="answer">
+              <textarea class="textarea" name="content" maxlength="2000" required placeholder="응답"></textarea>
+              <button class="btn btn-primary btn-sm" type="submit">응답</button>
+            </form>
+            <form method="POST" action="{{ url_for('feedback_request_respond', rid=q.id) }}">
+              <input type="hidden" name="action" value="decline">
+              <button class="btn btn-ghost btn-sm" type="submit">거절</button>
+            </form>
+          </div>
+          {% endif %}
+        </td>
+        <td class="m">{{ q.due_date or '-' }}</td>
+        <td class="{{ 'wait' if q.status == 'pending' else 'done' if q.status == 'done' }}">{{ {'pending':'응답 대기','done':'응답함','declined':'거절'}[q.status] }}</td>
+      </tr>
+      {% else %}
+      <tr class="empty"><td colspan="5">받은 요청 없음</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+<section>
+  <div class="sec-head"><h2>보낸 요청</h2><span class="cnt">{{ outgoing | length }}</span></div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>의견 줄 사람</th><th>대상</th><th>질문 · 응답</th><th>기한</th><th>상태</th></tr></thead>
+    <tbody>
+      {% for q in outgoing %}
+      <tr>
+        <td>{{ q.responder_name }}</td>
+        <td class="t2">{{ '본인' if q.subject_id == uid else q.subject_name }}</td>
+        <td><span class="fb-q">{{ q.question }}</span>{% if q.answer %}<div class="fb-body">{{ q.answer }}</div>{% endif %}</td>
+        <td class="m">{{ q.due_date or '-' }}</td>
+        <td class="{{ 'wait' if q.status == 'pending' else 'done' if q.status == 'done' }}">{{ {'pending':'응답 대기','done':'응답함','declined':'거절'}[q.status] }}</td>
+      </tr>
+      {% else %}
+      <tr class="empty"><td colspan="5">보낸 요청 없음</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{% else %}
+<section>
+  <div class="sec-head">
+    <h2>{{ dict(tabs)[tab] }}{% if filter_emp %} · {{ filter_emp.name }}{% endif %}</h2><span class="cnt">{{ rows | length }}</span>
+    {% if filter_emp %}<a class="sp btn btn-ghost btn-sm" href="{{ url_for('feedback_home', tab='team') }}">전체 보기</a>{% endif %}
+  </div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>일자</th><th>보낸 사람</th><th>받는 사람</th><th>종류</th><th>내용</th><th>공개</th></tr></thead>
+    <tbody>
+      {% for f in rows %}
+      <tr>
+        <td class="m">{{ f.created_at[:10] }}</td>
+        <td>{{ f.from_name }}</td>
+        <td>{% if tab == 'team' %}<a href="{{ url_for('feedback_home', tab='team', emp=f.to_id) }}">{{ f.to_name }}</a>{% else %}{{ f.to_name }}{% endif %} <small class="t3">{{ f.to_dept or '' }}</small></td>
+        <td class="t2">{{ kind_label[f.kind] }}</td>
+        <td>{% if f.req_question %}<span class="fb-q">{{ f.req_question }}</span>{% endif %}<div class="fb-body">{{ f.content }}</div></td>
+        <td class="t2">{{ {'private':'당사자','manager':'매니저만','public':'전사'}[f.visibility] }}</td>
+      </tr>
+      {% else %}
+      <tr class="empty"><td colspan="6">{% if tab == 'received' %}받은 피드백 없음 · 요청으로 먼저 의견을 구해보세요{% elif tab == 'sent' %}보낸 피드백 없음{% elif tab == 'praise' %}공개된 칭찬 없음{% else %}피드백 기록 없음{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if tab == 'team' %}<div class="wh-basis">{{ '전사 피드백 · HR 관리자 열람' if session.get('user_role') == 'admin' else '팀원이 받은 피드백 · 매니저만 보는 요청 응답 포함' }}</div>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

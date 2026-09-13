@@ -179,6 +179,7 @@ def get_company_config():
         'grade_dist_mode': 'recommended', 'grade_dist_scope': 'company',
         'grade_dist_s': 10, 'grade_dist_a': 20, 'grade_dist_b': 40,
         'grade_dist_c': 20, 'grade_dist_d': 10,
+        'one_on_one_cadence_days': 14, 'feedback_public_praise': 1,
         'setup_completed': 0,      'setup_step': 0,
     }
 
@@ -1053,6 +1054,7 @@ def admin_setup():
             )
         notes = _setup_save_org(db, s)
         gd_note = save_grade_dist(db, s)
+        save_perf_culture(db, s)
         if gd_note:
             notes.insert(0, gd_note)
 
@@ -1310,6 +1312,7 @@ def admin_settings():
             dt.now().isoformat()
         ))
         gd_note = save_grade_dist(db, s)
+        save_perf_culture(db, s)
         db.commit()
         if gd_note:
             flash('설정 저장 · ' + gd_note, 'warning')
@@ -1666,6 +1669,7 @@ def dashboard():
                 'sub': f"{r['date']} · {r['ot_minutes'] // 60}시간 {r['ot_minutes'] % 60}분",
                 'link': url_for('attendance_home', tab='ot')
             })
+        inbox_items.extend(_c2_todo(db, uid, role, session.get('dept_id'), get_perf_culture()))
         inbox_count = len(inbox_items)
         team_goals = db.execute(
             "SELECT pg.title, pg.self_score, u.name as user_name, AVG(pr.score) as avg_score "
@@ -1785,6 +1789,7 @@ def dashboard():
         recent_reqs=recent_reqs, upcoming_leave=upcoming_leave,
         recent_posts=recent_posts, tenure_str=tenure_str,
         my_goals=my_goals,
+        perf_todo=_c2_todo(db, uid, 'employee', None, get_perf_culture(), with_team=False),
         labels=LEAVE_LABELS, active_page='home',
         enabled_widgets=enabled_widgets, widget_catalog=widget_catalog)
 
@@ -8812,6 +8817,8 @@ def performance():
                            team_rows=team_rows, team_summary=team_summary,
                            stage_deadline=stage_deadline, stage_dday=stage_dday,
                            grade_rewards=_grade_rewards(get_db()),
+                           goal_checkin=_latest_checkins(db, [g['id'] for g in goals]),
+                           ck_label=CHECKIN_STATUS_LABEL, ck_cls=CHECKIN_STATUS_CLS,
                            active_page='performance')
 
 @app.route('/performance/goals/ai-assist', methods=['POST'])
@@ -9286,6 +9293,9 @@ def performance_team_member(emp_uid):
                            cycle_stage_label=CYCLE_STAGE_LABEL,
                            goal_approval_label=GOAL_APPROVAL_LABEL,
                            score_labels=SCORE_LABELS,
+                           c2=_c2_member_context(db, emp_uid, cycle, uid, role, session.get('dept_id')),
+                           ck_label=CHECKIN_STATUS_LABEL, ck_cls=CHECKIN_STATUS_CLS,
+                           kind_label=FEEDBACK_KIND_LABEL,
                            active_page='performance')
 
 
@@ -12566,6 +12576,590 @@ def recruit_round_feedback(round_id):
                            active_page='recruit')
 
 
+# ── C2: 1:1 면담 · 피드백 · 목표 체크인 ─────────────────────────────
+# 흐름: 목표 체크인(직원) → 1:1 안건·메모·액션(매니저↔직원, 다음 면담으로 이월)
+#       → 수시 피드백·요청 → 팀원 평가 화면 참고 패널에 같은 기간 기록이 모인다.
+ONE_ON_ONE_CADENCES = (7, 14, 30)
+CHECKIN_STATUS_LABEL = {'on_track': '순항', 'at_risk': '주의', 'off_track': '위험'}
+CHECKIN_STATUS_CLS = {'on_track': 'done', 'at_risk': 'wait', 'off_track': 'late'}
+FEEDBACK_KIND_LABEL = {'praise': '칭찬', 'suggest': '개선 제안', 'response': '요청 응답'}
+ONE_ON_ONE_STATUS_LABEL = {'scheduled': '예정', 'done': '완료', 'cancelled': '취소'}
+
+
+def get_perf_culture(cfg=None):
+    """1:1 권장 주기(일)·칭찬 전사 공개 허용 — 회사 설정."""
+    cfg = cfg or get_company_config()
+    try:
+        cadence = int(cfg.get('one_on_one_cadence_days') or 14)
+    except (TypeError, ValueError):
+        cadence = 14
+    if cadence not in ONE_ON_ONE_CADENCES:
+        cadence = 14
+    pp = cfg.get('feedback_public_praise')
+    return {'cadence': cadence, 'public_praise': True if pp is None else bool(int(pp)),
+            'cadence_label': {7: '매주', 14: '격주', 30: '매월'}[cadence]}
+
+
+def save_perf_culture(db, f):
+    """초기 설정·회사 설정 공통 저장 (성과 섹션이 함께 제출될 때만)."""
+    if 'one_on_one_cadence_days' not in f:
+        return
+    try:
+        cadence = int(f.get('one_on_one_cadence_days'))
+    except (TypeError, ValueError):
+        cadence = 14
+    if cadence not in ONE_ON_ONE_CADENCES:
+        cadence = 14
+    db.execute('UPDATE company_config SET one_on_one_cadence_days=?, feedback_public_praise=? WHERE id=1',
+               (cadence, 1 if f.get('feedback_public_praise') else 0))
+
+
+def _safe_next(default):
+    nxt = request.form.get('next') or ''
+    return nxt if nxt.startswith('/') and not nxt.startswith('//') else default
+
+
+def _parse_when(s):
+    s = (s or '').strip().replace('T', ' ')[:16]
+    try:
+        return datetime.strptime(s, '%Y-%m-%d %H:%M').strftime('%Y-%m-%d %H:%M')
+    except ValueError:
+        return None
+
+
+def _c2_is_manager_of(emp, uid, role, dept_id):
+    """1:1·피드백 요청 권한 — 보고 라인(manager_id) 또는 같은 부서의 매니저."""
+    if not emp or emp['id'] == uid:
+        return False
+    if emp['manager_id'] == uid:
+        return True
+    return role == 'manager' and bool(dept_id) and emp['department_id'] == int(dept_id)
+
+
+def _c2_reports(db, uid, role, dept_id):
+    return db.execute(
+        "SELECT u.id, u.name, u.manager_id, u.department_id, d.name AS dept_name, p.name AS pos_name "
+        "FROM users u LEFT JOIN departments d ON u.department_id=d.id "
+        "LEFT JOIN positions p ON u.position_id=p.id "
+        "WHERE u.status='active' AND u.id != ? AND u.role NOT IN ('admin','guest') "
+        "AND (u.manager_id=? OR (? = 'manager' AND u.manager_id IS NULL AND u.department_id=?)) "
+        "ORDER BY u.name", (uid, uid, role, int(dept_id or 0) or -1)
+    ).fetchall()
+
+
+def _fb_visible(uid, role, dept_id, public_praise=True):
+    """피드백 열람 범위 — 작성자·받는 사람(매니저 전용 제외)·받는 사람의 매니저·요청자·HR 관리자."""
+    if role == 'admin':
+        return '1=1', []
+    sql = ("(f.from_id=? OR (f.to_id=? AND f.visibility!='manager') OR t.manager_id=? "
+           "OR f.request_id IN (SELECT id FROM feedback_requests WHERE requester_id=?)")
+    args = [uid, uid, uid, uid]
+    if public_praise:
+        sql += " OR f.visibility='public'"
+    if role == 'manager' and dept_id:
+        sql += " OR (t.department_id=? AND f.to_id != ?)"
+        args += [int(dept_id), uid]
+    return sql + ')', args
+
+
+FB_SELECT = ("SELECT f.*, fu.name AS from_name, t.name AS to_name, td.name AS to_dept, "
+             "fr.question AS req_question "
+             "FROM feedback f JOIN users fu ON f.from_id=fu.id JOIN users t ON f.to_id=t.id "
+             "LEFT JOIN departments td ON t.department_id=td.id "
+             "LEFT JOIN feedback_requests fr ON f.request_id=fr.id ")
+
+
+def _latest_checkins(db, goal_ids):
+    if not goal_ids:
+        return {}
+    q = ','.join('?' * len(goal_ids))
+    rows = db.execute(
+        f"SELECT gc.* FROM goal_checkins gc WHERE gc.id IN "
+        f"(SELECT MAX(id) FROM goal_checkins WHERE goal_id IN ({q}) GROUP BY goal_id)", list(goal_ids)
+    ).fetchall()
+    return {r['goal_id']: r for r in rows}
+
+
+def _c2_team_rows(db, uid, role, dept_id, pc):
+    """매니저 기준 팀원별 1:1 주기·액션·피드백·목표 체크인 현황."""
+    today = date.today()
+    cut90 = (today - timedelta(days=90)).isoformat()
+    rows = []
+    for r in _c2_reports(db, uid, role, dept_id):
+        last = db.execute("SELECT MAX(scheduled_at) FROM one_on_ones WHERE employee_id=? AND manager_id=? "
+                          "AND status='done'", (r['id'], uid)).fetchone()[0]
+        nxt = db.execute("SELECT id, scheduled_at FROM one_on_ones WHERE employee_id=? AND manager_id=? "
+                         "AND status='scheduled' ORDER BY scheduled_at LIMIT 1", (r['id'], uid)).fetchone()
+        open_actions = db.execute(
+            "SELECT COUNT(*) FROM one_on_one_actions a JOIN one_on_ones o ON a.meeting_id=o.id "
+            "WHERE o.employee_id=? AND o.manager_id=? AND a.status='open'", (r['id'], uid)).fetchone()[0]
+        fb_n = db.execute("SELECT COUNT(*) FROM feedback WHERE to_id=? AND created_at>=?",
+                          (r['id'], cut90)).fetchone()[0]
+        goal_ids = [g['id'] for g in db.execute(
+            "SELECT g.id FROM performance_goals g JOIN performance_cycles c ON g.cycle_id=c.id "
+            "WHERE g.user_id=? AND c.status='active'", (r['id'],)).fetchall()]
+        risk_n = sum(1 for ck in _latest_checkins(db, goal_ids).values() if ck['status'] != 'on_track')
+        days = (today - date.fromisoformat(last[:10])).days if last else None
+        if nxt:
+            state = 'wait' if nxt['scheduled_at'][:10] < today.isoformat() else ''
+        else:
+            state = 'late' if (days is None or days > pc['cadence']) else ''
+        rows.append({'id': r['id'], 'name': r['name'], 'dept_name': r['dept_name'], 'pos_name': r['pos_name'],
+                     'last': last, 'days': days, 'next': nxt, 'open_actions': open_actions,
+                     'fb_n': fb_n, 'risk_n': risk_n, 'state': state})
+    return rows
+
+
+def _c2_todo(db, uid, role, dept_id, pc, with_team=True):
+    """홈 인박스용 — 임박 1:1, 주기 초과 팀원, 응답 대기 피드백 요청."""
+    items = []
+    soon = (date.today() + timedelta(days=2)).isoformat() + ' 23:59'
+    for m in db.execute(
+            "SELECT o.id, o.scheduled_at, o.manager_id, mu.name AS mname, eu.name AS ename "
+            "FROM one_on_ones o JOIN users mu ON o.manager_id=mu.id JOIN users eu ON o.employee_id=eu.id "
+            "WHERE (o.manager_id=? OR o.employee_id=?) AND o.status='scheduled' AND o.scheduled_at<=? "
+            "ORDER BY o.scheduled_at LIMIT 3", (uid, uid, soon)).fetchall():
+        other = m['ename'] if m['manager_id'] == uid else m['mname']
+        items.append({'id': m['id'], 'category': 'one_on_one', 'title': f"{other} — 1:1 면담",
+                      'sub': m['scheduled_at'], 'link': url_for('one_on_one', mid=m['id'])})
+    if with_team:
+        late = [r for r in _c2_team_rows(db, uid, role, dept_id, pc) if r['state'] == 'late']
+        if late:
+            names = ', '.join(r['name'] for r in late[:3]) + (f" 외 {len(late) - 3}명" if len(late) > 3 else '')
+            items.append({'id': 0, 'category': 'one_on_one', 'title': f"1:1 주기 초과 팀원 {len(late)}명",
+                          'sub': f"권장 {pc['cadence']}일 · {names}", 'link': url_for('one_on_ones')})
+    for q in db.execute(
+            "SELECT fr.id, fr.due_date, ru.name AS rname, su.name AS sname, fr.subject_id, fr.requester_id "
+            "FROM feedback_requests fr JOIN users ru ON fr.requester_id=ru.id JOIN users su ON fr.subject_id=su.id "
+            "WHERE fr.responder_id=? AND fr.status='pending' ORDER BY fr.id LIMIT 3", (uid,)).fetchall():
+        about = '본인' if q['subject_id'] == q['requester_id'] else q['sname']
+        items.append({'id': q['id'], 'category': 'feedback', 'title': f"{q['rname']} — 피드백 요청",
+                      'sub': f"대상 {about}" + (f" · 기한 {q['due_date']}" if q['due_date'] else ''),
+                      'link': url_for('feedback_home', tab='requests')})
+    return items
+
+
+def _c2_member_context(db, emp_uid, cycle, viewer_uid, role, dept_id):
+    """팀원 평가 화면 참고 패널 — 사이클 기간의 1:1·피드백·체크인."""
+    start = (cycle['start_date'] or '0000-01-01')[:10]
+    end = (cycle['end_date'] or '9999-12-31')[:10] + ' 23:59:59'
+    oo_count = db.execute("SELECT COUNT(*) FROM one_on_ones WHERE employee_id=? AND status='done' "
+                          "AND scheduled_at BETWEEN ? AND ?", (emp_uid, start, end)).fetchone()[0]
+    oo_last = db.execute("SELECT MAX(scheduled_at) FROM one_on_ones WHERE employee_id=? AND status='done'",
+                         (emp_uid,)).fetchone()[0]
+    oo_next = db.execute("SELECT id, scheduled_at, manager_id FROM one_on_ones WHERE employee_id=? "
+                         "AND status='scheduled' ORDER BY scheduled_at LIMIT 1", (emp_uid,)).fetchone()
+    open_actions = db.execute(
+        "SELECT COUNT(*) FROM one_on_one_actions a JOIN one_on_ones o ON a.meeting_id=o.id "
+        "WHERE o.employee_id=? AND a.status='open'", (emp_uid,)).fetchone()[0]
+    pc = get_perf_culture()
+    vis_sql, vis_args = _fb_visible(viewer_uid, role, dept_id, pc['public_praise'])
+    fb = db.execute(FB_SELECT + f"WHERE f.to_id=? AND f.created_at BETWEEN ? AND ? AND {vis_sql} "
+                    "ORDER BY f.id DESC", [emp_uid, start, end] + vis_args).fetchall()
+    goals = db.execute("SELECT id, title FROM performance_goals WHERE cycle_id=? AND user_id=?",
+                       (cycle['id'], emp_uid)).fetchall()
+    cks = _latest_checkins(db, [g['id'] for g in goals])
+    risk = [{'title': g['title'], 'ck': cks[g['id']]} for g in goals
+            if g['id'] in cks and cks[g['id']]['status'] != 'on_track']
+    emp = db.execute('SELECT id, manager_id, department_id FROM users WHERE id=?', (emp_uid,)).fetchone()
+    return {'oo_count': oo_count, 'oo_last': oo_last, 'open_actions': open_actions,
+            'oo_next': oo_next if oo_next and oo_next['manager_id'] == viewer_uid else None,
+            'can_1on1': _c2_is_manager_of(emp, viewer_uid, role, dept_id),
+            'fb_counts': {k: sum(1 for f in fb if f['kind'] == k) for k in FEEDBACK_KIND_LABEL},
+            'fb_recent': fb[:3], 'risk_goals': risk, 'checked_in': len(cks), 'goal_n': len(goals)}
+
+
+@app.route('/performance/one-on-ones', methods=['GET', 'POST'])
+@login_required
+def one_on_ones():
+    db = get_db()
+    uid, role = session['user_id'], session.get('user_role')
+    dept_id = int(session.get('dept_id') or 0)
+    pc = get_perf_culture()
+
+    if request.method == 'POST':
+        when = _parse_when(request.form.get('scheduled_at'))
+        topic = (request.form.get('topic') or '').strip()[:500]
+        if not when:
+            flash('면담 일시를 입력하세요.', 'error')
+            return redirect(url_for('one_on_ones'))
+        emp_id = request.form.get('employee_id', type=int)
+        if emp_id:
+            emp = db.execute("SELECT id, name, manager_id, department_id FROM users WHERE id=? AND status='active'",
+                             (emp_id,)).fetchone()
+            if not _c2_is_manager_of(emp, uid, role, dept_id):
+                abort(403)
+            mgr_id, emp_uid, other = uid, emp['id'], emp['id']
+        else:
+            me = db.execute('SELECT manager_id FROM users WHERE id=?', (uid,)).fetchone()
+            if not me or not me['manager_id']:
+                flash('보고 라인에 매니저가 지정되지 않아 1:1을 잡을 수 없습니다.', 'error')
+                return redirect(url_for('one_on_ones'))
+            mgr_id, emp_uid, other = me['manager_id'], uid, me['manager_id']
+        dup = db.execute("SELECT id FROM one_on_ones WHERE manager_id=? AND employee_id=? AND status='scheduled'",
+                         (mgr_id, emp_uid)).fetchone()
+        if dup:
+            flash('예정된 1:1이 이미 있어 해당 면담으로 이동했습니다.', 'warning')
+            return redirect(url_for('one_on_one', mid=dup['id']))
+        mid = db.execute('INSERT INTO one_on_ones (manager_id, employee_id, scheduled_at) VALUES (?,?,?)',
+                         (mgr_id, emp_uid, when)).lastrowid
+        if topic:
+            db.execute('INSERT INTO one_on_one_topics (meeting_id, author_id, content) VALUES (?,?,?)',
+                       (mid, uid, topic))
+        db.commit()
+        add_notification(other, 'info', 'perf', '1:1 면담 예정',
+                         f"{session.get('user_name')} · {when}", url_for('one_on_one', mid=mid))
+        return redirect(url_for('one_on_one', mid=mid))
+
+    today = date.today()
+    meetings = db.execute(
+        "SELECT o.*, mu.name AS manager_name, eu.name AS employee_name, "
+        "(SELECT COUNT(*) FROM one_on_one_topics t WHERE t.meeting_id=o.id) AS topic_n, "
+        "(SELECT COUNT(*) FROM one_on_one_actions a WHERE a.meeting_id=o.id AND a.status='open') AS open_n "
+        "FROM one_on_ones o JOIN users mu ON o.manager_id=mu.id JOIN users eu ON o.employee_id=eu.id "
+        "WHERE o.manager_id=? OR o.employee_id=? "
+        "ORDER BY CASE o.status WHEN 'scheduled' THEN 0 ELSE 1 END, "
+        "CASE o.status WHEN 'scheduled' THEN o.scheduled_at END ASC, o.scheduled_at DESC LIMIT 40",
+        (uid, uid)).fetchall()
+    my_mgr = db.execute('SELECT m.id, m.name FROM users u JOIN users m ON u.manager_id=m.id WHERE u.id=?',
+                        (uid,)).fetchone()
+    team = _c2_team_rows(db, uid, role, dept_id, pc)
+
+    managers = []
+    if role == 'admin':
+        cut = (today - timedelta(days=pc['cadence'])).isoformat()
+        cut90 = (today - timedelta(days=90)).isoformat()
+        done90 = dict(db.execute("SELECT manager_id, COUNT(*) FROM one_on_ones WHERE status='done' "
+                                 "AND scheduled_at>=? GROUP BY manager_id", (cut90,)).fetchall())
+        covered = dict(db.execute(
+            "SELECT o.manager_id, COUNT(DISTINCT o.employee_id) FROM one_on_ones o "
+            "JOIN users u ON u.id=o.employee_id AND u.manager_id=o.manager_id "
+            "WHERE (o.status='done' AND o.scheduled_at>=?) OR (o.status='scheduled' AND o.scheduled_at>=?) "
+            "GROUP BY o.manager_id", (cut, today.isoformat())).fetchall())
+        last = dict(db.execute("SELECT manager_id, MAX(scheduled_at) FROM one_on_ones WHERE status='done' "
+                               "GROUP BY manager_id").fetchall())
+        open_a = dict(db.execute("SELECT o.manager_id, COUNT(*) FROM one_on_one_actions a "
+                                 "JOIN one_on_ones o ON a.meeting_id=o.id WHERE a.status='open' "
+                                 "GROUP BY o.manager_id").fetchall())
+        for m in db.execute(
+                "SELECT m.id, m.name, d.name AS dept_name, COUNT(u.id) AS reports FROM users u "
+                "JOIN users m ON u.manager_id=m.id LEFT JOIN departments d ON m.department_id=d.id "
+                "WHERE u.status='active' AND m.status='active' GROUP BY m.id "
+                "ORDER BY d.name, m.name").fetchall():
+            cov = covered.get(m['id'], 0)
+            managers.append({'id': m['id'], 'name': m['name'], 'dept_name': m['dept_name'],
+                             'reports': m['reports'], 'covered': cov, 'done90': done90.get(m['id'], 0),
+                             'last': last.get(m['id']), 'open_actions': open_a.get(m['id'], 0),
+                             'state': 'late' if cov * 2 < m['reports'] else ('done' if cov >= m['reports'] else '')})
+
+    return render_template('performance/one_on_ones.html',
+                           pc=pc, meetings=meetings, my_mgr=my_mgr, team=team, managers=managers,
+                           pre_emp=request.args.get('emp', type=int),
+                           default_when=(datetime.now() + timedelta(days=1)).strftime('%Y-%m-%dT10:00'),
+                           status_label=ONE_ON_ONE_STATUS_LABEL, active_page='one_on_ones')
+
+
+@app.route('/performance/one-on-ones/<int:mid>', methods=['GET', 'POST'])
+@login_required
+def one_on_one(mid):
+    db = get_db()
+    uid, role = session['user_id'], session.get('user_role')
+    dept_id = int(session.get('dept_id') or 0)
+    m = db.execute(
+        "SELECT o.*, mu.name AS manager_name, eu.name AS employee_name, d.name AS emp_dept, p.name AS emp_pos "
+        "FROM one_on_ones o JOIN users mu ON o.manager_id=mu.id JOIN users eu ON o.employee_id=eu.id "
+        "LEFT JOIN departments d ON eu.department_id=d.id LEFT JOIN positions p ON eu.position_id=p.id "
+        "WHERE o.id=?", (mid,)).fetchone()
+    if not m:
+        abort(404)
+    if uid not in (m['manager_id'], m['employee_id']):
+        abort(403)   # 1:1 내용은 참여자만 — HR 관리자는 목록 화면에서 진행 현황만 본다
+    is_mgr = uid == m['manager_id']
+    other_id = m['employee_id'] if is_mgr else m['manager_id']
+    pair = (m['manager_id'], m['employee_id'])
+    pc = get_perf_culture()
+
+    if request.method == 'POST':
+        a = request.form.get('action', '')
+        content = (request.form.get('content') or '').strip()
+        item_id = request.form.get('item_id', type=int)
+        go = mid
+        anchor = ''
+        if a == 'topic_add' and content:
+            db.execute('INSERT INTO one_on_one_topics (meeting_id, author_id, content) VALUES (?,?,?)',
+                       (mid, uid, content[:500]))
+            anchor = '#topics'
+        elif a == 'topic_toggle' and item_id:
+            db.execute('UPDATE one_on_one_topics SET is_done=1-is_done WHERE id=? AND meeting_id=?', (item_id, mid))
+            anchor = '#topics'
+        elif a == 'topic_del' and item_id:
+            db.execute('DELETE FROM one_on_one_topics WHERE id=? AND meeting_id=? AND author_id=?',
+                       (item_id, mid, uid))
+            anchor = '#topics'
+        elif a == 'notes':
+            db.execute('UPDATE one_on_ones SET notes=? WHERE id=?', (content[:10000], mid))
+            flash('공유 메모 저장', 'success')
+            anchor = '#notes'
+        elif a == 'private':
+            db.execute('INSERT INTO one_on_one_private_notes (meeting_id, user_id, content, updated_at) '
+                       'VALUES (?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(meeting_id, user_id) '
+                       'DO UPDATE SET content=excluded.content, updated_at=CURRENT_TIMESTAMP',
+                       (mid, uid, content[:10000]))
+            flash('비공개 메모 저장', 'success')
+            anchor = '#notes'
+        elif a == 'action_add' and content:
+            owner = request.form.get('owner_id', type=int)
+            owner = owner if owner in pair else m['employee_id']
+            due = (request.form.get('due_date') or '')[:10] or None
+            db.execute('INSERT INTO one_on_one_actions (meeting_id, content, owner_id, due_date) VALUES (?,?,?,?)',
+                       (mid, content[:500], owner, due))
+            if owner != uid:
+                add_notification(owner, 'action', 'perf', '1:1 액션 아이템',
+                                 content[:80] + (f" · 기한 {due}" if due else ''), url_for('one_on_one', mid=mid))
+            anchor = '#actions'
+        elif a == 'action_toggle' and item_id:
+            db.execute("UPDATE one_on_one_actions SET status=CASE status WHEN 'open' THEN 'done' ELSE 'open' END "
+                       "WHERE id=? AND meeting_id IN (SELECT id FROM one_on_ones WHERE manager_id=? AND employee_id=?)",
+                       (item_id,) + pair)
+            anchor = '#actions'
+        elif a == 'reschedule' and m['status'] == 'scheduled':
+            when = _parse_when(request.form.get('scheduled_at'))
+            if when:
+                db.execute('UPDATE one_on_ones SET scheduled_at=? WHERE id=?', (when, mid))
+                add_notification(other_id, 'info', 'perf', '1:1 일정 변경', f"{session.get('user_name')} · {when}",
+                                 url_for('one_on_one', mid=mid))
+        elif a == 'cancel' and m['status'] == 'scheduled':
+            db.execute("UPDATE one_on_ones SET status='cancelled' WHERE id=?", (mid,))
+            add_notification(other_id, 'info', 'perf', '1:1 면담 취소',
+                             f"{session.get('user_name')} · {m['scheduled_at']}", url_for('one_on_one', mid=mid))
+        elif a == 'complete' and m['status'] == 'scheduled':
+            db.execute("UPDATE one_on_ones SET status='done', done_at=CURRENT_TIMESTAMP WHERE id=?", (mid,))
+            nxt = _parse_when(request.form.get('next_at'))
+            if nxt:
+                go = db.execute('INSERT INTO one_on_ones (manager_id, employee_id, scheduled_at) VALUES (?,?,?)',
+                                pair + (nxt,)).lastrowid
+                add_notification(other_id, 'info', 'perf', '다음 1:1 면담 예정',
+                                 f"{session.get('user_name')} · {nxt}", url_for('one_on_one', mid=go))
+                flash(f'면담 완료 · 다음 1:1 {nxt} 예정 · 미완료 액션은 다음 면담에 이어서 표시', 'success')
+            else:
+                flash('면담 완료', 'success')
+        db.commit()
+        return redirect(url_for('one_on_one', mid=go) + anchor)
+
+    topics = db.execute("SELECT t.*, u.name AS author_name FROM one_on_one_topics t JOIN users u ON t.author_id=u.id "
+                        "WHERE t.meeting_id=? ORDER BY t.is_done, t.id", (mid,)).fetchall()
+    actions = db.execute("SELECT a.*, u.name AS owner_name FROM one_on_one_actions a "
+                         "LEFT JOIN users u ON a.owner_id=u.id WHERE a.meeting_id=? "
+                         "ORDER BY CASE a.status WHEN 'open' THEN 0 ELSE 1 END, a.id", (mid,)).fetchall()
+    carry = db.execute("SELECT a.*, u.name AS owner_name, o.scheduled_at AS meeting_at FROM one_on_one_actions a "
+                       "JOIN one_on_ones o ON a.meeting_id=o.id LEFT JOIN users u ON a.owner_id=u.id "
+                       "WHERE o.manager_id=? AND o.employee_id=? AND o.id != ? AND a.status='open' "
+                       "ORDER BY o.scheduled_at, a.id", pair + (mid,)).fetchall()
+    history = db.execute("SELECT o.id, o.scheduled_at, o.status, "
+                         "(SELECT COUNT(*) FROM one_on_one_topics t WHERE t.meeting_id=o.id) AS topic_n "
+                         "FROM one_on_ones o WHERE o.manager_id=? AND o.employee_id=? AND o.id != ? "
+                         "ORDER BY o.scheduled_at DESC LIMIT 8", pair + (mid,)).fetchall()
+    private = db.execute('SELECT content, updated_at FROM one_on_one_private_notes WHERE meeting_id=? AND user_id=?',
+                         (mid, uid)).fetchone()
+    goals = db.execute("SELECT g.id, g.title, g.progress, g.weight, c.name AS cycle_name "
+                       "FROM performance_goals g JOIN performance_cycles c ON g.cycle_id=c.id "
+                       "WHERE g.user_id=? AND c.status='active' ORDER BY g.created_at", (m['employee_id'],)).fetchall()
+    cks = _latest_checkins(db, [g['id'] for g in goals])
+    vis_sql, vis_args = _fb_visible(uid, role, dept_id, pc['public_praise'])
+    cut90 = (date.today() - timedelta(days=90)).isoformat()
+    feedback_rows = db.execute(FB_SELECT + f"WHERE f.to_id=? AND f.created_at>=? AND {vis_sql} ORDER BY f.id DESC LIMIT 6",
+                               [m['employee_id'], cut90] + vis_args).fetchall()
+    try:
+        base_dt = datetime.strptime(m['scheduled_at'][:16], '%Y-%m-%d %H:%M')
+    except ValueError:
+        base_dt = datetime.now()
+    next_default = (base_dt + timedelta(days=pc['cadence'])).strftime('%Y-%m-%dT%H:%M')
+    return render_template('performance/one_on_one.html',
+                           m=m, is_mgr=is_mgr, topics=topics, actions=actions, carry=carry, history=history,
+                           private=private, goals=goals, cks=cks, feedback_rows=feedback_rows, pc=pc,
+                           next_default=next_default, today_iso=date.today().isoformat(), when_value=m['scheduled_at'][:16].replace(' ', 'T'),
+                           status_label=ONE_ON_ONE_STATUS_LABEL, ck_label=CHECKIN_STATUS_LABEL,
+                           ck_cls=CHECKIN_STATUS_CLS, kind_label=FEEDBACK_KIND_LABEL,
+                           active_page='one_on_ones')
+
+
+@app.route('/performance/feedback')
+@login_required
+def feedback_home():
+    db = get_db()
+    uid, role = session['user_id'], session.get('user_role')
+    dept_id = int(session.get('dept_id') or 0)
+    pc = get_perf_culture()
+    reports = _c2_reports(db, uid, role, dept_id)
+    tabs = [('received', '받은 피드백'), ('sent', '보낸 피드백'), ('requests', '요청')]
+    if pc['public_praise']:
+        tabs.append(('praise', '칭찬 피드'))
+    if reports or role == 'admin':
+        tabs.append(('team', '전사' if role == 'admin' else '팀'))
+    tab = request.args.get('tab', 'received')
+    if tab not in dict(tabs):
+        tab = 'received'
+    vis_sql, vis_args = _fb_visible(uid, role, dept_id, pc['public_praise'])
+    emp_filter = request.args.get('emp', type=int)
+    filter_emp = None
+
+    rows, incoming, outgoing = [], [], []
+    if tab == 'received':
+        rows = db.execute(FB_SELECT + "WHERE f.to_id=? AND f.visibility!='manager' ORDER BY f.id DESC LIMIT 100",
+                          (uid,)).fetchall()
+    elif tab == 'sent':
+        rows = db.execute(FB_SELECT + "WHERE f.from_id=? ORDER BY f.id DESC LIMIT 100", (uid,)).fetchall()
+    elif tab == 'praise':
+        rows = db.execute(FB_SELECT + "WHERE f.visibility='public' AND f.kind='praise' ORDER BY f.id DESC LIMIT 60"
+                          ).fetchall()
+    elif tab == 'team':
+        where, args = f"f.to_id != ? AND {vis_sql}", [uid] + vis_args
+        if role != 'admin':
+            ids = [r['id'] for r in reports] or [-1]
+            where += f" AND f.to_id IN ({','.join('?' * len(ids))})"
+            args += ids
+        if emp_filter:
+            filter_emp = db.execute('SELECT id, name, manager_id, department_id FROM users WHERE id=?',
+                                    (emp_filter,)).fetchone()
+            if not filter_emp or (role != 'admin' and not _c2_is_manager_of(filter_emp, uid, role, dept_id)):
+                abort(403)
+            where += ' AND f.to_id=?'
+            args.append(emp_filter)
+        rows = db.execute(FB_SELECT + f"WHERE {where} ORDER BY f.id DESC LIMIT 150", args).fetchall()
+    else:
+        incoming = db.execute(
+            "SELECT fr.*, ru.name AS requester_name, su.name AS subject_name FROM feedback_requests fr "
+            "JOIN users ru ON fr.requester_id=ru.id JOIN users su ON fr.subject_id=su.id "
+            "WHERE fr.responder_id=? ORDER BY CASE fr.status WHEN 'pending' THEN 0 ELSE 1 END, fr.id DESC LIMIT 60",
+            (uid,)).fetchall()
+        outgoing = db.execute(
+            "SELECT fr.*, pu.name AS responder_name, su.name AS subject_name, f.content AS answer "
+            "FROM feedback_requests fr JOIN users pu ON fr.responder_id=pu.id JOIN users su ON fr.subject_id=su.id "
+            "LEFT JOIN feedback f ON fr.feedback_id=f.id "
+            "WHERE fr.requester_id=? ORDER BY fr.id DESC LIMIT 60", (uid,)).fetchall()
+
+    cut90 = (date.today() - timedelta(days=90)).isoformat()
+    sums = {
+        'received': db.execute("SELECT COUNT(*) FROM feedback WHERE to_id=? AND visibility!='manager' AND created_at>=?",
+                               (uid, cut90)).fetchone()[0],
+        'sent': db.execute('SELECT COUNT(*) FROM feedback WHERE from_id=? AND created_at>=?', (uid, cut90)).fetchone()[0],
+        'to_answer': db.execute("SELECT COUNT(*) FROM feedback_requests WHERE responder_id=? AND status='pending'",
+                                (uid,)).fetchone()[0],
+        'waiting': db.execute("SELECT COUNT(*) FROM feedback_requests WHERE requester_id=? AND status='pending'",
+                              (uid,)).fetchone()[0],
+    }
+    people = db.execute("SELECT u.id, u.name, d.name AS dept_name FROM users u "
+                        "LEFT JOIN departments d ON u.department_id=d.id "
+                        "WHERE u.status='active' AND u.id != ? AND u.role != 'guest' ORDER BY u.name", (uid,)).fetchall()
+    return render_template('performance/feedback.html',
+                           tab=tab, tabs=tabs, rows=rows, incoming=incoming, outgoing=outgoing, sums=sums,
+                           people=people, reports=reports, pc=pc, filter_emp=filter_emp,
+                           pre_to=request.args.get('to', type=int), pre_subject=request.args.get('subject', type=int),
+                           kind_label=FEEDBACK_KIND_LABEL, active_page='feedback')
+
+
+@app.route('/performance/feedback/give', methods=['POST'])
+@login_required
+def feedback_give():
+    db = get_db()
+    uid = session['user_id']
+    pc = get_perf_culture()
+    to_id = request.form.get('to_id', type=int)
+    kind = request.form.get('kind') if request.form.get('kind') in ('praise', 'suggest') else 'praise'
+    content = (request.form.get('content') or '').strip()[:2000]
+    back = _safe_next(url_for('feedback_home', tab='sent'))
+    target = db.execute("SELECT id, name FROM users WHERE id=? AND status='active'", (to_id,)).fetchone()
+    if not target or target['id'] == uid:
+        flash('받는 사람을 선택하세요.', 'error')
+        return redirect(back)
+    if len(content) < 2:
+        flash('피드백 내용을 입력하세요.', 'error')
+        return redirect(back)
+    vis = 'public' if (kind == 'praise' and pc['public_praise'] and request.form.get('public')) else 'private'
+    db.execute('INSERT INTO feedback (from_id, to_id, kind, content, visibility) VALUES (?,?,?,?,?)',
+               (uid, to_id, kind, content, vis))
+    db.commit()
+    add_notification(to_id, 'info', 'perf', f"피드백 수신 · {FEEDBACK_KIND_LABEL[kind]}",
+                     f"{session.get('user_name')} · {content[:60]}", url_for('feedback_home', tab='received'))
+    flash(f"{target['name']}에게 {FEEDBACK_KIND_LABEL[kind]} 전달" + (' · 칭찬 피드 공개' if vis == 'public' else ''),
+          'success')
+    return redirect(back)
+
+
+@app.route('/performance/feedback/request', methods=['POST'])
+@login_required
+def feedback_request_new():
+    db = get_db()
+    uid, role = session['user_id'], session.get('user_role')
+    dept_id = int(session.get('dept_id') or 0)
+    back = _safe_next(url_for('feedback_home', tab='requests'))
+    subject_id = request.form.get('subject_id', type=int) or uid
+    responder_id = request.form.get('responder_id', type=int)
+    question = (request.form.get('question') or '').strip()[:500]
+    due = (request.form.get('due_date') or '')[:10] or None
+    if subject_id != uid:
+        subj = db.execute('SELECT id, manager_id, department_id FROM users WHERE id=?', (subject_id,)).fetchone()
+        if not _c2_is_manager_of(subj, uid, role, dept_id):
+            abort(403)
+    responder = db.execute("SELECT id, name FROM users WHERE id=? AND status='active'", (responder_id,)).fetchone()
+    if not responder or responder['id'] == uid:
+        flash('의견을 줄 사람을 선택하세요.', 'error')
+        return redirect(back)
+    if len(question) < 2:
+        flash('요청 내용을 입력하세요.', 'error')
+        return redirect(back)
+    dup = db.execute("SELECT id FROM feedback_requests WHERE requester_id=? AND subject_id=? AND responder_id=? "
+                     "AND status='pending'", (uid, subject_id, responder_id)).fetchone()
+    if dup:
+        flash('같은 사람에게 보낸 응답 대기 요청이 있습니다.', 'warning')
+        return redirect(back)
+    db.execute('INSERT INTO feedback_requests (requester_id, subject_id, responder_id, question, due_date) '
+               'VALUES (?,?,?,?,?)', (uid, subject_id, responder_id, question, due))
+    db.commit()
+    subj_name = '본인' if subject_id == uid else db.execute('SELECT name FROM users WHERE id=?',
+                                                              (subject_id,)).fetchone()['name']
+    add_notification(responder_id, 'action', 'perf', '피드백 요청',
+                     f"{session.get('user_name')} · 대상 {subj_name}" + (f" · 기한 {due}" if due else ''),
+                     url_for('feedback_home', tab='requests'))
+    flash(f"{responder['name']}에게 피드백 요청", 'success')
+    return redirect(back)
+
+
+@app.route('/performance/feedback/requests/<int:rid>', methods=['POST'])
+@login_required
+def feedback_request_respond(rid):
+    db = get_db()
+    uid = session['user_id']
+    r = db.execute('SELECT * FROM feedback_requests WHERE id=?', (rid,)).fetchone()
+    if not r:
+        abort(404)
+    if r['responder_id'] != uid:
+        abort(403)
+    if r['status'] != 'pending':
+        flash('이미 처리된 요청입니다.', 'warning')
+        return redirect(url_for('feedback_home', tab='requests'))
+    if request.form.get('action') == 'decline':
+        db.execute("UPDATE feedback_requests SET status='declined' WHERE id=?", (rid,))
+        db.commit()
+        add_notification(r['requester_id'], 'info', 'perf', '피드백 요청 거절', session.get('user_name'),
+                         url_for('feedback_home', tab='requests'))
+        return redirect(url_for('feedback_home', tab='requests'))
+    content = (request.form.get('content') or '').strip()[:2000]
+    if len(content) < 2:
+        flash('응답 내용을 입력하세요.', 'error')
+        return redirect(url_for('feedback_home', tab='requests'))
+    # 본인이 요청한 피드백은 본인이 보고, 매니저가 팀원에 대해 요청한 의견은 매니저만 본다
+    vis = 'private' if r['requester_id'] == r['subject_id'] else 'manager'
+    fid = db.execute("INSERT INTO feedback (from_id, to_id, kind, content, visibility, request_id) "
+                     "VALUES (?,?,'response',?,?,?)", (uid, r['subject_id'], content, vis, rid)).lastrowid
+    db.execute("UPDATE feedback_requests SET status='done', feedback_id=? WHERE id=?", (fid, rid))
+    db.commit()
+    add_notification(r['requester_id'], 'info', 'perf', '피드백 요청 응답', f"{session.get('user_name')} · {content[:60]}",
+                     url_for('feedback_home', tab='requests'))
+    flash('응답 전달', 'success')
+    return redirect(url_for('feedback_home', tab='requests'))
+
+
 # ── Performance: Progress & Self-Review ─────────────────────
 @app.route('/performance/goals/<int:goal_id>/progress', methods=['POST'])
 @login_required
@@ -12573,7 +13167,7 @@ def performance_goal_progress(goal_id):
     db   = get_db()
     uid  = session['user_id']
     goal = db.execute(
-        'SELECT g.user_id, g.cycle_id, c.stage FROM performance_goals g '
+        'SELECT g.user_id, g.cycle_id, g.title, c.stage FROM performance_goals g '
         'JOIN performance_cycles c ON g.cycle_id=c.id WHERE g.id=?', (goal_id,)
     ).fetchone()
     if not goal:
@@ -12587,8 +13181,21 @@ def performance_goal_progress(goal_id):
         progress = max(0, min(100, int(request.form.get('progress', 0))))
     except (ValueError, TypeError):
         progress = 0
+    status = request.form.get('status', 'on_track')
+    status = status if status in CHECKIN_STATUS_LABEL else 'on_track'
+    comment = (request.form.get('comment') or '').strip()[:500] or None
     db.execute('UPDATE performance_goals SET progress=? WHERE id=?', (progress, goal_id))
+    db.execute('INSERT INTO goal_checkins (goal_id, user_id, progress, status, comment) VALUES (?,?,?,?,?)',
+               (goal_id, uid, progress, status, comment))
     db.commit()
+    if status != 'on_track':
+        mgr = db.execute('SELECT manager_id FROM users WHERE id=?', (uid,)).fetchone()
+        if mgr and mgr['manager_id']:
+            add_notification(mgr['manager_id'], 'action', 'perf',
+                             f"목표 체크인 {CHECKIN_STATUS_LABEL[status]} · {session.get('user_name')}",
+                             f"{goal['title'][:40]} · {progress}%" + (f" · {comment[:40]}" if comment else ''),
+                             url_for('performance_team_member', emp_uid=uid, cycle=goal['cycle_id']))
+    flash(f"체크인 기록 · {progress}% · {CHECKIN_STATUS_LABEL[status]}", 'success')
     return redirect(url_for('performance', cycle=goal['cycle_id']))
 
 

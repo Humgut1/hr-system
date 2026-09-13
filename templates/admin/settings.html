@@ -508,6 +508,21 @@
           {% endfor %}
         </div>
 
+        <div class="section-label" id="perf-culture" style="font-size:11px;font-weight:800;color:var(--text-muted);letter-spacing:.08em;margin:24px 0 12px;">1:1 · 피드백</div>
+        {% set oo_cad = config.get('one_on_one_cadence_days') or 14 %}
+        <div class="radio-cards">
+          {% for v, t, d in [(7,'매주','팀원별 7일 · 빠르게 움직이는 팀'),(14,'격주','팀원별 14일 · 일반 권장'),(30,'매월','팀원별 30일 · 최소 기준')] %}
+          <label class="radio-card">
+            <input type="radio" name="one_on_one_cadence_days" value="{{ v }}" {{ 'checked' if oo_cad == v else '' }}>
+            <div class="radio-card-body"><div><div class="radio-card-name">1:1 권장 주기 · {{ t }}</div><div class="radio-card-desc">{{ d }} · 넘기면 매니저 홈에 주기 초과 표시</div></div></div>
+          </label>
+          {% endfor %}
+        </div>
+        <label style="display:flex; align-items:center; gap:8px; margin-top:12px; font-size:13px; color:var(--tx-2);">
+          <input type="checkbox" name="feedback_public_praise" value="1" {{ 'checked' if config.get('feedback_public_praise', 1) else '' }}>
+          칭찬 전사 공개 허용 · 개선 제안은 항상 받는 사람·매니저만
+        </label>
+
         <div style="margin-top:24px;">
           <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 저장</button>
         </div>

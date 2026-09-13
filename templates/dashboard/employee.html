@@ -181,6 +181,26 @@
   <!-- Right -->
   <div class="stack">
 
+    {% if perf_todo %}
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">성과 할 일</span>
+        <a href="{{ url_for('one_on_ones') }}" class="btn btn-ghost btn-sm">1:1 면담</a>
+      </div>
+      <div>
+        {% for it in perf_todo %}
+        <a href="{{ it.link }}" style="display:flex; align-items:center; gap:10px; padding:11px 22px; border-bottom:1px solid var(--line); color:inherit; text-decoration:none;">
+          <i class="fa-solid {{ 'fa-user-group' if it.category == 'one_on_one' else 'fa-comment-dots' }}" style="color:var(--tx-3); width:16px;"></i>
+          <div style="min-width:0;">
+            <div class="body-sm" style="font-weight:600; color:var(--tx-1);">{{ it.title }}</div>
+            <div style="font-size:11.5px; color:var(--tx-3);">{{ it.sub }}</div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
     {% if 'my_goals' in enabled_widgets %}
     <div class="card">
       <div class="card-head">

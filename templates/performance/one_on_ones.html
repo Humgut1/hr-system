@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+{% block title %}1:1 면담{% endblock %}
+{% block page_title %}성과{% endblock %}
+
+{% block extra_css %}
+<style>
+  .wh-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
+  .wh-head h1 { font-size:18px; font-weight:650; margin:0; }
+  .wh-head .sp { margin-left:auto; }
+  .wh-sum { display:flex; flex-wrap:wrap; gap:6px 22px; font-size:12.5px; color:var(--tx-3); margin:0 0 18px; }
+  .wh-sum b { font:600 12.5px var(--mono); color:var(--tx-1); margin-left:6px; }
+  .wh-sum .wait b { color:var(--wait); }
+  .wh-sum .late b { color:var(--late); }
+  .wh-basis { font-size:12px; color:var(--tx-3); margin:0 0 18px; line-height:1.7; }
+  .oo-sec { margin:0 0 28px; }
+  .oo-new { display:grid; grid-template-columns:minmax(200px,1.4fr) minmax(170px,1fr) minmax(240px,2fr) auto; gap:10px; align-items:end; padding:14px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line-2); }
+  .oo-new label { display:block; font-size:11.5px; color:var(--tx-3); margin-bottom:5px; }
+  .oo-new input, .oo-new select { width:100%; height:30px; padding:0 8px; font-size:12.5px; background:var(--surface); color:var(--tx-1); border:1px solid var(--line); border-radius:6px; }
+  .oo-new input[type=datetime-local] { font-family:var(--mono); }
+  @media (max-width: 1000px) { .oo-new { grid-template-columns:1fr 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set role = session.get('user_role') %}
+{% set late_n = team | selectattr('state', 'equalto', 'late') | list | length %}
+{% set sched = meetings | selectattr('status', 'equalto', 'scheduled') | list %}
+<div class="wh-head">
+  <h1>1:1 면담</h1>
+  <span class="sp"></span>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('feedback_home') }}">피드백</a>
+  {% if role == 'admin' %}<a class="btn btn-ghost btn-sm" href="{{ url_for('admin_settings') }}#perf-culture">주기 설정</a>{% endif %}
+</div>
+
+<div class="wh-sum">
+  <span>권장 주기<b>{{ pc.cadence_label }} · {{ pc.cadence }}일</b></span>
+  <span>예정<b>{{ sched | length }}</b></span>
+  {% if team %}<span class="{{ 'late' if late_n }}">주기 초과 팀원<b>{{ late_n }}</b></span>{% endif %}
+  {% set open_n = meetings | sum(attribute='open_n') %}
+  <span class="{{ 'wait' if open_n }}">미완료 액션<b>{{ open_n }}</b></span>
+</div>
+
+{% if team %}
+<section class="oo-sec">
+  <div class="sec-head"><h2>팀원 1:1</h2><span class="cnt">{{ team | length }}명 · 권장 {{ pc.cadence }}일</span></div>
+  <form method="POST" action="{{ url_for('one_on_ones') }}" class="oo-new" id="new">
+    <div>
+      <label for="oo-emp">팀원</label>
+      <select id="oo-emp" name="employee_id" required>
+        {% for r in team %}
+        <option value="{{ r.id }}" {{ 'selected' if pre_emp == r.id }}>{{ r.name }}{{ ' · ' ~ r.pos_name if r.pos_name }}{{ ' · 주기 초과' if r.state == 'late' }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="oo-when">일시</label>
+      <input id="oo-when" type="datetime-local" name="scheduled_at" value="{{ default_when }}" required>
+    </div>
+    <div>
+      <label for="oo-topic">첫 안건 (선택)</label>
+      <input id="oo-topic" name="topic" maxlength="500" placeholder="예) 상반기 목표 진행 점검">
+    </div>
+    <div><button type="submit" class="btn btn-primary btn-sm">일정 잡기</button></div>
+  </form>
+  <div style="overflow-x:auto; margin-top:10px;">
+  <table class="ltable">
+    <thead>
+      <tr><th>팀원</th><th>마지막 1:1</th><th class="r">경과</th><th>다음 예정</th><th class="r">미완료 액션</th><th class="r">피드백 90일</th><th class="r">주의·위험 목표</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for r in team %}
+      <tr>
+        <td>{{ r.name }} <small class="t3">{{ r.dept_name or '' }}{{ ' · ' ~ r.pos_name if r.pos_name }}</small></td>
+        <td class="m">{{ r.last[:10] if r.last else '-' }}</td>
+        <td class="m r {{ r.state if r.state == 'late' }}">{% if r.days is not none %}{{ r.days }}일{% else %}기록 없음{% endif %}</td>
+        <td class="m {{ 'wait' if r.state == 'wait' }}">{{ r.next.scheduled_at if r.next else '-' }}</td>
+        <td class="m r {{ 'wait' if r.open_actions }}">{{ r.open_actions }}</td>
+        <td class="m r">{{ r.fb_n }}</td>
+        <td class="m r {{ 'late' if r.risk_n }}">{{ r.risk_n }}</td>
+        <td class="r">
+          {% if r.next %}<a class="btn btn-ghost btn-sm" href="{{ url_for('one_on_one', mid=r.next.id) }}">열기</a>
+          {% else %}<a class="btn btn-ghost btn-sm" href="{{ url_for('one_on_ones', emp=r.id) }}#new">일정 잡기</a>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+{% if my_mgr %}
+<section class="oo-sec">
+  <div class="sec-head"><h2>매니저와 1:1</h2><span class="cnt">{{ my_mgr.name }}</span></div>
+  <form method="POST" action="{{ url_for('one_on_ones') }}" class="oo-new">
+    <div>
+      <label>매니저</label>
+      <input value="{{ my_mgr.name }}" disabled>
+    </div>
+    <div>
+      <label for="oo-when2">희망 일시</label>
+      <input id="oo-when2" type="datetime-local" name="scheduled_at" value="{{ default_when }}" required>
+    </div>
+    <div>
+      <label for="oo-topic2">이야기할 안건</label>
+      <input id="oo-topic2" name="topic" maxlength="500" placeholder="예) 커리어 방향 상담">
+    </div>
+    <div><button type="submit" class="btn btn-primary btn-sm">1:1 요청</button></div>
+  </form>
+</section>
+{% endif %}
+
+<section class="oo-sec">
+  <div class="sec-head"><h2>내 면담</h2><span class="cnt">{{ meetings | length }}</span></div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>일시</th><th>상대</th><th>역할</th><th>상태</th><th class="r">안건</th><th class="r">미완료 액션</th><th></th></tr></thead>
+    <tbody>
+      {% for m in meetings %}
+      {% set mine_mgr = m.manager_id == session.get('user_id') %}
+      <tr class="{{ 'dim' if m.status != 'scheduled' }}">
+        <td class="m">{{ m.scheduled_at }}</td>
+        <td>{{ m.employee_name if mine_mgr else m.manager_name }}</td>
+        <td class="t2">{{ '매니저' if mine_mgr else '팀원' }}</td>
+        <td class="{{ 'wait' if m.status == 'scheduled' else 'done' if m.status == 'done' }}">{{ status_label[m.status] }}</td>
+        <td class="m r">{{ m.topic_n }}</td>
+        <td class="m r {{ 'wait' if m.open_n }}">{{ m.open_n }}</td>
+        <td class="r"><a class="btn btn-ghost btn-sm" href="{{ url_for('one_on_one', mid=m.id) }}">열기</a></td>
+      </tr>
+      {% else %}
+      <tr class="empty"><td colspan="7">면담 기록 없음{% if team %} · 위에서 팀원 일정 잡기{% elif my_mgr %} · 매니저에게 1:1 요청{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{% if role == 'admin' %}
+<section class="oo-sec">
+  <div class="sec-head"><h2>매니저별 현황</h2><span class="cnt">{{ managers | length }}명</span></div>
+  <div class="wh-basis">1:1 내용(안건·메모·액션)은 참여자만 열람 · HR은 진행 현황만 · 주기 내 = 최근 {{ pc.cadence }}일 완료 또는 예정 잡힌 팀원</div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>매니저</th><th>부서</th><th class="r">팀원</th><th class="r">주기 내</th><th class="r">완료 90일</th><th>마지막 1:1</th><th class="r">미완료 액션</th></tr></thead>
+    <tbody>
+      {% for m in managers %}
+      <tr>
+        <td>{{ m.name }}</td>
+        <td class="t2">{{ m.dept_name or '-' }}</td>
+        <td class="m r">{{ m.reports }}</td>
+        <td class="m r {{ m.state }}">{{ m.covered }} / {{ m.reports }}</td>
+        <td class="m r">{{ m.done90 }}</td>
+        <td class="m">{{ m.last[:10] if m.last else '-' }}</td>
+        <td class="m r">{{ m.open_actions }}</td>
+      </tr>
+      {% else %}
+      <tr class="empty"><td colspan="7">보고 라인(매니저) 지정된 직원 없음</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
