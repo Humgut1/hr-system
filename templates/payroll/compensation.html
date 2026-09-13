@@ -180,6 +180,7 @@
           <i class="fas fa-chevron-right" style="font-size:9px; color:var(--tx-3);"></i>
           <span class="pay-step {{ 'done' if pay_step == 3 else '' }}">③ 확정·발송</span>
         </div>
+        <a href="{{ url_for('payroll_withholding', py=sel_year, pm=sel_month) }}" class="btn btn-ghost btn-sm" style="font-size:11.5px;">공제 기준 대조</a>
 
         {% if pay_dday is not none and pay_step != 3 %}
         <span style="margin-left:auto; font-size:11.5px; font-weight:800; white-space:nowrap;
@@ -254,6 +255,12 @@
             <input type="hidden" name="year" value="{{ sel_year }}">
             <input type="hidden" name="month" value="{{ sel_month }}">
             <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-check"></i> 검토 완료 → 확정·발송</button>
+          </form>
+          <form method="POST" action="{{ url_for('payroll_withholding') }}">
+            <input type="hidden" name="action" value="recalc">
+            <input type="hidden" name="year" value="{{ sel_year }}">
+            <input type="hidden" name="month" value="{{ sel_month }}">
+            <button type="submit" class="btn btn-ghost btn-sm">초안 재계산</button>
           </form>
           <form method="POST" action="{{ url_for('payroll_discard_drafts') }}"
                 onsubmit="return confirm('{{ sel_year }}년 {{ sel_month }}월 초안을 폐기할까요?\n급여 항목 수정 후 다시 생성할 때 사용하세요.')">

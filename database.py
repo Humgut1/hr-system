@@ -1833,9 +1833,14 @@ def init_db(db_path: str = None):
             ('total_personal_deduction', '0'),
             ('num_dependents',           '0'),
             ('child_tax_credit_amount',  '0'),
+            ('withholding_rate',         '100'),
         ]:
             if col not in payslip_cols2:
                 c.execute(f'ALTER TABLE payslips ADD COLUMN {col} INTEGER NOT NULL DEFAULT {dflt}')
+
+        # 원천징수 비율 (간이세액표 80/100/120%, 직원 선택)
+        if 'withholding_rate' not in {r[1] for r in c.execute('PRAGMA table_info(users)').fetchall()}:
+            c.execute('ALTER TABLE users ADD COLUMN withholding_rate INTEGER NOT NULL DEFAULT 100')
 
         # employee_dependents 테이블
         c.execute('''

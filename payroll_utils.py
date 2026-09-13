@@ -12,9 +12,10 @@
   - 소득세법 §50       : 기본공제 (본인 + 부양가족 1인당 150만원)
   - 소득세법 §51       : 추가공제 (경로우대 100만원, 장애인 200만원, 한부모 100만원, 부녀자 50만원)
   - 소득세법 §59의2    : 자녀세액공제 (만 8세 이상 자녀, 출산·입양공제)
-  - 국민연금법         : 근로자 부담 4.5%
-  - 국민건강보험법     : 근로자 부담 3.545%
-  - 노인장기요양보험법 : 건강보험료의 12.95% (2026년)
+  - 소득세법 시행령 별표2 : 근로소득 간이세액표 (2026.2.27 개정) — 월 원천징수
+  - 국민연금법         : 근로자 부담 4.75% (2026년, 기준소득월액 상·하한)
+  - 국민건강보험법     : 근로자 부담 3.595% (2026년)
+  - 노인장기요양보험법 : 건강보험료의 13.14% (2026년)
   - 고용보험법         : 근로자 부담 0.9% (실업급여)
 """
 
@@ -403,6 +404,137 @@ def _calc_annual_tax(taxable_base: int) -> int:
         return int(taxable_base * 0.42) - 35_940_000
 
 
+# ── 2026 4대보험 요율 (근로자 부담분) ─────────────────────────
+# 적용 시작일 기준 내림차순 탐색. 국민연금 기준소득월액 상·하한은 매년 7월 변경.
+INSURANCE_RATES = [
+    {'from': date(2026, 7, 1), 'pension': 0.0475, 'pension_min': 410_000, 'pension_max': 6_590_000,
+     'health': 0.03595, 'ltc_ratio': 0.1314, 'employment': 0.009},
+    {'from': date(2026, 1, 1), 'pension': 0.0475, 'pension_min': 400_000, 'pension_max': 6_370_000,
+     'health': 0.03595, 'ltc_ratio': 0.1314, 'employment': 0.009},
+    {'from': date(2025, 1, 1), 'pension': 0.045, 'pension_min': 390_000, 'pension_max': 6_170_000,
+     'health': 0.03545, 'ltc_ratio': 0.1295, 'employment': 0.009},
+]
+WITHHOLDING_RATES = (80, 100, 120)   # 원천징수 비율 (소득세법 시행령 §194 ①)
+
+
+def get_insurance_rates(pay_date=None) -> dict:
+    """급여 귀속일 기준 적용 요율. pay_date: date | (year, month) | None(오늘)."""
+    if pay_date is None:
+        pay_date = date.today()
+    elif isinstance(pay_date, tuple):
+        pay_date = date(int(pay_date[0]), int(pay_date[1]), 1)
+    for r in INSURANCE_RATES:
+        if pay_date >= r['from']:
+            return r
+    return INSURANCE_RATES[-1]
+
+
+def _trunc10(x) -> int:
+    """원 단위 미만·10원 미만 절사"""
+    return int(round(x, 4)) // 10 * 10
+
+
+_WH_TABLE = None
+
+
+def _withholding_table():
+    global _WH_TABLE
+    if _WH_TABLE is None:
+        import json, os
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'withholding_2026.json')
+        with open(path, encoding='utf-8') as f:
+            _WH_TABLE = json.load(f)
+    return _WH_TABLE
+
+
+# 월급여 10,000천원 행 (별표2 본표 마지막 줄)
+_WH_TEN = [1_507_400, 1_431_570, 1_200_840, 1_170_840, 1_140_840, 1_110_840,
+           1_080_840, 1_050_840, 1_020_840, 990_840, 960_840]
+
+
+def _table_tax(monthly: int, family: int) -> int:
+    """간이세액표 본표 세액 (자녀 차감 전). family 1~11."""
+    k = monthly // 1000
+    if k < 770:
+        return 0
+    col = family - 1
+    if monthly < 10_000_000:
+        import bisect
+        rows = _withholding_table()
+        i = bisect.bisect_right([r[0] for r in rows], k) - 1
+        return rows[i][2 + col]
+    base = _WH_TEN[col]
+    if monthly == 10_000_000:
+        return base
+    m = monthly
+    if m <= 14_000_000:
+        add = (m - 10_000_000) * 0.98 * 0.35 + 25_000
+    elif m <= 28_000_000:
+        add = 1_397_000 + (m - 14_000_000) * 0.98 * 0.38
+    elif m <= 30_000_000:
+        add = 6_610_600 + (m - 28_000_000) * 0.98 * 0.40
+    elif m <= 45_000_000:
+        add = 7_394_600 + (m - 30_000_000) * 0.40
+    elif m <= 87_000_000:
+        add = 13_394_600 + (m - 45_000_000) * 0.42
+    else:
+        add = 31_034_600 + (m - 87_000_000) * 0.45
+    return int(base + add)
+
+
+def child_withholding_credit(children_8_20: int) -> int:
+    """간이세액표 8세 이상 20세 이하 자녀 차감액 (월)"""
+    n = max(0, int(children_8_20 or 0))
+    if n == 0:
+        return 0
+    if n == 1:
+        return 20_830
+    return 45_830 + 33_330 * (n - 2)
+
+
+def calc_simple_withholding(monthly_taxable: int, family_count: int = 1,
+                            children_8_20: int = 0, rate_pct: int = 100) -> dict:
+    """
+    근로소득 간이세액표(2026) 기준 월 원천징수 소득세·지방소득세.
+
+    monthly_taxable : 월급여액 (비과세·학자금 제외)
+    family_count    : 공제대상가족 수 (본인 포함, 기본공제 대상자)
+    children_8_20   : 공제대상가족 중 8세 이상 20세 이하 자녀 수
+    rate_pct        : 원천징수 비율 80 / 100 / 120
+    """
+    fam = max(1, int(family_count or 1))
+    if fam <= 11:
+        table = _table_tax(monthly_taxable, fam)
+    else:
+        t10, t11 = _table_tax(monthly_taxable, 10), _table_tax(monthly_taxable, 11)
+        table = max(0, t11 - (t10 - t11) * (fam - 11))
+    child = child_withholding_credit(children_8_20)
+    rate = rate_pct if rate_pct in WITHHOLDING_RATES else 100
+    income_tax = _trunc10(max(0, table - child) * rate / 100)
+    return {
+        'table_tax':        table,
+        'child_credit':     min(child, table),
+        'rate_pct':         rate,
+        'income_tax':       income_tax,
+        'local_income_tax': _trunc10(income_tax * 0.1),
+    }
+
+
+def calc_insurance(monthly_taxable: int, pay_date=None) -> dict:
+    """4대보험 근로자 부담분 (10원 미만 절사)"""
+    r = get_insurance_rates(pay_date)
+    pension_base = min(max(monthly_taxable, r['pension_min']), r['pension_max']) // 1000 * 1000
+    health = _trunc10(monthly_taxable * r['health'])
+    return {
+        'national_pension':     _trunc10(pension_base * r['pension']),
+        'health_insurance':     health,
+        'long_term_care':       _trunc10(health * r['ltc_ratio']),
+        'employment_insurance': _trunc10(monthly_taxable * r['employment']),
+        'pension_base':         pension_base,
+        'rates':                r,
+    }
+
+
 # ── 4대보험 + 소득세 계산 ─────────────────────────────────
 def calc_payslip(
     base_salary: int,
@@ -412,6 +544,8 @@ def calc_payslip(
     extra_benefits: list = None,
     dependents: list = None,
     is_female: bool = False,
+    rate_pct: int = 100,
+    pay_date=None,
 ) -> dict:
     """
     월 급여에서 공제액을 계산해 명세서 dict 반환.
@@ -421,20 +555,19 @@ def calc_payslip(
       - 교통비          : 20만원/월
       - extra_benefits  : BENEFIT_CATALOG 기준 각 항목별 비과세 한도 자동 적용
 
-    4대보험 근로자 부담률 (2026년):
-      - 국민연금        : 4.5 %
-      - 건강보험        : 3.545 %
-      - 장기요양보험    : 건강보험료 × 12.95 %
-      - 고용보험        : 0.9 %
+    4대보험 근로자 부담률: INSURANCE_RATES (pay_date 기준, 2026년 4.75 / 3.595 / 13.14 / 0.9 %)
 
-    소득세: §47 근로소득공제 → §50/§51 인적공제 → §55 누진세율 → §59의2 자녀세액공제
-    지방소득세: 소득세 × 10 %
+    소득세: 근로소득 간이세액표(별표2, 2026.2.27) — 공제대상가족 수·8~20세 자녀 수·원천징수 비율
+    지방소득세: 소득세 × 10 % (10원 미만 절사)
+    annual_gross·income_deduction·earned_income·total_personal_deduction 은 연말정산 참고용 연환산값.
 
     Args:
         extra_benefits: [{'key': str, 'name': str, 'amount': int,
                           'tax_exempt': bool, 'monthly_limit': int|None}]
         dependents    : employee_dependents 쿼리 결과 (list of Row/dict)
         is_female     : 부녀자공제 판정용
+        rate_pct      : 원천징수 비율 80 / 100 / 120 (직원 선택)
+        pay_date      : 급여 귀속 date 또는 (year, month) — 요율 적용 시점
     """
     # ── 비과세 처리 (식대·교통비)
     TAX_FREE_MEAL      = 200_000
@@ -445,6 +578,8 @@ def calc_payslip(
 
     # ── extra_benefits 처리
     extra_benefits = extra_benefits or []
+    if isinstance(extra_benefits, dict):
+        extra_benefits = [{'key': k, 'amount': v} for k, v in extra_benefits.items()]
     benefits_gross     = 0
     benefits_nontax    = 0
     benefits_breakdown = []
@@ -485,25 +620,25 @@ def calc_payslip(
     )
     annual_gross = taxable_monthly * 12
 
-    # ── 4대보험
-    national_pension     = round(taxable_monthly * 0.045)
-    health_insurance     = round(taxable_monthly * 0.03545)
-    long_term_care       = round(health_insurance * 0.1295)
-    employment_insurance = round(taxable_monthly * 0.009)
+    # ── 4대보험 (귀속월 요율, 10원 미만 절사)
+    ins = calc_insurance(taxable_monthly, pay_date)
+    national_pension     = ins['national_pension']
+    health_insurance     = ins['health_insurance']
+    long_term_care       = ins['long_term_care']
+    employment_insurance = ins['employment_insurance']
 
-    # ── 소득세 (§47 → §50/§51 → §55 → §59의2)
+    # ── 연환산 참고값 (연말정산 추정용)
     income_deduction     = calc_earned_income_deduction(annual_gross)
     earned_income        = annual_gross - income_deduction  # 근로소득금액
-
     dep_result           = calc_personal_deductions(dependents, is_female, annual_gross)
     total_personal_ded   = dep_result['total_personal_deduction']
-    child_tax_credit     = dep_result['child_tax_credit'] + dep_result['birth_credit']
 
-    taxable_base = max(0, earned_income - total_personal_ded)
-    annual_tax   = max(0, _calc_annual_tax(taxable_base) - child_tax_credit)
-
-    income_tax       = max(0, round(annual_tax / 12))
-    local_income_tax = round(income_tax * 0.10)
+    # ── 소득세: 간이세액표
+    wh = calc_simple_withholding(taxable_monthly, dep_result['num_dependents'],
+                                 dep_result['children_tax_credit_count'], rate_pct)
+    income_tax       = wh['income_tax']
+    local_income_tax = wh['local_income_tax']
+    child_tax_credit = wh['child_credit']
 
     # ── 집계
     gross_pay = (
@@ -543,6 +678,11 @@ def calc_payslip(
         'total_deduction':          total_deduction,
         'gross_pay':                gross_pay,
         'net_pay':                  net_pay,
+        'withholding_rate':         wh['rate_pct'],
+        'family_count':             dep_result['num_dependents'],
+        'children_8_20':            dep_result['children_tax_credit_count'],
+        'table_tax':                wh['table_tax'],
+        'pension_base':             ins['pension_base'],
     }
 
 

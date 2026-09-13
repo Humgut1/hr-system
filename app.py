@@ -21,7 +21,9 @@ from payroll_utils import (calc_payslip, calc_annual_leave, compute_leave_balanc
                            WEEKLY_TOTAL_MAX, WEEKLY_WARNING,
                            BENEFIT_CATALOG, BENEFIT_CATEGORY_LABELS, PAYMENT_TYPE_LABELS,
                            calc_prorated_salary, calc_unused_leave_pay,
-                           calc_separation_settlement)
+                           calc_separation_settlement, calc_insurance,
+                           calc_simple_withholding, calc_personal_deductions,
+                           WITHHOLDING_RATES)
 from master_db import (
     init_master_db, migrate_subscriptions, get_master_db, get_tenant_db_path,
     get_tenant_by_email, get_tenant, create_tenant,
@@ -6483,6 +6485,108 @@ def payroll_detail(year, month):
                            year=year, month=month, fmt_krw=fmt_krw,
                            active_page='payroll')
 
+# ── 급여 계산 단일 경로 (미리보기·정산 보드·관리자 급여 공통) ──
+def _payroll_month_ctx(db, year, month):
+    import calendar as cal_mod
+    first_day = f"{year}-{month:02d}-01"
+    last_day  = f"{year}-{month:02d}-{cal_mod.monthrange(year, month)[1]}"
+    return {
+        'year': year, 'month': month, 'first_day': first_day, 'last_day': last_day,
+        'holidays': {h['date'] for h in db.execute(
+            'SELECT date FROM public_holidays WHERE date BETWEEN ? AND ?', (first_day, last_day)).fetchall()},
+        'benefits': {r['key']: dict(r) for r in db.execute(
+            "SELECT * FROM benefit_configs WHERE enabled=1 AND payment_type='monthly_fixed'").fetchall()},
+    }
+
+
+def compute_payslip_for(db, e, ctx):
+    """직원 1명의 월 급여 계산. e: id, base_salary, meal_allowance, transport_allowance."""
+    uid, base = e['id'], e['base_salary'] or 0
+    checkins = db.execute('SELECT * FROM checkins WHERE user_id=? AND date BETWEEN ? AND ?',
+                          (uid, ctx['first_day'], ctx['last_day'])).fetchall()
+    total_ot_pay = 0
+    for c in checkins:
+        is_h = c['date'] in ctx['holidays']
+        total_ot_pay += calc_extra_pay(
+            c['overtime_min'] or 0, c['night_min'] or 0, base, is_holiday=is_h,
+            holiday_regular_min=(c['regular_min'] or 0) if is_h else 0)['total_extra_pay']
+    # 승인된 OT 신청 (체크인 없는 날만)
+    checkin_dates = {c['date'] for c in checkins}
+    for ot in db.execute("SELECT ot_minutes, date FROM overtime_requests "
+                         "WHERE user_id=? AND status='approved' AND date BETWEEN ? AND ?",
+                         (uid, ctx['first_day'], ctx['last_day'])).fetchall():
+        if ot['date'] not in checkin_dates:
+            total_ot_pay += calc_extra_pay(ot['ot_minutes'] or 0, 0, base,
+                                           is_holiday=(ot['date'] in ctx['holidays']))['total_extra_pay']
+
+    overrides = {r['benefit_key']: dict(r) for r in db.execute(
+        'SELECT * FROM employee_benefit_overrides WHERE user_id=?', (uid,)).fetchall()}
+    extra_benefits = []
+    for key, cfg in ctx['benefits'].items():
+        meta, ov = BENEFIT_CATALOG.get(key, {}), overrides.get(key)
+        if ov and not ov['enabled']:
+            continue
+        amount = ov['amount'] if ov else cfg['amount']
+        if not amount and cfg.get('pct'):
+            amount = int(base * cfg['pct'] / 100)
+        if amount and amount > 0:
+            extra_benefits.append({'key': key, 'name': meta.get('name', key), 'amount': amount,
+                                   'tax_exempt': meta.get('tax_exempt', False),
+                                   'monthly_limit': meta.get('monthly_limit')})
+
+    info = db.execute('SELECT gender, withholding_rate FROM users WHERE id=?', (uid,)).fetchone()
+    dependents = db.execute('SELECT * FROM employee_dependents WHERE user_id=?', (uid,)).fetchall()
+    return calc_payslip(
+        base, e['meal_allowance'] or 0, e['transport_allowance'] or 0,
+        overtime_pay=total_ot_pay, extra_benefits=extra_benefits, dependents=dependents,
+        is_female=bool(info and info['gender'] == 'F'),
+        rate_pct=(info['withholding_rate'] if info and info['withholding_rate'] else 100),
+        pay_date=(ctx['year'], ctx['month']),
+    )
+
+
+_PAYSLIP_CALC_COLS = ('base_salary', 'meal_allowance', 'transport_allowance', 'overtime_pay',
+                      'national_pension', 'health_insurance', 'long_term_care', 'employment_insurance',
+                      'income_tax', 'local_income_tax', 'gross_pay', 'total_deduction', 'net_pay',
+                      'income_deduction', 'earned_income', 'total_personal_deduction',
+                      'num_dependents', 'child_tax_credit_amount', 'withholding_rate')
+
+
+def _payslip_values(result):
+    import json as _json
+    vals = {k: result[k] for k in _PAYSLIP_CALC_COLS}
+    vals['bonus_pay'] = result.get('benefits_gross', 0)
+    vals['benefits_json'] = _json.dumps(result.get('benefits_breakdown', []), ensure_ascii=False)
+    return vals
+
+
+def insert_draft_payslip(db, uid, year, month, result):
+    vals = _payslip_values(result)
+    cols = ', '.join(vals)
+    db.execute(f"INSERT INTO payslips (user_id, year, month, {cols}, status) "
+               f"VALUES (?,?,?,{','.join('?' * len(vals))},'draft')",
+               (uid, year, month, *vals.values()))
+
+
+def recalc_draft_payslips(db, year, month):
+    """해당 월 초안을 현재 급여·부양가족·원천징수 비율·2026 기준으로 다시 계산. 변경 건수 반환."""
+    ctx = _payroll_month_ctx(db, year, month)
+    drafts = db.execute(
+        "SELECT p.id, p.user_id, p.net_pay, p.total_deduction, s.base_salary, s.meal_allowance, "
+        "s.transport_allowance FROM payslips p JOIN employee_salary s ON s.user_id=p.user_id "
+        "WHERE p.year=? AND p.month=? AND p.status='draft'", (year, month)).fetchall()
+    changed = 0
+    for d in drafts:
+        e = {'id': d['user_id'], 'base_salary': d['base_salary'],
+             'meal_allowance': d['meal_allowance'], 'transport_allowance': d['transport_allowance']}
+        vals = _payslip_values(compute_payslip_for(db, e, ctx))
+        if vals['net_pay'] != d['net_pay'] or vals['total_deduction'] != d['total_deduction']:
+            changed += 1
+        db.execute(f"UPDATE payslips SET {', '.join(k + '=?' for k in vals)} WHERE id=?",
+                   (*vals.values(), d['id']))
+    return len(drafts), changed
+
+
 # ── 급여 2단계 확정 (P0-2: 자동계산 초안 → 담당자 확정 → 공개·발송) ──
 @app.route('/payroll/confirm', methods=['POST'])
 @admin_required
@@ -6561,16 +6665,7 @@ def payroll_preview():
     if not (1 <= month <= 12):
         return {'error': '올바른 월을 입력해주세요.'}, 400
 
-    first_day = f"{year}-{month:02d}-01"
-    last_day  = f"{year}-{month:02d}-{cal_mod.monthrange(year, month)[1]}"
-
-    holiday_rows   = db.execute('SELECT date FROM public_holidays WHERE date BETWEEN ? AND ?', (first_day, last_day)).fetchall()
-    month_holidays = {h['date'] for h in holiday_rows}
-
-    benefit_cfg_rows = db.execute(
-        "SELECT * FROM benefit_configs WHERE enabled=1 AND payment_type='monthly_fixed'"
-    ).fetchall()
-    company_benefits = {r['key']: dict(r) for r in benefit_cfg_rows}
+    ctx = _payroll_month_ctx(db, year, month)
 
     emps = db.execute(
         "SELECT u.id, u.name, d.name AS dept_name, p.name AS pos_name, "
@@ -6599,44 +6694,7 @@ def payroll_preview():
             })
             continue
 
-        checkins = db.execute(
-            'SELECT * FROM checkins WHERE user_id=? AND date BETWEEN ? AND ?',
-            (e['id'], first_day, last_day)
-        ).fetchall()
-        total_ot_pay = 0
-        for c in checkins:
-            is_h = c['date'] in month_holidays
-            res  = calc_extra_pay(
-                c['overtime_min'], c['night_min'], e['base_salary'],
-                is_holiday=is_h,
-                holiday_regular_min=c['regular_min'] if is_h else 0
-            )
-            total_ot_pay += res['total_extra_pay']
-
-        emp_overrides = {
-            r['benefit_key']: dict(r)
-            for r in db.execute('SELECT * FROM employee_benefit_overrides WHERE user_id=?', (e['id'],)).fetchall()
-        }
-        extra_benefits = []
-        for key, cfg in company_benefits.items():
-            meta     = BENEFIT_CATALOG.get(key, {})
-            override = emp_overrides.get(key)
-            if override and not override['enabled']:
-                continue
-            amount = override['amount'] if override else cfg['amount']
-            if not amount and cfg.get('pct'):
-                amount = int(e['base_salary'] * cfg['pct'] / 100)
-            if amount > 0:
-                extra_benefits.append({
-                    'key': key, 'name': meta.get('name', key),
-                    'amount': amount, 'tax_exempt': meta.get('tax_exempt', False),
-                    'monthly_limit': meta.get('monthly_limit'),
-                })
-
-        result = calc_payslip(
-            e['base_salary'], e['meal_allowance'], e['transport_allowance'],
-            overtime_pay=total_ot_pay, extra_benefits=extra_benefits,
-        )
+        result = compute_payslip_for(db, e, ctx)
         rows.append({
             'name': e['name'], 'dept': e['dept_name'] or '—',
             'base': result['base_salary'],
@@ -6780,6 +6838,93 @@ def payroll_bulk_raise():
                            active_page='admin_payroll')
 
 
+# ── 공제 기준 대조 (2026 간이세액표·4대보험 요율 vs 저장된 명세) ──
+def _stored_taxable_monthly(p):
+    import json as _json
+    taxable = (p['base_salary'] or 0) + (p['overtime_pay'] or 0) \
+        + max(0, (p['meal_allowance'] or 0) - 200_000) + max(0, (p['transport_allowance'] or 0) - 200_000)
+    try:
+        taxable += sum(int(x.get('taxable_part', 0)) for x in _json.loads(p['benefits_json'] or '[]'))
+    except (ValueError, TypeError, AttributeError):
+        pass
+    return taxable
+
+
+@app.route('/payroll/withholding', methods=['GET', 'POST'])
+@admin_required
+def payroll_withholding():
+    db = get_db()
+    if request.method == 'POST':
+        action = request.form.get('action')
+        year, month = request.form.get('year', type=int), request.form.get('month', type=int)
+        if action == 'set_rate':
+            uid, rate = request.form.get('user_id', type=int), request.form.get('rate', type=int)
+            if uid and rate in WITHHOLDING_RATES:
+                db.execute('UPDATE users SET withholding_rate=? WHERE id=?', (rate, uid))
+                db.commit()
+                log_audit('update', 'salary', uid, f'원천징수 비율 {rate}%')
+                flash(f'원천징수 비율 {rate}% 저장 · 초안은 [초안 재계산] 시 반영', 'success')
+        elif action == 'recalc' and year and month:
+            total, changed = recalc_draft_payslips(db, year, month)
+            db.commit()
+            if total:
+                log_audit('update', 'salary', None, f'{year}년 {month}월 급여 초안 {total}건 재계산 (변경 {changed}건)')
+                flash(f'{year}년 {month}월 초안 {total}건 재계산 · 금액 변경 {changed}건', 'success')
+            else:
+                flash(f'{year}년 {month}월 초안 없음 · 확정된 명세는 재계산 대상이 아닙니다', 'warning')
+        return redirect(url_for('payroll_withholding', py=year, pm=month, only=request.form.get('only') or None))
+
+    months = db.execute('SELECT DISTINCT year, month FROM payslips ORDER BY year DESC, month DESC LIMIT 12').fetchall()
+    sel_year, sel_month = request.args.get('py', type=int), request.args.get('pm', type=int)
+    if not (sel_year and sel_month) and months:
+        sel_year, sel_month = months[0]['year'], months[0]['month']
+    only_diff = request.args.get('only') == 'diff'
+
+    emps = db.execute(
+        "SELECT u.id, u.name, u.gender, COALESCE(u.withholding_rate, 100) AS rate, d.name AS dept_name, "
+        "p.id AS pid, p.status, p.base_salary, p.meal_allowance, p.transport_allowance, p.overtime_pay, "
+        "p.benefits_json, p.national_pension, p.health_insurance, p.long_term_care, p.employment_insurance, "
+        "p.income_tax, p.local_income_tax, p.total_deduction "
+        "FROM users u LEFT JOIN departments d ON u.department_id=d.id "
+        "LEFT JOIN payslips p ON p.user_id=u.id AND p.year=? AND p.month=? "
+        "WHERE u.status='active' AND u.role NOT IN ('admin','guest') ORDER BY d.name, u.name",
+        (sel_year or 0, sel_month or 0)).fetchall()
+    deps = {}
+    for r in db.execute('SELECT * FROM employee_dependents').fetchall():
+        deps.setdefault(r['user_id'], []).append(r)
+
+    rows, stats = [], {'total': 0, 'with_slip': 0, 'diff': 0, 'diff_sum': 0, 'drafts': 0}
+    for e in emps:
+        stats['total'] += 1
+        pd = calc_personal_deductions(deps.get(e['id'], []), e['gender'] == 'F')
+        row = {'id': e['id'], 'name': e['name'], 'dept': e['dept_name'] or '부서 미지정', 'rate': e['rate'],
+               'family': pd['num_dependents'], 'kids': pd['children_tax_credit_count'],
+               'status': e['status'], 'has_slip': e['pid'] is not None}
+        if e['pid'] is not None:
+            stats['with_slip'] += 1
+            stats['drafts'] += e['status'] == 'draft'
+            taxable = _stored_taxable_monthly(e)
+            ins = calc_insurance(taxable, (sel_year, sel_month))
+            wh = calc_simple_withholding(taxable, pd['num_dependents'], pd['children_tax_credit_count'], e['rate'])
+            new_ins = ins['national_pension'] + ins['health_insurance'] + ins['long_term_care'] + ins['employment_insurance']
+            old_ins = (e['national_pension'] or 0) + (e['health_insurance'] or 0) + (e['long_term_care'] or 0) + (e['employment_insurance'] or 0)
+            old_tax = (e['income_tax'] or 0) + (e['local_income_tax'] or 0)
+            new_tax = wh['income_tax'] + wh['local_income_tax']
+            row.update(taxable=taxable, old_ins=old_ins, new_ins=new_ins, old_tax=old_tax, new_tax=new_tax,
+                       diff=(new_ins + new_tax) - (old_ins + old_tax))
+            if row['diff']:
+                stats['diff'] += 1
+                stats['diff_sum'] += row['diff']
+        if only_diff and not (row['has_slip'] and row['diff']):
+            continue
+        rows.append(row)
+    rows.sort(key=lambda r: (not (r['has_slip'] and r['diff']), -abs(r.get('diff', 0))))
+
+    return render_template('payroll/withholding.html', rows=rows, stats=stats, months=months,
+                           sel_year=sel_year, sel_month=sel_month, only_diff=only_diff,
+                           rates=WITHHOLDING_RATES, ins_rates=calc_insurance(0, (sel_year or 2026, sel_month or 1))['rates'])
+
+
 # ── v0.73: 보상 관리 통합 허브 ───────────────────────────────────────────────
 @app.route('/compensation', methods=['GET', 'POST'])
 @admin_required
@@ -6833,14 +6978,7 @@ def compensation():
                 flash('올바른 월을 입력해주세요.', 'danger')
                 return redirect(url_for('compensation', tab='ops'))
             else:
-                first_day = f"{year}-{month:02d}-01"
-                last_day  = f"{year}-{month:02d}-{cal_mod.monthrange(year, month)[1]}"
-                holiday_dates = {h['date'] for h in db.execute(
-                    'SELECT date FROM public_holidays WHERE date BETWEEN ? AND ?', (first_day, last_day)
-                ).fetchall()}
-                benefit_cfgs = {r['key']: dict(r) for r in db.execute(
-                    "SELECT * FROM benefit_configs WHERE enabled=1 AND payment_type='monthly_fixed'"
-                ).fetchall()}
+                ctx = _payroll_month_ctx(db, year, month)
                 emps_sal = db.execute(
                     "SELECT u.id, s.base_salary, s.meal_allowance, s.transport_allowance "
                     "FROM users u JOIN employee_salary s ON u.id=s.user_id WHERE u.status='active'"
@@ -6850,58 +6988,7 @@ def compensation():
                     if db.execute('SELECT 1 FROM payslips WHERE user_id=? AND year=? AND month=?',
                                   (e['id'], year, month)).fetchone():
                         continue
-                    checkins = db.execute(
-                        'SELECT * FROM checkins WHERE user_id=? AND date BETWEEN ? AND ?',
-                        (e['id'], first_day, last_day)
-                    ).fetchall()
-                    # 기존 버그 수정: calc_extra_pay 인자 순서 오류 + dict 합산 크래시
-                    # (근태 기록이 있는 달에 급여 생성 시 500 — admin_payroll 경로와 동일 패턴으로 통일)
-                    total_ot_pay = 0
-                    for c in checkins:
-                        is_h = c['date'] in holiday_dates
-                        res  = calc_extra_pay(
-                            c['overtime_min'] or 0, c['night_min'] or 0, e['base_salary'],
-                            is_holiday=is_h,
-                            holiday_regular_min=(c['regular_min'] or 0) if is_h else 0
-                        )
-                        total_ot_pay += res['total_extra_pay']
-                    extra_benefits = {}
-                    for key, bcfg in benefit_cfgs.items():
-                        extra_benefits[key] = (bcfg['amount'] if bcfg['amount_type'] == 'fixed'
-                                               else int(e['base_salary'] * bcfg['amount'] / 100))
-                    emp_d     = db.execute('SELECT birth_date, gender FROM users WHERE id=?', (e['id'],)).fetchone()
-                    is_female = (emp_d['gender'] == 'F') if emp_d and emp_d['gender'] else False
-                    dependents = db.execute(
-                        'SELECT * FROM employee_dependents WHERE user_id=?', (e['id'],)
-                    ).fetchall()
-                    result = calc_payslip(
-                        base_salary=e['base_salary'], meal_allowance=e['meal_allowance'],
-                        transport_allowance=e['transport_allowance'],
-                        overtime_pay=total_ot_pay,
-                        extra_benefits=extra_benefits, dependents=dependents, is_female=is_female
-                    )
-                    bonus_pay = result.get('benefits_gross', 0)
-                    db.execute(
-                        'INSERT INTO payslips '
-                        '(user_id, year, month, base_salary, meal_allowance, transport_allowance, '
-                        'overtime_pay, bonus_pay, national_pension, health_insurance, long_term_care, '
-                        'employment_insurance, income_tax, local_income_tax, '
-                        'gross_pay, total_deduction, net_pay, benefits_json, '
-                        'income_deduction, earned_income, total_personal_deduction, '
-                        'num_dependents, child_tax_credit_amount, status) '
-                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'draft')",
-                        (e['id'], year, month,
-                         result['base_salary'], result['meal_allowance'], result['transport_allowance'],
-                         result['overtime_pay'], bonus_pay,
-                         result['national_pension'], result['health_insurance'],
-                         result['long_term_care'], result['employment_insurance'],
-                         result['income_tax'], result['local_income_tax'],
-                         result['gross_pay'], result['total_deduction'], result['net_pay'],
-                         _json.dumps(result.get('benefits_breakdown', []), ensure_ascii=False),
-                         result['income_deduction'], result['earned_income'],
-                         result['total_personal_deduction'], result['num_dependents'],
-                         result['child_tax_credit_amount'])
-                    )
+                    insert_draft_payslip(db, e['id'], year, month, compute_payslip_for(db, e, ctx))
                     # P0-2: 초안 단계 — 직원 공개·알림·이메일은 '확정' 시점에 일괄 실행
                     count += 1
                 db.commit()
@@ -7721,18 +7808,7 @@ def admin_payroll():
             if not (1 <= month <= 12):
                 error = '올바른 월을 입력해주세요.'
             else:
-                first_day = f"{year}-{month:02d}-01"
-                last_day  = f"{year}-{month:02d}-{cal_mod.monthrange(year, month)[1]}"
-
-                # 해당 월의 공휴일 목록
-                holiday_rows   = db.execute('SELECT date FROM public_holidays WHERE date BETWEEN ? AND ?', (first_day, last_day)).fetchall()
-                month_holidays = {h['date'] for h in holiday_rows}
-
-                # 월 급여 반영 항목만 로드 (payment_type='monthly_fixed')
-                benefit_cfg_rows = db.execute(
-                    "SELECT * FROM benefit_configs WHERE enabled=1 AND payment_type='monthly_fixed'"
-                ).fetchall()
-                company_benefits = {r['key']: dict(r) for r in benefit_cfg_rows}
+                ctx = _payroll_month_ctx(db, year, month)
 
                 emps = db.execute(
                     "SELECT u.id, s.base_salary, s.meal_allowance, s.transport_allowance "
@@ -7746,106 +7822,7 @@ def admin_payroll():
                     if db.execute('SELECT 1 FROM payslips WHERE user_id=? AND year=? AND month=?', (e['id'], year, month)).fetchone():
                         continue
 
-                    # 근태 수당 계산 (체크인 기반)
-                    checkins = db.execute(
-                        'SELECT * FROM checkins WHERE user_id=? AND date BETWEEN ? AND ?',
-                        (e['id'], first_day, last_day)
-                    ).fetchall()
-                    total_ot_pay = 0
-                    for c in checkins:
-                        is_h = c['date'] in month_holidays
-                        res = calc_extra_pay(
-                            c['overtime_min'], c['night_min'], e['base_salary'],
-                            is_holiday=is_h,
-                            holiday_regular_min=c['regular_min'] if is_h else 0
-                        )
-                        total_ot_pay += res['total_extra_pay']
-
-                    # 승인된 OT 신청 추가 반영 (체크인이 없는 날의 OT 포함)
-                    ot_rows = db.execute(
-                        "SELECT ot_minutes, date FROM overtime_requests "
-                        "WHERE user_id=? AND status='approved' AND date BETWEEN ? AND ?",
-                        (e['id'], first_day, last_day)
-                    ).fetchall()
-                    # 이미 checkin에 반영된 날짜 제외 (중복 방지)
-                    checkin_dates = {c['date'] for c in checkins}
-                    for ot in ot_rows:
-                        if ot['date'] not in checkin_dates:
-                            ot_res = calc_extra_pay(
-                                ot['ot_minutes'], 0, e['base_salary'],
-                                is_holiday=(ot['date'] in month_holidays)
-                            )
-                            total_ot_pay += ot_res['total_extra_pay']
-
-                    # 복리후생 항목 구성 (직원별 오버라이드 우선)
-                    emp_overrides = {
-                        r['benefit_key']: dict(r)
-                        for r in db.execute(
-                            'SELECT * FROM employee_benefit_overrides WHERE user_id=?',
-                            (e['id'],)
-                        ).fetchall()
-                    }
-                    extra_benefits = []
-                    for key, cfg in company_benefits.items():
-                        meta = BENEFIT_CATALOG.get(key, {})
-                        # 직원 오버라이드 확인
-                        override = emp_overrides.get(key)
-                        if override and not override['enabled']:
-                            continue   # 이 직원은 해당 항목 제외
-                        amount = override['amount'] if override else cfg['amount']
-                        # pct 기반 계산 (명절상여, 성과급)
-                        if not amount and cfg.get('pct'):
-                            amount = int(e['base_salary'] * cfg['pct'] / 100)
-                        if amount > 0:
-                            extra_benefits.append({
-                                'key':           key,
-                                'name':          meta.get('name', key),
-                                'amount':        amount,
-                                'tax_exempt':    meta.get('tax_exempt', False),
-                                'monthly_limit': meta.get('monthly_limit'),
-                            })
-
-                    # 부양가족 조회 (소득세 정확 계산용)
-                    dependents = db.execute(
-                        'SELECT * FROM employee_dependents WHERE user_id=?', (e['id'],)
-                    ).fetchall()
-                    emp_info = db.execute(
-                        'SELECT gender, marital_status FROM users WHERE id=?', (e['id'],)
-                    ).fetchone()
-                    is_female = emp_info and emp_info['gender'] == 'F'
-
-                    result = calc_payslip(
-                        e['base_salary'],
-                        e['meal_allowance'],
-                        e['transport_allowance'],
-                        overtime_pay=total_ot_pay,
-                        extra_benefits=extra_benefits,
-                        dependents=dependents,
-                        is_female=is_female,
-                    )
-                    bonus_pay = result.get('benefits_gross', 0)
-
-                    db.execute(
-                        'INSERT INTO payslips '
-                        '(user_id, year, month, base_salary, meal_allowance, transport_allowance, '
-                        'overtime_pay, bonus_pay, national_pension, health_insurance, long_term_care, '
-                        'employment_insurance, income_tax, local_income_tax, '
-                        'gross_pay, total_deduction, net_pay, benefits_json, '
-                        'income_deduction, earned_income, total_personal_deduction, '
-                        'num_dependents, child_tax_credit_amount, status) '
-                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'draft')",
-                        (e['id'], year, month,
-                         result['base_salary'], result['meal_allowance'],
-                         result['transport_allowance'], result['overtime_pay'], bonus_pay,
-                         result['national_pension'], result['health_insurance'],
-                         result['long_term_care'], result['employment_insurance'],
-                         result['income_tax'], result['local_income_tax'],
-                         result['gross_pay'], result['total_deduction'], result['net_pay'],
-                         _json.dumps(result.get('benefits_breakdown', []), ensure_ascii=False),
-                         result['income_deduction'], result['earned_income'],
-                         result['total_personal_deduction'], result['num_dependents'],
-                         result['child_tax_credit_amount'])
-                    )
+                    insert_draft_payslip(db, e['id'], year, month, compute_payslip_for(db, e, ctx))
                     # P0-2: 초안 단계 — 알림·Slack·이메일은 '확정' 시점에 일괄 실행
                     count += 1
                 db.commit()

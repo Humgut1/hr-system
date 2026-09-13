@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% block title %}공제 기준 대조{% endblock %}
+{% block page_title %}보상{% endblock %}
+
+{% block extra_css %}
+<style>
+  .wh-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
+  .wh-head h1 { font-size:18px; font-weight:650; margin:0; }
+  .wh-head .sp { margin-left:auto; }
+  .wh-sum { display:flex; flex-wrap:wrap; gap:6px 22px; font-size:12.5px; color:var(--tx-3); margin:0 0 18px; }
+  .wh-sum b { font:600 12.5px var(--mono); color:var(--tx-1); margin-left:6px; }
+  .wh-sum .wait b { color:var(--wait); }
+  .wh-basis { font-size:12px; color:var(--tx-3); margin:0 0 18px; line-height:1.7; }
+  .wh-basis span { font-family:var(--mono); color:var(--tx-2); }
+  .ltable td.wait { color:var(--wait); }
+  .ltable td.done { color:var(--done); }
+  .ltable td.t3 { color:var(--tx-3); }
+  .ltable select { height:26px; font:500 12px var(--mono); padding:0 4px; background:var(--field, var(--surface)); color:var(--tx-1); border:1px solid var(--line); border-radius:4px; }
+  .wh-ctl { display:flex; gap:8px; align-items:center; }
+  .wh-ctl select { height:30px; padding:0 8px; font-size:12.5px; background:var(--surface); color:var(--tx-1); border:1px solid var(--line); border-radius:6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wh-head">
+  <h1>공제 기준 대조</h1>
+  <form method="GET" class="wh-ctl">
+    <select name="ym" onchange="var v=this.value.split('-'); location.href='?py='+v[0]+'&pm='+v[1]{% if only_diff %}+'&only=diff'{% endif %};">
+      {% for m in months %}
+      <option value="{{ m.year }}-{{ m.month }}" {{ 'selected' if m.year == sel_year and m.month == sel_month }}>{{ m.year }}년 {{ m.month }}월</option>
+      {% else %}
+      <option>명세 없음</option>
+      {% endfor %}
+    </select>
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('payroll_withholding', py=sel_year, pm=sel_month, only=None if only_diff else 'diff') }}">{{ '전체 보기' if only_diff else '차이 있는 직원만' }}</a>
+  </form>
+  <span class="sp"></span>
+  {% if stats.drafts %}
+  <form method="POST" onsubmit="return confirm('{{ sel_year }}년 {{ sel_month }}월 초안 {{ stats.drafts }}건을 현재 급여·부양가족·원천징수 비율·2026 기준으로 다시 계산합니다.')">
+    <input type="hidden" name="action" value="recalc">
+    <input type="hidden" name="year" value="{{ sel_year }}">
+    <input type="hidden" name="month" value="{{ sel_month }}">
+    <input type="hidden" name="only" value="{{ 'diff' if only_diff }}">
+    <button type="submit" class="btn btn-primary btn-sm">초안 {{ stats.drafts }}건 재계산</button>
+  </form>
+  {% endif %}
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('compensation', tab='ops', py=sel_year, pm=sel_month) }}">급여 운영</a>
+</div>
+
+<div class="wh-sum">
+  <span>재직<b>{{ stats.total }}</b></span>
+  <span>{{ sel_month or '-' }}월 명세<b>{{ stats.with_slip }}</b></span>
+  <span>초안<b>{{ stats.drafts }}</b></span>
+  <span class="{% if stats.diff %}wait{% endif %}">기준 차이<b>{{ stats.diff }}</b></span>
+  <span>월 공제 차이 합계<b>{{ '{:+,}'.format(stats.diff_sum) }}</b></span>
+</div>
+
+<div class="wh-basis">
+  소득세 — 근로소득 간이세액표 <span>소득세법 시행령 별표2 (2026.2.27)</span> · 공제대상가족 수(본인 포함) · 8세 이상 20세 이하 자녀 차감 · 원천징수 비율 80/100/120% · 지방소득세 10%<br>
+  4대보험 근로자 — 국민연금 <span>{{ '%.2f'|format(ins_rates.pension * 100) }}%</span> (기준소득월액 <span>{{ '{:,}'.format(ins_rates.pension_min) }}~{{ '{:,}'.format(ins_rates.pension_max) }}</span>) · 건강 <span>{{ '%.3f'|format(ins_rates.health * 100) }}%</span> · 장기요양 <span>건강보험료 × {{ '%.2f'|format(ins_rates.ltc_ratio * 100) }}%</span> · 고용 <span>{{ '%.1f'|format(ins_rates.employment * 100) }}%</span> · 10원 미만 절사
+</div>
+
+<div style="overflow-x:auto;">
+<table class="ltable">
+  <thead>
+    <tr>
+      <th>직원</th><th>부서</th><th class="r">과세 월급여</th><th class="r">공제대상가족</th><th class="r">8~20세 자녀</th>
+      <th>원천징수 비율</th><th>명세 상태</th>
+      <th class="r">4대보험 저장</th><th class="r">4대보험 기준</th>
+      <th class="r">소득세·지방세 저장</th><th class="r">소득세·지방세 기준</th><th class="r">차이</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><a href="{{ url_for('employee_detail', emp_id=r.id) }}">{{ r.name }}</a></td>
+      <td class="t3">{{ r.dept }}</td>
+      {% if r.has_slip %}<td class="m r">{{ '{:,}'.format(r.taxable) }}</td>{% else %}<td class="m r t3">-</td>{% endif %}
+      <td class="m r">{{ r.family }}</td>
+      <td class="m r">{{ r.kids }}</td>
+      <td>
+        <form method="POST" style="margin:0;">
+          <input type="hidden" name="action" value="set_rate">
+          <input type="hidden" name="user_id" value="{{ r.id }}">
+          <input type="hidden" name="year" value="{{ sel_year }}">
+          <input type="hidden" name="month" value="{{ sel_month }}">
+          <input type="hidden" name="only" value="{{ 'diff' if only_diff }}">
+          <select name="rate" onchange="this.form.submit()" aria-label="{{ r.name }} 원천징수 비율">
+            {% for v in rates %}<option value="{{ v }}" {{ 'selected' if v == r.rate }}>{{ v }}%</option>{% endfor %}
+          </select>
+        </form>
+      </td>
+      {% if r.has_slip %}
+      <td class="{{ 't3' if r.status == 'draft' else '' }}">{{ '초안' if r.status == 'draft' else '확정' }}</td>
+      <td class="m r">{{ '{:,}'.format(r.old_ins) }}</td>
+      <td class="m r">{{ '{:,}'.format(r.new_ins) }}</td>
+      <td class="m r">{{ '{:,}'.format(r.old_tax) }}</td>
+      <td class="m r">{{ '{:,}'.format(r.new_tax) }}</td>
+      <td class="m r {{ 'wait' if r.diff else 'done' }}">{{ '{:+,}'.format(r.diff) if r.diff else '일치' }}</td>
+      {% else %}
+      <td class="t3">명세 없음</td><td class="m r t3">-</td><td class="m r t3">-</td><td class="m r t3">-</td><td class="m r t3">-</td><td class="m r t3">-</td>
+      {% endif %}
+    </tr>
+    {% else %}
+    <tr class="empty"><td colspan="12">{{ '기준과 차이 나는 명세 없음' if only_diff else '대상 없음' }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
