@@ -5,14 +5,14 @@
 {% block content %}
 
 {% set status_colors = {
-  'draft':        ('#f1f5f9','#475569'),
-  'pending_dept': ('#fef9c3','#854d0e'),
-  'pending_hr':   ('#fef9c3','#854d0e'),
-  'approved':     ('#dcfce7','#166534'),
-  'rejected':     ('#fee2e2','#991b1b'),
-  'posted':       ('#ede9fe','#5b21b6'),
+  'draft':        ('var(--surface-2)','var(--tx-2)'),
+  'pending_dept': ('var(--orange-bg)','var(--wait)'),
+  'pending_hr':   ('var(--orange-bg)','var(--wait)'),
+  'approved':     ('var(--green-bg)','var(--done)'),
+  'rejected':     ('var(--red-bg)','var(--late)'),
+  'posted':       ('var(--surface-2)','var(--tx-1)'),
 } %}
-{% set sc = status_colors.get(req.status, ('#f1f5f9','#475569')) %}
+{% set sc = status_colors.get(req.status, ('var(--surface-2)','var(--tx-2)')) %}
 
 <div style="max-width:800px;">
 
@@ -235,14 +235,14 @@
         <span style="font-size:12px; color:var(--tx-3);">충원 완료</span>
         {% if fill.reserved %}<span style="font-size:12px; color:var(--orange);">· 입사 예정 {{ fill.reserved }}명</span>{% endif %}
         {% if fill.done %}
-        <span style="font-size:11px; font-weight:700; padding:3px 8px; border-radius:99px; background:var(--green-bg,#e7f6ec); color:var(--green,#0a9459);">모두 채워졌습니다</span>
+        <span style="font-size:11px; font-weight:700; padding:3px 8px; border-radius:99px; background:var(--green-bg,var(--green-bg)); color:var(--green,var(--done));">모두 채워졌습니다</span>
         {% else %}
         <span style="font-size:12px; color:var(--tx-2);">· 남은 자리 {{ fill.left }}개</span>
         {% endif %}
       </div>
-      <div style="height:6px; border-radius:99px; background:var(--surface-2,#eee); overflow:hidden; display:flex;">
-        <div style="width:{{ (fill.filled * 100 // fill.total) if fill.total else 0 }}%; background:var(--green,#0a9459);"></div>
-        <div style="width:{{ (fill.reserved * 100 // fill.total) if fill.total else 0 }}%; background:var(--orange,#b5730b);"></div>
+      <div style="height:6px; border-radius:99px; background:var(--surface-2,var(--surface-3)); overflow:hidden; display:flex;">
+        <div style="width:{{ (fill.filled * 100 // fill.total) if fill.total else 0 }}%; background:var(--green,var(--done));"></div>
+        <div style="width:{{ (fill.reserved * 100 // fill.total) if fill.total else 0 }}%; background:var(--orange,var(--wait));"></div>
       </div>
     </div>
     <div class="card-body" style="padding:12px 0 0;">

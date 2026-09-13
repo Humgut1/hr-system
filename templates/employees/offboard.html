@@ -15,9 +15,9 @@
   }
   .ob-avatar {
     width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
-    background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+    background: linear-gradient(135deg, var(--primary), var(--primary));
     display: flex; align-items: center; justify-content: center;
-    color: #fff; font-size: 18px; font-weight: 800;
+    color: var(--on-primary); font-size: 18px; font-weight: 800;
   }
   .ob-name { font-size: 16px; font-weight: 800; color: var(--text); }
   .ob-sub  { font-size: 13px; color: var(--text-muted); margin-top: 3px; }
@@ -38,19 +38,19 @@
     background: var(--border); color: var(--text-muted);
     transition: background .2s, color .2s;
   }
-  .step-circle.done  { background: #22c55e; color: #fff; }
-  .step-circle.active { background: #1e3a8a; color: #fff; }
+  .step-circle.done  { background: var(--done); color: var(--on-primary); }
+  .step-circle.active { background: var(--primary); color: var(--on-primary); }
   .step-label {
     font-size: 11.5px; font-weight: 600;
     color: var(--text-muted); text-align: center; line-height: 1.3;
   }
-  .step-label.active { color: #1e3a8a; }
+  .step-label.active { color: var(--tx-1); }
   .step-line {
     flex: 1; height: 2px; background: var(--border);
     margin: 0 4px; margin-bottom: 18px;
     transition: background .2s;
   }
-  .step-line.done { background: #22c55e; }
+  .step-line.done { background: var(--done); }
 
   /* ── 카드 섹션 ──────────────────────────────── */
   .ob-card {
@@ -58,7 +58,7 @@
     border-radius: var(--r-lg); overflow: hidden; margin-bottom: 20px;
   }
   .ob-card-head {
-    padding: 14px 20px; background: #1e3a8a; color: #fff;
+    padding: 14px 20px; background: var(--primary); color: var(--on-primary);
     font-size: 13px; font-weight: 700;
     display: flex; align-items: center; gap: 8px;
   }
@@ -74,9 +74,9 @@
     padding: 12px 10px; cursor: pointer; text-align: center;
     transition: border-color .15s, background .15s;
   }
-  .type-card:hover { border-color: #93c5fd; background: #f0f9ff; }
+  .type-card:hover { border-color: var(--line); background: var(--surface-2); }
   .type-card input[type=radio] { display: none; }
-  .type-card.selected { border-color: #1e3a8a; background: #eff6ff; }
+  .type-card.selected { border-color: var(--line-strong); background: var(--surface-2); }
   .type-card .type-label {
     font-size: 13px; font-weight: 700; color: var(--text);
     display: block; margin-top: 4px;
@@ -93,14 +93,14 @@
   .sev-row .val { font-weight: 700; color: var(--text); }
   .sev-total {
     margin-top: 12px; padding: 14px 16px;
-    background: #eff6ff; border-radius: var(--r);
+    background: var(--surface-2); border-radius: var(--r);
     display: flex; justify-content: space-between; align-items: center;
   }
-  .sev-total .lbl { font-size: 14px; font-weight: 800; color: #1e3a8a; }
-  .sev-total .val { font-size: 22px; font-weight: 900; color: #1e3a8a; }
+  .sev-total .lbl { font-size: 14px; font-weight: 800; color: var(--tx-1); }
+  .sev-total .val { font-size: 22px; font-weight: 900; color: var(--tx-1); }
   .ineligible-note {
-    padding: 16px 18px; background: #fff7ed; border: 1px solid #fed7aa;
-    border-radius: var(--r); color: #c2410c;
+    padding: 16px 18px; background: var(--orange-bg); border: 1px solid var(--line);
+    border-radius: var(--r); color: var(--wait);
     font-size: 14px; font-weight: 700;
     display: flex; align-items: center; gap: 10px;
   }
@@ -115,7 +115,7 @@
   .checklist li:last-child { border-bottom: none; }
   .checklist li input[type=checkbox] {
     width: 18px; height: 18px; margin-top: 1px; flex-shrink: 0;
-    accent-color: #1e3a8a; cursor: pointer;
+    accent-color: var(--tx-1); cursor: pointer;
   }
   .checklist li label {
     cursor: pointer; font-weight: 600; color: var(--text); line-height: 1.4;

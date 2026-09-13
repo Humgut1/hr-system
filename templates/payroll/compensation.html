@@ -71,10 +71,10 @@
 .pay-steps { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .pay-step {
   font-size:11px; font-weight:800; padding:4px 12px; border-radius:20px;
-  background:var(--surface-3, #f0f1f6); color:var(--tx-3); white-space:nowrap;
+  background:var(--surface-3, var(--surface-2)); color:var(--tx-3); white-space:nowrap;
 }
 .pay-step.done { background:var(--green-bg); color:var(--green); }
-.pay-step.cur  { background:var(--primary); color:#fff; }
+.pay-step.cur  { background:var(--primary); color:var(--on-primary); }
 .pay-chip {
   font-size:12px; font-weight:700; padding:6px 13px; border-radius:10px;
   background:var(--surface); border:1px solid var(--line); color:var(--tx-2);
@@ -314,7 +314,7 @@
         </span>
         <span style="font-size:12px; color:var(--tx-3);">실수령 합계 {{ '{:,}'.format(sel_confirmed_net) }}원 · 직원 공개 + 명세서 이메일 발송 완료</span>
         <a href="{{ url_for('export_payroll', year=sel_year, month=sel_month) }}" class="btn btn-ghost btn-sm" style="margin-left:auto;">
-          <i class="fas fa-file-excel" style="color:#217346;"></i> 급여대장 Excel
+          <i class="fas fa-file-excel" style="color:var(--done);"></i> 급여대장 Excel
         </a>
       </div>
       {% endif %}
@@ -326,11 +326,11 @@
   {% set other_drafts = draft_months | rejectattr('year', 'equalto', sel_year) | list
                         + draft_months | selectattr('year', 'equalto', sel_year) | rejectattr('month', 'equalto', sel_month) | list %}
   {% if other_drafts %}
-  <div style="background:var(--orange-bg); border:1px solid #f59e0b; border-radius:10px; padding:10px 16px;
-              margin-bottom:16px; font-size:12.5px; color:#92400e;">
+  <div style="background:var(--orange-bg); border:1px solid var(--wait); border-radius:10px; padding:10px 16px;
+              margin-bottom:16px; font-size:12.5px; color:var(--wait);">
     <i class="fas fa-file-invoice-dollar"></i> 다른 달에 확정 대기 초안이 있습니다:
     {% for dm in other_drafts %}
-    <a href="?tab=ops&py={{ dm.year }}&pm={{ dm.month }}" style="color:#92400e; font-weight:800;">{{ dm.year }}년 {{ dm.month }}월 ({{ dm.cnt }}건)</a>{{ ' · ' if not loop.last }}
+    <a href="?tab=ops&py={{ dm.year }}&pm={{ dm.month }}" style="color:var(--wait); font-weight:800;">{{ dm.year }}년 {{ dm.month }}월 ({{ dm.cnt }}건)</a>{{ ' · ' if not loop.last }}
     {% endfor %}
   </div>
   {% endif %}
@@ -350,7 +350,7 @@
         </select>
         <span id="salaryFilterCount" style="font-size:11.5px; color:var(--tx-3);"></span>
         <a href="{{ url_for('export_employees') }}" class="btn btn-ghost btn-sm">
-          <i class="fas fa-file-excel" style="color:#217346;"></i> Excel
+          <i class="fas fa-file-excel" style="color:var(--done);"></i> Excel
         </a>
       </span>
     </div>
@@ -514,14 +514,14 @@
   <div style="display:flex; align-items:center; gap:0; margin-bottom:22px;">
     <div style="display:flex; align-items:center; gap:8px;">
       <div style="width:24px; height:24px; border-radius:50%; background:var(--green); display:flex; align-items:center; justify-content:center;">
-        <i class="fas fa-check" style="font-size:11px; color:#fff;"></i>
+        <i class="fas fa-check" style="font-size:11px; color:var(--on-primary);"></i>
       </div>
       <span style="font-size:13px; color:var(--tx-3);">성과 등급 확정</span>
     </div>
     <div style="flex:1; height:1px; background:var(--line); margin:0 14px; max-width:60px;"></div>
     <div style="display:flex; align-items:center; gap:8px;">
       <div style="width:24px; height:24px; border-radius:50%; background:var(--primary); display:flex; align-items:center; justify-content:center;">
-        <span style="font-size:11px; color:#fff; font-weight:700;">2</span>
+        <span style="font-size:11px; color:var(--on-primary); font-weight:700;">2</span>
       </div>
       <span style="font-size:13px; font-weight:700; color:var(--tx-1);">인상안 검토 · 확정</span>
     </div>
@@ -620,13 +620,13 @@
             <td style="padding:10px 12px; font-weight:700; color:var(--tx-1);">
               {{ r.name }}
               {% if r.is_key_talent %}
-              <span title="핵심인재 — 후계자 계획에 등록됨" style="display:inline-block; margin-left:5px; font-size:10px; font-weight:700; color:#fff; background:var(--orange); padding:1px 6px; border-radius:10px; vertical-align:middle;">⭐ 핵심</span>
+              <span title="핵심인재 — 후계자 계획에 등록됨" style="display:inline-block; margin-left:5px; font-size:10px; font-weight:700; color:var(--on-primary); background:var(--orange); padding:1px 6px; border-radius:10px; vertical-align:middle;">⭐ 핵심</span>
               {% endif %}
               {% if r.downgrade_reason %}
-              <span title="캘리브레이션 하향 조정됨: {{ r.downgrade_reason }}" style="display:inline-block; margin-left:4px; font-size:10px; font-weight:700; color:#fff; background:var(--red); padding:1px 6px; border-radius:10px; vertical-align:middle; cursor:help;">⚠ 조정</span>
+              <span title="캘리브레이션 하향 조정됨: {{ r.downgrade_reason }}" style="display:inline-block; margin-left:4px; font-size:10px; font-weight:700; color:var(--on-primary); background:var(--red); padding:1px 6px; border-radius:10px; vertical-align:middle; cursor:help;">⚠ 조정</span>
               {% endif %}
               {% if r.flight_risk %}
-              <span title="Flight Risk: {{ r.flight_risk_reasons | join(', ') }}" style="display:inline-block; margin-left:4px; font-size:10px; font-weight:700; color:#fff; background:#7c3aed; padding:1px 6px; border-radius:10px; vertical-align:middle; cursor:help;">✈ 이탈위험</span>
+              <span title="Flight Risk: {{ r.flight_risk_reasons | join(', ') }}" style="display:inline-block; margin-left:4px; font-size:10px; font-weight:700; color:var(--on-primary); background:var(--primary); padding:1px 6px; border-radius:10px; vertical-align:middle; cursor:help;">✈ 이탈위험</span>
               {% endif %}
             </td>
             <td style="padding:10px 12px; font-size:12px; color:var(--tx-3);">{{ r.dept_name or '—' }}</td>
@@ -656,7 +656,7 @@
             <td style="padding:10px 12px; text-align:center;">
               {% if r.perf_grade %}
               <span style="font-size:12px; font-weight:700; color:var(--purple);
-                           background:var(--purple-bg, #f0eeff); padding:2px 7px; border-radius:4px;">
+                           background:var(--purple-bg, var(--surface-2)); padding:2px 7px; border-radius:4px;">
                 +{{ '%.1f'|format(r.suggested_pct) }}%
               </span>
               {% else %}
@@ -840,7 +840,7 @@
             <div style="font-size:20px; font-weight:900; color:var(--info);">{{ '{:,.0f}'.format(avg_base_salary / 10000) }}만</div>
             <div style="font-size:11px; color:var(--info); font-weight:700;">평균 기본급</div>
           </div>
-          <div style="text-align:center; padding:14px; background:var(--primary-bg, #eef2ff); border-radius:var(--r);">
+          <div style="text-align:center; padding:14px; background:var(--primary-bg, var(--surface-2)); border-radius:var(--r);">
             <div style="font-size:20px; font-weight:900; color:var(--primary);">{{ active_count }}명</div>
             <div style="font-size:11px; color:var(--primary); font-weight:700;">재직 인원</div>
           </div>
@@ -860,7 +860,7 @@
         {% for dname, cost in top_depts[:8] %}
         <div style="display:flex; align-items:center; gap:10px; padding:5px 0;">
           <span style="width:110px; font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ dname }}</span>
-          <span style="flex:1; height:8px; background:var(--surface-3, #f0f1f6); border-radius:99px; overflow:hidden;">
+          <span style="flex:1; height:8px; background:var(--surface-3, var(--surface-2)); border-radius:99px; overflow:hidden;">
             <span style="display:block; height:100%; width:{{ (cost / max_cost * 100)|int if max_cost else 0 }}%; background:var(--green); border-radius:99px;"></span>
           </span>
           <span style="font-size:11.5px; color:var(--tx-3); font-variant-numeric:tabular-nums; white-space:nowrap;">{{ '{:,.0f}'.format(cost / 10000) }}만</span>

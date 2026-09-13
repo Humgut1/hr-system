@@ -50,7 +50,7 @@
 .pc:hover { border-color: var(--primary); }
 .pc:active { transform: scale(.97); }
 .pc.p-sel { border: 2px solid var(--primary); }
-.pc.p-foc { border: 2px solid var(--primary); background: #eff6ff; }
+.pc.p-foc { border: 2px solid var(--primary); background: var(--surface-2); }
 
 .pc-tip {
   position: absolute; bottom: -22px; left: 50%;
@@ -64,14 +64,14 @@
 .p-av {
   width: 40px; height: 40px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px; font-weight: 700; color: #fff; flex-shrink: 0;
+  font-size: 16px; font-weight: 700; color: var(--on-primary); flex-shrink: 0;
 }
 .p-nm { font-size: 12px; font-weight: 700; color: var(--tx-1); line-height: 1.3; }
 .p-tl { font-size: 11px; color: var(--tx-3); line-height: 1.3; }
 .p-ct { font-size: 10px; color: var(--tx-3); display: flex; align-items: center; gap: 2px; margin-top: 2px; }
 .p-me {
   position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
-  background: var(--primary); color: #fff;
+  background: var(--primary); color: var(--on-primary);
   font-size: 9px; padding: 1px 8px; border-radius: 20px; white-space: nowrap;
 }
 
@@ -115,7 +115,7 @@
 }
 .pa-btn:hover { background: var(--bg); }
 .pa-btn.primary {
-  background: var(--primary); border-color: var(--primary); color: #fff;
+  background: var(--primary); border-color: var(--primary); color: var(--on-primary);
 }
 .pa-btn.primary:hover { opacity: .88; }
 </style>

@@ -7,27 +7,27 @@
 .dept-section { margin-bottom: 20px; }
 .dept-header {
   display: flex; align-items: center; gap: 10px;
-  padding: 10px 14px; background: #f8fafc;
+  padding: 10px 14px; background: var(--surface-2);
   border-radius: 8px 8px 0 0; border: 1px solid var(--border);
   border-bottom: none; cursor: pointer;
   font-weight: 800; font-size: 13px;
 }
-.dept-header:hover { background: #f1f5f9; }
+.dept-header:hover { background: var(--surface-2); }
 .dept-body {
   border: 1px solid var(--border); border-radius: 0 0 8px 8px;
   overflow: hidden;
 }
 .emp-row {
   display: flex; align-items: center; gap: 12px;
-  padding: 12px 16px; border-bottom: 1px solid #f8fafc;
+  padding: 12px 16px; border-bottom: 1px solid var(--line);
   transition: background .1s;
 }
 .emp-row:last-child { border-bottom: none; }
-.emp-row:hover { background: #f8fafc; }
+.emp-row:hover { background: var(--surface-2); }
 .emp-avatar {
   width: 32px; height: 32px; border-radius: 50%;
-  background: linear-gradient(135deg, #1e3a8a, #3b82f6);
-  color: #fff; font-size: 12px; font-weight: 800;
+  background: linear-gradient(135deg, var(--primary), var(--primary));
+  color: var(--on-primary); font-size: 12px; font-weight: 800;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
@@ -41,33 +41,33 @@
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 11px; font-weight: 600;
   padding: 3px 10px; border-radius: 20px;
-  background: #eff6ff; color: #1e40af;
-  border: 1px solid #bfdbfe;
+  background: var(--surface-2); color: var(--tx-1);
+  border: 1px solid var(--line);
 }
 .reviewer-chip .rm-btn {
   background: none; border: none; cursor: pointer;
-  color: #94a3b8; font-size: 10px; padding: 0; line-height: 1;
+  color: var(--tx-3); font-size: 10px; padding: 0; line-height: 1;
 }
-.reviewer-chip .rm-btn:hover { color: #dc2626; }
+.reviewer-chip .rm-btn:hover { color: var(--late); }
 .add-reviewer-btn {
   font-size: 11px; font-weight: 700; padding: 3px 10px;
-  border-radius: 20px; border: 1.5px dashed #cbd5e1;
-  background: none; color: #94a3b8; cursor: pointer;
+  border-radius: 20px; border: 1.5px dashed var(--line);
+  background: none; color: var(--tx-3); cursor: pointer;
   font-family: inherit; transition: all .15s;
 }
-.add-reviewer-btn:hover { border-color: #1e40af; color: #1e40af; background: #eff6ff; }
+.add-reviewer-btn:hover { border-color: var(--line-strong); color: var(--tx-1); background: var(--surface-2); }
 
 /* 리뷰어 선택 드롭다운 */
 .reviewer-dropdown {
   position: absolute; z-index: 100;
-  background: #fff; border: 1.5px solid #e2e8f0;
+  background: var(--surface); border: 1.5px solid var(--line);
   border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12);
   min-width: 220px; max-height: 280px; overflow-y: auto;
   display: none;
 }
 .reviewer-dropdown.open { display: block; }
 .rd-search {
-  padding: 8px 12px; border-bottom: 1px solid #e2e8f0;
+  padding: 8px 12px; border-bottom: 1px solid var(--line);
   display: flex; align-items: center; gap: 8px;
 }
 .rd-search input {
@@ -79,9 +79,9 @@
   padding: 9px 14px; cursor: pointer; font-size: 12px;
   transition: background .1s;
 }
-.rd-item:hover { background: #f8fafc; }
+.rd-item:hover { background: var(--surface-2); }
 .rd-item.disabled { opacity: .4; pointer-events: none; }
-.rd-dept { font-size: 10px; color: #94a3b8; }
+.rd-dept { font-size: 10px; color: var(--tx-3); }
 </style>
 {% endblock %}
 

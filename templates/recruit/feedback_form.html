@@ -49,7 +49,7 @@
                         {% if existing and existing.recommendation == val %}
                           {% if val == 'pass' %}background:var(--green-bg); border-color:var(--green); color:var(--green);
                           {% elif val == 'hold' %}background:var(--surface)8e1; border-color:var(--orange); color:var(--orange);
-                          {% else %}background:#fde8e8; border-color:#e74c3c; color:#e74c3c;{% endif %}
+                          {% else %}background:var(--red-bg); border-color:var(--late); color:var(--late);{% endif %}
                         {% endif %}">
               {% if val == 'pass' %}✅ {{ label }}
               {% elif val == 'hold' %}⏸ {{ label }}

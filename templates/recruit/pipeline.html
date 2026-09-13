@@ -17,7 +17,7 @@
 .pipe-col-bar  { height: 3px; border-radius: 999px; margin: 0 12px 6px; }
 .pipe-col-body { padding: 8px; overflow-y: auto; flex: 1;
                  display: flex; flex-direction: column; gap: 6px; min-height: 60px; }
-.pipe-col-body.drag-over { background: rgba(56,139,253,.1); border-radius: 8px; }
+.pipe-col-body.drag-over { background: var(--surface-2); border-radius: 8px; }
 
 .pipe-card { background: var(--bg-1); border: 1px solid var(--border);
              border-radius: var(--r-sm); padding: 10px; cursor: grab; position: relative; }
@@ -30,7 +30,7 @@
                   display: flex; align-items: center; gap: 5px; }
 .pipe-card-av   { width: 18px; height: 18px; border-radius: 50%; background: var(--primary);
                   display: flex; align-items: center; justify-content: center;
-                  font-size: 9px; font-weight: 700; color: #fff; flex-shrink: 0; }
+                  font-size: 9px; font-weight: 700; color: var(--on-primary); flex-shrink: 0; }
 .pipe-card-qa   { position: absolute; top: 6px; right: 6px; display: none; }
 .pipe-card:hover .pipe-card-qa { display: block; }
 .pipe-card-qa-btn { width: 20px; height: 20px; border-radius: 4px; background: var(--bg-2);
@@ -47,7 +47,7 @@
 .person-chip     { display: flex; align-items: center; gap: 6px; }
 .person-chip-av  { width: 24px; height: 24px; border-radius: 50%;
                    display: flex; align-items: center; justify-content: center;
-                   font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; }
+                   font-size: 10px; font-weight: 700; color: var(--on-primary); flex-shrink: 0; }
 .person-chip-role { font-size: 10px; color: var(--tx-3); }
 .person-chip-name { font-size: 12px; font-weight: 600; color: var(--tx-1); }
 
@@ -60,7 +60,7 @@
 .panel-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 400; display: none; }
 .panel-overlay.open { display: block; }
 .side-panel { position: fixed; top: 0; right: -460px; width: 460px; height: 100vh;
-              background: #ffffff; border-left: 1px solid var(--border);
+              background: var(--surface); border-left: 1px solid var(--border);
               z-index: 401; display: flex; flex-direction: column;
               transition: right .22s cubic-bezier(.4,0,.2,1); overflow: hidden; }
 .side-panel.open { right: 0; }
@@ -76,7 +76,7 @@
 .panel-row-lbl { color: var(--tx-3); min-width: 72px; flex-shrink: 0; font-size: 12px; padding-top: 1px; }
 .panel-row-val { color: var(--tx-1); font-weight: 600; word-break: break-all; font-size: 13px; }
 .panel-stage-badge { display: inline-block; padding: 4px 12px; border-radius: 999px;
-                     font-size: 12px; font-weight: 700; background: var(--primary); color: #fff; margin-bottom: 8px; }
+                     font-size: 12px; font-weight: 700; background: var(--primary); color: var(--on-primary); margin-bottom: 8px; }
 .panel-round { padding: 8px 10px; background: var(--bg-2); border-radius: var(--r-sm); margin-bottom: 6px; }
 .panel-round-title { font-size: 12px; font-weight: 700; color: var(--tx-1); margin-bottom: 3px; }
 .panel-round-sub   { font-size: 11px; color: var(--tx-3); display: flex; gap: 10px; flex-wrap: wrap; }
@@ -92,7 +92,7 @@
        font-size: 11px; font-weight: 600; cursor: pointer; background: var(--bg-2);
        color: var(--tx-2); white-space: nowrap; }
 .smb:hover { border-color: var(--primary); color: var(--primary); }
-.smb.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.smb.active { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 .stage-move-btns { display: flex; gap: 5px; flex-wrap: wrap; }
 
 .pipe-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }

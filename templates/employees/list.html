@@ -17,7 +17,7 @@
      style="{{ tab_style }} color:var(--tx-3);">
     <i class="fas fa-door-open"></i> 입사 예정
     {% if hires_waiting %}
-    <span style="font-size:10px; font-weight:800; padding:1px 7px; border-radius:20px; background:#dbeafe; color:#1d4ed8;">{{ hires_waiting }}</span>
+    <span style="font-size:10px; font-weight:800; padding:1px 7px; border-radius:20px; background:var(--surface-2); color:var(--tx-1);">{{ hires_waiting }}</span>
     {% endif %}
   </a>
   <a href="{{ url_for('employees', status='resigned') }}"
@@ -51,7 +51,7 @@
           <i class="fas fa-plus"></i> 직원 추가
         </a>
         <a href="{{ url_for('export_employees') }}" class="btn btn-ghost" style="color:var(--tx-2);">
-          <i class="fas fa-file-excel" style="color:#217346;"></i> Excel
+          <i class="fas fa-file-excel" style="color:var(--done);"></i> Excel
         </a>
         <a href="{{ url_for('employee_import') }}" class="btn btn-ghost" style="color:var(--tx-2);">
           <i class="fas fa-file-csv" style="color:var(--primary);"></i> CSV 임포트
@@ -157,7 +157,7 @@
           </td>
           <td>
             {% if emp.perf_grade %}
-              {% set gc = {'S':'#7c3aed','A':'#1d4ed8','B':'#047857','C':'#b45309','D':'#dc2626'} %}
+              {% set gc = {'S':'var(--tx-1)','A':'var(--tx-1)','B':'var(--done)','C':'var(--wait)','D':'var(--late)'} %}
               <span class="badge" style="background:{{ gc.get(emp.perf_grade,'var(--tx-3)') }}20;
                                          color:{{ gc.get(emp.perf_grade,'var(--tx-3)') }};
                                          border:1px solid {{ gc.get(emp.perf_grade,'var(--tx-3)') }}40;">

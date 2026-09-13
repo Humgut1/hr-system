@@ -6,20 +6,20 @@
 <style>
 .peer-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 20px 24px; margin-bottom: 10px; }
 .peer-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.todo-badge { display: inline-flex; align-items: center; gap: 6px; background: #fef3c7; color: #92400e; border-radius: 99px; padding: 4px 12px; font-size: 12px; font-weight: 700; }
-.done-badge { display: inline-flex; align-items: center; gap: 6px; background: #dcfce7; color: #15803d; border-radius: 99px; padding: 4px 12px; font-size: 12px; font-weight: 700; }
+.todo-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--orange-bg); color: var(--wait); border-radius: 99px; padding: 4px 12px; font-size: 12px; font-weight: 700; }
+.done-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--green-bg); color: var(--done); border-radius: 99px; padding: 4px 12px; font-size: 12px; font-weight: 700; }
 .score-chip { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; font-size: 14px; font-weight: 900; }
-.chip-s { background:#dcfce7; color:#16a34a; }
-.chip-a { background:#dbeafe; color:#1e40af; }
-.chip-b { background:#e0f2fe; color:#0369a1; }
-.chip-c { background:#fef3c7; color:#92400e; }
-.chip-d { background:#fee2e2; color:#dc2626; }
+.chip-s { background:var(--green-bg); color:var(--done); }
+.chip-a { background:var(--surface-2); color:var(--tx-1); }
+.chip-b { background:var(--surface-2); color:var(--tx-1); }
+.chip-c { background:var(--orange-bg); color:var(--wait); }
+.chip-d { background:var(--red-bg); color:var(--late); }
 .q-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .q-bar-label { font-size: 12px; color: var(--tx-2); flex: 1; min-width: 0; }
 .q-bar-score { font-size: 13px; font-weight: 700; color: var(--primary); min-width: 30px; text-align: right; }
-.q-bar-fill-bg { width: 120px; height: 6px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
-.q-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #1e40af, #0891b2); }
-.anon-notice { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--r-sm); padding: 10px 14px; font-size: 12px; color: #0369a1; margin-bottom: 16px; }
+.q-bar-fill-bg { width: 120px; height: 6px; background: var(--surface-3); border-radius: 99px; overflow: hidden; }
+.q-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--primary), var(--primary)); }
+.anon-notice { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 14px; font-size: 12px; color: var(--tx-1); margin-bottom: 16px; }
 </style>
 {% endblock %}
 

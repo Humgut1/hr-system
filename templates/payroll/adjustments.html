@@ -5,12 +5,12 @@
 {% block extra_css %}
 <style>
 .adj-status { font-size:11px; font-weight:800; padding:3px 11px; border-radius:20px; white-space:nowrap; }
-.adj-draft     { background:#f1f5f9; color:#475569; }
-.adj-scheduled { background:#fef3c7; color:#92400e; }
-.adj-applied   { background:#dcfce7; color:#16a34a; }
-.adj-cancelled { background:#fee2e2; color:#dc2626; }
+.adj-draft     { background:var(--surface-2); color:var(--tx-2); }
+.adj-scheduled { background:var(--orange-bg); color:var(--wait); }
+.adj-applied   { background:var(--green-bg); color:var(--done); }
+.adj-cancelled { background:var(--red-bg); color:var(--late); }
 .mode-card { border:1.5px solid var(--border); border-radius:10px; padding:12px 14px; cursor:pointer; flex:1; text-align:center; }
-.mode-card.sel { border-color:var(--primary); background:var(--primary-bg, #eef2ff); }
+.mode-card.sel { border-color:var(--primary); background:var(--primary-bg, var(--surface-2)); }
 .mode-card b { display:block; font-size:13px; }
 .mode-card span { font-size:11px; color:var(--tx-3); }
 </style>

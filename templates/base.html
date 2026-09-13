@@ -1,10 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}대시보드{% endblock %} — TalentCore</title>
+  <title>{% block title %}홈{% endblock %} — TalentCore</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <script>(function(){try{var t=localStorage.getItem('tc-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
 
   <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -15,315 +16,200 @@
   <script src="{{ url_for('static', filename='js/csrf.js') }}"></script>
 </head>
 <body class="app-layout">
+{#
+  ══ 메뉴 정의 ════════════════════════════════════════
+  7개 대메뉴 + 설정. 각 항목: l=이름 u=주소 p=해당 화면(active_page) s=노출 조건 i=아이콘
+  하위 항목이 하나도 안 보이는 대메뉴는 통째로 숨긴다.
+  구 내장 ATS(legacy_ats_nav)는 2026-09-04(T6) 은퇴 — 메뉴에 두지 않는다.
+#}
+{% set R = session.user_role %}
+{% set PF = plan_features or [] %}
+{% set ADM = R == 'admin' %}
+{% set MGR = R in ('admin', 'manager') %}
+{% set TAB = request.args.get('tab', 'home') %}
+{% set MENU = [
+  {'key':'home', 'label':'홈', 'items':[
+    {'l':'홈', 'u':url_for('dashboard'), 'p':['home','dashboard'], 's':True, 'i':'fa-house'},
+    {'l':'결재 대기함', 'u':url_for('approvals_hub'), 'p':['approvals'], 's':MGR, 'i':'fa-stamp'},
+    {'l':'공지사항', 'u':url_for('announcements'), 'p':['announcements'], 's':True, 'i':'fa-bullhorn'},
+    {'l':'알림', 'u':url_for('notifications'), 'p':['notifications'], 's':True, 'i':'fa-bell'},
+  ]},
+  {'key':'seat', 'label':'자리', 'items':[
+    {'l':'채용 요청', 'u':url_for('requisition_list'), 'p':['requisition'], 's':R in ('admin','manager','recruiter'), 'i':'fa-file-signature'},
+    {'l':'자리 대장', 'u':url_for('opening_board'), 'p':['opening'], 's':R in ('admin','manager','recruiter'), 'i':'fa-id-badge'},
+    {'l':'입사 예정자', 'u':url_for('hires_list'), 'p':['hires'], 's':R in ('admin','recruiter'), 'i':'fa-door-open'},
+  ]},
+  {'key':'people', 'label':'구성원', 'items':[
+    {'l':'팀원 관리', 'u':url_for('employees'), 'p':['employees','termination_requests'], 's':MGR, 'i':'fa-users'},
+    {'l':'조직도', 'u':url_for('org_chart'), 'p':['org'], 's':True, 'i':'fa-sitemap'},
+    {'l':'근로계약', 'u':url_for('contracts_list'), 'p':['contracts'], 's':ADM, 'i':'fa-file-contract'},
+    {'l':'온보딩', 'u':url_for('me_onboarding'), 'p':['me_onboarding','onboarding'], 's':'onboarding' in PF, 'i':'fa-list-check'},
+    {'l':'후계자 계획', 'u':url_for('succession'), 'p':['succession'], 's':MGR and 'succession' in PF, 'i':'fa-chess-king'},
+  ]},
+  {'key':'work', 'label':'근무', 'items':[
+    {'l':'출퇴근', 'u':url_for('attendance_home'), 'p':['attendance_home'], 't':'home', 's':True, 'i':'fa-clock'},
+    {'l':'휴가', 'u':url_for('attendance_home', tab='leaves'), 'p':['attendance_home','leave','leave_new','leave_promotion'], 't':'leaves', 's':True, 'i':'fa-umbrella-beach'},
+    {'l':'초과근무', 'u':url_for('attendance_home', tab='ot'), 'p':['attendance_home'], 't':'ot', 's':True, 'i':'fa-business-time'},
+    {'l':'근무 캘린더', 'u':url_for('attendance_home', tab='calendar'), 'p':['attendance_home'], 't':'calendar', 's':True, 'i':'fa-calendar'},
+    {'l':'근태 승인', 'u':url_for('attendance_home', tab='approvals'), 'p':['attendance_home','attendance'], 't':'approvals', 's':MGR, 'i':'fa-check-double'},
+  ]},
+  {'key':'pay', 'label':'보상', 'items':[
+    {'l':'보상 관리', 'u':url_for('compensation'), 'p':['compensation','admin_payroll','salary_bands','acr','bulk_raise','bonus_pay','salary_table'], 's':ADM, 'i':'fa-coins'},
+    {'l':'내 문서', 'u':url_for('payroll_list'), 'p':['my_docs','payroll','certificates','termination_my'], 's':True, 'i':'fa-folder-open'},
+    {'l':'복리후생', 'u':url_for('me_benefits'), 'p':['me_benefits'], 's':'welfare' in PF, 'i':'fa-gift'},
+    {'l':'복리후생 설정', 'u':url_for('admin_benefits'), 'p':['benefits'], 's':ADM and 'welfare' in PF, 'i':'fa-sliders'},
+  ]},
+  {'key':'perf', 'label':'성과', 'items':[
+    {'l':'성과', 'u':url_for('performance'), 'p':['performance','peer','performance_cycles'], 's':'performance' in PF, 'i':'fa-chart-line'},
+    {'l':'다면평가 배정', 'u':url_for('peer_assignments'), 'p':['peer_assignments'], 's':MGR and 'peer_review' in PF and peer_enabled, 'i':'fa-comments'},
+  ]},
+  {'key':'analytics', 'label':'분석', 'items':[
+    {'l':'분석·보고서', 'u':url_for('people_analytics'), 'p':['analytics'], 's':ADM, 'i':'fa-chart-pie'},
+    {'l':'데이터 내보내기', 'u':url_for('export_hub'), 'p':['export'], 's':ADM, 'i':'fa-file-arrow-down'},
+  ]},
+] %}
+{% set SETTINGS = [
+  {'l':'회사 설정', 'u':url_for('admin_settings'), 'p':['settings','holidays','overtime_monitor','schedules','admin_welfare_points'], 's':ADM, 'i':'fa-building'},
+  {'l':'부서·직급', 'u':url_for('departments'), 'p':['departments'], 's':ADM, 'i':'fa-layer-group'},
+  {'l':'채용 결재선', 'u':url_for('requisition_flow_settings'), 'p':['reqflow'], 's':ADM, 'i':'fa-route'},
+  {'l':'Hire 연동', 'u':url_for('hire_settings'), 'p':['hiresettings'], 's':ADM, 'i':'fa-link'},
+  {'l':'외부 연동', 'u':url_for('admin_integrations'), 'p':['integrations'], 's':ADM, 'i':'fa-plug'},
+  {'l':'감사 로그', 'u':url_for('admin_audit_logs'), 'p':['audit_logs'], 's':ADM, 'i':'fa-clipboard-list'},
+] %}
+{% macro is_on(it) -%}
+  {%- if active_page in it.p and (not it.t or active_page != 'attendance_home' or request.args.get('tab', 'home') == it.t) -%}1{%- endif -%}
+{%- endmacro %}
+{% set ns = namespace(group='', page='') %}
+{% for g in MENU %}{% for it in g['items'] if it.s %}{% if is_on(it) and not ns.group %}{% set ns.group = g.label %}{% set ns.page = it.l %}{% endif %}{% endfor %}{% endfor %}
+{% for it in SETTINGS if it.s %}{% if is_on(it) and not ns.group %}{% set ns.group = '설정' %}{% set ns.page = it.l %}{% endif %}{% endfor %}
 <div class="app-shell">
 
-  <!-- ══ 사이드바 ══════════════════════════════════ -->
-  <aside class="sidebar" id="appSidebar">
+  {% if session.demo_mode or R == 'guest' %}
+  <div class="mode-strip">
+    <span class="dot"></span>
+    <b>{% if session.demo_mode %}체험 모드{% else %}게스트 모드{% endif %}</b>
+    <span>저장·수정·삭제 제한</span>
+    <span class="sp">
+      {% if session.demo_mode %}<a href="{{ url_for('landing') }}">웹사이트</a>{% endif %}
+      <span>{% if session.demo_mode %}{{ session.user_email }}{% else %}guest@talentcore.com{% endif %}</span>
+    </span>
+  </div>
+  {% endif %}
 
-    <!-- 브랜드 + 토글 -->
-    <div class="brand" style="justify-content:space-between; padding:14px 12px 10px;">
-      <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-        <div class="brand-mark">T</div>
-        <div class="brand-name" style="font-size:16px;">TalentCore</div>
-      </div>
-      <button class="sidebar-toggle-btn" id="sidebarToggle" title="사이드바 접기/펼치기">
-        <i class="fas fa-chevron-left" id="toggleIcon"></i>
-      </button>
-    </div>
+  <!-- ══ 상단 메뉴 ══════════════════════════════════ -->
+  <header class="gnb" id="appGnb">
+    <button class="hamburger" id="hamburgerBtn" aria-label="메뉴" aria-expanded="false"><i class="fas fa-bars"></i></button>
+    <a class="gnb-brand" href="{{ url_for('dashboard') }}">
+      <span class="gnb-mark">TC</span><span class="gnb-name">TalentCore</span>
+    </a>
 
-    <nav class="nav sidebar-nav" style="padding:4px 8px;">
-
-      <!-- ── 나 ─────────────────────────────────────── -->
-      <div class="nav-section-body">
-        <div class="nav-category-btn" style="cursor:default;"><span>나</span></div>
-        <a href="{{ url_for('dashboard') }}" class="nav-item{% if active_page == 'home' %} active{% endif %}" title="홈" data-tour="home">
-          <i class="fas fa-home"></i><span>홈</span>
-        </a>
-        <a href="{{ url_for('attendance_home') }}" class="nav-item{% if active_page == 'attendance_home' %} active{% endif %}" title="근태" data-tour="attendance">
-          <i class="fas fa-clock"></i><span>근태</span>
-        </a>
-        <a href="{{ url_for('payroll_list') }}" class="nav-item{% if active_page == 'my_docs' %} active{% endif %}" title="내 문서" data-tour="mydocs">
-          <i class="fas fa-folder-open"></i><span>내 문서</span>
-        </a>
-        {% if 'performance' in plan_features %}
-        <a href="{{ url_for('performance') }}" class="nav-item{% if active_page in ('performance','peer') %} active{% endif %}" title="성과" data-tour="performance">
-          <i class="fas fa-chart-line"></i><span>성과</span>
-        </a>
-        {% endif %}
-        {% if 'onboarding' in plan_features %}
-        <a href="{{ url_for('me_onboarding') }}" class="nav-item{% if active_page == 'me_onboarding' %} active{% endif %}" title="온보딩" data-tour="onboarding">
-          <i class="fas fa-rocket"></i><span>온보딩</span>
-        </a>
-        {% endif %}
-        {% if 'welfare' in plan_features %}
-        <a href="{{ url_for('me_benefits') }}" class="nav-item{% if active_page == 'me_benefits' %} active{% endif %}" title="복리후생" data-tour="benefits-me">
-          <i class="fas fa-gift"></i><span>복리후생</span>
-        </a>
-        {% endif %}
-      </div>
-
-      <div class="nav-section-divider"></div>
-
-      <!-- ── 회사 ────────────────────────────────────── -->
-      <div class="nav-section-body">
-        <div class="nav-category-btn" style="cursor:default;"><span>회사</span></div>
-        <a href="{{ url_for('announcements') }}" class="nav-item{% if active_page == 'announcements' %} active{% endif %}" title="공지사항" data-tour="announcements">
-          <i class="fas fa-bullhorn"></i><span>공지사항</span>
-        </a>
-        <a href="{{ url_for('org_chart') }}" class="nav-item{% if active_page == 'org' %} active{% endif %}" title="조직도" data-tour="org">
-          <i class="fas fa-sitemap"></i><span>조직도</span>
-        </a>
-      </div>
-
-      <!-- ── 팀 (매니저+) ──────────────────────────── -->
-      {% if session.user_role in ('admin', 'manager') %}
-      <div class="nav-section-divider"></div>
-      <div class="nav-section-body">
-        <div class="nav-category-btn" style="cursor:default;"><span>팀</span></div>
-        <a href="{{ url_for('approvals_hub') }}" class="nav-item{% if active_page == 'approvals' %} active{% endif %}" title="결재 대기함" data-tour="approvals">
-          <i class="fas fa-stamp"></i><span>결재 대기함</span>
-        </a>
-        <a href="{{ url_for('employees') }}" class="nav-item{% if active_page in ('employees','termination_requests') %} active{% endif %}" title="팀원 관리" data-tour="team">
-          <i class="fas fa-users"></i><span>팀원 관리</span>
-        </a>
-        {% if 'peer_review' in plan_features and peer_enabled %}
-        <a href="{{ url_for('peer_assignments') }}" class="nav-item{% if active_page == 'peer_assignments' %} active{% endif %}" title="다면평가 배정" data-tour="peer-assign">
-          <i class="fas fa-comments"></i><span>다면평가 배정</span>
-        </a>
-        {% endif %}
-        {% if 'succession' in plan_features %}
-        <a href="{{ url_for('succession') }}" class="nav-item{% if active_page == 'succession' %} active{% endif %}" title="후계자 계획" data-tour="succession">
-          <i class="fas fa-chess-king"></i><span>후계자 계획</span>
-        </a>
-        {% endif %}
-        {# 채용 요청을 올리는 사람은 관리자가 아니라 팀장이다. 팀장 메뉴에 둔다. #}
-        {% if session.user_role == 'manager' %}
-        <a href="{{ url_for('requisition_list') }}" class="nav-item{% if active_page == 'requisition' %} active{% endif %}" title="채용 요청" data-tour="requisition">
-          <i class="fas fa-file-signature"></i><span>채용 요청</span>
-        </a>
-        <a href="{{ url_for('opening_board') }}" class="nav-item{% if active_page == 'opening' %} active{% endif %}" title="우리 팀 자리">
-          <i class="fas fa-id-badge"></i><span>우리 팀 자리</span>
-        </a>
-        {% endif %}
-      </div>
-      {% endif %}
-
-      <!-- ── 관리자 ─────────────────────────────────── -->
-      {# 리크루터가 이 묶음(채용 요청·자리 대장)을 못 보면 할 일이 없다.
-         옛 ATS 요금제 기능('recruiting')에 묶여 있던 것을 T6에서 풀었다. #}
-      {% if session.user_role in ('admin', 'recruiter') %}
-      <div class="nav-section-divider"></div>
-      <div class="nav-section-body">
-        <div class="nav-category-btn" style="cursor:default;"><span>관리자</span></div>
-        {% if session.user_role == 'admin' %}
-        <a href="{{ url_for('compensation') }}" class="nav-item{% if active_page in ('compensation','admin_payroll','salary_bands','acr','bulk_raise','bonus_pay') %} active{% endif %}" title="보상 관리" data-tour="compensation">
-          <i class="fas fa-coins"></i><span>보상 관리</span>
-        </a>
-        {% endif %}
-        {# 채용요청서와 자리는 Core로 올라왔다 — 요금제 게이트를 걸지 않는다.
-           "사람이 필요합니다"를 올리고 결재하는 일은 채용 상품의 부가기능이 아니라
-           인사 시스템의 본체이고, 승인된 요청은 자리 카드가 되어 Hire로 넘어간다. #}
-        <a href="{{ url_for('requisition_list') }}" class="nav-item{% if active_page == 'requisition' %} active{% endif %}" title="채용 요청" data-tour="requisition">
-          <i class="fas fa-file-signature"></i><span>채용 요청</span>
-        </a>
-        <a href="{{ url_for('opening_board') }}" class="nav-item{% if active_page == 'opening' %} active{% endif %}" title="자리 대장" data-tour="opening">
-          <i class="fas fa-id-badge"></i><span>자리 대장</span>
-        </a>
-        {# 사슬의 마지막 칸 — Hire에서 오퍼를 수락한 사람이 도착하는 곳. T6까지 메뉴에 없었다. #}
-        <a href="{{ url_for('hires_list') }}" class="nav-item{% if active_page == 'hires' %} active{% endif %}" title="입사 예정자" data-tour="hires">
-          <i class="fas fa-door-open"></i><span>입사 예정자</span>
-        </a>
-        {% if session.user_role == 'admin' %}
-        <a href="{{ url_for('requisition_flow_settings') }}" class="nav-item{% if active_page == 'reqflow' %} active{% endif %}" title="채용 결재선">
-          <i class="fas fa-route"></i><span>채용 결재선</span>
-        </a>
-        <a href="{{ url_for('hire_settings') }}" class="nav-item{% if active_page == 'hiresettings' %} active{% endif %}" title="Hire 연동">
-          <i class="fas fa-link"></i><span>Hire 연동</span>
-        </a>
-        {% endif %}
-        {# 구 내장 ATS(공고·파이프라인·지원자·오퍼)는 Hire와 하는 일이 통째로 겹쳐
-           2026-09-02 메뉴에서 내렸고, 2026-09-04(T6) 주소까지 잠갔다 — 들어가면 은퇴 안내가 뜬다.
-           되살리려면 legacy_ats_nav 를 True 로 바꾸는 것만으로는 부족하고
-           app.py 의 @retired_ats 데코레이터도 함께 떼야 한다. #}
-        {% if legacy_ats_nav and 'recruiting' in plan_features %}
-        {% set recruit_active = active_page in ('recruit_dashboard','recruit','recruit_pipeline','recruiter') %}
-        <button class="nav-subgroup-btn{% if recruit_active %} open active-group{% endif %}"
-                onclick="toggleSubgroup(this,'sg-recruit')" title="채용(구)" data-tour="recruit">
-          <i class="fas fa-user-tie sg-icon"></i>
-          <span class="sg-label">채용(구)</span>
-          <i class="fas fa-chevron-down sg-arrow"></i>
-        </button>
-        <div class="nav-subgroup-body{% if recruit_active %} open{% endif %}" id="sg-recruit">
-          <a href="{{ url_for('recruit_dashboard') }}" class="nav-item{% if active_page == 'recruit_dashboard' %} active{% endif %}" title="채용 대시보드">
-            <i class="fas fa-chart-bar"></i><span>대시보드</span>
-          </a>
-          <a href="{{ url_for('recruit_postings') }}" class="nav-item{% if active_page in ('recruit','recruit_pipeline','recruiter') %} active{% endif %}" title="채용 관리">
-            <i class="fas fa-briefcase"></i><span>공고 · 파이프라인</span>
-          </a>
+    <ul class="gnb-menu" role="menubar">
+      {% for g in MENU %}
+      {% set vis = g['items']|selectattr('s')|list %}
+      {% if vis %}
+      <li class="gnb-item{% if ns.group == g.label %} active{% endif %}" data-group="{{ g.key }}">
+        <a class="gnb-top" href="{{ vis[0].u }}" aria-haspopup="true">{{ g.label }}{% if vis|length > 1 %}<i class="fas fa-chevron-down gnb-caret"></i>{% endif %}</a>
+        {% if vis|length > 1 %}
+        <div class="gnb-drop" role="menu">
+          <div class="gnb-drop-panel">
+            {% for it in vis %}
+            <a href="{{ it.u }}" role="menuitem" class="{% if is_on(it) %}on{% endif %}"><i class="fas {{ it.i }}"></i>{{ it.l }}</a>
+            {% endfor %}
+          </div>
         </div>
         {% endif %}
-        {% if session.user_role == 'admin' %}
-        <a href="{{ url_for('people_analytics') }}" class="nav-item{% if active_page == 'analytics' %} active{% endif %}" title="분석·보고서" data-tour="analytics">
-          <i class="fas fa-chart-pie"></i><span>분석·보고서</span>
-        </a>
-        {% if 'welfare' in plan_features %}
-        <a href="{{ url_for('admin_benefits') }}" class="nav-item{% if active_page == 'benefits' %} active{% endif %}" title="복리후생 설정" data-tour="benefits-admin">
-          <i class="fas fa-gift"></i><span>복리후생</span>
-        </a>
-        {% endif %}
-        <a href="{{ url_for('admin_settings') }}" class="nav-item{% if active_page in ('settings','departments','holidays','overtime_monitor','schedules','admin_welfare_points') %} active{% endif %}" title="설정" data-tour="settings">
-          <i class="fas fa-cog"></i><span>설정</span>
-        </a>
-        <a href="{{ url_for('admin_integrations') }}" class="nav-item{% if active_page == 'integrations' %} active{% endif %}" title="외부 연동" data-tour="integrations">
-          <i class="fas fa-plug"></i><span>외부 연동</span>
-        </a>
-        <a href="{{ url_for('admin_audit_logs') }}" class="nav-item{% if active_page == 'audit_logs' %} active{% endif %}" title="감사 로그">
-          <i class="fas fa-clipboard-list"></i><span>감사 로그</span>
-        </a>
-        {% endif %}
-      </div>
+      </li>
       {% endif %}
+      {% endfor %}
+    </ul>
 
-    </nav>
-
-    <div class="sidebar-footer" style="padding:8px;">
-      <div style="height:1px; background:var(--border); margin-bottom:8px;"></div>
-      <a href="#" onclick="startTour(); return false;" class="nav-item" title="가이드 투어 다시보기" style="justify-content:center; padding:8px 0;">
-        <i class="fas fa-circle-question" style="width:28px; text-align:center; flex-shrink:0;"></i>
-        <span class="sidebar-footer-label" style="font-size:13px;">가이드 투어</span>
-      </a>
-      <a href="{{ url_for('profile') }}" class="nav-item{% if active_page == 'profile' %} active{% endif %}" title="내 프로필" style="justify-content:center; padding:8px 0;">
-        <div class="user-avatar" style="width:28px; height:28px; font-size:12px; flex-shrink:0;">{{ session.user_name[0] if session.user_name else 'U' }}</div>
-        <span class="sidebar-footer-label" style="font-size:13px;">{{ session.user_name }}</span>
-      </a>
-    </div>
-  </aside>
-
-  <!-- 사이드바 오버레이 (모바일) -->
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-  <!-- ══ 메인 ══════════════════════════════════════ -->
-  <div class="main-wrapper">
-
-    <header class="header">
-      <div class="header-left">
-        <button class="hamburger" id="hamburgerBtn" aria-label="메뉴">
-          <i class="fas fa-bars"></i>
-        </button>
-        <h1 class="page-title">{% block page_title %}대시보드{% endblock %}</h1>
-      </div>
-
-      <!-- ── 글로벌 검색 ──────────────────────────── -->
-      <div class="global-search-wrap" id="globalSearchWrap">
+    <div class="gnb-right">
+      <div class="global-search-wrap gnb-search" id="globalSearchWrap">
         <div class="global-search-inner">
-          <i class="fas fa-search global-search-icon"></i>
+          <i class="fas fa-magnifying-glass global-search-icon"></i>
           <input type="text" id="globalSearchInput" class="global-search-input"
-                 placeholder="직원 이름 또는 메뉴 검색..." autocomplete="off"
-                 aria-label="글로벌 검색">
+                 placeholder="직원·메뉴 검색" autocomplete="off" aria-label="검색">
           <kbd class="search-kbd">/</kbd>
         </div>
         <div class="global-search-results" id="globalSearchResults" style="display:none;"></div>
       </div>
 
-      <div class="header-right">
-        <a href="{{ url_for('notifications') }}" class="icon-btn" title="알림" style="position:relative;">
-          <i class="fas fa-bell"></i>
-          {% if unread_notifications > 0 %}
-          <span class="notif-badge">{{ unread_notifications }}</span>
-          {% endif %}
-        </a>
-        <div class="divider-v"></div>
-        <div class="user-pill" id="userPill" style="cursor:pointer;" onclick="toggleUserMenu()">
-          <div class="user-avatar">{{ session.user_name[0] if session.user_name else 'U' }}</div>
-          <div class="user-info-wrap">
-            <span class="user-fullname">{{ session.user_name }}</span>
-            <span class="user-rolelabel">
-              {% if session.demo_mode %}HR 관리자 (데모)
-              {% elif session.user_role == 'admin' %}HR 관리자
-              {% elif session.user_role == 'manager' %}매니저
-              {% elif session.user_role == 'recruiter' %}채용담당자
-              {% elif session.user_role == 'guest' %}게스트
-              {% else %}{{ session.dept_name }}{% if session.pos_name %} · {{ session.pos_name }}{% endif %}{% endif %}
-            </span>
-          </div>
-          <i class="fas fa-chevron-down" style="font-size:11px; color:var(--tx-3); margin-left:4px;"></i>
-        </div>
+      <a href="{{ url_for('notifications') }}" class="icon-btn" title="알림">
+        <i class="far fa-bell"></i>
+        {% if unread_notifications > 0 %}<span class="notif-badge">{{ unread_notifications }}</span>{% endif %}
+      </a>
 
-        <!-- 유저 드롭다운 -->
-        <div class="user-dropdown" id="userDropdown">
-          <div style="padding:12px 16px 10px; border-bottom:1px solid var(--border);">
-            <div style="font-size:13.5px; font-weight:700; color:var(--tx-1);">{{ session.user_name }}</div>
-            <div style="font-size:12px; color:var(--tx-3); margin-top:1px;">{{ session.user_email or '' }}</div>
+      {% set svis = SETTINGS|selectattr('s')|list %}
+      {% if svis %}
+      <div class="gnb-item{% if ns.group == '설정' %} active{% endif %}" style="height:var(--gnb-h);align-items:center;">
+        <a class="icon-btn" href="{{ svis[0].u }}" title="설정" aria-haspopup="true"><i class="fas fa-gear"></i></a>
+        <div class="gnb-drop right" role="menu">
+          <div class="gnb-drop-panel">
+            {% for it in svis %}
+            <a href="{{ it.u }}" role="menuitem" class="{% if is_on(it) %}on{% endif %}"><i class="fas {{ it.i }}"></i>{{ it.l }}</a>
+            {% endfor %}
           </div>
-          <div style="padding:6px;">
-            <a href="{{ url_for('profile') }}" class="user-dropdown-item">
-              <i class="fas fa-user"></i> 내 프로필
-            </a>
-            {% if session.user_role == 'admin' %}
-            <a href="{{ url_for('admin_settings') }}" class="user-dropdown-item">
-              <i class="fas fa-building"></i> 회사 설정
-            </a>
-            {% endif %}
-            <div style="height:1px; background:var(--border); margin:6px 0;"></div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="gnb-item" id="userPill" style="height:var(--gnb-h);align-items:center;">
+        <button class="gnb-avatar" type="button" title="{{ session.user_name }}" onclick="toggleUserMenu()">{{ session.user_name[0] if session.user_name else 'U' }}</button>
+        <div class="gnb-drop right" id="userDropdown" role="menu">
+          <div class="gnb-drop-panel" style="min-width:220px;">
+            <div class="gnb-user-head">
+              <b>{{ session.user_name }}</b>
+              <span>{% if session.demo_mode %}HR 관리자 (체험){% elif R == 'admin' %}HR 관리자{% elif R == 'manager' %}팀장{% elif R == 'recruiter' %}채용담당자{% elif R == 'guest' %}게스트{% else %}{{ session.dept_name }}{% if session.pos_name %} · {{ session.pos_name }}{% endif %}{% endif %}</span>
+            </div>
+            <a href="{{ url_for('profile') }}" role="menuitem" class="{% if active_page == 'profile' %}on{% endif %}"><i class="fas fa-user"></i>내 정보</a>
+            <button type="button" class="gnb-link" onclick="startTour()"><i class="fas fa-circle-question"></i>화면 안내</button>
+            <div class="gnb-sep"></div>
+            <div class="gnb-drop-cap">화면 모드</div>
+            <div class="gnb-theme" id="themePick">
+              <button type="button" data-v="system">시스템</button>
+              <button type="button" data-v="light">밝게</button>
+              <button type="button" data-v="dark">어둡게</button>
+            </div>
+            <div class="gnb-sep"></div>
             <form method="POST" action="{{ url_for('logout') }}" style="margin:0;">
-              <button type="submit" class="user-dropdown-item" style="width:100%; background:none; border:none; cursor:pointer; color:var(--red);">
-                <i class="fas fa-sign-out-alt"></i> 로그아웃
-              </button>
+              <button type="submit" class="gnb-link"><i class="fas fa-arrow-right-from-bracket"></i>로그아웃</button>
             </form>
           </div>
         </div>
       </div>
-    </header>
+    </div>
+  </header>
+
+  <!-- 모바일 메뉴 -->
+  <nav class="m-nav" id="mNav">
+    {% for g in MENU %}{% set vis = g['items']|selectattr('s')|list %}{% if vis %}
+    <div class="m-group"><div class="m-cap">{{ g.label }}</div>
+      {% for it in vis %}<a href="{{ it.u }}">{{ it.l }}</a>{% endfor %}
+    </div>
+    {% endif %}{% endfor %}
+    {% set svis = SETTINGS|selectattr('s')|list %}{% if svis %}
+    <div class="m-group"><div class="m-cap">설정</div>
+      {% for it in svis %}<a href="{{ it.u }}">{{ it.l }}</a>{% endfor %}
+    </div>
+    {% endif %}
+  </nav>
+
+  <!-- ══ 본문 ══════════════════════════════════════ -->
+  <div class="main-wrapper">
+    {% block page_head %}
+    <div class="page-head">
+      <div>
+        {% if ns.group and ns.group != self.page_title() | trim %}<div class="page-crumb">{{ ns.group }}</div>{% endif %}
+        <h1 class="page-title">{% block page_title %}홈{% endblock %}</h1>
+      </div>
+    </div>
+    {% endblock %}
 
     <main class="page-content">
-      {% if session.demo_mode %}
-      <div style="
-        background: linear-gradient(90deg, var(--purple) 0%, var(--purple) 100%);
-        color: var(--surface); padding: 10px 20px;
-        display: flex; align-items: center; justify-content: space-between;
-        font-size: 13px; font-weight: 600;
-        border-radius: var(--r); margin-bottom: 16px; gap: 12px;
-      ">
-        <span>
-          <i class="fas fa-eye" style="margin-right:7px; opacity:.85;"></i>
-          체험 모드 — 관리자 권한으로 모든 메뉴를 둘러볼 수 있습니다. 데이터 변경(저장·수정·삭제)은 제한됩니다.
-        </span>
-        <span style="display:flex; align-items:center; gap:14px; white-space:nowrap;">
-          <a href="{{ url_for('landing') }}" style="color:var(--surface); opacity:.9; font-size:12px; font-weight:700; text-decoration:underline;">
-            <i class="fas fa-arrow-up-right-from-square" style="margin-right:4px;"></i>웹사이트 보기
-          </a>
-          <span style="opacity:.7; font-size:12px;">{{ session.user_email }}</span>
-        </span>
-      </div>
-      {% elif session.user_role == 'guest' %}
-      <div style="
-        background: linear-gradient(90deg, var(--purple) 0%, var(--purple) 100%);
-        color: var(--surface); padding: 10px 20px;
-        display: flex; align-items: center; justify-content: space-between;
-        font-size: 13px; font-weight: 600;
-        border-radius: var(--r); margin-bottom: 16px; gap: 12px;
-      ">
-        <span>
-          <i class="fas fa-eye" style="margin-right:7px; opacity:.85;"></i>
-          게스트 체험 모드 — 모든 메뉴를 둘러볼 수 있습니다. 데이터 변경(저장·삭제)은 제한됩니다.
-        </span>
-        <span style="opacity:.7; font-size:12px; white-space:nowrap;">guest@talentcore.com</span>
-      </div>
-      {% endif %}
       {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          {% for category, message in messages %}
-          <div class="flash flash-{{ category }}" style="
-            margin-bottom:16px; padding:12px 18px; border-radius:var(--r);
-            font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:10px;
-            {% if category == 'success' %}background:var(--green-bg); border:1px solid var(--green-bg); color:var(--green);
-            {% else %}background:var(--orange-bg); border:1px solid var(--orange-bg); color:var(--orange);{% endif %}
-          ">
-            <i class="fas {% if category == 'success' %}fa-check-circle{% else %}fa-exclamation-triangle{% endif %}"></i>
-            {{ message }}
-          </div>
-          {% endfor %}
-        {% endif %}
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
       {% endwith %}
       {% block content %}{% endblock %}
     </main>
@@ -336,109 +222,98 @@
   {% block extra_js %}{% endblock %}
 
 <script>
-// ── 유저 드롭다운 ──────────────────────────────
+// ── 계정 메뉴 (클릭 고정) ─────────────────────
 function toggleUserMenu() {
-  var menu = document.getElementById('userDropdown');
-  menu.classList.toggle('open');
+  document.getElementById('userPill').classList.toggle('open');
 }
-document.addEventListener('click', function(e) {
+document.addEventListener('click', function (e) {
   var pill = document.getElementById('userPill');
-  var menu = document.getElementById('userDropdown');
-  if (menu && pill && !pill.contains(e.target)) {
-    menu.classList.remove('open');
+  if (pill && !pill.contains(e.target)) pill.classList.remove('open');
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') {
+    var pill = document.getElementById('userPill');
+    if (pill) pill.classList.remove('open');
+    if (document.activeElement && document.activeElement.closest && document.activeElement.closest('.gnb')) document.activeElement.blur();
   }
 });
 
-// ── 사이드바 Collapse 토글 ─────────────────────
-(function() {
-  var sidebar = document.getElementById('appSidebar');
-  var btn     = document.getElementById('sidebarToggle');
-  var icon    = document.getElementById('toggleIcon');
-  if (!sidebar || !btn) return;
-
-  function setCollapsed(collapsed) {
-    if (collapsed) {
-      sidebar.classList.add('collapsed');
-      icon.className = 'fas fa-chevron-right';
-    } else {
-      sidebar.classList.remove('collapsed');
-      icon.className = 'fas fa-chevron-left';
-    }
-    try { localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0'); } catch(e) {}
+// ── 화면 모드 (시스템/밝게/어둡게) ─────────────
+(function () {
+  var pick = document.getElementById('themePick');
+  if (!pick) return;
+  function cur() { try { return localStorage.getItem('tc-theme') || 'system'; } catch (e) { return 'system'; } }
+  function paint() {
+    var v = cur();
+    pick.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === v); });
   }
+  pick.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-v]');
+    if (!b) return;
+    var v = b.dataset.v;
+    try { if (v === 'system') localStorage.removeItem('tc-theme'); else localStorage.setItem('tc-theme', v); } catch (err) {}
+    if (v === 'system') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', v);
+    paint();
+  });
+  paint();
+}());
 
-  // 저장 상태 복원
-  try {
-    var saved = localStorage.getItem('sidebar-collapsed');
-    if (saved === '1') setCollapsed(true);
-  } catch(e) {}
-
-  btn.addEventListener('click', function() {
-    setCollapsed(!sidebar.classList.contains('collapsed'));
+// ── 모바일 메뉴 ────────────────────────────────
+(function () {
+  var btn = document.getElementById('hamburgerBtn');
+  var nav = document.getElementById('mNav');
+  if (!btn || !nav) return;
+  btn.addEventListener('click', function () {
+    var open = nav.classList.toggle('open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    document.body.style.overflow = open ? 'hidden' : '';
   });
 }());
 
-// ── 채용 서브그룹 토글 ──────────────────────────
-function toggleSubgroup(btn, bodyId) {
-  var body = document.getElementById(bodyId);
-  if (!body) return;
-  var isOpen = body.classList.contains('open');
-  body.classList.toggle('open', !isOpen);
-  btn.classList.toggle('open', !isOpen);
-}
-
-// ── 글로벌 검색 ────────────────────────────────
+// ── 검색 ───────────────────────────────────────
 (function() {
   var NAV_ITEMS = [
-    {% if session.user_role %}
-    {label:'대시보드', url:'{{ url_for("dashboard") }}', icon:'fa-home'},
-    {label:'근태', url:'{{ url_for("attendance_home") }}', icon:'fa-clock'},
-    {label:'휴가 신청', url:'{{ url_for("attendance_home", tab="leaves") }}', icon:'fa-umbrella-beach'},
-    {label:'급여명세', url:'{{ url_for("payroll_list") }}', icon:'fa-won-sign'},
-    {label:'성과', url:'{{ url_for("performance") }}', icon:'fa-chart-line'},
-    {label:'증명서', url:'{{ url_for("certificates_hub") }}', icon:'fa-folder-open'},
-    {label:'공지사항', url:'{{ url_for("announcements") }}', icon:'fa-bullhorn'},
-    {label:'조직도', url:'{{ url_for("org_chart") }}', icon:'fa-sitemap'},
-    {label:'다면평가', url:'{{ url_for("peer_reviews_page") }}', icon:'fa-star'},
-    {label:'알림', url:'{{ url_for("notifications") }}', icon:'fa-bell'},
-    {label:'프로필 설정', url:'{{ url_for("profile") }}', icon:'fa-cog'},
-    {% if session.user_role in ('admin','manager') %}
-    {label:'팀원 관리', url:'{{ url_for("employees") }}', icon:'fa-users'},
-    {label:'근태 승인', url:'{{ url_for("attendance") }}', icon:'fa-check-circle'},
-    {label:'퇴직 처리 대기함', url:'{{ url_for("termination_requests") }}', icon:'fa-user-clock'},
-    {label:'자리 대장', url:'{{ url_for("opening_board") }}', icon:'fa-id-badge'},
+    {% for g in MENU %}{% for it in g['items'] if it.s %}
+    {label:{{ it.l|tojson }}, group:{{ g.label|tojson }}, url:{{ it.u|tojson }}, icon:{{ it.i|tojson }}},
+    {% endfor %}{% endfor %}
+    {% for it in SETTINGS if it.s %}
+    {label:{{ it.l|tojson }}, group:'설정', url:{{ it.u|tojson }}, icon:{{ it.i|tojson }}},
+    {% endfor %}
+    {label:'증명서 발급', group:'보상', url:'{{ url_for("certificates_hub") }}', icon:'fa-file-lines'},
+    {label:'다면평가', group:'성과', url:'{{ url_for("peer_reviews_page") }}', icon:'fa-star'},
+    {% if MGR %}
+    {label:'퇴직 처리', group:'구성원', url:'{{ url_for("termination_requests") }}', icon:'fa-user-clock'},
     {% endif %}
-    {% if session.user_role == 'admin' %}
-    {label:'급여 관리', url:'{{ url_for("admin_payroll") }}', icon:'fa-coins'},
-    {label:'급여 기준표', url:'{{ url_for("salary_table") }}', icon:'fa-table'},
-    {label:'채용 요청', url:'{{ url_for("requisition_list") }}', icon:'fa-file-signature'},
-    {label:'채용 결재선 설정', url:'{{ url_for("requisition_flow_settings") }}', icon:'fa-route'},
-    {label:'Hire 연동 설정', url:'{{ url_for("hire_settings") }}', icon:'fa-link'},
-    {% if legacy_ats_nav and 'recruiting' in plan_features %}
-    {label:'채용 공고(구)', url:'{{ url_for("recruit_postings") }}', icon:'fa-file-signature'},
-    {label:'채용 파이프라인(구)', url:'{{ url_for("recruit_pipeline") }}', icon:'fa-user-tie'},
-    {% endif %}
-    {label:'입사 예정자', url:'{{ url_for("hires_list") }}', icon:'fa-door-open'},
-    {label:'부서·직급 관리', url:'{{ url_for("departments") }}', icon:'fa-layer-group'},
-    {label:'분석·보고서', url:'{{ url_for("people_analytics") }}', icon:'fa-chart-pie'},
-    {label:'데이터 내보내기', url:'{{ url_for("export_hub") }}', icon:'fa-file-excel'},
-    {label:'회사 설정', url:'{{ url_for("admin_settings") }}', icon:'fa-building'},
-    {% endif %}
+    {% if ADM %}
+    {label:'급여 기준표', group:'보상', url:'{{ url_for("salary_table") }}', icon:'fa-table'},
+    {label:'급여 운영', group:'보상', url:'{{ url_for("admin_payroll") }}', icon:'fa-coins'},
     {% endif %}
   ];
 
-  var input   = document.getElementById('globalSearchInput');
-  var results = document.getElementById('globalSearchResults');
-  var wrap    = document.getElementById('globalSearchWrap');
-  if (!input) return;
-
-  // '/' 단축키
+  // 상단 검색창 + 홈 검색창(있을 때) 모두 같은 검색을 쓴다
+  var homeInput = document.getElementById('homeSearchInput');
+  var primary = homeInput || document.getElementById('globalSearchInput');
   document.addEventListener('keydown', function(e) {
-    if (e.key === '/' && document.activeElement !== input &&
-        !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
+    if (!primary) return;
+    var tag = document.activeElement ? document.activeElement.tagName : '';
+    if ((e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k')) &&
+        !['INPUT','TEXTAREA','SELECT'].includes(tag)) {
       e.preventDefault();
-      input.focus();
+      primary.focus();
     }
+  });
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  bindSearch('globalSearchInput', 'globalSearchResults', 'globalSearchWrap');
+  bindSearch('homeSearchInput', 'homeSearchResults', 'homeSearchWrap');
+
+  function bindSearch(inputId, resultsId, wrapId) {
+  var input   = document.getElementById(inputId);
+  var results = document.getElementById(resultsId);
+  var wrap    = document.getElementById(wrapId);
+  if (!input || !results || !wrap) return;
+  input.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') { input.blur(); results.style.display = 'none'; }
   });
 
@@ -447,12 +322,10 @@ function toggleSubgroup(btn, bodyId) {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(function() { doSearch(input.value.trim()); }, 80);
   });
-
   input.addEventListener('focus', function() {
     wrap.classList.add('search-focused');
     if (input.value.trim()) doSearch(input.value.trim());
   });
-
   document.addEventListener('click', function(e) {
     if (!wrap.contains(e.target)) {
       results.style.display = 'none';
@@ -463,49 +336,40 @@ function toggleSubgroup(btn, bodyId) {
   function doSearch(q) {
     if (!q) { results.style.display = 'none'; return; }
     var ql = q.toLowerCase();
-
-    // 메뉴 항목 매칭
     var navMatched = NAV_ITEMS.filter(function(item) {
-      return item.label.toLowerCase().includes(ql);
-    }).slice(0, 3);
+      return item.label.toLowerCase().includes(ql) || item.group.toLowerCase().includes(ql);
+    }).slice(0, 5);
 
-    // 직원 검색 (서버)
     fetch('/search?q=' + encodeURIComponent(q))
       .then(function(r) { return r.json(); })
+      .catch(function() { return []; })
       .then(function(employees) {
         var html = '';
-
         if (navMatched.length) {
-          html += '<div class="search-section-label">페이지</div>';
+          html += '<div class="search-section-label">메뉴</div>';
           html += navMatched.map(function(item) {
             return '<a href="' + item.url + '" class="search-result-item">' +
                    '<i class="fas ' + item.icon + ' search-result-icon"></i>' +
-                   '<span>' + item.label + '</span></a>';
+                   '<span>' + esc(item.label) + '<small style="color:var(--tx-3);margin-left:8px;">' + esc(item.group) + '</small></span></a>';
           }).join('');
         }
-
         if (employees.length) {
           html += '<div class="search-section-label">직원</div>';
           html += employees.map(function(e) {
             return '<a href="/employees/' + e.id + '" class="search-result-item">' +
                    '<i class="fas fa-user search-result-icon"></i>' +
-                   '<span>' + e.name +
-                   '<small style="color:var(--tx-3);margin-left:6px;">' +
-                   (e.dept_name || '') + ' · ' + (e.pos_name || '') +
+                   '<span>' + esc(e.name) +
+                   '<small style="color:var(--tx-3);margin-left:8px;">' +
+                   esc(e.dept_name || '') + (e.pos_name ? ' · ' + esc(e.pos_name) : '') +
                    '</small></span></a>';
           }).join('');
         }
-
-        if (!navMatched.length && !employees.length) {
-          html = '<div class="search-empty">결과 없음</div>';
-        }
-
+        if (!navMatched.length && !employees.length) html = '<div class="search-empty">결과 없음</div>';
         results.innerHTML = html;
         results.style.display = 'block';
       });
   }
 
-  // 키보드 네비게이션
   input.addEventListener('keydown', function(e) {
     var items = results.querySelectorAll('.search-result-item');
     var focused = results.querySelector('.search-result-item:focus');
@@ -523,6 +387,14 @@ function toggleSubgroup(btn, bodyId) {
       (focused || items[0]).click();
     }
   });
+  results.addEventListener('keydown', function(e) {
+    var items = Array.from(results.querySelectorAll('.search-result-item'));
+    var idx = items.indexOf(document.activeElement);
+    if (idx < 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); (items[idx + 1] || items[0]).focus(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); if (idx === 0) input.focus(); else items[idx - 1].focus(); }
+  });
+  }
 }());
 </script>
 
@@ -541,19 +413,19 @@ function toggleSubgroup(btn, bodyId) {
   position: fixed;
   width: 300px;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-lg, 12px);
-  box-shadow: 0 12px 32px rgba(0,0,0,.22);
+  
   padding: 18px 18px 14px;
   transition: top .25s ease, left .25s ease;
 }
-.tour-card .tour-step { font-size: 11.5px; font-weight: 700; color: var(--primary); margin-bottom: 6px; letter-spacing: .02em; }
+.tour-card .tour-step { font-size: 11.5px; font-weight: 700; color: var(--tx-3); margin-bottom: 6px; font-family: var(--mono); letter-spacing: .02em; }
 .tour-card .tour-title { font-size: 14.5px; font-weight: 750; color: var(--tx-1); margin-bottom: 6px; }
 .tour-card .tour-desc { font-size: 13px; color: var(--tx-3); line-height: 1.5; margin-bottom: 14px; }
 .tour-card .tour-actions { display: flex; align-items: center; justify-content: space-between; }
 .tour-card .tour-skip { font-size: 12.5px; color: var(--tx-3); background: none; border: none; cursor: pointer; }
 .tour-card .tour-skip:hover { color: var(--tx-1); }
-.tour-card .tour-next { font-size: 13px; font-weight: 700; color: #fff; background: var(--primary); border: none; border-radius: 8px; padding: 7px 16px; cursor: pointer; }
+.tour-card .tour-next { font-size: 13px; font-weight: 700; color: var(--inv-tx); background: var(--inv-bg); border: none; border-radius: 8px; padding: 7px 16px; cursor: pointer; }
 .tour-card .tour-next:hover { opacity: .9; }
 </style>
 
@@ -574,11 +446,10 @@ function toggleSubgroup(btn, bodyId) {
 (function () {
   // ── 1) 최초 진입 시: 사이드바 구조만 짧게 설명 ──
   var GLOBAL_TOUR = [
-    { sel: '#appSidebar', title: '사이드바 구조', desc: '메뉴는 나 / 회사 / 팀 / 관리자 4개 카테고리로 나뉘어 있습니다. 역할에 따라 보이는 항목이 다릅니다.' },
-    { sel: '#globalSearchWrap', title: '글로벌 검색', desc: '직원 이름이나 메뉴명을 입력하면 바로 검색됩니다. 어디서든 "/" 키를 누르면 검색창으로 바로 이동해요.' },
-    { sel: 'a[title="알림"]', title: '알림', desc: '휴가 승인, 인사발령 등 처리가 필요한 항목이 생기면 여기로 알려드립니다.' },
-    { sel: '#userPill', title: '내 계정', desc: '프로필 수정, 회사 설정, 로그아웃은 이 메뉴에서 할 수 있습니다.' },
-    { sel: '.page-content', title: '메뉴별 상세 안내', desc: '각 메뉴에 처음 들어가면 그 화면에서 할 수 있는 기능을 별도로 안내해드립니다. 사이드바 하단의 "가이드 투어"로 언제든 다시 볼 수 있어요.' }
+    { sel: '#appGnb .gnb-menu', title: '메뉴', desc: '홈 · 자리 · 구성원 · 근무 · 보상 · 성과 · 분석. 메뉴에 마우스를 올리면 하위 메뉴 표시. 권한별 노출 항목 상이.' },
+    { sel: '#globalSearchWrap', title: '검색', desc: '직원명 · 메뉴명 검색. 단축키 / 또는 Ctrl+K.' },
+    { sel: 'a[title="알림"]', title: '알림', desc: '결재 요청 · 처리 결과 수신.' },
+    { sel: '#userPill', title: '계정', desc: '내 정보 · 화면 모드(시스템/밝게/어둡게) · 화면 안내 · 로그아웃.' }
   ];
 
   // ── 2) 각 메뉴 첫 진입 시: 그 화면의 기능 설명 ──
@@ -659,7 +530,7 @@ function toggleSubgroup(btn, bodyId) {
     placeTour(curStep);
   }
 
-  // 사이드바 "가이드 투어 다시보기" 클릭 시: 현재 페이지에 전용 투어가 있으면 그것을, 없으면 개요 투어를 재생
+  // 계정 메뉴 "화면 안내" 클릭 시: 현재 페이지에 전용 투어가 있으면 그것을, 없으면 개요 투어를 재생
   window.startTour = function () {
     var pageSteps = PAGE_TOURS['{{ active_page }}'];
     if (pageSteps) {

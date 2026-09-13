@@ -38,14 +38,14 @@
     <tbody>
     {% for r in reqs %}
     {% set status_colors = {
-      'draft':        ('#f1f5f9','#475569'),
-      'pending_dept': ('#fef9c3','#854d0e'),
-      'pending_hr':   ('#fef9c3','#854d0e'),
-      'approved':     ('#dcfce7','#166534'),
-      'rejected':     ('#fee2e2','#991b1b'),
-      'posted':       ('#ede9fe','#5b21b6'),
+      'draft':        ('var(--surface-2)','var(--tx-2)'),
+      'pending_dept': ('var(--orange-bg)','var(--wait)'),
+      'pending_hr':   ('var(--orange-bg)','var(--wait)'),
+      'approved':     ('var(--green-bg)','var(--done)'),
+      'rejected':     ('var(--red-bg)','var(--late)'),
+      'posted':       ('var(--surface-2)','var(--tx-1)'),
     } %}
-    {% set sc = status_colors.get(r.status, ('#f1f5f9','#475569')) %}
+    {% set sc = status_colors.get(r.status, ('var(--surface-2)','var(--tx-2)')) %}
     <tr style="cursor:pointer;" onclick="location.href='{{ url_for('requisition_detail', req_id=r.id) }}'">
       <td><strong>{{ r.title }}</strong></td>
       <td style="font-size:12px; color:var(--tx-2);">{{ r.dept_name or '-' }}</td>

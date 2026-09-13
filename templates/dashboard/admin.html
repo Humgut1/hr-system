@@ -1,412 +1,191 @@
 {% extends 'base.html' %}
-{% block title %}대시보드{% endblock %}
-{% block page_title %}대시보드{% endblock %}
-
-{% block content %}
-
-<!-- Hero Banner -->
-<div class="welcome-banner" style="margin-bottom:24px;">
-  <div style="z-index:1;">
-    <div style="font-size:12px; font-weight:600; opacity:.6; text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px;">{{ today_str }}</div>
-    <div class="welcome-greeting">{{ first_name }}님, {{ greet }}.</div>
-    <div class="welcome-sub">
-      {{ total_employees }}명 재직 중 · {{ total_departments }}개 부서
-      {% if inbox_count > 0 %}
-      · <span class="hero-badge">처리할 항목 {{ inbox_count }}건</span>
-      {% else %}
-      · 처리 대기 항목 없음
-      {% endif %}
-    </div>
-  </div>
-  <div style="z-index:1; display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
-    <i class="fas fa-building welcome-icon" style="position:static; opacity:.15; font-size:48px;"></i>
-    <button onclick="toggleCustomize()" class="btn btn-ghost btn-sm" style="font-size:12px;">
-      <i class="fas fa-sliders-h"></i> 위젯 설정
-    </button>
-  </div>
-</div>
-
-<!-- Customize Panel -->
-<div id="customize-panel" style="display:none; margin-bottom:20px;">
-  <div class="card" style="padding:20px; border:2px solid var(--primary-soft);">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-      <div>
-        <div style="font-weight:700; font-size:14px; color:var(--tx-1);">
-          <i class="fas fa-sliders-h" style="color:var(--primary); margin-right:7px;"></i>대시보드 위젯
-        </div>
-        <div style="font-size:12px; color:var(--tx-3); margin-top:3px;">보고 싶은 위젯만 선택하세요</div>
-      </div>
-      <button onclick="toggleCustomize()" class="btn btn-ghost btn-sm"><i class="fas fa-times"></i></button>
-    </div>
-    <form method="POST" action="{{ url_for('dashboard_widgets_save') }}">
-      <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; margin-bottom:16px;">
-        {% for w in widget_catalog %}
-        <label style="display:flex; align-items:center; gap:10px; padding:12px 14px;
-                      border:1.5px solid {% if w.key in enabled_widgets %}var(--primary){% else %}var(--line){% endif %};
-                      border-radius:12px; cursor:pointer; background:{% if w.key in enabled_widgets %}var(--primary-soft){% else %}var(--surface){% endif %};
-                      transition:all .15s;"
-               onmouseenter="this.style.borderColor='var(--primary)'"
-               onmouseleave="this.style.borderColor=this.querySelector('input').checked?'var(--primary)':'var(--line)'">
-          <input type="checkbox" name="w_{{ w.key }}"
-                 {% if w.key in enabled_widgets %}checked{% endif %}
-                 onchange="this.closest('label').style.background=this.checked?'var(--primary-soft)':'var(--surface)';
-                           this.closest('label').style.borderColor=this.checked?'var(--primary)':'var(--line)';"
-                 style="width:16px; height:16px; accent-color:var(--primary);">
-          <div>
-            <div style="font-size:13px; font-weight:600; color:var(--tx-1);">{{ w.label }}</div>
-          </div>
-        </label>
-        {% endfor %}
-      </div>
-      <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button type="button" onclick="toggleCustomize()" class="btn btn-ghost">취소</button>
-        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 저장</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- KPI Cards -->
-{% if 'kpi_cards' in enabled_widgets %}
-<div class="stat-grid" style="margin-bottom:24px;">
-  <div class="stat-card">
-    <div class="stat-ico ico-blue"><i class="fas fa-users"></i></div>
-    <div class="stat-body">
-      <div class="stat-val">{{ total_employees }}</div>
-      <div class="stat-lbl">재직 인원</div>
-    </div>
-  </div>
-  <a href="{{ url_for('attendance') }}" class="stat-card" style="text-decoration:none; cursor:pointer;">
-    <div class="stat-ico ico-orange"><i class="fas fa-clock"></i></div>
-    <div class="stat-body">
-      <div class="stat-val" style="{% if pending_leave > 0 %}color:var(--orange);{% endif %}">{{ pending_leave }}</div>
-      <div class="stat-lbl">휴가 승인 대기</div>
-    </div>
-  </a>
-  {# 자리 대장은 Core다 — 요금제로 가리지 않는다 (T6) #}
-  {% if true %}
-  <a href="{{ url_for('opening_board') }}" class="stat-card" style="text-decoration:none; cursor:pointer;">
-    <div class="stat-ico ico-purple"><i class="fas fa-id-card"></i></div>
-    <div class="stat-body">
-      <div class="stat-val">{{ open_seats }}</div>
-      <div class="stat-lbl">열려 있는 자리</div>
-    </div>
-  </a>
-  {% else %}
-  <a href="{{ url_for('hires_list') }}" class="stat-card" style="text-decoration:none; cursor:pointer;">
-    <div class="stat-ico ico-purple"><i class="fas fa-door-open"></i></div>
-    <div class="stat-body">
-      <div class="stat-val">{{ hires_waiting_count }}</div>
-      <div class="stat-lbl">입사 예정자</div>
-    </div>
-  </a>
-  {% endif %}
-  <div class="stat-card">
-    <div class="stat-ico ico-green"><i class="fas fa-door-open"></i></div>
-    <div class="stat-body">
-      <div class="stat-val">{{ who_out | length }}</div>
-      <div class="stat-lbl">오늘 부재중</div>
-    </div>
-  </div>
-</div>
-{% endif %}
-
-<!-- Main Grid -->
-<div class="grid-dash">
-
-  <!-- Left -->
-  <div class="stack">
-
-    {% if 'inbox' in enabled_widgets %}
-    <div class="card">
-      <div class="card-head">
-        <span class="card-title">
-          <i class="fas fa-inbox" style="color:var(--primary); margin-right:7px;"></i>
-          인박스
-          {% if inbox_count > 0 %}<span class="badge badge-pending" style="font-size:11px; margin-left:8px;">{{ inbox_count }}</span>{% endif %}
-        </span>
-        <a href="{{ url_for('approvals_hub') }}" class="btn btn-ghost btn-sm">
-          <i class="fas fa-stamp"></i> 결재 대기함 전체
-        </a>
-      </div>
-      <div class="inbox-widget">
-        {% if not inbox_items %}
-        <div class="inbox-empty">
-          <i class="fas fa-check-circle" style="color:var(--green);"></i>
-          <div class="inbox-empty-text">모든 항목이 처리되었습니다.</div>
-        </div>
-        {% else %}
-        {% for item in inbox_items %}
-        <div class="inbox-item">
-          <div class="inbox-item-ico
-            {% if item.category == 'leave' %}ico-orange
-            {% elif item.category == 'certificate' %}ico-blue
-            {% elif item.category == 'personnel' %}ico-purple
-            {% elif item.category == 'termination' %}ico-red
-            {% elif item.category == 'goal' %}ico-blue
-            {% elif item.category == 'appeal' %}ico-purple
-            {% elif item.category == 'payroll' %}ico-orange
-            {% else %}ico-green{% endif %}">
-            <i class="fas
-              {% if item.category == 'leave' %}fa-calendar-times
-              {% elif item.category == 'certificate' %}fa-file-alt
-              {% elif item.category == 'personnel' %}fa-user-edit
-              {% elif item.category == 'termination' %}fa-user-clock
-              {% elif item.category == 'goal' %}fa-bullseye
-              {% elif item.category == 'appeal' %}fa-gavel
-              {% elif item.category == 'overtime' %}fa-clock
-              {% elif item.category == 'hire' %}fa-door-open
-              {% elif item.category == 'payroll' %}fa-file-invoice-dollar
-              {% else %}fa-bell{% endif %}"></i>
-          </div>
-          <div class="inbox-item-body">
-            <div class="inbox-item-title">{{ item.title }}</div>
-            <div class="inbox-item-sub">{{ item.sub }}</div>
-          </div>
-          <div class="inbox-item-actions">
-            <a href="{{ item.link }}" class="btn btn-primary btn-sm">확인</a>
-          </div>
-        </div>
-        {% endfor %}
-        {% endif %}
-      </div>
-    </div>
-    {% endif %}
-
-    {% if 'payroll_summary' in enabled_widgets %}
-    <div class="card" style="padding:24px;">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-        <div class="label">이번 달 급여 현황</div>
-        <a href="{{ url_for('compensation') }}" class="btn btn-ghost btn-sm">급여관리</a>
-      </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-        <div style="background:var(--bg); border-radius:12px; padding:16px;">
-          <div style="font-size:12px; color:var(--tx-3); margin-bottom:6px;">지급 인원</div>
-          <div style="font-size:28px; font-weight:700; color:var(--tx-1);">{{ payroll_summary.count }}<span style="font-size:14px; font-weight:500; color:var(--tx-3);">명</span></div>
-        </div>
-        <div style="background:var(--bg); border-radius:12px; padding:16px;">
-          <div style="font-size:12px; color:var(--tx-3); margin-bottom:6px;">총 지급액</div>
-          <div style="font-size:20px; font-weight:700; color:var(--primary);">
-            {% if payroll_summary.total >= 100000000 %}
-              {{ '%.1f'|format(payroll_summary.total / 100000000) }}억
-            {% elif payroll_summary.total >= 10000 %}
-              {{ '{:,.0f}'.format(payroll_summary.total // 10000) }}만
-            {% else %}
-              {{ '{:,}'.format(payroll_summary.total) }}
-            {% endif %}
-          </div>
-        </div>
-      </div>
-      {% if payroll_summary.count == 0 %}
-      <div style="margin-top:12px; padding:10px 14px; background:var(--amber-soft,#fef9ec); border-radius:10px; font-size:12px; color:var(--amber,#d97706);">
-        <i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>이번 달 급여가 아직 실행되지 않았습니다.
-      </div>
-      {% endif %}
-    </div>
-    {% endif %}
-
-    {% if 'open_positions' in enabled_widgets %}
-    <div class="card">
-      <div class="card-head">
-        <span class="card-title">열려 있는 자리</span>
-        <a href="{{ url_for('opening_board') }}" class="btn btn-ghost btn-sm">전체 보기</a>
-      </div>
-      {% if open_jobs %}
-      <div>
-        {% for job in open_jobs %}
-        <a href="{{ url_for('requisition_detail', req_id=job.req_id) }}" style="text-decoration:none; padding:13px 22px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between;">
-          <div>
-            <div class="body-sm" style="font-weight:600; color:var(--tx-1);">{{ job.title }}</div>
-            <div style="font-size:11px; color:var(--tx-3);">REQ-{{ job.req_id }}</div>
-          </div>
-          <span class="chip" style="font-size:11px; white-space:nowrap;">남은 자리 {{ job.open_count }} / {{ job.total_count }}</span>
-        </a>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div style="padding:32px 22px; text-align:center;" class="muted body-sm">
-        <i class="fas fa-briefcase" style="font-size:24px; opacity:.3; display:block; margin-bottom:10px;"></i>
-        열려 있는 자리가 없습니다.
-      </div>
-      {% endif %}
-    </div>
-    {% endif %}
-
-    {% if 'overtime_violations' in enabled_widgets %}
-    <div class="card">
-      <div class="card-head">
-        <span class="card-title">52시간 위반 (최근 7일)</span>
-        <a href="{{ url_for('overtime_monitor') }}" class="btn btn-ghost btn-sm">모니터링</a>
-      </div>
-      {% if ot_violations %}
-      <div>
-        {% for v in ot_violations %}
-        <div style="padding:12px 22px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px;">
-          <div class="avatar-xs" style="flex-shrink:0; background:var(--red-soft,#fee2e2); color:var(--red,#ef4444);">{{ v.name[0] }}</div>
-          <div style="flex:1; min-width:0;">
-            <div class="body-sm" style="font-weight:600;">{{ v.name }}</div>
-          </div>
-          <span style="font-size:12px; font-weight:700; color:var(--red,#ef4444);">{{ '%.0f'|format(v.ot_min / 60) }}h 초과</span>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div style="padding:32px 22px; text-align:center;" class="muted body-sm">
-        <i class="fas fa-check-circle" style="font-size:24px; color:var(--green); opacity:.5; display:block; margin-bottom:10px;"></i>
-        이번 주 위반 없음
-      </div>
-      {% endif %}
-    </div>
-    {% endif %}
-
-    {% if 'recent_employees' in enabled_widgets %}
-    <div class="card">
-      <div class="card-head">
-        <span class="card-title">최근 입사자</span>
-        <a href="{{ url_for('employees') }}" class="btn btn-ghost btn-sm">전체 보기</a>
-      </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr><th>이름</th><th>부서</th><th>직급</th><th>입사일</th></tr></thead>
-          <tbody>
-            {% for emp in recent_employees %}
-            <tr>
-              <td>
-                <div class="u-cell">
-                  <div class="avatar-xs">{{ emp.name[0] }}</div>
-                  <span class="u-name">{{ emp.name }}</span>
-                </div>
-              </td>
-              <td class="muted" style="font-size:13px;">{{ emp.dept or '—' }}</td>
-              <td class="muted" style="font-size:13px;">{{ emp.pos or '—' }}</td>
-              <td class="muted" style="font-size:13px;">{{ emp.hire_date or '—' }}</td>
-            </tr>
-            {% else %}
-            <tr><td colspan="4" style="text-align:center; color:var(--tx-3); padding:32px;">등록된 직원이 없습니다</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    {% endif %}
-
-  </div><!-- /left -->
-
-  <!-- Right -->
-  <div class="stack">
-
-    {% if 'quick_actions' in enabled_widgets %}
-    <div class="card" style="padding:20px;">
-      <div class="label" style="margin-bottom:14px;">빠른 실행</div>
-      <div class="quick-actions-grid">
-        <a href="{{ url_for('employee_new') }}" class="qa-btn">
-          <div class="qa-btn-ico ico-blue"><i class="fas fa-user-plus"></i></div>
-          <span>직원 등록</span>
-        </a>
-        <a href="{{ url_for('announcement_new') }}" class="qa-btn">
-          <div class="qa-btn-ico ico-orange"><i class="fas fa-bullhorn"></i></div>
-          <span>공지 작성</span>
-        </a>
-        <a href="{{ url_for('compensation') }}" class="qa-btn">
-          <div class="qa-btn-ico ico-green"><i class="fas fa-coins"></i></div>
-          <span>급여 관리</span>
-        </a>
-        <a href="{{ url_for('people_analytics') }}" class="qa-btn">
-          <div class="qa-btn-ico ico-purple"><i class="fas fa-chart-pie"></i></div>
-          <span>분석·보고서</span>
-        </a>
-        {% if true %}
-        <a href="{{ url_for('requisition_new') }}" class="qa-btn">
-          <div class="qa-btn-ico ico-cyan"><i class="fas fa-file-signature"></i></div>
-          <span>채용 요청서</span>
-        </a>
-        {% else %}
-        <a href="{{ url_for('hires_list') }}" class="qa-btn">
-          <div class="qa-btn-ico ico-cyan"><i class="fas fa-door-open"></i></div>
-          <span>입사 예정자</span>
-        </a>
-        {% endif %}
-        <a href="{{ url_for('export_hub') }}" class="qa-btn">
-          <div class="qa-btn-ico ico-green"><i class="fas fa-file-excel"></i></div>
-          <span>데이터 내보내기</span>
-        </a>
-        <a href="{{ url_for('admin_settings') }}" class="qa-btn">
-          <div class="qa-btn-ico ico-slate"><i class="fas fa-building"></i></div>
-          <span>회사 설정</span>
-        </a>
-        <a href="{{ url_for('overtime_monitor') }}" class="qa-btn">
-          <div class="qa-btn-ico ico-orange"><i class="fas fa-clock"></i></div>
-          <span>52시간 모니터링</span>
-        </a>
-      </div>
-    </div>
-    {% endif %}
-
-    {% if 'whos_out' in enabled_widgets %}
-    <div class="card">
-      <div class="card-head">
-        <span class="card-title">오늘 부재중인 직원</span>
-        {% if who_out %}<span class="badge badge-pending" style="font-size:11px;">{{ who_out|length }}명</span>{% endif %}
-      </div>
-      {% if who_out %}
-      <div style="padding:0 10px 10px;">
-        {% for p in who_out %}
-        <div class="row" style="padding:10px 12px; border-radius:12px;">
-          <div class="avatar-xs" style="flex-shrink:0;">{{ p.name[0] }}</div>
-          <div style="flex:1; min-width:0;">
-            <div class="body-sm" style="font-weight:600;">{{ p.name }}</div>
-            <div class="muted" style="font-size:12px;">{{ p.dept or '—' }}</div>
-          </div>
-          <span class="chip" style="font-size:11px; white-space:nowrap;">{{ labels.get(p.type, p.type) }}</span>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div style="padding:24px 22px;" class="muted body-sm">오늘은 전원 출근했습니다.</div>
-      {% endif %}
-    </div>
-    {% endif %}
-
-    {% if 'announcements' in enabled_widgets %}
-    <div class="card">
-      <div class="card-head">
-        <span class="card-title">공지사항</span>
-        <div style="display:flex; gap:6px;">
-          <a href="{{ url_for('announcement_new') }}" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> 작성</a>
-          <a href="{{ url_for('announcements') }}" class="btn btn-ghost btn-sm">전체</a>
-        </div>
-      </div>
-      {% for post in recent_posts %}
-      <a href="{{ url_for('announcement_detail', post_id=post.id) }}" class="list-link-item"
-         onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
-        <div style="width:30px; height:30px; border-radius:8px; flex-shrink:0;
-                    background:{% if post.pinned %}var(--primary-soft){% else %}var(--bg){% endif %};
-                    display:flex; align-items:center; justify-content:center;
-                    color:{% if post.pinned %}var(--primary){% else %}var(--tx-3){% endif %}; font-size:12px;">
-          <i class="fas fa-{% if post.pinned %}thumbtack{% else %}file-alt{% endif %}"></i>
-        </div>
-        <div style="flex:1; min-width:0;">
-          <div class="body-sm" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ post.title }}</div>
-          <div class="muted" style="font-size:11px;">{{ post.created_at[:10] }}</div>
-        </div>
-        {% if post.pinned %}<span class="chip chip-primary" style="font-size:10px;">고정</span>{% endif %}
-      </a>
-      {% else %}
-      <div style="padding:24px 22px;" class="muted body-sm">공지사항이 없습니다.</div>
-      {% endfor %}
-    </div>
-    {% endif %}
-
-  </div><!-- /right -->
-
+{% block title %}홈{% endblock %}
+{% block page_title %}홈{% endblock %}
+{% block page_head %}
+<div class="home-strip">
+  <span><b>{{ today_iso }}</b> ({{ today_str.split()[-1][0] }})</span>
+  <span>·</span>
+  <span>{% if session.dept_name %}{{ session.dept_name }} {% endif %}{{ session.user_name }}</span>
+  {% if 'kpi_cards' in enabled_widgets %}<span class="rr">
+    <a href="{{ url_for('employees') }}">재직 <b>{{ total_employees }}</b></a>
+    <a href="{{ url_for('hires_list') }}">입사예정 <b>{{ hires_waiting_count }}</b></a>
+    <a href="{{ url_for('opening_board') }}">공석 <b>{{ open_seats }}</b></a>
+    <a href="{{ url_for('attendance_home') }}">금일 부재 <b>{{ out_today }}</b></a>
+    <a href="{{ url_for('approvals_hub') }}" class="{% if inbox_late %}late{% endif %}">미결 <b>{{ inbox_count }}</b>{% if inbox_late %} · 기한 초과 <b>{{ inbox_late }}</b>{% endif %}</a>
+  </span>{% endif %}
 </div>
 {% endblock %}
 
-{% block scripts %}
-<script>
-function toggleCustomize() {
-  var p = document.getElementById('customize-panel');
-  p.style.display = p.style.display === 'none' ? 'block' : 'none';
-}
-</script>
+{% block content %}
+
+<div class="home-hero">
+  <div class="home-cmd">
+    {% if 'quick_actions' in enabled_widgets %}
+    <div class="recent">
+      <span>바로가기</span>
+      <a href="{{ url_for('employee_new') }}">직원 등록</a>
+      <a href="{{ url_for('requisition_new') }}">채용 요청서</a>
+      <a href="{{ url_for('announcement_new') }}">공지 작성</a>
+      <a href="{{ url_for('compensation') }}">급여</a>
+      <a href="{{ url_for('overtime_monitor') }}">주 52시간</a>
+      <a href="{{ url_for('export_hub') }}">내보내기</a>
+    </div>
+    {% endif %}
+    <div class="global-search-wrap" id="homeSearchWrap">
+      <div class="global-search-inner">
+        <i class="fas fa-magnifying-glass global-search-icon"></i>
+        <input type="text" id="homeSearchInput" class="global-search-input" placeholder="직원 이름, 메뉴 검색" autocomplete="off" spellcheck="false">
+        <kbd class="search-kbd">/</kbd>
+      </div>
+      <div class="global-search-results" id="homeSearchResults" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+{% if 'inbox' in enabled_widgets %}
+<section class="home-sec">
+  <div class="sec-head">
+    <h2>미결</h2>
+    <span class="cnt" style="{% if inbox_late %}color:var(--late);{% endif %}">{{ inbox_count }}건</span>
+    <span class="sp"></span>
+    <a href="{{ url_for('approvals_hub') }}" class="btn btn-ghost btn-sm">결재 대기함</a>
+  </div>
+  <div class="tbl-wrap">
+    <table class="qtable">
+      <thead><tr>
+        <th class="c-id">문서번호</th><th class="c-ty">구분</th><th class="c-tg">대상</th>
+        <th class="c-rq">요청자</th><th class="c-du">기한</th><th class="c-st">상태</th>
+      </tr></thead>
+      <tbody>
+        {% for r in inbox_items[:8] %}
+        <tr class="q {{ r.state }}" onclick="location.href='{{ r.link }}'">
+          <td class="c-id">{{ r.doc }}</td>
+          <td class="c-ty">{{ r.kind }}</td>
+          <td class="c-tg">{{ r.target }}<em>{{ r.detail }}</em></td>
+          <td class="c-rq">{{ r.requester }}</td>
+          <td class="c-du">{{ r.due or '—' }}</td>
+          <td class="c-st">{{ r.due_label if r.due else '대기' }}</td>
+        </tr>
+        {% else %}
+        <tr class="empty"><td colspan="6">미결 문서 없음</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if inbox_count > 8 %}
+  <div style="margin-top:8px; font:500 12px var(--mono); color:var(--tx-3);">
+    <a href="{{ url_for('approvals_hub') }}" style="color:var(--tx-2);">외 {{ inbox_count - 8 }}건</a>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<div class="home-grid">
+
+  {% if 'whos_out' in enabled_widgets %}
+  <section>
+    <div class="sec-head"><h2>금일 부재</h2><span class="cnt">{{ out_today }}명</span><span class="sp"></span><a href="{{ url_for('attendance_home') }}">근태</a></div>
+    <table class="ltable">
+      <thead><tr><th>성명</th><th>부서</th><th>구분</th><th class="r">복귀 예정</th></tr></thead>
+      <tbody>
+        {% for p in who_out %}
+        <tr><td>{{ p.name }}</td><td style="color:var(--tx-2);">{{ p.dept or '—' }}</td><td style="color:var(--tx-2);">{{ labels.get(p.type, p.type) }}</td><td class="m r">{{ p.end_date }}</td></tr>
+        {% else %}
+        <tr class="empty"><td colspan="4">해당 없음</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if 'open_positions' in enabled_widgets %}
+  <section>
+    <div class="sec-head"><h2>열린 자리</h2><span class="cnt">{{ open_seats }}석</span><span class="sp"></span><a href="{{ url_for('opening_board') }}">자리 대장</a></div>
+    <table class="ltable">
+      <thead><tr><th>요청번호</th><th>직무</th><th class="r">공석 / 정원</th></tr></thead>
+      <tbody>
+        {% for job in open_jobs %}
+        <tr><td class="m"><a href="{{ url_for('requisition_detail', req_id=job.req_id) }}">REQ-{{ job.req_id }}</a></td><td>{{ job.title }}</td><td class="m r">{{ job.open_count }} / {{ job.total_count }}</td></tr>
+        {% else %}
+        <tr class="empty"><td colspan="3">해당 없음</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if 'overtime_violations' in enabled_widgets %}
+  <section>
+    <div class="sec-head"><h2>주 52시간 초과</h2><span class="cnt">최근 7일</span><span class="sp"></span><a href="{{ url_for('overtime_monitor') }}">연장근로 현황</a></div>
+    <table class="ltable">
+      <thead><tr><th>성명</th><th class="r">연장근로</th></tr></thead>
+      <tbody>
+        {% for v in ot_violations %}
+        <tr><td>{{ v.name }}</td><td class="m r late">{{ '%.1f'|format(v.ot_min / 60) }}시간</td></tr>
+        {% else %}
+        <tr class="empty"><td colspan="2">해당 없음</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if 'payroll_summary' in enabled_widgets %}
+  <section>
+    <div class="sec-head"><h2>당월 급여</h2><span class="cnt">{{ today_iso[:7] }}</span><span class="sp"></span><a href="{{ url_for('compensation') }}">급여</a></div>
+    <table class="ltable">
+      <tbody>
+        <tr><td style="color:var(--tx-2);">지급 인원</td><td class="m r">{{ payroll_summary.count }}명</td></tr>
+        <tr><td style="color:var(--tx-2);">지급 총액(실지급)</td><td class="m r">{{ '{:,}'.format(payroll_summary.total|int) }}원</td></tr>
+        <tr><td style="color:var(--tx-2);">상태</td><td class="m r {% if payroll_summary.count == 0 %}late{% endif %}">{% if payroll_summary.count == 0 %}미실행{% else %}생성됨{% endif %}</td></tr>
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if 'recent_employees' in enabled_widgets %}
+  <section>
+    <div class="sec-head"><h2>최근 입사</h2><span class="sp"></span><a href="{{ url_for('employees') }}">직원 목록</a></div>
+    <table class="ltable">
+      <thead><tr><th>성명</th><th>부서</th><th>직급</th><th class="r">입사일</th></tr></thead>
+      <tbody>
+        {% for emp in recent_employees %}
+        <tr><td>{{ emp.name }}</td><td style="color:var(--tx-2);">{{ emp.dept or '—' }}</td><td style="color:var(--tx-2);">{{ emp.pos or '—' }}</td><td class="m r">{{ emp.hire_date or '—' }}</td></tr>
+        {% else %}
+        <tr class="empty"><td colspan="4">해당 없음</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if 'announcements' in enabled_widgets %}
+  <section>
+    <div class="sec-head"><h2>공지</h2><span class="sp"></span><a href="{{ url_for('announcements') }}">전체</a></div>
+    <table class="ltable">
+      <thead><tr><th>제목</th><th class="r">게시일</th></tr></thead>
+      <tbody>
+        {% for post in recent_posts %}
+        <tr><td style="max-width:0; width:100%; overflow:hidden; text-overflow:ellipsis;">{% if post.pinned %}<span class="chip" style="height:20px; font-size:11px; margin-right:6px;">고정</span>{% endif %}<a href="{{ url_for('announcement_detail', post_id=post.id) }}">{{ post.title }}</a></td><td class="m r">{{ post.created_at[:10] }}</td></tr>
+        {% else %}
+        <tr class="empty"><td colspan="2">해당 없음</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+</div>
+
+<details style="margin-top:36px; font-size:12.5px; color:var(--tx-3);">
+  <summary style="cursor:pointer; width:max-content;">홈 구성</summary>
+  <form method="POST" action="{{ url_for('dashboard_widgets_save') }}" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:6px 18px; align-items:center;">
+    {% for w in widget_catalog %}
+    <label style="display:inline-flex; align-items:center; gap:6px; color:var(--tx-2);">
+      <input type="checkbox" name="w_{{ w.key }}" {% if w.key in enabled_widgets %}checked{% endif %} style="accent-color:var(--tx-1);">{{ w.label }}
+    </label>
+    {% endfor %}
+    <button type="submit" class="btn btn-secondary btn-sm">저장</button>
+  </form>
+</details>
 {% endblock %}

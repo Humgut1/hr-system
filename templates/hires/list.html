@@ -17,10 +17,10 @@
 .dday-badge {
   font-size:11px; font-weight:800; padding:3px 10px; border-radius:20px; white-space:nowrap;
 }
-.dd-soon    { background:#fee2e2; color:#dc2626; }
-.dd-week    { background:#fef3c7; color:#92400e; }
-.dd-later   { background:#dbeafe; color:#1e40af; }
-.dd-past    { background:#f1f5f9; color:#475569; }
+.dd-soon    { background:var(--red-bg); color:var(--late); }
+.dd-week    { background:var(--orange-bg); color:var(--wait); }
+.dd-later   { background:var(--surface-2); color:var(--tx-1); }
+.dd-past    { background:var(--surface-2); color:var(--tx-2); }
 
 .src-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; background:var(--bg); color:var(--tx-2); border:1px solid var(--border); }
 
@@ -45,7 +45,7 @@
      style="{{ tab_style }} color:var(--primary); border-bottom-color:var(--primary);">
     <i class="fas fa-door-open"></i> 입사 예정
     {% if counts.get('waiting') %}
-    <span style="font-size:10px; font-weight:800; padding:1px 7px; border-radius:20px; background:#dbeafe; color:#1d4ed8;">{{ counts.get('waiting') }}</span>
+    <span style="font-size:10px; font-weight:800; padding:1px 7px; border-radius:20px; background:var(--surface-2); color:var(--tx-1);">{{ counts.get('waiting') }}</span>
     {% endif %}
   </a>
   <a href="{{ url_for('employees', status='resigned') }}" style="{{ tab_style }} color:var(--tx-3);">
@@ -132,7 +132,7 @@
             {% elif h.req_ref %}
             <div style="font-size:11px; color:var(--tx-3); font-family:monospace; margin-top:2px;">{{ h.req_ref }}</div>
             {% else %}
-            <div style="font-size:11px; color:var(--orange, #b5730b); margin-top:2px;">정원 밖 — 자리 미지정</div>
+            <div style="font-size:11px; color:var(--orange, var(--wait)); margin-top:2px;">정원 밖 — 자리 미지정</div>
             {% endif %}
           </td>
           <td>{% if h.salary %}{{ '{:,}'.format(h.salary) }}원{% else %}—{% endif %}</td>
@@ -149,7 +149,7 @@
             </a>
             <form method="POST" action="{{ url_for('hires_cancel', hire_id=h.id) }}" style="display:inline;"
                   onsubmit="return confirm('{{ h.name }}님의 입사를 취소 처리할까요?')">
-              <button type="submit" class="btn btn-ghost btn-sm" style="color:#dc2626;">취소</button>
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--late);">취소</button>
             </form>
             {% elif h.status == 'converted' %}
             <a href="{{ url_for('employee_detail', emp_id=h.converted_user_id) }}" class="btn btn-ghost btn-sm" style="color:var(--green);">
@@ -186,7 +186,7 @@
     </div>
     <form method="POST" action="{{ url_for('hires_token_regenerate') }}" style="margin-top:10px;"
           onsubmit="return confirm('토큰을 재발급하면 기존 토큰은 즉시 무효화됩니다. 계속할까요?')">
-      <button type="submit" class="btn btn-ghost btn-sm" style="color:#dc2626;">
+      <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--late);">
         <i class="fas fa-rotate"></i> 토큰 재발급
       </button>
     </form>

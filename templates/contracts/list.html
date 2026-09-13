@@ -32,7 +32,7 @@
 
 {% if pending_new %}
 <!-- 계약서를 아직 못 받은 신규 입사자 — 여기가 유일한 알림 자리다 -->
-<div class="card" style="margin-bottom:20px; border-left:3px solid var(--warning, #b5730b);">
+<div class="card" style="margin-bottom:20px; border-left:3px solid var(--warning, var(--wait));">
   <div style="padding:16px 18px;">
     <div style="font-weight:600; margin-bottom:4px;">계약서를 아직 안 보낸 신규 입사자 {{ pending_new|length }}명</div>
     <div class="muted body-sm" style="margin-bottom:12px;">

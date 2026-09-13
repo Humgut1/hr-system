@@ -21,7 +21,7 @@
 .perf-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
 .perf-tab .tab-badge {
   font-size: 10px; font-weight: 800; padding: 1px 6px;
-  border-radius: 20px; background: #fee2e2; color: #dc2626;
+  border-radius: 20px; background: var(--red-bg); color: var(--late);
 }
 .perf-panel { display: none; }
 .perf-panel.active { display: block; }
@@ -41,7 +41,7 @@
   transition: box-shadow .15s, border-color .15s;
   flex: 1; min-width: 200px;
 }
-.todo-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); border-color: #bfdbfe; }
+.todo-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); border-color: var(--line); }
 .todo-icon {
   width: 32px; height: 32px; border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
@@ -50,16 +50,16 @@
 .todo-arrow { margin-left: auto; color: var(--tx-3); font-size: 11px; }
 
 /* 진행률 바 */
-.progress-bar-bg { height: 6px; background: #e2e8f0; border-radius: 99px; overflow: hidden; margin-top: 6px; }
-.progress-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #1e40af, #0891b2); transition: width .3s; }
+.progress-bar-bg { height: 6px; background: var(--surface-3); border-radius: 99px; overflow: hidden; margin-top: 6px; }
+.progress-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--primary), var(--primary)); transition: width .3s; }
 
 /* 점수 칩 */
 .score-chip { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; font-size: 15px; font-weight: 900; }
-.chip-s { background:#dcfce7; color:#16a34a; }
-.chip-a { background:#dbeafe; color:#1e40af; }
-.chip-b { background:#e0f2fe; color:#0369a1; }
-.chip-c { background:#fef3c7; color:#92400e; }
-.chip-d { background:#fee2e2; color:#dc2626; }
+.chip-s { background:var(--green-bg); color:var(--done); }
+.chip-a { background:var(--surface-2); color:var(--tx-1); }
+.chip-b { background:var(--surface-2); color:var(--tx-1); }
+.chip-c { background:var(--orange-bg); color:var(--wait); }
+.chip-d { background:var(--red-bg); color:var(--late); }
 
 /* 목표 카드 */
 .goal-card {
@@ -72,9 +72,9 @@
 .goal-status-dot {
   width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px;
 }
-.dot-done { background: #22c55e; }
-.dot-pending { background: #f59e0b; }
-.dot-none { background: #e2e8f0; }
+.dot-done { background: var(--done); }
+.dot-pending { background: var(--wait); }
+.dot-none { background: var(--surface-3); }
 
 /* 피어리뷰 카드 */
 .peer-card {
@@ -85,15 +85,15 @@
 }
 .peer-avatar {
   width: 36px; height: 36px; border-radius: 50%;
-  background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+  background: linear-gradient(135deg, var(--primary), var(--primary));
   display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 14px; font-weight: 800; flex-shrink: 0;
+  color: var(--on-primary); font-size: 14px; font-weight: 800; flex-shrink: 0;
 }
 
 /* 캘리브레이션 결과 배너 */
 .result-banner {
-  background: linear-gradient(135deg, #0f2544, #1e40af);
-  border-radius: 12px; padding: 24px 28px; color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary));
+  border-radius: 12px; padding: 24px 28px; color: var(--on-primary);
   display: flex; align-items: center; gap: 24px; margin-bottom: 20px;
 }
 .result-grade { font-size: 56px; font-weight: 900; letter-spacing: -2px; line-height: 1; }
@@ -134,17 +134,17 @@
   white-space:nowrap;
 }
 .stage-step.done    { color:var(--green); border-color:var(--green); background:var(--green-bg); }
-.stage-step.current { color:#fff; background:var(--primary); border-color:var(--primary); }
+.stage-step.current { color:var(--on-primary); background:var(--primary); border-color:var(--primary); }
 .stage-arrow { color:var(--tx-3); font-size:10px; margin:0 4px; }
 
 /* 목표 승인 상태 배지 */
 .appr-badge {
   font-size:10px; font-weight:800; padding:2px 8px; border-radius:20px;
 }
-.appr-draft     { background:#f1f5f9; color:#475569; }
-.appr-submitted { background:#fef3c7; color:#92400e; }
-.appr-confirmed { background:#dcfce7; color:#16a34a; }
-.appr-returned  { background:#fee2e2; color:#dc2626; }
+.appr-draft     { background:var(--surface-2); color:var(--tx-2); }
+.appr-submitted { background:var(--orange-bg); color:var(--wait); }
+.appr-confirmed { background:var(--green-bg); color:var(--done); }
+.appr-returned  { background:var(--red-bg); color:var(--late); }
 </style>
 {% endblock %}
 
@@ -239,7 +239,7 @@
     <i class="fas fa-coins"></i> 등급별 인상률 · 상여 배수 (사전 공개)
   </div>
   <div style="display:flex; gap:8px; flex-wrap:wrap;">
-    {% for g, color, bg in [('S','#166534','#dcfce7'),('A','#1e40af','#dbeafe'),('B','#15803d','#f0fdf4'),('C','#92400e','#fef3c7'),('D','#dc2626','#fee2e2')] %}
+    {% for g, color, bg in [('S','var(--done)','var(--green-bg)'),('A','var(--tx-1)','var(--surface-2)'),('B','var(--done)','var(--green-bg)'),('C','var(--wait)','var(--orange-bg)'),('D','var(--late)','var(--red-bg)')] %}
     {% set merit_key  = 'merit_' ~ g|lower %}
     {% set bonus_key  = 'bonus_' ~ g|lower %}
     {% set merit_val  = (company_config.get(merit_key, 0) * 100)|round(1) %}
@@ -389,7 +389,7 @@
         <textarea name="reason" class="input" rows="3" required minlength="10"
                   placeholder="이의신청 사유를 구체적으로 작성해 주세요 (10자 이상). 예: 목표 3번의 달성 근거가 평가에 반영되지 않았습니다."
                   style="width:100%; margin-bottom:10px; resize:vertical;"></textarea>
-        <button type="submit" class="btn" style="background:var(--purple); color:#fff;">
+        <button type="submit" class="btn" style="background:var(--purple); color:var(--on-primary);">
           <i class="fas fa-paper-plane"></i> 이의신청 제출
         </button>
       </form>
@@ -445,7 +445,7 @@
   <!-- 목표 세트 상태 + 제출 (목표 수립 단계) -->
   {% if my_goal_state and stage == 'goal' %}
   <div style="background:var(--surface); border:1.5px solid
-              {{ 'var(--green)' if my_goal_state.status == 'confirmed' else ('#f59e0b' if my_goal_state.status == 'submitted' else 'var(--border)') }};
+              {{ 'var(--green)' if my_goal_state.status == 'confirmed' else ('var(--wait)' if my_goal_state.status == 'submitted' else 'var(--border)') }};
               border-radius:12px; padding:16px 20px; margin-bottom:16px;">
     <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
       <div style="flex:1; min-width:220px;">
@@ -453,9 +453,9 @@
           {% if my_goal_state.status == 'confirmed' %}
           <i class="fas fa-check-circle" style="color:var(--green);"></i> 목표 확정 완료
           {% elif my_goal_state.status == 'submitted' %}
-          <i class="fas fa-hourglass-half" style="color:#d97706;"></i> 팀장 승인 대기 중
+          <i class="fas fa-hourglass-half" style="color:var(--wait);"></i> 팀장 승인 대기 중
           {% elif my_goal_state.status == 'returned' %}
-          <i class="fas fa-rotate-left" style="color:#dc2626;"></i> 목표 반려 — 수정 후 다시 제출하세요
+          <i class="fas fa-rotate-left" style="color:var(--late);"></i> 목표 반려 — 수정 후 다시 제출하세요
           {% else %}
           <i class="fas fa-pen" style="color:var(--primary);"></i> 목표 작성 중
           {% endif %}
@@ -465,7 +465,7 @@
           {% if my_goal_state.status == 'submitted' %} · 승인 전까지 수정할 수 없습니다{% endif %}
         </div>
         {% if my_goal_state.status == 'returned' and my_goal_state.return_comment %}
-        <div style="font-size:12px; color:#dc2626; margin-top:6px; background:#fee2e2; border-radius:8px; padding:8px 12px;">
+        <div style="font-size:12px; color:var(--late); margin-top:6px; background:var(--red-bg); border-radius:8px; padding:8px 12px;">
           <strong>반려 사유:</strong> {{ my_goal_state.return_comment }}
         </div>
         {% endif %}
@@ -596,7 +596,7 @@
           {% if stage == 'goal' and g.approval_status in ('draft', 'returned') %}
           <form method="POST" action="{{ url_for('performance_goal_delete', goal_id=g.id) }}"
                 onsubmit="return confirm('이 목표를 삭제할까요?')">
-            <button type="submit" class="btn btn-ghost btn-sm" style="color:#dc2626;">
+            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--late);">
               <i class="fas fa-trash"></i> 삭제
             </button>
           </form>
@@ -817,7 +817,7 @@
             </td>
             <td>
               {% if r.grade %}
-              {% set gc = {'S':'#7c3aed','A':'#1d4ed8','B':'#047857','C':'#b45309','D':'#dc2626'} %}
+              {% set gc = {'S':'var(--tx-1)','A':'var(--tx-1)','B':'var(--done)','C':'var(--wait)','D':'var(--late)'} %}
               <span class="badge" style="background:{{ gc[r.grade] }}20; color:{{ gc[r.grade] }};">{{ r.grade }}</span>
               {% else %}<span style="color:var(--tx-3);">—</span>{% endif %}
             </td>

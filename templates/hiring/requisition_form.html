@@ -46,7 +46,7 @@
 }
 .input:focus, .select:focus, .textarea:focus {
   background: var(--surface-container-lowest);
-  box-shadow: 0 0 0 2px rgba(43,91,255,.22);
+  box-shadow: 0 0 0 2px var(--surface-2);
 }
 .input::placeholder, .textarea::placeholder { color: var(--on-surface-muted); font-weight: 400; }
 .textarea { resize: vertical; line-height: 1.65; min-height: 96px; }
@@ -63,7 +63,7 @@
   font-size: 14px; font-weight: 700; cursor: pointer; border: 0;
   transition: background .15s;
 }
-.hc-btn:hover { background: var(--primary); color: #fff; }
+.hc-btn:hover { background: var(--primary); color: var(--on-primary); }
 .hc-btn.minus { left: 10px; }
 .hc-btn.plus  { right: 10px; }
 
@@ -80,7 +80,7 @@
 .emp-type-card:hover { background: var(--secondary-container); color: var(--on-secondary-container); }
 .emp-type-card.selected {
   background: linear-gradient(135deg, var(--primary), var(--primary-container));
-  color: #fff; box-shadow: 0 4px 12px rgba(43,91,255,.28);
+  color: var(--on-primary); box-shadow: 0 4px 12px var(--surface-2);
 }
 .emp-type-card .etc-icon { font-size: 18px; display: block; margin-bottom: 4px; }
 
@@ -92,7 +92,7 @@
   color: var(--on-surface-variant); cursor: pointer; transition: all .15s;
 }
 .jf-group-tab:hover { border-color: var(--primary); color: var(--primary); }
-.jf-group-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.jf-group-tab.active { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 .jf-group-panel { display: none; grid-template-columns: repeat(4,1fr); gap: 8px; }
 .jf-group-panel.active { display: grid; }
 @media (max-width: 640px) { .jf-group-panel.active { grid-template-columns: repeat(3,1fr); } }
@@ -107,7 +107,7 @@
   border: 1.5px solid transparent;
 }
 .jf-card:hover { border-color: var(--primary); color: var(--primary); }
-.jf-card.selected { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 4px 12px rgba(43,91,255,.28); }
+.jf-card.selected { background: var(--primary); color: var(--on-primary); border-color: var(--primary); box-shadow: 0 4px 12px var(--surface-2); }
 .jf-card .jf-icon { font-size: 16px; display: block; margin-bottom: 4px; }
 
 /* 레벨 선택 */
@@ -122,8 +122,8 @@
   border: 1.5px solid transparent;
 }
 .level-card:hover { border-color: var(--primary); color: var(--primary); }
-.level-card.selected { background: var(--primary); color: #fff; border-color: var(--primary); }
-.level-card.m-eligible { border-color: #10b981; }
+.level-card.selected { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.level-card.m-eligible { border-color: var(--done); }
 .level-card.m-eligible.selected { background: var(--primary); border-color: var(--primary); }
 .level-card span { display: block; font-size: 9px; font-weight: 500; margin-top: 2px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -136,8 +136,8 @@
   border: 2px solid transparent; user-select: none;
 }
 .track-card:hover { border-color: var(--primary); }
-.track-card.selected.ic { background: #eff6ff; border-color: #2b5bff; }
-.track-card.selected.m  { background: #f0fdf4; border-color: #10b981; }
+.track-card.selected.ic { background: var(--surface-2); border-color: var(--line-strong); }
+.track-card.selected.m  { background: var(--green-bg); border-color: var(--done); }
 .track-card .track-name { font-size: 14px; font-weight: 800; color: var(--on-surface); }
 .track-card .track-desc { font-size: 11px; color: var(--on-surface-muted); margin-top: 2px; }
 #m-track-card { opacity: .4; pointer-events: none; }
@@ -156,8 +156,8 @@
 .band-segment .band-lbl { font-size: 10px; color: var(--on-surface-muted); margin-top: 2px; font-weight: 600; text-transform: uppercase; }
 .band-sep { width: 1px; height: 40px; background: var(--surface-container-high); margin: 0 8px; }
 .band-track-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 99px; margin-left: auto; }
-.band-track-ic { background: #eff6ff; color: #1d4ed8; }
-.band-track-m  { background: #f0fdf4; color: #15803d; }
+.band-track-ic { background: var(--surface-2); color: var(--tx-1); }
+.band-track-m  { background: var(--green-bg); color: var(--done); }
 .band-empty { font-size: 13px; color: var(--on-surface-muted); text-align: center; width: 100%; }
 
 /* 급여 범위 */

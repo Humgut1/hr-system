@@ -87,6 +87,5 @@ document.querySelectorAll('.av[data-name]').forEach(el => {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
   const [bg, fg] = AV_PALETTES[Math.abs(h) % AV_PALETTES.length];
-  el.style.background = bg;
-  el.style.color = fg;
+  void bg; void fg; // 무채색 아바타 — 색은 상태에만
 });

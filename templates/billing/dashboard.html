@@ -6,7 +6,7 @@
 
   <!-- ── 무료 파트너 프로그램 히어로 (v1.5.1, BILLING_ENABLED=0) ── -->
   {% if not billing_enabled %}
-  <div style="background:linear-gradient(135deg,#047857,#0891b2);border-radius:20px;padding:32px;color:#fff;margin-bottom:24px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+  <div style="background:linear-gradient(135deg,var(--done),var(--primary));border-radius:20px;padding:32px;color:var(--on-primary);margin-bottom:24px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
     <div style="width:56px;height:56px;background:rgba(255,255,255,.15);border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
       <i class="fas fa-handshake" style="font-size:24px;"></i>
     </div>
@@ -127,7 +127,7 @@
   <div class="card" style="padding:24px;margin-bottom:24px;">
     <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px;">결제 수단</h3>
     {% if not billing_enabled %}
-      <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--green-bg,#ecfdf5);border-radius:12px;">
+      <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--green-bg,var(--green-bg));border-radius:12px;">
         <i class="fas fa-handshake" style="font-size:24px;color:var(--green);"></i>
         <div>
           <div style="font-weight:600;font-size:.9rem;margin-bottom:2px;">무료 파트너 프로그램 이용 중</div>

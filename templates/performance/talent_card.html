@@ -20,17 +20,17 @@
   justify-content: center;
   font-size: 10px;
   font-weight: 600;
-  color: #94a3b8;
-  background: #f1f5f9;
+  color: var(--tx-3);
+  background: var(--surface-2);
   transition: all .2s;
   text-align: center;
   padding: 4px;
   line-height: 1.2;
 }
 .nbox-cell.active {
-  background: #1e3a8a;
-  color: #fff;
-  box-shadow: 0 0 0 2px #3b82f6;
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: 0 0 0 2px var(--tx-1);
   font-size: 18px;
 }
 /* Y축 라벨 */
@@ -57,25 +57,25 @@
   position: absolute;
   left: 14px; top: 36px;
   width: 2px; height: calc(100% - 8px);
-  background: #e2e8f0;
+  background: var(--surface-3);
 }
 .timeline-dot {
   width: 30px; height: 30px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 900; flex-shrink: 0; z-index: 1;
 }
-.g-s { background:#dcfce7; color:#166534; }
-.g-a { background:#dbeafe; color:#1e40af; }
-.g-b { background:#f0fdf4; color:#15803d; }
-.g-c { background:#fef3c7; color:#92400e; }
-.g-d { background:#fee2e2; color:#dc2626; }
-.g-none { background:#f1f5f9; color:#94a3b8; font-size:10px; }
+.g-s { background:var(--green-bg); color:var(--done); }
+.g-a { background:var(--surface-2); color:var(--tx-1); }
+.g-b { background:var(--green-bg); color:var(--done); }
+.g-c { background:var(--orange-bg); color:var(--wait); }
+.g-d { background:var(--red-bg); color:var(--late); }
+.g-none { background:var(--surface-2); color:var(--tx-3); font-size:10px; }
 
 /* ── Readiness 배지 ── */
-.readiness-now  { background:#dcfce7; color:#166534; }
-.readiness-1y   { background:#dbeafe; color:#1e40af; }
-.readiness-2y   { background:#fef3c7; color:#92400e; }
-.readiness-long { background:#f1f5f9; color:#64748b; }
+.readiness-now  { background:var(--green-bg); color:var(--done); }
+.readiness-1y   { background:var(--surface-2); color:var(--tx-1); }
+.readiness-2y   { background:var(--orange-bg); color:var(--wait); }
+.readiness-long { background:var(--surface-2); color:var(--tx-2); }
 
 .badge-sm {
   font-size: 11px; font-weight: 700;
@@ -84,8 +84,8 @@
 }
 
 /* ── 목표 진행바 ── */
-.goal-bar-bg  { height:6px; background:#e2e8f0; border-radius:99px; flex:1; }
-.goal-bar-fill{ height:100%; border-radius:99px; background: linear-gradient(90deg,#3b82f6,#1d4ed8); }
+.goal-bar-bg  { height:6px; background:var(--surface-3); border-radius:99px; flex:1; }
+.goal-bar-fill{ height:100%; border-radius:99px; background: linear-gradient(90deg,var(--primary),var(--primary)); }
 </style>
 {% endblock %}
 
@@ -170,7 +170,7 @@
 
 <!-- Flight Risk 경고 배너 -->
 {% if flight_risk %}
-<div style="background:var(--red-bg, #fef2f2); border:1px solid var(--red); border-radius:8px;
+<div style="background:var(--red-bg, var(--red-bg)); border:1px solid var(--red); border-radius:8px;
             padding:12px 18px; margin-bottom:16px; display:flex; align-items:center; gap:12px;">
   <span style="font-size:20px;">✈️</span>
   <div>
@@ -338,12 +338,12 @@
             </div>
             {% if flight_risk %}
             <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700;
-                         color:var(--red); background:var(--red-bg,#fef2f2);
+                         color:var(--red); background:var(--red-bg,var(--red-bg));
                          padding:5px 12px; border-radius:6px;">
               ✈️ 위험 &nbsp;—&nbsp; {{ flight_risk_reasons | join(', ') }}
             </span>
             {% else %}
-            <span style="font-size:12px; color:var(--green); background:var(--green-bg,#f0fdf4);
+            <span style="font-size:12px; color:var(--green); background:var(--green-bg,var(--green-bg));
                          padding:5px 12px; border-radius:6px; font-weight:700;">✓ 정상</span>
             {% endif %}
           </div>
@@ -387,9 +387,9 @@
                 <div class="li-btn {% if latest.loss_impact == val %}selected{% endif %}"
                      style="text-align:center; padding:5px 12px; border-radius:6px; font-size:11px; font-weight:700;
                             border:2px solid var(--line); color:var(--tx-2);
-                            {% if latest.loss_impact == val %}background:var(--primary); color:#fff; border-color:var(--primary);{% endif %}
+                            {% if latest.loss_impact == val %}background:var(--primary); color:var(--on-primary); border-color:var(--primary);{% endif %}
                             cursor:pointer; transition:all .15s;"
-                     onclick="this.closest('form').querySelectorAll('.li-btn').forEach(b=>{b.style.background='';b.style.color='var(--tx-2)';b.style.borderColor='var(--line)'}); this.style.background='var(--primary)'; this.style.color='#fff'; this.style.borderColor='var(--primary)'; this.closest('label').querySelector('input').checked=true;">
+                     onclick="this.closest('form').querySelectorAll('.li-btn').forEach(b=>{b.style.background='';b.style.color='var(--tx-2)';b.style.borderColor='var(--line)'}); this.style.background='var(--primary)'; this.style.color='var(--on-primary)'; this.style.borderColor='var(--primary)'; this.closest('label').querySelector('input').checked=true;">
                   {{ val }}
                 </div>
               </label>

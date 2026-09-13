@@ -86,7 +86,7 @@
         성과 캘리브레이션 최종 등급 기준으로 아래 인상률을 자동 적용합니다. 미평가 직원은 인상 제외됩니다.
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
-        {% for g, color, bg in [('S','#166534','#dcfce7'),('A','#1e40af','#dbeafe'),('B','#15803d','#f0fdf4'),('C','#92400e','#fef3c7'),('D','#dc2626','#fee2e2')] %}
+        {% for g, color, bg in [('S','var(--done)','var(--green-bg)'),('A','var(--tx-1)','var(--surface-2)'),('B','var(--done)','var(--green-bg)'),('C','var(--wait)','var(--orange-bg)'),('D','var(--late)','var(--red-bg)')] %}
         {% set merit_key = 'merit_' ~ g|lower %}
         {% set pct_val   = ((cfg.get(merit_key, 0) if cfg else 0)|float * 100)|round(1) %}
         <div style="background:{{ bg }}; border:1px solid {{ color }}33; border-radius:8px; padding:8px 14px; text-align:center; min-width:80px;">
@@ -165,8 +165,8 @@
           <td style="text-align:center;">
             {% if e.grade %}
             {% set g = e.grade %}
-            {% set gc = {'S':'#166534','A':'#1e40af','B':'#15803d','C':'#92400e','D':'#dc2626'} %}
-            {% set gb = {'S':'#dcfce7','A':'#dbeafe','B':'#f0fdf4','C':'#fef3c7','D':'#fee2e2'} %}
+            {% set gc = {'S':'var(--done)','A':'var(--tx-1)','B':'var(--done)','C':'var(--wait)','D':'var(--late)'} %}
+            {% set gb = {'S':'var(--green-bg)','A':'var(--surface-2)','B':'var(--green-bg)','C':'var(--orange-bg)','D':'var(--red-bg)'} %}
             <span style="display:inline-block; width:26px; height:26px; border-radius:50%;
                          background:{{ gb.get(g,'var(--surface-3)') }}; color:{{ gc.get(g,'var(--tx-3)') }};
                          font-size:12px; font-weight:900; line-height:26px; text-align:center;">{{ g }}</span>

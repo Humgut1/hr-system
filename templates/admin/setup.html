@@ -12,15 +12,15 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --primary: #2b5bff;
-      --primary-light: #eff3ff;
-      --surface: #f8fafc;
-      --card: #ffffff;
-      --border: #e2e8f0;
-      --text: #0f172a;
-      --text-muted: #64748b;
-      --red: #ef4444;
-      --green: #22c55e;
+      --primary: var(--tx-1);
+      --primary-light: var(--surface-2);
+      --surface: var(--surface-2);
+      --card: var(--surface);
+      --border: var(--line);
+      --text: var(--tx-1);
+      --text-muted: var(--tx-2);
+      --red: var(--late);
+      --green: var(--done);
       --r: 12px;
     }
 
@@ -54,13 +54,13 @@
       width: 36px;
       height: 36px;
       border-radius: 10px;
-      background: linear-gradient(135deg, #2b5bff, #6b8eff);
+      background: linear-gradient(135deg, var(--primary), var(--primary));
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 800;
       font-size: 15px;
-      color: #fff;
+      color: var(--on-primary);
     }
     .ob-logo-name {
       font-size: 17px;
@@ -179,7 +179,7 @@
       font-size: 13.5px;
       font-family: inherit;
       color: var(--text);
-      background: #fff;
+      background: var(--surface);
       outline: none;
       transition: border-color .15s;
     }
@@ -277,7 +277,7 @@
     }
     .benefit-card input:checked ~ .benefit-card-body .benefit-icon,
     .benefit-card input:checked + .benefit-card-body .benefit-icon {
-      background: #dbeafe;
+      background: var(--surface-2);
       color: var(--primary);
     }
     .benefit-name { font-size: 13px; font-weight: 700; color: var(--text); }
@@ -290,12 +290,12 @@
       border-radius: 4px;
       margin-top: 3px;
     }
-    .tag-nontax  { background: #dcfce7; color: #15803d; }
-    .tag-taxable { background: #fef9c3; color: #854d0e; }
+    .tag-nontax  { background: var(--green-bg); color: var(--done); }
+    .tag-taxable { background: var(--orange-bg); color: var(--wait); }
 
     /* ── 조건부 블록 ── */
     .cond-block {
-      background: #f8fafc;
+      background: var(--surface-2);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 16px 18px;
@@ -305,8 +305,8 @@
 
     /* ── 인포 박스 ── */
     .info-box {
-      background: #eff3ff;
-      border: 1px solid #c7d7fd;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
       border-radius: 10px;
       padding: 14px 16px;
       display: flex;
@@ -314,12 +314,12 @@
       align-items: flex-start;
       margin-top: 16px;
       font-size: 12.5px;
-      color: #1e3a8a;
+      color: var(--tx-1);
       line-height: 1.6;
     }
     .success-box {
-      background: #f0fdf4;
-      border: 1px solid #86efac;
+      background: var(--green-bg);
+      border: 1px solid var(--done);
       border-radius: 10px;
       padding: 16px 18px;
       margin-top: 20px;
@@ -349,7 +349,7 @@
       text-decoration: none;
     }
     .btn:hover { opacity: .88; }
-    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary { background: var(--primary); color: var(--on-primary); }
     .btn-ghost   { background: transparent; color: var(--text-muted); border: 1.5px solid var(--border); }
     .btn-ghost:hover { background: var(--surface); }
     .btn[style*="visibility:hidden"] { pointer-events: none; }

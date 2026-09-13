@@ -18,7 +18,7 @@
     background: none; border-bottom: 2px solid transparent;
     margin-bottom: -2px; transition: all .2s; border-radius: 6px 6px 0 0;
   }
-  .settings-tab:hover  { color: var(--text); background: #f8fafc; }
+  .settings-tab:hover  { color: var(--text); background: var(--surface-2); }
   .settings-tab.active { color: var(--primary); border-bottom-color: var(--primary); background: none; }
 
   .settings-panel { display: none; }
@@ -34,7 +34,7 @@
     display: flex; gap: 12px; align-items: flex-start;
   }
   .radio-card input:checked + .radio-card-body {
-    border-color: var(--primary); background: var(--primary-tint, #ede9fe);
+    border-color: var(--primary); background: var(--primary-tint, var(--surface-2));
   }
   .radio-card-icon { font-size: 20px; line-height: 1; margin-top: 2px; }
   .radio-card-name { font-size: 13px; font-weight: 700; color: var(--text); }
@@ -49,11 +49,11 @@
     display: flex; align-items: center; gap: 6px; transition: all .2s;
   }
   .check-card input:checked + .check-card-body {
-    border-color: var(--primary); background: var(--primary-tint, #ede9fe); color: var(--primary);
+    border-color: var(--primary); background: var(--primary-tint, var(--surface-2)); color: var(--primary);
   }
 
   .cond-block {
-    background: #f8fafc; border: 1px solid var(--border);
+    background: var(--surface-2); border: 1px solid var(--border);
     border-radius: var(--r); padding: 16px 18px; margin-top: 12px;
   }
   .cond-block[hidden] { display: none; }
@@ -567,17 +567,17 @@
   <div class="settings-panel" id="tab-links" style="max-width:100%;">
     <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; padding-top:4px;">
       {% for icon, color, label, url in [
-        ('fa-layer-group',    '#dbeafe:#1d4ed8',  '부서·직급 관리',   url_for('departments')),
-        ('fa-calendar-alt',   '#fef9c3:#854d0e',  '공휴일 관리',       url_for('admin_holidays')),
-        ('fa-gift',           '#fce7f3:#be185d',  '복리후생 설정',     url_for('admin_benefits')),
-        ('fa-receipt',        '#dcfce7:#166534',  '환급 신청 관리',    url_for('admin_benefit_claims')),
-        ('fa-trophy',         '#ede9fe:#6d28d9',  '상여 지급 관리',    url_for('admin_bonus_pay')),
-        ('fa-clock',          '#ffedd5:#c2410c',  '52시간 모니터',     url_for('overtime_monitor')),
-        ('fa-paper-plane',    '#e0f2fe:#0369a1',  '연차사용촉진',      url_for('admin_leave_promotion')),
-        ('fa-calendar-alt',   '#e0f2fe:#0369a1',  '근무 스케줄',       url_for('admin_schedules')),
-        ('fa-coins',          '#fef9c3:#854d0e',  '복지포인트 관리',   url_for('admin_welfare_points')),
-        ('fa-calendar-check', '#f0fdf4:#166534',  '회사 설정',         url_for('admin_settings')),
-        ('fa-chart-pie',      '#eff6ff:#1d4ed8',  '분석·보고서',       url_for('people_analytics')),
+        ('fa-layer-group',    'var(--surface-2):var(--tx-1)',  '부서·직급 관리',   url_for('departments')),
+        ('fa-calendar-alt',   'var(--orange-bg):var(--wait)',  '공휴일 관리',       url_for('admin_holidays')),
+        ('fa-gift',           'var(--surface-2):var(--tx-1)',  '복리후생 설정',     url_for('admin_benefits')),
+        ('fa-receipt',        'var(--green-bg):var(--done)',  '환급 신청 관리',    url_for('admin_benefit_claims')),
+        ('fa-trophy',         'var(--surface-2):var(--tx-1)',  '상여 지급 관리',    url_for('admin_bonus_pay')),
+        ('fa-clock',          'var(--orange-bg):var(--wait)',  '52시간 모니터',     url_for('overtime_monitor')),
+        ('fa-paper-plane',    'var(--surface-2):var(--tx-1)',  '연차사용촉진',      url_for('admin_leave_promotion')),
+        ('fa-calendar-alt',   'var(--surface-2):var(--tx-1)',  '근무 스케줄',       url_for('admin_schedules')),
+        ('fa-coins',          'var(--orange-bg):var(--wait)',  '복지포인트 관리',   url_for('admin_welfare_points')),
+        ('fa-calendar-check', 'var(--green-bg):var(--done)',  '회사 설정',         url_for('admin_settings')),
+        ('fa-chart-pie',      'var(--surface-2):var(--tx-1)',  '분석·보고서',       url_for('people_analytics')),
       ] %}
       {% set bg, fg = color.split(':') %}
       <a href="{{ url }}" style="display:flex;align-items:center;gap:12px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:box-shadow .15s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.08)'" onmouseout="this.style.boxShadow='none'">

@@ -31,7 +31,7 @@
   <div class="card" style="padding:28px; border:2px solid {% if slack_cfg.get('enabled') %}var(--primary){% else %}var(--line){% endif %};">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
       <div style="display:flex; align-items:center; gap:12px;">
-        <div style="width:44px; height:44px; background:#f5f0ff; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px;">💬</div>
+        <div style="width:44px; height:44px; background:var(--surface-2); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px;">💬</div>
         <div>
           <div style="font-size:16px; font-weight:700; color:var(--tx-1);">Slack</div>
           <div style="font-size:12px; color:var(--tx-3);">워크스페이스 자동화</div>
@@ -71,7 +71,7 @@
 
     <!-- 데모 모드 배너 -->
     {% if not env_status.slack_bot %}
-    <div style="margin-top:12px; padding:10px 14px; background:#fffbeb; border-radius:8px; font-size:12px; color:#92400e; border:1px solid #fde68a;">
+    <div style="margin-top:12px; padding:10px 14px; background:var(--orange-bg); border-radius:8px; font-size:12px; color:var(--wait); border:1px solid var(--line);">
       <i class="fas fa-flask" style="margin-right:6px;"></i><strong>데모 모드</strong> — 실제 Slack 호출 없이 시뮬레이션
     </div>
     {% endif %}
@@ -86,7 +86,7 @@
   <div class="card" style="padding:28px; border:2px solid {% if jira_cfg.get('enabled') %}var(--primary){% else %}var(--line){% endif %};">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
       <div style="display:flex; align-items:center; gap:12px;">
-        <div style="width:44px; height:44px; background:#e6f0ff; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px;">🔵</div>
+        <div style="width:44px; height:44px; background:var(--surface-2); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px;">🔵</div>
         <div>
           <div style="font-size:16px; font-weight:700; color:var(--tx-1);">Jira</div>
           <div style="font-size:12px; color:var(--tx-3);">이슈 자동 생성</div>
@@ -124,7 +124,7 @@
     </div>
 
     {% if not env_status.jira_token %}
-    <div style="margin-top:12px; padding:10px 14px; background:#fffbeb; border-radius:8px; font-size:12px; color:#92400e; border:1px solid #fde68a;">
+    <div style="margin-top:12px; padding:10px 14px; background:var(--orange-bg); border-radius:8px; font-size:12px; color:var(--wait); border:1px solid var(--line);">
       <i class="fas fa-flask" style="margin-right:6px;"></i><strong>데모 모드</strong> — 실제 Jira 호출 없이 시뮬레이션
     </div>
     {% endif %}
@@ -139,7 +139,7 @@
   <div class="card" style="padding:28px; border:2px solid {% if conf_cfg.get('enabled') %}var(--primary){% else %}var(--line){% endif %};">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
       <div style="display:flex; align-items:center; gap:12px;">
-        <div style="width:44px; height:44px; background:#e6f5ff; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px;">📘</div>
+        <div style="width:44px; height:44px; background:var(--surface-2); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px;">📘</div>
         <div>
           <div style="font-size:16px; font-weight:700; color:var(--tx-1);">Confluence</div>
           <div style="font-size:12px; color:var(--tx-3);">페이지 자동 업데이트</div>
@@ -177,7 +177,7 @@
     </div>
 
     {% if not env_status.confluence %}
-    <div style="margin-top:12px; padding:10px 14px; background:#fffbeb; border-radius:8px; font-size:12px; color:#92400e; border:1px solid #fde68a;">
+    <div style="margin-top:12px; padding:10px 14px; background:var(--orange-bg); border-radius:8px; font-size:12px; color:var(--wait); border:1px solid var(--line);">
       <i class="fas fa-flask" style="margin-right:6px;"></i><strong>데모 모드</strong> — 실제 Confluence 호출 없이 시뮬레이션
     </div>
     {% endif %}
@@ -204,17 +204,17 @@
   </div>
   <div id="env-guide" style="display:none; padding:20px 24px;">
     <p style="font-size:13.5px; color:var(--tx-3); margin-bottom:16px;">프로젝트 루트의 <code>.env</code> 파일에 아래 값을 추가하면 데모 모드에서 실제 연동으로 자동 전환됩니다.</p>
-    <div style="background:#1e1e2e; color:#cdd6f4; border-radius:12px; padding:20px 24px; font-family:monospace; font-size:13px; line-height:2; overflow-x:auto;">
-      <span style="color:#6c7086;"># Slack</span><br>
+    <div style="background:var(--primary); color:var(--tx-3); border-radius:12px; padding:20px 24px; font-family:monospace; font-size:13px; line-height:2; overflow-x:auto;">
+      <span style="color:var(--tx-3);"># Slack</span><br>
       SLACK_BOT_TOKEN=xoxb-...<br>
       SLACK_ADMIN_TOKEN=xoxp-...<br>
       SLACK_WORKSPACE_ID=T...<br><br>
-      <span style="color:#6c7086;"># Jira + Confluence (같은 토큰 사용)</span><br>
+      <span style="color:var(--tx-3);"># Jira + Confluence (같은 토큰 사용)</span><br>
       JIRA_BASE_URL=https://your-domain.atlassian.net<br>
       JIRA_EMAIL=your@email.com<br>
       JIRA_API_TOKEN=...<br>
       JIRA_PROJECT_KEY=HR<br><br>
-      <span style="color:#6c7086;"># Confluence</span><br>
+      <span style="color:var(--tx-3);"># Confluence</span><br>
       CONFLUENCE_BASE_URL=https://your-domain.atlassian.net/wiki<br>
       CONFLUENCE_SPACE_KEY=TEAM
     </div>
@@ -263,7 +263,7 @@
           </td>
           <td>
             {% if log.status == 'demo' %}
-              <span class="badge badge-pending" style="font-size:11px; background:#f3f4f6; color:#6b7280;">데모</span>
+              <span class="badge badge-pending" style="font-size:11px; background:var(--surface-2); color:var(--tx-2);">데모</span>
             {% elif log.status == 'success' %}
               <span class="badge badge-active" style="font-size:11px;">성공</span>
             {% else %}

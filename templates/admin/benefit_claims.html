@@ -33,7 +33,7 @@
       </thead>
       <tbody>
         {% for c in claims %}
-        <tr style="border-bottom:1px solid var(--surface-3);transition:background .15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <tr style="border-bottom:1px solid var(--surface-3);transition:background .15s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''">
           <td style="padding:13px 16px;">
             <div style="font-size:.85rem;font-weight:600;">{{ c.emp_name }}</div>
             <div style="font-size:.72rem;color:var(--tx-3);">{{ c.emp_no or '' }}</div>

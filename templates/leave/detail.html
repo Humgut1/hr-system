@@ -6,16 +6,16 @@
 <style>
 /* ── 헤더 카드 ─────────────────────────────────────── */
 .req-header {
-  border-radius: 16px; padding: 24px 28px; color: #fff;
+  border-radius: 16px; padding: 24px 28px; color: var(--on-primary);
   display: flex; justify-content: space-between; align-items: flex-start;
   flex-wrap: wrap; gap: 16px; margin-bottom: 16px;
 }
-.req-header.flow-manager-only { background: linear-gradient(135deg,#1e3a8a,#0891b2); }
-.req-header.flow-manager-hr   { background: linear-gradient(135deg,#6d28d9,#0891b2); }
-.req-header.flow-hr-direct    { background: linear-gradient(135deg,#991b1b,#7c3aed); }
-.req-header.status-approved   { background: linear-gradient(135deg,#065f46,#0891b2); }
-.req-header.status-rejected   { background: linear-gradient(135deg,#7f1d1d,#dc2626); }
-.req-header.status-cancelled  { background: linear-gradient(135deg,#374151,#6b7280); }
+.req-header.flow-manager-only { background: linear-gradient(135deg,var(--primary),var(--primary)); }
+.req-header.flow-manager-hr   { background: linear-gradient(135deg,var(--primary),var(--primary)); }
+.req-header.flow-hr-direct    { background: linear-gradient(135deg,var(--late),var(--primary)); }
+.req-header.status-approved   { background: linear-gradient(135deg,var(--done),var(--primary)); }
+.req-header.status-rejected   { background: linear-gradient(135deg,var(--late),var(--late)); }
+.req-header.status-cancelled  { background: linear-gradient(135deg,var(--primary),var(--tx-2)); }
 .req-type-badge {
   display: inline-flex; align-items: center; gap: 6px;
   background: rgba(255,255,255,.2); padding: 4px 12px; border-radius: 20px;
@@ -31,95 +31,95 @@
   border-radius: 12px; padding: 14px 18px;
   display: flex; align-items: center; gap: 14px; margin-bottom: 16px;
 }
-.status-banner.wait-manager { background:#eff6ff; border:1px solid #bfdbfe; }
-.status-banner.wait-hr      { background:#f5f3ff; border:1px solid #ddd6fe; }
-.status-banner.approved     { background:#f0fdf4; border:1px solid #bbf7d0; }
-.status-banner.rejected     { background:#fff1f2; border:1px solid #fecdd3; }
-.status-banner.cancelled    { background:#f8fafc; border:1px solid #e2e8f0; }
+.status-banner.wait-manager { background:var(--surface-2); border:1px solid var(--line); }
+.status-banner.wait-hr      { background:var(--surface-2); border:1px solid var(--line); }
+.status-banner.approved     { background:var(--green-bg); border:1px solid var(--line); }
+.status-banner.rejected     { background:var(--red-bg); border:1px solid var(--line); }
+.status-banner.cancelled    { background:var(--surface-2); border:1px solid var(--line); }
 .sb-icon {
   width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center; font-size: 18px;
 }
-.wait-manager .sb-icon { background:#dbeafe; color:#1e40af; }
-.wait-hr      .sb-icon { background:#ede9fe; color:#7c3aed; }
-.approved     .sb-icon { background:#dcfce7; color:#22c55e; }
-.rejected     .sb-icon { background:#fee2e2; color:#ef4444; }
-.cancelled    .sb-icon { background:#f1f5f9; color:#94a3b8; }
+.wait-manager .sb-icon { background:var(--surface-2); color:var(--tx-1); }
+.wait-hr      .sb-icon { background:var(--surface-2); color:var(--tx-1); }
+.approved     .sb-icon { background:var(--green-bg); color:var(--done); }
+.rejected     .sb-icon { background:var(--red-bg); color:var(--late); }
+.cancelled    .sb-icon { background:var(--surface-2); color:var(--tx-3); }
 .sb-title { font-weight: 800; font-size: 14px; margin-bottom: 2px; }
-.sb-desc  { font-size: 12px; color: #64748b; }
+.sb-desc  { font-size: 12px; color: var(--tx-2); }
 
 /* ── 스텝퍼 ───────────────────────────────────────── */
 .stepper { display: flex; align-items: flex-start; }
 .step { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
 .step:not(:last-child)::after {
   content: ''; position: absolute; top: 17px; left: calc(50% + 18px);
-  width: calc(100% - 36px); height: 2px; background: #e2e8f0; z-index: 0;
+  width: calc(100% - 36px); height: 2px; background: var(--surface-3); z-index: 0;
 }
-.step.step-done::after   { background: #22c55e; }
-.step.step-active::after { background: #bfdbfe; }
+.step.step-done::after   { background: var(--done); }
+.step.step-active::after { background: var(--surface-2); }
 .step-icon {
   width: 34px; height: 34px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 800; z-index: 1; position: relative;
-  border: 2px solid #e2e8f0; background: #f1f5f9; color: #94a3b8;
+  border: 2px solid var(--line); background: var(--surface-2); color: var(--tx-3);
 }
-.step-done   .step-icon { background:#22c55e; color:#fff; border-color:#22c55e; }
-.step-active .step-icon { background:#1e40af; color:#fff; border-color:#1e40af; box-shadow:0 0 0 4px #dbeafe; }
-.step-skip   .step-icon { background:#f0fdf4; color:#22c55e; border-color:#bbf7d0; }
-.step-rejected .step-icon { background:#fee2e2; color:#ef4444; border-color:#fca5a5; }
-.step-label { margin-top: 8px; font-size: 11px; font-weight: 700; color: #94a3b8; text-align: center; line-height: 1.4; }
-.step-done   .step-label { color: #166534; }
-.step-active .step-label { color: #1e40af; }
-.step-rejected .step-label { color: #dc2626; }
-.step-sub { font-size: 10px; color: #94a3b8; text-align: center; margin-top: 2px; }
+.step-done   .step-icon { background:var(--done); color:var(--on-primary); border-color:var(--done); }
+.step-active .step-icon { background:var(--primary); color:var(--on-primary); border-color:var(--line-strong); box-shadow:0 0 0 4px var(--surface-2); }
+.step-skip   .step-icon { background:var(--green-bg); color:var(--done); border-color:var(--line); }
+.step-rejected .step-icon { background:var(--red-bg); color:var(--late); border-color:var(--line); }
+.step-label { margin-top: 8px; font-size: 11px; font-weight: 700; color: var(--tx-3); text-align: center; line-height: 1.4; }
+.step-done   .step-label { color: var(--done); }
+.step-active .step-label { color: var(--tx-1); }
+.step-rejected .step-label { color: var(--late); }
+.step-sub { font-size: 10px; color: var(--tx-3); text-align: center; margin-top: 2px; }
 
 /* ── 타임라인 ─────────────────────────────────────── */
 .timeline { list-style: none; padding: 0; }
 .tl-item  { display: flex; gap: 12px; padding-bottom: 16px; position: relative; }
 .tl-item:not(:last-child)::before {
   content: ''; position: absolute; left: 14px; top: 30px;
-  width: 2px; height: calc(100% - 8px); background: #e2e8f0;
+  width: 2px; height: calc(100% - 8px); background: var(--surface-3);
 }
 .tl-dot {
   width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center; font-size: 11px;
 }
-.tl-dot.done   { background:#dcfce7; color:#22c55e; }
-.tl-dot.active { background:#dbeafe; color:#1e40af; }
-.tl-dot.wait   { background:#f1f5f9; color:#94a3b8; }
-.tl-dot.bad    { background:#fee2e2; color:#ef4444; }
+.tl-dot.done   { background:var(--green-bg); color:var(--done); }
+.tl-dot.active { background:var(--surface-2); color:var(--tx-1); }
+.tl-dot.wait   { background:var(--surface-2); color:var(--tx-3); }
+.tl-dot.bad    { background:var(--red-bg); color:var(--late); }
 .tl-title { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
-.tl-meta  { font-size: 11px; color: #94a3b8; }
-.tl-note  { font-size: 12px; color: #64748b; margin-top: 5px; padding: 8px 10px; background: #f8fafc; border-radius: 8px; line-height: 1.5; }
-.tl-note.bad { background:#fff1f2; color:#991b1b; }
+.tl-meta  { font-size: 11px; color: var(--tx-3); }
+.tl-note  { font-size: 12px; color: var(--tx-2); margin-top: 5px; padding: 8px 10px; background: var(--surface-2); border-radius: 8px; line-height: 1.5; }
+.tl-note.bad { background:var(--red-bg); color:var(--late); }
 
 /* ── 법령 패널 ────────────────────────────────────── */
-.legal-panel { border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 16px; }
+.legal-panel { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); margin-bottom: 16px; }
 .legal-toggle {
-  padding: 14px 18px; background: #f8fafc;
+  padding: 14px 18px; background: var(--surface-2);
   display: flex; align-items: center; gap: 8px;
   font-weight: 700; font-size: 13px; cursor: pointer;
   border: none; width: 100%; text-align: left; font-family: inherit;
   justify-content: space-between;
 }
-.legal-body { padding: 16px 18px; border-top: 1px solid #f1f5f9; }
+.legal-body { padding: 16px 18px; border-top: 1px solid var(--line); }
 .legal-row { display: flex; gap: 12px; margin-bottom: 12px; }
 .legal-row:last-child { margin-bottom: 0; }
-.legal-key { font-size: 11px; font-weight: 700; color: #64748b; min-width: 72px; padding-top: 2px; }
-.legal-val { font-size: 13px; color: #1e293b; line-height: 1.6; flex: 1; white-space: pre-line; }
-.legal-val b { color: #1e40af; }
-.legal-val .warn { color: #dc2626; font-weight: 700; }
+.legal-key { font-size: 11px; font-weight: 700; color: var(--tx-2); min-width: 72px; padding-top: 2px; }
+.legal-val { font-size: 13px; color: var(--tx-1); line-height: 1.6; flex: 1; white-space: pre-line; }
+.legal-val b { color: var(--tx-1); }
+.legal-val .warn { color: var(--late); font-weight: 700; }
 .pay-chip {
   display: inline-flex; align-items: center; gap: 5px; font-size: 11px;
   font-weight: 700; padding: 3px 9px; border-radius: 20px; margin-bottom: 8px;
 }
-.pay-chip.ins { background:#eff6ff; color:#1e40af; }
-.pay-chip.emp { background:#f0fdf4; color:#166534; }
-.pay-chip.unp { background:#fff7ed; color:#92400e; }
+.pay-chip.ins { background:var(--surface-2); color:var(--tx-1); }
+.pay-chip.emp { background:var(--green-bg); color:var(--done); }
+.pay-chip.unp { background:var(--orange-bg); color:var(--wait); }
 
 /* ── 서류 목록 ────────────────────────────────────── */
 .doc-list { list-style: none; padding: 0; }
-.doc-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+.doc-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .doc-item:last-child { border-bottom: none; }
 </style>
 {% endblock %}

@@ -42,7 +42,7 @@
 .src-card  { border:1.5px solid var(--border); border-radius:var(--r); padding:12px 14px; cursor:pointer;
              transition:all .15s; display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 .src-card:hover  { border-color:var(--primary); }
-.src-card.active { border-color:var(--primary); background:#eff6ff; }
+.src-card.active { border-color:var(--primary); background:var(--surface-2); }
 .src-icon  { width:34px; height:34px; border-radius:8px; display:flex; align-items:center;
              justify-content:center; font-size:15px; flex-shrink:0; }
 .src-check { color:var(--primary); font-size:16px; display:none; }
@@ -54,7 +54,7 @@
               border:1.5px solid var(--border); font-size:12px; font-weight:600; color:var(--tx-2);
               cursor:pointer; transition:all .12s; user-select:none; }
 .field-chip:hover   { border-color:var(--primary); color:var(--primary); }
-.field-chip.sel     { background:var(--primary); border-color:var(--primary); color:#fff; }
+.field-chip.sel     { background:var(--primary); border-color:var(--primary); color:var(--on-primary); }
 .wz-filter  { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; padding:14px;
               background:var(--card); border:1px solid var(--border); border-radius:var(--r); margin-bottom:18px; }
 .wz-filter label  { font-size:11px; font-weight:700; color:var(--tx-3); display:block; margin-bottom:3px; }
@@ -63,14 +63,14 @@
                     font-size:12px; background:var(--bg); color:var(--text); }
 .sel-summary { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; min-height:26px; }
 .sel-chip    { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:999px;
-              background:#eff6ff; color:var(--primary); font-size:12px; font-weight:600; }
+              background:var(--surface-2); color:var(--primary); font-size:12px; font-weight:600; }
 .sel-chip .rm { cursor:pointer; font-size:10px; opacity:.7; }
-.btn-wz-preview { padding:9px 20px; border-radius:var(--r); background:var(--primary); color:#fff;
+.btn-wz-preview { padding:9px 20px; border-radius:var(--r); background:var(--primary); color:var(--on-primary);
                   font-size:13px; font-weight:700; border:none; cursor:pointer;
                   display:inline-flex; align-items:center; gap:7px; transition:opacity .15s; }
 .btn-wz-preview:hover    { opacity:.88; }
 .btn-wz-preview:disabled { opacity:.5; cursor:not-allowed; }
-.btn-wz-export  { padding:9px 20px; border-radius:var(--r); background:#16a34a; color:#fff;
+.btn-wz-export  { padding:9px 20px; border-radius:var(--r); background:var(--done); color:var(--on-primary);
                   font-size:13px; font-weight:700; border:none; cursor:pointer;
                   display:inline-flex; align-items:center; gap:7px; transition:opacity .15s; }
 .btn-wz-export:hover    { opacity:.88; }
@@ -224,7 +224,7 @@
       </div>
       <div style="height:7px; border-radius:99px; background:var(--bg); overflow:hidden;">
         <div style="height:100%; border-radius:99px; background:
-          {% if row.pct >= 80 %}linear-gradient(90deg,var(--green),#4ade80)
+          {% if row.pct >= 80 %}linear-gradient(90deg,var(--green),var(--done))
           {% elif row.pct >= 50 %}linear-gradient(90deg,var(--primary),var(--primary-light))
           {% else %}linear-gradient(90deg,var(--orange),var(--orange)){% endif %};
           width:{{ row.pct|int }}%;"></div>
@@ -274,7 +274,7 @@
               <div style="display:flex; align-items:center; gap:8px;">
                 <div style="flex:1; height:6px; border-radius:99px; background:var(--bg); overflow:hidden; max-width:80px;">
                   <div style="height:100%; border-radius:99px; width:{{ emp.risk }}%;
-                    background:{% if emp.level == 'high' %}var(--red){% elif emp.level == 'medium' %}var(--orange){% else %}#2b5bff{% endif %};"></div>
+                    background:{% if emp.level == 'high' %}var(--red){% elif emp.level == 'medium' %}var(--orange){% else %}var(--tx-1){% endif %};"></div>
                 </div>
                 <span style="font-size:13px; font-weight:700;
                   color:{% if emp.level == 'high' %}var(--red){% elif emp.level == 'medium' %}var(--orange){% else %}var(--primary){% endif %};">
@@ -696,7 +696,7 @@
             datasets: [{
               label: '퇴직자 수',
               data: {{ ad.monthly_counts|tojson }},
-              backgroundColor: 'rgba(99,102,241,.7)',
+              backgroundColor: 'var(--surface-2)',
               borderRadius: 4
             }]
           },
@@ -718,7 +718,7 @@
       {% for mgr, cnt in ad.mgr_attrition_top %}
       <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px;">
         <span style="font-weight:600; color:var(--tx-1);">{{ mgr }}</span>
-        <span style="background:{% if cnt >= 3 %}var(--red){% elif cnt >= 2 %}var(--orange){% else %}var(--line){% endif %}; color:{% if cnt >= 2 %}#fff{% else %}var(--tx-2){% endif %}; padding:2px 10px; border-radius:12px; font-weight:700; font-size:12px;">{{ cnt }}명</span>
+        <span style="background:{% if cnt >= 3 %}var(--red){% elif cnt >= 2 %}var(--orange){% else %}var(--line){% endif %}; color:{% if cnt >= 2 %}var(--surface){% else %}var(--tx-2){% endif %}; padding:2px 10px; border-radius:12px; font-weight:700; font-size:12px;">{{ cnt }}명</span>
       </div>
       {% endfor %}
       <div style="font-size:11px; color:var(--tx-3); margin-top:10px;">
@@ -738,7 +738,7 @@
   <div class="card-head"><div class="card-title"><i class="fas fa-building" style="color:var(--primary); margin-right:7px;"></i>부서별 이탈</div></div>
   <div style="padding:16px; display:flex; flex-wrap:wrap; gap:10px;">
     {% for dept, cnt in ad.dept_attrition.items()|sort(attribute=1, reverse=True) %}
-    <div style="background:var(--surface-2, #f8f9fa); border:1px solid var(--line); border-radius:var(--r); padding:10px 16px; min-width:120px; text-align:center;">
+    <div style="background:var(--surface-2, var(--surface-2)); border:1px solid var(--line); border-radius:var(--r); padding:10px 16px; min-width:120px; text-align:center;">
       <div style="font-size:20px; font-weight:800; color:var(--primary);">{{ cnt }}</div>
       <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">{{ dept }}</div>
     </div>

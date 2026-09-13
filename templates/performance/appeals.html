@@ -8,19 +8,19 @@
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
   padding: 18px 22px; margin-bottom: 12px;
 }
-.appeal-card.pending { border-left: 4px solid #f59e0b; }
+.appeal-card.pending { border-left: 4px solid var(--wait); }
 .appeal-card.accepted { border-left: 4px solid var(--green); }
 .appeal-card.rejected { border-left: 4px solid var(--tx-3); }
 .appeal-status {
   font-size: 10.5px; font-weight: 800; padding: 3px 10px; border-radius: 20px;
 }
-.st-pending  { background:#fef3c7; color:#92400e; }
-.st-accepted { background:#dcfce7; color:#16a34a; }
-.st-rejected { background:#f1f5f9; color:#475569; }
+.st-pending  { background:var(--orange-bg); color:var(--wait); }
+.st-accepted { background:var(--green-bg); color:var(--done); }
+.st-rejected { background:var(--surface-2); color:var(--tx-2); }
 .grade-pill {
   display:inline-flex; align-items:center; justify-content:center;
   width:30px; height:30px; border-radius:50%;
-  font-size:14px; font-weight:900; background:#dbeafe; color:#1e40af;
+  font-size:14px; font-weight:900; background:var(--surface-2); color:var(--tx-1);
 }
 </style>
 {% endblock %}
@@ -68,7 +68,7 @@
     <div style="font-size:11px; color:var(--tx-3);">전체 접수</div>
   </div></div>
   <div class="card" style="margin:0; text-align:center;"><div class="card-body" style="padding:14px;">
-    <div style="font-size:22px; font-weight:900; color:#d97706;">{{ pending_cnt }}</div>
+    <div style="font-size:22px; font-weight:900; color:var(--wait);">{{ pending_cnt }}</div>
     <div style="font-size:11px; color:var(--tx-3);">재검토 대기</div>
   </div></div>
   <div class="card" style="margin:0; text-align:center;"><div class="card-body" style="padding:14px;">

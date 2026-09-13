@@ -87,7 +87,7 @@
                 <span style="font-weight:600;">{{ d.name }}</span>
               </td>
               <td>
-                {% set tc = dept_type_color.get(d.dept_type, '#888') %}
+                {% set tc = dept_type_color.get(d.dept_type, 'var(--tx-3)') %}
                 <span class="type-badge" style="background:{{ tc }}18; color:{{ tc }}; border:1px solid {{ tc }}30;">
                   {{ dept_type_label.get(d.dept_type, d.dept_type) }}
                 </span>

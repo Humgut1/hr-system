@@ -19,11 +19,11 @@
     height: 64px;
     border-radius: 50%;
     flex-shrink: 0;
-    background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+    background: linear-gradient(135deg, var(--primary), var(--primary));
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
+    color: var(--on-primary);
     font-size: 24px;
     font-weight: 800;
   }
@@ -35,8 +35,8 @@
     font-weight: 600;
     padding: 3px 10px;
     border-radius: 20px;
-    background: #eff6ff;
-    color: #1e40af;
+    background: var(--surface-2);
+    color: var(--tx-1);
   }
   .prof-actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
 
@@ -59,8 +59,8 @@
     transition: color .15s, border-color .15s;
   }
   .tab-btn.active {
-    color: #1e3a8a;
-    border-bottom-color: #1e3a8a;
+    color: var(--tx-1);
+    border-bottom-color: var(--line-strong);
   }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
@@ -86,7 +86,7 @@
   .info-row .lbl {
     color: var(--text-muted);
     font-weight: 600;
-    background: #f8fafc;
+    background: var(--surface-2);
     border-right: 1px solid var(--border);
   }
   .info-row .val { color: var(--text); font-weight: 500; }
@@ -120,7 +120,7 @@
   }
   .leave-bar-fill {
     height: 100%;
-    background: #1e3a8a;
+    background: var(--primary);
     border-radius: 4px;
   }
   .leave-row {
@@ -147,11 +147,11 @@
     overflow: hidden;
     margin-top: 6px;
   }
-  .goal-bar-fill { height: 100%; background: #3b82f6; border-radius: 3px; }
+  .goal-bar-fill { height: 100%; background: var(--primary); border-radius: 3px; }
 
   .section-head {
     padding: 13px 18px;
-    background: #f8fafc;
+    background: var(--surface-2);
     border-bottom: 1px solid var(--border);
     font-size: 12px;
     font-weight: 700;
@@ -185,7 +185,7 @@
     font-weight: 600;
     padding: 4px 10px;
     border-radius: 20px;
-    background: #f1f5f9;
+    background: var(--surface-2);
     color: var(--text);
     text-decoration: none;
   }
@@ -365,7 +365,7 @@
       {% set buddy_row = emp.buddy_id %}
       {% if emp.buddy_name %}
       <div style="display:flex;align-items:center;gap:.75rem">
-        <div style="width:36px;height:36px;border-radius:50%;background:var(--primary-light,#e0e7ff);display:flex;align-items:center;justify-content:center;font-size:1rem">🤝</div>
+        <div style="width:36px;height:36px;border-radius:50%;background:var(--primary-light,var(--surface-2));display:flex;align-items:center;justify-content:center;font-size:1rem">🤝</div>
         <div>
           <a href="{{ url_for('employee_detail', emp_id=emp.buddy_id) }}" style="font-weight:600;color:var(--primary);text-decoration:none">{{ emp.buddy_name }}</a>
           <div style="font-size:.8rem;color:var(--tx-2)">{{ emp.buddy_dept or '' }} {{ emp.buddy_pos or '' }}</div>
@@ -467,7 +467,7 @@
   <div class="card-body">
     <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:{% if can_edit_skills %}16px{% else %}0{% endif %};">
       {% for s in skills %}
-      {% set lc = {'beginner':'#64748b','intermediate':'#2563eb','advanced':'#7c3aed','expert':'#b45309'} %}
+      {% set lc = {'beginner':'var(--tx-2)','intermediate':'var(--tx-1)','advanced':'var(--tx-1)','expert':'var(--wait)'} %}
       <span style="display:inline-flex; align-items:center; gap:6px;
                    background:{{ lc.get(s.level,'var(--tx-3)') }}15;
                    color:{{ lc.get(s.level,'var(--tx-3)') }};

@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
+<script>(function(){try{var t=localStorage.getItem('tc-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>로그인 — TalentCore</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
@@ -17,15 +18,9 @@ body { background: var(--bg); }
   display: flex; flex-direction: column; justify-content: space-between;
   padding: 48px 52px;
 }
-.sp-left::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background:
-    radial-gradient(60% 50% at 100% 0%, rgba(94,106,210,.10), transparent 70%),
-    radial-gradient(50% 40% at 0% 100%, rgba(94,106,210,.07), transparent 70%);
-}
 .sp-brand { display: flex; align-items: center; gap: 11px; position: relative; }
 .sp-brand .mk {
-  width: 34px; height: 34px; border-radius: 10px; background: var(--primary); color: #fff;
+  width: 34px; height: 34px; border-radius: 7px; background: var(--primary); color: var(--on-primary);
   display: grid; place-items: center; font-weight: 800; font-size: 17px; letter-spacing: -.04em;
 }
 .sp-brand .nm { font-size: 18px; font-weight: 750; letter-spacing: -.02em; color: var(--tx-1); }
@@ -89,14 +84,14 @@ body { background: var(--bg); }
 .lc-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--tx-2); user-select: none; cursor: pointer; white-space: nowrap; }
 .lc-check input { position: absolute; opacity: 0; width: 0; height: 0; }
 .lc-box { width: 17px; height: 17px; border-radius: 5px; border: 1.5px solid var(--line); background: var(--surface-3); display: grid; place-items: center; transition: all .12s; }
-.lc-box svg { width: 11px; height: 11px; color: #fff; opacity: 0; transform: scale(.6); transition: all .12s; }
+.lc-box svg { width: 11px; height: 11px; color: var(--on-primary); opacity: 0; transform: scale(.6); transition: all .12s; }
 .lc-check input:checked + .lc-box { background: var(--primary); border-color: var(--primary); }
 .lc-check input:checked + .lc-box svg { opacity: 1; transform: scale(1); }
 .lc-check input:focus-visible + .lc-box { box-shadow: var(--ring); }
 .lc-link { font-size: 13px; font-weight: 600; color: var(--primary); white-space: nowrap; }
 .lc-link:hover { color: var(--primary-press); text-decoration: underline; }
 
-.lc-btn { width: 100%; padding: 12px; background: var(--primary); color: #fff; border-radius: 9px; font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: background .14s, transform .08s; }
+.lc-btn { width: 100%; padding: 12px; background: var(--primary); color: var(--on-primary); border-radius: 9px; font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: background .14s, transform .08s; }
 .lc-btn:hover { background: var(--primary-press); }
 .lc-btn:active { transform: translateY(1px); }
 .lc-btn svg { width: 16px; height: 16px; }
