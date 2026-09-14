@@ -92,7 +92,7 @@ TOSS_SECRET_KEY = os.environ.get(
 )
 
 # ── DB 초기화 ────────────────────────────────────────────────
-from database import init_db
+from database import init_db, DEFAULT_REVIEW_FORM, review_form_snapshot
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -1055,6 +1055,7 @@ def admin_setup():
         notes = _setup_save_org(db, s)
         gd_note = save_grade_dist(db, s)
         save_perf_culture(db, s)
+        save_default_form_weights(db, s)
         if gd_note:
             notes.insert(0, gd_note)
 
@@ -1313,6 +1314,7 @@ def admin_settings():
         ))
         gd_note = save_grade_dist(db, s)
         save_perf_culture(db, s)
+        save_default_form_weights(db, s)
         db.commit()
         if gd_note:
             flash('설정 저장 · ' + gd_note, 'warning')
@@ -8528,6 +8530,517 @@ GOAL_APPROVAL_LABEL = {
     'returned':  '반려',
 }
 
+# ── C3 평가 양식 · 역량 평가 · 목표 정렬 ─────────────────────────────
+PEER_PROMPT_COLS = ('strength', 'comment', 'improvement')   # 동료 서술 문항 1~3 → peer_reviews 컬럼
+
+
+def cycle_form(cycle):
+    """주기에 복사된 평가 양식. form_json 이 없는 기존 주기는 legacy=True (옛 산식·옛 문항 유지)."""
+    raw = cycle['form_json'] if cycle is not None and 'form_json' in cycle.keys() else None
+    try:
+        f = json.loads(raw) if raw else None
+    except (ValueError, TypeError):
+        f = None
+    base = DEFAULT_REVIEW_FORM
+    if not f:
+        return {'legacy': True, 'form_id': None, 'name': '기존 산식',
+                'goal_weight': 100, 'comp_weight': 0,
+                'self_weight': None, 'peer_weight': None, 'mgr_weight': None,
+                'competencies': [], 'peer_prompts': [dict(x) for x in base['peer_prompts']],
+                'upward_questions': list(UPWARD_QUESTIONS)}
+    out = {'legacy': False}
+    for k in ('form_id', 'name', 'goal_weight', 'comp_weight', 'self_weight', 'peer_weight', 'mgr_weight'):
+        out[k] = f.get(k, base.get(k))
+    out['competencies'] = [c for c in (f.get('competencies') or []) if c.get('key') and c.get('name')]
+    prompts = [dict(x) for x in (f.get('peer_prompts') or base['peer_prompts'])][:3]
+    while len(prompts) < 3:
+        prompts.append({'label': '', 'desc': ''})
+    out['peer_prompts'] = prompts
+    out['upward_questions'] = [q for q in (f.get('upward_questions') or []) if q][:5] or list(UPWARD_QUESTIONS)
+    return out
+
+
+def form_basis(form):
+    """산식 한 줄 — 화면 하단 근거 표기용."""
+    if form['legacy']:
+        return '기존 산식 · 자기·동료·매니저 점수 단순 평균 · 역량 평가 없음'
+    parts = [f"업적 {form['goal_weight']}%"]
+    if form['comp_weight']:
+        parts.append(f"역량 {form['comp_weight']}%")
+    return (' + '.join(parts) + f" · 자기 {form['self_weight']} / 동료 {form['peer_weight']} / 매니저 {form['mgr_weight']}"
+            + ' · 없는 평가자는 제외하고 남은 비중으로 환산')
+
+
+def _default_review_form(db):
+    return db.execute('SELECT * FROM review_forms ORDER BY is_default DESC, id LIMIT 1').fetchone()
+
+
+def default_form_weights():
+    """초기 설정·회사 설정의 업적/역량 비중 프리셋 표시용."""
+    try:
+        row = _default_review_form(get_db())
+    except sqlite3.Error:
+        row = None
+    return {'goal': row['goal_weight'] if row else 70, 'comp': row['comp_weight'] if row else 30,
+            'id': row['id'] if row else None, 'name': row['name'] if row else '기본 평가 양식'}
+
+
+app.jinja_env.globals['default_form_weights'] = default_form_weights
+
+
+def save_default_form_weights(db, f):
+    """초기 설정·회사 설정 — 기본 평가 양식의 업적/역량 비중 (프리셋 100/0 · 70/30 · 50/50)."""
+    if 'form_goal_weight' not in f:
+        return
+    try:
+        gw = int(f.get('form_goal_weight'))
+    except (TypeError, ValueError):
+        return
+    if gw not in (100, 70, 50):
+        return
+    row = _default_review_form(db)
+    if row:
+        db.execute('UPDATE review_forms SET goal_weight=?, comp_weight=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+                   (gw, 100 - gw, row['id']))
+
+
+def _parse_review_form(f):
+    """양식 편집 POST → (data, error)."""
+    import re as _re
+
+    def _int(k):
+        try:
+            return int(f.get(k, ''))
+        except (TypeError, ValueError):
+            return None
+    name = f.get('name', '').strip()[:60]
+    gw, cw = _int('goal_weight'), _int('comp_weight')
+    sw, pw, mw = _int('self_weight'), _int('peer_weight'), _int('mgr_weight')
+    names, descs, keys = f.getlist('comp_name'), f.getlist('comp_desc'), f.getlist('comp_key')
+    comps, used = [], set()
+    for i, nm in enumerate(names):
+        nm = nm.strip()
+        if not nm:
+            continue
+        key = keys[i].strip() if i < len(keys) else ''
+        if not _re.fullmatch(r'[a-z0-9_]{1,40}', key) or key in used:
+            key = 'c' + uuid.uuid4().hex[:8]
+        used.add(key)
+        comps.append({'key': key, 'name': nm[:40], 'desc': (descs[i].strip() if i < len(descs) else '')[:200]})
+    prompts = [{'label': f.get(f'prompt_label_{i}', '').strip()[:30],
+                'desc': f.get(f'prompt_desc_{i}', '').strip()[:100]} for i in range(3)]
+    questions = [q.strip()[:200] for q in f.getlist('upward_q') if q.strip()]
+    data = {'name': name, 'goal_weight': gw, 'comp_weight': cw, 'self_weight': sw, 'peer_weight': pw,
+            'mgr_weight': mw, 'competencies': comps, 'peer_prompts': prompts, 'upward_questions': questions[:5]}
+    err = None
+    if not name:
+        err = '양식 이름을 입력해주세요.'
+    elif None in (gw, cw, sw, pw, mw) or min(gw, cw, sw, pw, mw) < 0:
+        err = '비중은 0 이상의 정수로 입력해주세요.'
+    elif gw + cw != 100:
+        err = f'업적·역량 비중의 합이 100이어야 합니다 (현재 {gw + cw}).'
+    elif sw + pw + mw != 100:
+        err = f'자기·동료·매니저 비중의 합이 100이어야 합니다 (현재 {sw + pw + mw}).'
+    elif mw == 0:
+        err = '매니저 평가 비중은 0보다 커야 합니다.'
+    elif len(comps) > 10:
+        err = '역량은 최대 10개까지 등록할 수 있습니다.'
+    elif cw > 0 and not comps:
+        err = '역량 비중이 있으면 역량을 1개 이상 등록해주세요.'
+    elif not any(x['label'] for x in prompts):
+        err = '동료 평가 서술 문항을 1개 이상 입력해주세요.'
+    elif not questions:
+        err = '상향 평가 문항을 1개 이상 입력해주세요.'
+    elif len(questions) > 5:
+        err = '상향 평가 문항은 최대 5개입니다.'
+    return data, err
+
+
+def _form_row_dict(row):
+    return {'id': row['id'], 'name': row['name'], 'goal_weight': row['goal_weight'],
+            'comp_weight': row['comp_weight'], 'self_weight': row['self_weight'],
+            'peer_weight': row['peer_weight'], 'mgr_weight': row['mgr_weight'],
+            'competencies': json.loads(row['competencies'] or '[]'),
+            'peer_prompts': json.loads(row['peer_prompts'] or '[]'),
+            'upward_questions': json.loads(row['upward_questions'] or '[]'),
+            'is_default': row['is_default']}
+
+
+@app.route('/performance/forms')
+@admin_required
+def review_forms():
+    db = get_db()
+    rows = db.execute(
+        'SELECT f.*, (SELECT COUNT(*) FROM performance_cycles c WHERE c.form_id=f.id) AS used, '
+        "(SELECT GROUP_CONCAT(c.name, ' · ') FROM performance_cycles c WHERE c.form_id=f.id) AS used_names "
+        'FROM review_forms f ORDER BY f.is_default DESC, f.id'
+    ).fetchall()
+    forms = []
+    for r in rows:
+        d = _form_row_dict(r)
+        d['used'], d['used_names'] = r['used'], r['used_names']
+        forms.append(d)
+    legacy = db.execute("SELECT name, stage FROM performance_cycles WHERE form_json IS NULL ORDER BY start_date DESC").fetchall()
+    return render_template('performance/review_forms.html', forms=forms, legacy_cycles=legacy,
+                           cycle_stage_label=CYCLE_STAGE_LABEL, active_page='review_forms')
+
+
+@app.route('/performance/forms/new', methods=['POST'])
+@admin_required
+def review_form_new():
+    db = get_db()
+    src = _default_review_form(db)
+    f = _form_row_dict(src) if src else dict(DEFAULT_REVIEW_FORM)
+    cur = db.execute(
+        'INSERT INTO review_forms (name, goal_weight, comp_weight, self_weight, peer_weight, mgr_weight, '
+        'competencies, peer_prompts, upward_questions, is_default) VALUES (?,?,?,?,?,?,?,?,?,0)',
+        (f"{f['name']} 사본", f['goal_weight'], f['comp_weight'], f['self_weight'], f['peer_weight'],
+         f['mgr_weight'], json.dumps(f['competencies'], ensure_ascii=False),
+         json.dumps(f['peer_prompts'], ensure_ascii=False), json.dumps(f['upward_questions'], ensure_ascii=False)))
+    db.commit()
+    log_audit('create', 'performance', cur.lastrowid, '평가 양식 생성 (기본 양식 복사)')
+    return redirect(url_for('review_form_edit', form_id=cur.lastrowid))
+
+
+@app.route('/performance/forms/<int:form_id>', methods=['GET', 'POST'])
+@admin_required
+def review_form_edit(form_id):
+    db = get_db()
+    row = db.execute('SELECT * FROM review_forms WHERE id=?', (form_id,)).fetchone()
+    if not row:
+        abort(404)
+    form, error = _form_row_dict(row), None
+    if request.method == 'POST':
+        data, error = _parse_review_form(request.form)
+        if error:
+            data['id'], data['is_default'] = form_id, row['is_default']
+            form = data
+        else:
+            db.execute(
+                'UPDATE review_forms SET name=?, goal_weight=?, comp_weight=?, self_weight=?, peer_weight=?, '
+                'mgr_weight=?, competencies=?, peer_prompts=?, upward_questions=?, updated_at=CURRENT_TIMESTAMP '
+                'WHERE id=?',
+                (data['name'], data['goal_weight'], data['comp_weight'], data['self_weight'], data['peer_weight'],
+                 data['mgr_weight'], json.dumps(data['competencies'], ensure_ascii=False),
+                 json.dumps(data['peer_prompts'], ensure_ascii=False),
+                 json.dumps(data['upward_questions'], ensure_ascii=False), form_id))
+            db.commit()
+            log_audit('update', 'performance', form_id, f'평가 양식 수정: {data["name"]}')
+            flash('평가 양식을 저장했습니다. 진행 중인 주기에는 자동 반영되지 않습니다.', 'success')
+            return redirect(url_for('review_form_edit', form_id=form_id))
+    used = db.execute('SELECT name, stage, status FROM performance_cycles WHERE form_id=? ORDER BY start_date DESC',
+                      (form_id,)).fetchall()
+    return render_template('performance/review_form_edit.html', form=form, error=error, used=used,
+                           cycle_stage_label=CYCLE_STAGE_LABEL, active_page='review_forms')
+
+
+@app.route('/performance/forms/<int:form_id>/default', methods=['POST'])
+@admin_required
+def review_form_default(form_id):
+    db = get_db()
+    row = db.execute('SELECT id, name FROM review_forms WHERE id=?', (form_id,)).fetchone()
+    if not row:
+        abort(404)
+    db.execute('UPDATE review_forms SET is_default = CASE WHEN id=? THEN 1 ELSE 0 END', (form_id,))
+    db.commit()
+    log_audit('update', 'performance', form_id, f'기본 평가 양식 지정: {row["name"]}')
+    flash(f'"{row["name"]}"을 기본 양식으로 지정했습니다. 새 주기를 만들 때 먼저 선택됩니다.', 'success')
+    return redirect(url_for('review_forms'))
+
+
+@app.route('/performance/forms/<int:form_id>/delete', methods=['POST'])
+@admin_required
+def review_form_delete(form_id):
+    db = get_db()
+    row = db.execute('SELECT * FROM review_forms WHERE id=?', (form_id,)).fetchone()
+    if not row:
+        abort(404)
+    used = db.execute('SELECT COUNT(*) FROM performance_cycles WHERE form_id=?', (form_id,)).fetchone()[0]
+    if row['is_default']:
+        flash('기본 양식은 삭제할 수 없습니다. 다른 양식을 기본으로 지정한 뒤 삭제하세요.', 'error')
+    elif used:
+        flash(f'평가 주기 {used}개에서 사용한 양식은 삭제할 수 없습니다.', 'error')
+    else:
+        db.execute('DELETE FROM review_forms WHERE id=?', (form_id,))
+        db.commit()
+        log_audit('delete', 'performance', form_id, f'평가 양식 삭제: {row["name"]}')
+        flash('평가 양식을 삭제했습니다.', 'success')
+    return redirect(url_for('review_forms'))
+
+
+@app.route('/performance/cycles/<int:cycle_id>/form', methods=['POST'])
+@admin_required
+def performance_cycle_form(cycle_id):
+    """목표 수립·진행 단계 주기에 양식 (다시) 적용 — 평가가 시작되면 잠김."""
+    db = get_db()
+    cyc = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cyc:
+        abort(404)
+    frm = db.execute('SELECT * FROM review_forms WHERE id=?', (request.form.get('form_id', type=int),)).fetchone()
+    if cyc['status'] != 'active' or cyc['stage'] not in ('goal', 'progress'):
+        flash('평가 양식은 목표 수립·진행 단계에서만 바꿀 수 있습니다. 평가가 시작되면 잠깁니다.', 'error')
+    elif not frm:
+        flash('양식을 선택해주세요.', 'error')
+    else:
+        db.execute('UPDATE performance_cycles SET form_id=?, form_json=? WHERE id=?',
+                   (frm['id'], review_form_snapshot(frm), cycle_id))
+        db.commit()
+        log_audit('update', 'performance', cycle_id, f'{cyc["name"]} 평가 양식 적용: {frm["name"]}')
+        flash(f'"{cyc["name"]}"에 "{frm["name"]}" 양식을 적용했습니다.', 'success')
+    return redirect(url_for('performance_cycles'))
+
+
+@app.route('/performance/competencies/self', methods=['POST'])
+@login_required
+def performance_competency_self():
+    db, uid = get_db(), session['user_id']
+    cycle_id = request.form.get('cycle_id', type=int)
+    cyc = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cyc:
+        abort(404)
+    form = cycle_form(cyc)
+    if cyc['stage'] != 'review' or form['legacy'] or not form['competencies']:
+        flash('역량 자기평가는 역량이 포함된 주기의 "평가 진행" 단계에서만 작성할 수 있습니다.', 'error')
+        return redirect(url_for('performance', cycle=cycle_id))
+    saved = 0
+    for comp in form['competencies']:
+        try:
+            score = int(request.form.get(f'cs_{comp["key"]}', ''))
+        except (TypeError, ValueError):
+            continue
+        if not 1 <= score <= 5:
+            continue
+        comment = request.form.get(f'csc_{comp["key"]}', '').strip()[:1000] or None
+        db.execute(
+            'INSERT INTO competency_scores (cycle_id, user_id, comp_key, rater_type, rater_id, score, comment) '
+            "VALUES (?, ?, ?, 'self', ?, ?, ?) "
+            'ON CONFLICT(cycle_id, user_id, comp_key, rater_id) DO UPDATE SET score=excluded.score, '
+            'comment=excluded.comment, updated_at=CURRENT_TIMESTAMP',
+            (cycle_id, uid, comp['key'], uid, score, comment))
+        saved += 1
+    db.commit()
+    if saved:
+        flash(f'역량 자기평가 {saved}개를 저장했습니다.', 'success')
+    else:
+        flash('저장된 역량 평가가 없습니다. 점수를 선택해주세요.', 'error')
+    return redirect(url_for('performance', cycle=cycle_id) + '#comp-self')
+
+
+def _org_goal_ok(db, cycle_id, owner_dept, org_goal_id):
+    """개인 목표가 연결할 수 있는 상위 목표인지 — 같은 주기의 전사 목표 또는 소속 부서 목표."""
+    og = db.execute('SELECT * FROM org_goals WHERE id=? AND cycle_id=?', (org_goal_id, cycle_id)).fetchone()
+    if not og:
+        return False
+    return og['scope'] == 'company' or (og['department_id'] and og['department_id'] == owner_dept)
+
+
+def _align_options(db, cycle_id, dept_id):
+    if not cycle_id:
+        return []
+    return db.execute(
+        "SELECT o.id, o.title, o.scope, o.cycle_id, d.name AS dept_name FROM org_goals o "
+        "LEFT JOIN departments d ON o.department_id=d.id "
+        "WHERE o.cycle_id=? AND (o.scope='company' OR o.department_id=?) "
+        "ORDER BY o.scope='dept', o.id", (cycle_id, int(dept_id or 0))
+    ).fetchall()
+
+
+@app.route('/performance/goals/<int:goal_id>/align', methods=['POST'])
+@login_required
+def performance_goal_align(goal_id):
+    db, uid, role = get_db(), session['user_id'], session['user_role']
+    g = db.execute(
+        'SELECT g.*, u.department_id AS owner_dept, u.manager_id AS owner_mgr, c.status AS cyc_status, c.stage AS cyc_stage '
+        'FROM performance_goals g JOIN users u ON g.user_id=u.id JOIN performance_cycles c ON g.cycle_id=c.id '
+        'WHERE g.id=?', (goal_id,)).fetchone()
+    if not g:
+        abort(404)
+    if g['user_id'] != uid and role != 'admin':
+        if role != 'manager' or (g['owner_mgr'] != uid and g['owner_dept'] != int(session.get('dept_id') or 0)):
+            abort(403)
+    back = _safe_next(url_for('performance', cycle=g['cycle_id']))
+    if g['cyc_status'] != 'active' or g['cyc_stage'] not in ('goal', 'progress'):
+        flash('목표 정렬은 목표 수립·진행 단계에서만 바꿀 수 있습니다.', 'error')
+        return redirect(back)
+    target = request.form.get('aligned_goal_id', type=int)
+    if target and not _org_goal_ok(db, g['cycle_id'], g['owner_dept'], target):
+        flash('같은 주기의 전사 목표 또는 소속 부서 목표에만 연결할 수 있습니다.', 'error')
+        return redirect(back)
+    db.execute('UPDATE performance_goals SET aligned_goal_id=? WHERE id=?', (target or None, goal_id))
+    db.commit()
+    flash('상위 목표 연결을 저장했습니다.' if target else '상위 목표 연결을 해제했습니다.', 'success')
+    return redirect(back)
+
+
+@app.route('/performance/alignment')
+@login_required
+def goal_alignment():
+    db, uid, role = get_db(), session['user_id'], session['user_role']
+    my_dept = int(session.get('dept_id') or 0)
+    cycles = db.execute('SELECT * FROM performance_cycles ORDER BY start_date DESC').fetchall()
+    active = next((c for c in cycles if c['status'] == 'active'), None)
+    sel_id = request.args.get('cycle', type=int)
+    cycle = next((c for c in cycles if c['id'] == sel_id), active) if sel_id else active
+    if not cycle and cycles:
+        cycle = cycles[0]
+    cid = cycle['id'] if cycle else 0
+
+    org = db.execute(
+        'SELECT o.*, d.name AS dept_name, ow.name AS owner_name FROM org_goals o '
+        'LEFT JOIN departments d ON o.department_id=d.id LEFT JOIN users ow ON o.owner_id=ow.id '
+        'WHERE o.cycle_id=? ORDER BY d.name, o.id', (cid,)).fetchall()
+    personal = db.execute(
+        'SELECT g.id, g.title, g.progress, g.weight, g.approval_status, g.aligned_goal_id, g.user_id, '
+        'u.name AS user_name, u.department_id, u.manager_id, d.name AS dept_name '
+        'FROM performance_goals g JOIN users u ON g.user_id=u.id LEFT JOIN departments d ON u.department_id=d.id '
+        'WHERE g.cycle_id=? ORDER BY u.name, g.id', (cid,)).fetchall()
+
+    def visible(pg):
+        if role == 'admin' or pg['user_id'] == uid:
+            return True
+        return role == 'manager' and (pg['manager_id'] == uid or (my_dept and pg['department_id'] == my_dept))
+
+    kids = {}
+    for pg in personal:
+        if pg['aligned_goal_id']:
+            kids.setdefault(pg['aligned_goal_id'], []).append(pg)
+    org_ids = {o['id'] for o in org}
+
+    def node(o):
+        own = kids.get(o['id'], [])
+        vals = [pg['progress'] or 0 for pg in own]
+        subs = [node(s) for s in org if s['parent_id'] == o['id']]
+        vals += [s['rollup'] for s in subs if s['rollup'] is not None]
+        return {'goal': o, 'subs': subs, 'aligned_n': len(own),
+                'people': [pg for pg in own if visible(pg)],
+                'rollup': round(sum(vals) / len(vals)) if vals else None,
+                'can_edit': cycle['status'] == 'active' and (
+                    role == 'admin' or (role == 'manager' and o['created_by'] == uid))}
+    company = [node(o) for o in org if o['scope'] == 'company']
+    loose = [node(o) for o in org if o['scope'] == 'dept' and (not o['parent_id'] or o['parent_id'] not in org_ids)]
+
+    unaligned = {}
+    for pg in personal:
+        if not pg['aligned_goal_id'] or pg['aligned_goal_id'] not in org_ids:
+            u = unaligned.setdefault(pg['department_id'] or 0, {'dept_name': pg['dept_name'] or '부서 미지정', 'n': 0, 'goals': []})
+            u['n'] += 1
+            if visible(pg) and role in ('admin', 'manager'):
+                u['goals'].append(pg)
+    unaligned_list = sorted(unaligned.items(), key=lambda kv: (kv[0] != my_dept, kv[1]['dept_name']))
+    total = len(personal)
+    aligned_total = sum(1 for pg in personal if pg['aligned_goal_id'] in org_ids)
+
+    depts = db.execute('SELECT id, name FROM departments ORDER BY name').fetchall() if role == 'admin' else \
+        db.execute('SELECT id, name FROM departments WHERE id=?', (my_dept,)).fetchall()
+    align_opts = {}
+    for o in org:
+        align_opts.setdefault('company' if o['scope'] == 'company' else o['department_id'], []).append(o)
+    return render_template('performance/alignment.html', cycles=cycles, cycle=cycle,
+                           company=company, loose=loose, unaligned=unaligned_list,
+                           total=total, aligned_total=aligned_total,
+                           company_goals=[o for o in org if o['scope'] == 'company'],
+                           depts=depts, align_opts=align_opts, my_dept=my_dept,
+                           can_create=bool(cycle) and cycle['status'] == 'active' and (
+                               role == 'admin' or (role == 'manager' and my_dept)),
+                           goal_approval_label=GOAL_APPROVAL_LABEL,
+                           active_page='goal_alignment')
+
+
+def _org_goal_form_check(db, cycle, role, my_dept, scope, dept_id, parent_id):
+    if not cycle or cycle['status'] != 'active':
+        return '종료된 주기에는 목표를 추가·수정할 수 없습니다.'
+    if scope not in ('company', 'dept'):
+        return '구분을 선택해주세요.'
+    if role != 'admin':
+        if scope != 'dept' or dept_id != my_dept:
+            return '매니저는 소속 부서 목표만 만들 수 있습니다.'
+    if scope == 'dept' and not db.execute('SELECT 1 FROM departments WHERE id=?', (dept_id,)).fetchone():
+        return '부서를 선택해주세요.'
+    if parent_id:
+        par = db.execute("SELECT 1 FROM org_goals WHERE id=? AND cycle_id=? AND scope='company'",
+                         (parent_id, cycle['id'])).fetchone()
+        if not par or scope != 'dept':
+            return '부서 목표만 같은 주기의 전사 목표에 연결할 수 있습니다.'
+    return None
+
+
+@app.route('/performance/alignment/goals', methods=['POST'])
+@manager_or_admin
+def org_goal_new():
+    db, uid, role = get_db(), session['user_id'], session['user_role']
+    my_dept = int(session.get('dept_id') or 0)
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (request.form.get('cycle_id', type=int),)).fetchone()
+    scope = request.form.get('scope', 'dept')
+    dept_id = request.form.get('department_id', type=int) if scope == 'dept' else None
+    parent_id = request.form.get('parent_id', type=int) or None
+    title = request.form.get('title', '').strip()[:120]
+    desc = request.form.get('description', '').strip()[:1000] or None
+    if not cycle:
+        abort(404)
+    if role != 'admin' and (scope != 'dept' or dept_id != my_dept):
+        abort(403)
+    err = _org_goal_form_check(db, cycle, role, my_dept, scope, dept_id, parent_id) or (None if title else '목표명을 입력해주세요.')
+    if err:
+        flash(err, 'error')
+        return redirect(url_for('goal_alignment', cycle=cycle['id']))
+    cur = db.execute(
+        'INSERT INTO org_goals (cycle_id, scope, department_id, parent_id, title, description, owner_id, created_by) '
+        'VALUES (?,?,?,?,?,?,?,?)', (cycle['id'], scope, dept_id, parent_id, title, desc, uid, uid))
+    db.commit()
+    log_audit('create', 'performance', cur.lastrowid, f'{"전사" if scope == "company" else "부서"} 목표 등록: {title}')
+    flash('목표를 등록했습니다.', 'success')
+    return redirect(url_for('goal_alignment', cycle=cycle['id']))
+
+
+@app.route('/performance/alignment/goals/<int:og_id>', methods=['POST'])
+@manager_or_admin
+def org_goal_edit(og_id):
+    db, uid, role = get_db(), session['user_id'], session['user_role']
+    og = db.execute('SELECT * FROM org_goals WHERE id=?', (og_id,)).fetchone()
+    if not og:
+        abort(404)
+    if role != 'admin' and og['created_by'] != uid:
+        abort(403)
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (og['cycle_id'],)).fetchone()
+    back = url_for('goal_alignment', cycle=og['cycle_id'])
+    if cycle['status'] != 'active':
+        flash('종료된 주기에는 목표를 추가·수정할 수 없습니다.', 'error')
+        return redirect(back)
+    if request.form.get('action') == 'delete':
+        db.execute('UPDATE org_goals SET parent_id=NULL WHERE parent_id=?', (og_id,))
+        db.execute('UPDATE performance_goals SET aligned_goal_id=NULL WHERE aligned_goal_id=?', (og_id,))
+        db.execute('DELETE FROM org_goals WHERE id=?', (og_id,))
+        db.commit()
+        log_audit('delete', 'performance', og_id, f'조직 목표 삭제: {og["title"]}')
+        flash('목표를 삭제했습니다. 연결된 하위 목표는 연결이 해제됩니다.', 'success')
+        return redirect(back)
+    title = request.form.get('title', '').strip()[:120]
+    desc = request.form.get('description', '').strip()[:1000] or None
+    parent_id = request.form.get('parent_id', type=int) or None
+    if parent_id == og_id:
+        parent_id = None
+    err = _org_goal_form_check(db, cycle, role, int(session.get('dept_id') or 0), og['scope'],
+                               og['department_id'], parent_id) or (None if title else '목표명을 입력해주세요.')
+    if err:
+        flash(err, 'error')
+        return redirect(back)
+    db.execute('UPDATE org_goals SET title=?, description=?, parent_id=? WHERE id=?', (title, desc, parent_id, og_id))
+    db.commit()
+    flash('목표를 수정했습니다.', 'success')
+    return redirect(back)
+
+
+def _c3_member_context(db, emp_uid, cycle, viewer_uid):
+    form = cycle_form(cycle)
+    rows = db.execute('SELECT comp_key, rater_type, rater_id, score, comment FROM competency_scores '
+                      'WHERE cycle_id=? AND user_id=?', (cycle['id'], emp_uid)).fetchall()
+    return {'form': form, 'basis': form_basis(form),
+            'comp_self': {r['comp_key']: r for r in rows if r['rater_type'] == 'self'},
+            'comp_mine': {r['comp_key']: r for r in rows if r['rater_type'] == 'manager' and r['rater_id'] == viewer_uid},
+            'org_goals': {r['id']: r for r in db.execute('SELECT id, title, scope FROM org_goals WHERE cycle_id=?',
+                                                         (cycle['id'],)).fetchall()}}
+
+
 @app.route('/performance')
 @login_required
 def performance():
@@ -8800,6 +9313,21 @@ def performance():
             'avg_progress':  round(sum(r['avg_progress'] for r in team_rows) / len(team_rows)) if team_rows else 0,
         }
 
+    # ── C3 평가 양식 · 역량 자기평가 · 목표 정렬 ──
+    form = cycle_form(selected_cycle) if selected_cycle else None
+    my_comp = {}
+    if form and not form['legacy'] and cycle_id and role == 'employee':
+        my_comp = {r['comp_key']: r for r in db.execute(
+            "SELECT comp_key, score, comment FROM competency_scores "
+            "WHERE cycle_id=? AND user_id=? AND rater_type='self'", (cycle_id, uid)).fetchall()}
+        missing = [c for c in form['competencies'] if c['key'] not in my_comp]
+        if stage == 'review' and missing:
+            todo_items.append({'icon': 'fa-list-check', 'color': '#dc2626',
+                               'text': f'역량 자기평가 미완료 {len(missing)}개',
+                               'url': url_for('performance', cycle=cycle_id) + '#comp-self'})
+    org_goal_map = {r['id']: r for r in db.execute(
+        'SELECT id, title, scope FROM org_goals WHERE cycle_id=?', (cycle_id,)).fetchall()} if cycle_id else {}
+
     return render_template('performance/index.html',
                            cycles=cycles, active_cycle=active_cycle,
                            selected_cycle=selected_cycle,
@@ -8819,6 +9347,9 @@ def performance():
                            grade_rewards=_grade_rewards(get_db()),
                            goal_checkin=_latest_checkins(db, [g['id'] for g in goals]),
                            ck_label=CHECKIN_STATUS_LABEL, ck_cls=CHECKIN_STATUS_CLS,
+                           form=form, form_basis=form_basis(form) if form else '', my_comp=my_comp,
+                           org_goal_map=org_goal_map,
+                           align_options=_align_options(db, cycle_id, session.get('dept_id')),
                            active_page='performance')
 
 @app.route('/performance/goals/ai-assist', methods=['POST'])
@@ -8961,10 +9492,13 @@ def performance_goal_new():
             if count >= 5:
                 error = '목표는 최대 5개까지 등록할 수 있습니다.'
             else:
+                aligned = request.form.get('aligned_goal_id', type=int)
+                if aligned and not _org_goal_ok(db, cycle_id, int(session.get('dept_id') or 0), aligned):
+                    aligned = None
                 db.execute(
-                    'INSERT INTO performance_goals (cycle_id, user_id, category, title, description, weight, approval_status) '
-                    "VALUES (?, ?, ?, ?, ?, ?, 'draft')",
-                    (cycle_id, uid, category, title, desc, weight)
+                    'INSERT INTO performance_goals (cycle_id, user_id, category, title, description, weight, approval_status, aligned_goal_id) '
+                    "VALUES (?, ?, ?, ?, ?, ?, 'draft', ?)",
+                    (cycle_id, uid, category, title, desc, weight, aligned)
                 )
                 db.commit()
                 return redirect(url_for('performance'))
@@ -8984,6 +9518,7 @@ def performance_goal_new():
                            cycles=cycles, error=error,
                            my_weights=my_weights,
                            goal_templates=goal_templates_list,
+                           align_options=[o for c in cycles for o in _align_options(db, c['id'], session.get('dept_id'))],
                            active_page='performance')
 
 
@@ -9294,6 +9829,7 @@ def performance_team_member(emp_uid):
                            goal_approval_label=GOAL_APPROVAL_LABEL,
                            score_labels=SCORE_LABELS,
                            c2=_c2_member_context(db, emp_uid, cycle, uid, role, session.get('dept_id')),
+                           c3=_c3_member_context(db, emp_uid, cycle, uid),
                            ck_label=CHECKIN_STATUS_LABEL, ck_cls=CHECKIN_STATUS_CLS,
                            kind_label=FEEDBACK_KIND_LABEL,
                            active_page='performance')
@@ -9339,6 +9875,23 @@ def performance_team_member_review(emp_uid):
             'comment=excluded.comment, created_at=CURRENT_TIMESTAMP',
             (g['id'], uid, score, comment)
         )
+        saved += 1
+
+    # C3 — 역량 매니저 평가 (양식에 역량이 있는 주기)
+    for comp in cycle_form(cycle)['competencies']:
+        try:
+            score = int(request.form.get(f'comp_{comp["key"]}', ''))
+        except (TypeError, ValueError):
+            continue
+        if not 1 <= score <= 5:
+            continue
+        comment = request.form.get(f'compc_{comp["key"]}', '').strip()[:1000] or None
+        db.execute(
+            'INSERT INTO competency_scores (cycle_id, user_id, comp_key, rater_type, rater_id, score, comment) '
+            "VALUES (?, ?, ?, 'manager', ?, ?, ?) "
+            'ON CONFLICT(cycle_id, user_id, comp_key, rater_id) DO UPDATE SET score=excluded.score, '
+            'comment=excluded.comment, updated_at=CURRENT_TIMESTAMP',
+            (cycle_id, emp_uid, comp['key'], uid, score, comment))
         saved += 1
     db.commit()
 
@@ -9495,6 +10048,9 @@ def performance_cycles():
 
     return render_template('performance/cycles.html', cycles=cycles,
                            pending_info=pending_info,
+                           cycle_forms={c['id']: cycle_form(c) for c in cycles},
+                           review_forms=db.execute('SELECT id, name, is_default, goal_weight, comp_weight FROM review_forms '
+                                                   'ORDER BY is_default DESC, id').fetchall(),
                            today=date.today().isoformat(),
                            cycle_stages=CYCLE_STAGES,
                            cycle_stage_label=CYCLE_STAGE_LABEL,
@@ -9521,12 +10077,15 @@ def performance_cycle_new():
         return redirect(url_for('performance_cycles'))
 
     # 기존 active 사이클이 있으면 자동 closed 처리
+    frm = db.execute('SELECT * FROM review_forms WHERE id=?', (request.form.get('form_id', type=int),)).fetchone() \
+        or _default_review_form(db)
     db.execute("UPDATE performance_cycles SET status='closed', stage='closed' WHERE status='active'")
     db.execute(
         "INSERT INTO performance_cycles (name, start_date, end_date, status, stage, include_peer, "
-        "goal_deadline, review_deadline) "
-        "VALUES (?, ?, ?, 'active', 'goal', ?, ?, ?)",
-        (name, start_date, end_date, include_peer, goal_deadline, review_deadline)
+        "goal_deadline, review_deadline, form_id, form_json) "
+        "VALUES (?, ?, ?, 'active', 'goal', ?, ?, ?, ?, ?)",
+        (name, start_date, end_date, include_peer, goal_deadline, review_deadline,
+         frm['id'] if frm else None, review_form_snapshot(frm) if frm else None)
     )
     db.commit()
     flash(f'평가 주기 "{name}"이 생성되었습니다. 목표 수립 단계부터 시작합니다.', 'success')
@@ -14320,6 +14879,7 @@ def calibration():
                            total_count=total_count, publish_ready=publish_ready,
                            active_acr=active_acr,
                            appeal_pending=appeal_pending,
+                           form_basis=form_basis(cycle_form(selected_cycle)) if selected_cycle else '',
                            cycle_stage_label=CYCLE_STAGE_LABEL,
                            active_page='performance')
 
@@ -14359,16 +14919,47 @@ def _calc_calibration_row(db, user_id, cycle_id):
     ).fetchall()
     peer_avg = round(sum(r['score'] for r in peer_rows) / len(peer_rows), 2) if peer_rows else None
 
-    # 상향 평가 평균
+    # 상향 평가 평균 (문항 점수 q1~q5 평균의 평균)
     upward_rows = db.execute(
-        'SELECT score FROM peer_reviews WHERE cycle_id=? AND reviewee_id=? AND review_type=\'upward\'',
+        'SELECT * FROM peer_reviews WHERE cycle_id=? AND reviewee_id=? AND review_type=\'upward\'',
         (cycle_id, user_id)
     ).fetchall()
-    upward_avg = round(sum(r['score'] for r in upward_rows) / len(upward_rows), 2) if upward_rows else None
+    _uv = [v for v in (_calc_upward_avg(r) for r in upward_rows) if v is not None]
+    upward_avg = round(sum(_uv) / len(_uv), 2) if _uv else None
 
-    # 종합 점수 (있는 것만 평균)
-    scores = [s for s in [self_avg, peer_avg, mgr_avg] if s is not None]
-    overall = round(sum(scores) / len(scores), 2) if scores else None
+    # 종합 점수 — 기존 주기: 있는 것만 단순 평균 / 양식 주기: 업적·역량 × 평가자 비중
+    cyc = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    form = cycle_form(cyc)
+    goal_score = comp_score = None
+    if form['legacy']:
+        scores = [s for s in [self_avg, peer_avg, mgr_avg] if s is not None]
+        overall = round(sum(scores) / len(scores), 2) if scores else None
+    else:
+        def _wavg(pairs):
+            pairs = [(v, w) for v, w in pairs if v is not None and w]
+            tw = sum(w for _, w in pairs)
+            return round(sum(v * w for v, w in pairs) / tw, 2) if tw else None
+        self_goal = self_avg
+        mgr_goal = _wavg([(r['m'], r['weight']) for r in db.execute(
+            'SELECT g.weight, AVG(pr.score) AS m FROM performance_goals g '
+            'JOIN performance_reviews pr ON pr.goal_id=g.id WHERE g.user_id=? AND g.cycle_id=? GROUP BY g.id',
+            (user_id, cycle_id)).fetchall()])
+        keys = {c['key'] for c in form['competencies']}
+        per = {}
+        for r in db.execute('SELECT comp_key, rater_type, AVG(score) AS m FROM competency_scores '
+                            'WHERE cycle_id=? AND user_id=? GROUP BY comp_key, rater_type',
+                            (cycle_id, user_id)).fetchall():
+            if r['comp_key'] in keys:
+                per.setdefault(r['rater_type'], []).append(r['m'])
+        self_comp = round(sum(per['self']) / len(per['self']), 2) if per.get('self') else None
+        mgr_comp = round(sum(per['manager']) / len(per['manager']), 2) if per.get('manager') else None
+        gw, cw = form['goal_weight'], form['comp_weight']
+        self_avg = _wavg([(self_goal, gw), (self_comp, cw)])
+        mgr_avg = _wavg([(mgr_goal, gw), (mgr_comp, cw)])
+        overall = _wavg([(self_avg, form['self_weight']), (peer_avg, form['peer_weight']),
+                         (mgr_avg, form['mgr_weight'])])
+        goal_score = _wavg([(self_goal, form['self_weight']), (mgr_goal, form['mgr_weight'])])
+        comp_score = _wavg([(self_comp, form['self_weight']), (mgr_comp, form['mgr_weight'])]) if cw else None
 
     # 등급 산출
     if overall is None:
@@ -14396,6 +14987,9 @@ def _calc_calibration_row(db, user_id, cycle_id):
         'mgr_avg': mgr_avg,
         'upward_avg': upward_avg,
         'overall': overall,
+        'goal_score': goal_score,
+        'comp_score': comp_score,
+        'form_legacy': form['legacy'],
         'suggested_grade': suggested,
         'anomaly': anomaly,
     }
@@ -14978,7 +15572,8 @@ def peer_reviews_page():
                            peer_threshold_met=peer_threshold_met,
                            received_upward=received_upward,
                            upward_count=upward_count,
-                           upward_questions=UPWARD_QUESTIONS,
+                           upward_questions=cycle_form(selected_cycle)['upward_questions'] if selected_cycle else UPWARD_QUESTIONS,
+                           peer_prompts=cycle_form(selected_cycle)['peer_prompts'] if selected_cycle else DEFAULT_REVIEW_FORM['peer_prompts'],
                            active_page='peer')
 
 
@@ -15041,6 +15636,9 @@ def peer_review_write(reviewee_id):
         (cycle_id, reviewee_id, uid, review_type)
     ).fetchone()
     error = None
+    form = cycle_form(cycle)
+    prompts = [dict(pr, col=PEER_PROMPT_COLS[i]) for i, pr in enumerate(form['peer_prompts'])]
+    questions = form['upward_questions']
 
     if request.method == 'POST':
         if review_type == 'peer':
@@ -15048,17 +15646,14 @@ def peer_review_write(reviewee_id):
                 score = int(request.form.get('score', 0))
             except (ValueError, TypeError):
                 score = 0
-            strength    = request.form.get('strength', '').strip() or None
-            improvement = request.form.get('improvement', '').strip() or None
-            comment     = request.form.get('comment', '').strip() or None
+            texts = {pr['col']: (request.form.get(pr['col'], '').strip()[:2000] or None) if pr['label'] else None
+                     for pr in prompts}
+            strength, improvement, comment = texts['strength'], texts['improvement'], texts['comment']
+            missing = [pr['label'] for pr in prompts if pr['label'] and not texts[pr['col']]]
             if not (1 <= score <= 5):
                 error = '점수를 선택해주세요.'
-            elif not strength:
-                error = 'Continue 항목을 입력해주세요.'
-            elif not comment:
-                error = 'Stop 항목을 입력해주세요.'
-            elif not improvement:
-                error = 'Start 항목을 입력해주세요.'
+            elif missing:
+                error = f'{missing[0]} 항목을 입력해주세요.'
             else:
                 db.execute(
                     'INSERT INTO peer_reviews '
@@ -15074,14 +15669,16 @@ def peer_review_write(reviewee_id):
                 return redirect(url_for('peer_reviews_page', cycle=cycle_id))
         else:  # upward
             q_scores = []
-            for i in range(1, 6):
+            for i in range(1, len(questions) + 1):
                 try:
                     v = int(request.form.get(f'q{i}', 0))
                 except (ValueError, TypeError):
                     v = 0
                 q_scores.append(v)
             comment = request.form.get('comment', '').strip() or None
-            if any(not (1 <= s <= 5) for s in q_scores):
+            answered = q_scores
+            q_scores = q_scores + [None] * (5 - len(q_scores))
+            if any(not (1 <= s <= 5) for s in answered):
                 error = '모든 항목에 점수를 선택해주세요.'
             else:
                 db.execute(
@@ -15110,7 +15707,7 @@ def peer_review_write(reviewee_id):
     return render_template('performance/peer_write.html',
                            cycle=cycle, reviewee=reviewee,
                            review_type=review_type, existing=existing,
-                           upward_questions=UPWARD_QUESTIONS, error=error,
+                           upward_questions=questions, peer_prompts=prompts, error=error,
                            reviewee_goals=reviewee_goals,
                            active_page='peer')
 

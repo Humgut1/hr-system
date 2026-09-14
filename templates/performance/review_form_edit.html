@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% block title %}{{ form.name or '평가 양식' }} · 평가 양식{% endblock %}
+{% block page_title %}성과{% endblock %}
+
+{% block extra_css %}
+<style>
+  .wh-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
+  .wh-head h1 { font-size:18px; font-weight:650; margin:0; }
+  .wh-head .sp { margin-left:auto; }
+  .wh-basis { font-size:12px; color:var(--tx-3); margin:8px 0 0; line-height:1.7; }
+  .rf-err { font-size:12.5px; color:var(--late); margin:0 0 14px; }
+  .rf-sec { margin:0 0 26px; max-width:880px; }
+  .fb-form { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:14px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line-2); }
+  .fb-form .full { grid-column:1 / -1; }
+  .fb-form label { display:block; font-size:11.5px; color:var(--tx-3); margin-bottom:5px; }
+  .fb-form input, .fb-form select { width:100%; height:30px; padding:0 8px; font-size:12.5px; background:var(--surface); color:var(--tx-1); border:1px solid var(--line); border-radius:6px; }
+  .rf-w { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:10px; }
+  .rf-w input { font-family:var(--mono); text-align:right; }
+  .rf-sumline { grid-column:1 / -1; font-size:12px; color:var(--tx-3); }
+  .rf-sumline b { font:600 12px var(--mono); color:var(--tx-1); }
+  .rf-sumline b.bad { color:var(--late); }
+  .rf-row { display:grid; grid-template-columns:180px 1fr 30px; gap:8px; align-items:center; }
+  .rf-row + .rf-row { margin-top:6px; }
+  .rf-x { width:30px; height:30px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--tx-3); cursor:pointer; }
+  .rf-x:hover { color:var(--tx-1); border-color:var(--line-strong); }
+  .rf-prompt { display:grid; grid-template-columns:180px 1fr; gap:8px; }
+  .rf-prompt + .rf-prompt { margin-top:6px; }
+  .rf-foot { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--tx-3); max-width:880px; }
+  .rf-foot .btn:first-of-type { margin-left:auto; }
+  @media (max-width: 760px) {
+    .rf-w { grid-template-columns:1fr 1fr; }
+    .rf-row, .rf-prompt { grid-template-columns:1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wh-head">
+  <h1>{{ form.name or '평가 양식' }}</h1>
+  {% if form.is_default %}<span style="font-size:11px; color:var(--tx-3); border:1px solid var(--line); border-radius:4px; padding:1px 6px;">기본</span>{% endif %}
+  <span class="sp"></span>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('review_forms') }}">양식 목록</a>
+</div>
+
+{% if error %}<p class="rf-err">{{ error }}</p>{% endif %}
+
+<form method="POST" id="rfForm">
+  <section class="rf-sec">
+    <div class="sec-head"><h2>이름 · 비중</h2><span class="cnt">합계 100</span></div>
+    <div class="fb-form">
+      <div class="full">
+        <label for="rf-name">양식 이름</label>
+        <input id="rf-name" name="name" maxlength="60" required value="{{ form.name }}">
+      </div>
+      <div class="full rf-w">
+        <div><label for="w-goal">업적 (목표)</label><input id="w-goal" type="number" min="0" max="100" name="goal_weight" value="{{ form.goal_weight }}" data-grp="a"></div>
+        <div><label for="w-comp">역량</label><input id="w-comp" type="number" min="0" max="100" name="comp_weight" value="{{ form.comp_weight }}" data-grp="a"></div>
+        <div><label for="w-self">자기평가</label><input id="w-self" type="number" min="0" max="100" name="self_weight" value="{{ form.self_weight }}" data-grp="b"></div>
+        <div><label for="w-peer">동료평가</label><input id="w-peer" type="number" min="0" max="100" name="peer_weight" value="{{ form.peer_weight }}" data-grp="b"></div>
+        <div><label for="w-mgr">매니저평가</label><input id="w-mgr" type="number" min="1" max="100" name="mgr_weight" value="{{ form.mgr_weight }}" data-grp="b"></div>
+      </div>
+      <div class="rf-sumline">업적 + 역량 <b id="sum-a">-</b> · 자기 + 동료 + 매니저 <b id="sum-b">-</b></div>
+    </div>
+    <p class="wh-basis">자기·매니저 점수는 업적(목표 점수)과 역량 점수를 업적·역량 비중으로 합산하고, 종합 점수는 자기·동료·매니저 점수를 평가자 비중으로 가중 평균합니다. 동료평가가 없는 주기나 받지 못한 직원은 남은 비중으로 환산합니다. 역량은 자기·매니저가 평가합니다.</p>
+  </section>
+
+  <section class="rf-sec">
+    <div class="sec-head"><h2>역량 항목</h2><span class="cnt" id="comp-cnt">{{ form.competencies | length }}</span><span class="sp"></span><button type="button" class="btn btn-ghost btn-sm" id="comp-add">역량 추가</button></div>
+    <div class="fb-form" style="display:block;">
+      <div class="rf-row" style="font-size:11.5px; color:var(--tx-3);"><span>역량명</span><span>행동 기준 · 평가자가 점수를 매길 때 보는 설명</span><span></span></div>
+      <div id="comp-list">
+        {% for c in form.competencies %}
+        <div class="rf-row">
+          <input type="hidden" name="comp_key" value="{{ c.key }}">
+          <input name="comp_name" maxlength="40" value="{{ c.name }}" aria-label="역량명">
+          <input name="comp_desc" maxlength="200" value="{{ c.desc }}" aria-label="행동 기준">
+          <button type="button" class="rf-x" aria-label="삭제" title="삭제">&times;</button>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <p class="wh-basis">최대 10개 · 1~5점 · 역량 비중이 0이면 역량 평가를 받지 않습니다. 이름을 비우면 저장 시 제외됩니다.</p>
+  </section>
+
+  <section class="rf-sec">
+    <div class="sec-head"><h2>동료평가 서술 문항</h2><span class="cnt">최대 3</span></div>
+    <div class="fb-form" style="display:block;">
+      {% for i in range(3) %}
+      {% set p = form.peer_prompts[i] if form.peer_prompts | length > i else {'label': '', 'desc': ''} %}
+      <div class="rf-prompt">
+        <input name="prompt_label_{{ i }}" maxlength="30" value="{{ p.label }}" placeholder="문항 {{ i + 1 }} 제목" aria-label="문항 {{ i + 1 }} 제목">
+        <input name="prompt_desc_{{ i }}" maxlength="100" value="{{ p.desc }}" placeholder="안내 문구" aria-label="문항 {{ i + 1 }} 안내">
+      </div>
+      {% endfor %}
+    </div>
+    <p class="wh-basis">제목을 비운 문항은 동료평가 작성 화면에 나오지 않습니다. 작성자는 드러나지 않습니다.</p>
+  </section>
+
+  <section class="rf-sec">
+    <div class="sec-head"><h2>상향평가 문항</h2><span class="cnt">최대 5 · 5점 동의 척도</span></div>
+    <div class="fb-form" style="display:block;">
+      {% for i in range(5) %}
+      <div class="rf-prompt" style="grid-template-columns:30px 1fr;">
+        <span style="font:500 12px var(--mono); color:var(--tx-3); align-self:center;">Q{{ i + 1 }}</span>
+        <input name="upward_q" maxlength="200" value="{{ form.upward_questions[i] if form.upward_questions | length > i else '' }}" aria-label="상향평가 문항 {{ i + 1 }}">
+      </div>
+      {% endfor %}
+    </div>
+    <p class="wh-basis">팀원이 매니저를 익명으로 평가합니다. 매니저 본인 보정 점수의 참고 지표로만 쓰이고 종합 점수에는 들어가지 않습니다.</p>
+  </section>
+
+  <div class="rf-foot">
+    {% if used %}
+    <span>사용 주기 {% for c in used %}{{ ' · ' if not loop.first }}{{ c.name }} ({{ cycle_stage_label.get(c.stage, c.stage) }}){% endfor %} · 저장해도 이 주기들에는 반영되지 않음</span>
+    {% else %}
+    <span>아직 사용한 주기 없음</span>
+    {% endif %}
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('review_forms') }}">취소</a>
+    <button class="btn btn-primary btn-sm" type="submit">저장</button>
+  </div>
+</form>
+
+<template id="comp-tpl">
+  <div class="rf-row">
+    <input type="hidden" name="comp_key" value="">
+    <input name="comp_name" maxlength="40" value="" aria-label="역량명" placeholder="예) 고객 지향">
+    <input name="comp_desc" maxlength="200" value="" aria-label="행동 기준" placeholder="예) 고객 입장에서 문제를 정의하고 결과를 확인한다">
+    <button type="button" class="rf-x" aria-label="삭제" title="삭제">&times;</button>
+  </div>
+</template>
+
+<script>
+(function () {
+  var list = document.getElementById('comp-list');
+  var cnt = document.getElementById('comp-cnt');
+  function recount() {
+    var n = list.querySelectorAll('.rf-row').length;
+    cnt.textContent = n;
+    document.getElementById('comp-add').disabled = n >= 10;
+  }
+  document.getElementById('comp-add').addEventListener('click', function () {
+    list.appendChild(document.getElementById('comp-tpl').content.cloneNode(true));
+    var rows = list.querySelectorAll('.rf-row');
+    rows[rows.length - 1].querySelector('input[name=comp_name]').focus();
+    recount();
+  });
+  list.addEventListener('click', function (e) {
+    if (e.target.classList.contains('rf-x')) { e.target.closest('.rf-row').remove(); recount(); }
+  });
+  function sums() {
+    ['a', 'b'].forEach(function (g) {
+      var s = 0;
+      document.querySelectorAll('input[data-grp=' + g + ']').forEach(function (i) { s += parseInt(i.value || '0', 10) || 0; });
+      var el = document.getElementById('sum-' + g);
+      el.textContent = s;
+      el.classList.toggle('bad', s !== 100);
+    });
+  }
+  document.querySelectorAll('input[data-grp]').forEach(function (i) { i.addEventListener('input', sums); });
+  sums(); recount();
+})();
+</script>
+{% endblock %}

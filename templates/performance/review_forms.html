@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block title %}평가 양식{% endblock %}
+{% block page_title %}성과{% endblock %}
+
+{% block extra_css %}
+<style>
+  .wh-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
+  .wh-head h1 { font-size:18px; font-weight:650; margin:0; }
+  .wh-head .sp { margin-left:auto; }
+  .wh-sum { display:flex; flex-wrap:wrap; gap:6px 22px; font-size:12.5px; color:var(--tx-3); margin:0 0 18px; }
+  .wh-sum b { font:600 12.5px var(--mono); color:var(--tx-1); margin-left:6px; }
+  .wh-basis { font-size:12px; color:var(--tx-3); margin:8px 0 0; line-height:1.7; }
+  .rf-acts { display:flex; gap:6px; justify-content:flex-end; }
+  .rf-acts form { margin:0; }
+  .ltable td.wrap { white-space:normal; line-height:1.5; padding-top:8px; padding-bottom:8px; }
+  .rf-tag { font-size:11px; color:var(--tx-3); border:1px solid var(--line); border-radius:4px; padding:1px 6px; margin-left:6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wh-head">
+  <h1>평가 양식</h1>
+  <span class="sp"></span>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('performance_cycles') }}">평가 주기</a>
+  <form method="POST" action="{{ url_for('review_form_new') }}" style="margin:0;">
+    <button class="btn btn-primary btn-sm" type="submit">기본 양식 복사해 새 양식</button>
+  </form>
+</div>
+
+<div class="wh-sum">
+  <span>양식<b>{{ forms | length }}</b></span>
+  <span>기존 산식 주기<b>{{ legacy_cycles | length }}</b></span>
+</div>
+
+<section style="margin:0 0 28px;">
+  <div class="sec-head"><h2>양식 목록</h2><span class="cnt">{{ forms | length }}</span></div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>양식</th><th class="r">업적</th><th class="r">역량</th><th>평가자 비중 자기/동료/매니저</th><th>역량 항목</th><th>사용 주기</th><th></th></tr></thead>
+    <tbody>
+      {% for f in forms %}
+      <tr>
+        <td><a href="{{ url_for('review_form_edit', form_id=f.id) }}">{{ f.name }}</a>{% if f.is_default %}<span class="rf-tag">기본</span>{% endif %}</td>
+        <td class="m r">{{ f.goal_weight }}%</td>
+        <td class="m r">{{ f.comp_weight }}%</td>
+        <td class="m">{{ f.self_weight }} / {{ f.peer_weight }} / {{ f.mgr_weight }}</td>
+        <td class="wrap t2">{% for c in f.competencies %}{{ ' · ' if not loop.first }}{{ c.name }}{% else %}없음{% endfor %}</td>
+        <td class="wrap t2">{{ f.used_names or '없음' }}</td>
+        <td>
+          <div class="rf-acts">
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('review_form_edit', form_id=f.id) }}">편집</a>
+            {% if not f.is_default %}
+            <form method="POST" action="{{ url_for('review_form_default', form_id=f.id) }}"><button class="btn btn-ghost btn-sm" type="submit">기본으로</button></form>
+            {% if not f.used %}
+            <form method="POST" action="{{ url_for('review_form_delete', form_id=f.id) }}" onsubmit="return confirm('이 양식을 삭제할까요?');"><button class="btn btn-ghost btn-sm" type="submit">삭제</button></form>
+            {% endif %}
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr class="empty"><td colspan="7">양식 없음</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="wh-basis">
+    주기를 만들 때 양식이 그 주기에 복사됩니다. 양식을 고쳐도 이미 만든 주기는 바뀌지 않으며, 목표 수립·진행 단계 주기는 평가 주기 화면에서 다시 적용할 수 있습니다.<br>
+    종합 점수 = 자기·동료·매니저 점수의 평가자 비중 가중 평균 · 자기·매니저 점수는 업적과 역량을 업적·역량 비중으로 합산 · 없는 평가자는 제외하고 남은 비중으로 환산
+  </p>
+</section>
+
+{% if legacy_cycles %}
+<section>
+  <div class="sec-head"><h2>기존 산식 주기</h2><span class="cnt">{{ legacy_cycles | length }}</span></div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>주기</th><th>단계</th><th>산식</th></tr></thead>
+    <tbody>
+      {% for c in legacy_cycles %}
+      <tr class="dim">
+        <td>{{ c.name }}</td>
+        <td class="t2">{{ cycle_stage_label.get(c.stage, c.stage) }}</td>
+        <td class="t2">자기·동료·매니저 점수 단순 평균 · 역량 평가 없음</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="wh-basis">양식 도입 전에 평가가 시작된 주기입니다. 결과가 바뀌지 않도록 기존 산식을 유지합니다.</p>
+</section>
+{% endif %}
+{% endblock %}

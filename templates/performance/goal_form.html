@@ -260,6 +260,16 @@
                     placeholder="어떻게 측정할지, 어떤 방법으로 달성할지 구체적으로 작성하세요."></textarea>
         </div>
 
+        <div class="field">
+          <label class="form-label">상위 목표 <span style="font-size:11px; font-weight:400; color:var(--tx-3);">전사·부서 목표에 연결하면 목표 정렬 화면에 집계됩니다</span></label>
+          <select name="aligned_goal_id" class="input" id="alignSelect">
+            <option value="">연결 안 함</option>
+            {% for o in align_options %}
+            <option value="{{ o.id }}" data-cycle="{{ o.cycle_id }}">{{ '전사' if o.scope == 'company' else o.dept_name }} · {{ o.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
         <div style="display:flex; gap:10px;">
           <button type="submit" class="btn btn-primary">
             <i class="fas fa-check"></i> 목표 등록
@@ -453,5 +463,21 @@ function updateWeightHint() {
   if (wInput && remain > 0 && remain <= 100) wInput.value = remain;
 }
 updateWeightHint();
+
+// 상위 목표 — 선택한 주기의 목표만
+function filterAlign() {
+  var cyc = document.getElementById('cycleSelect'), sel = document.getElementById('alignSelect');
+  if (!cyc || !sel) return;
+  Array.prototype.forEach.call(sel.options, function (o) {
+    if (!o.value) return;
+    var show = o.dataset.cycle === cyc.value;
+    o.hidden = !show; o.disabled = !show;
+    if (!show && o.selected) sel.value = '';
+  });
+}
+if (document.getElementById('cycleSelect')) {
+  document.getElementById('cycleSelect').addEventListener('change', filterAlign);
+  filterAlign();
+}
 </script>
 {% endblock %}

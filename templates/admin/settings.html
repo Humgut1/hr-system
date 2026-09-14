@@ -508,6 +508,18 @@
           {% endfor %}
         </div>
 
+        {% set fw = default_form_weights() %}
+        <div class="section-label" id="perf-form" style="font-size:11px;font-weight:800;color:var(--text-muted);letter-spacing:.08em;margin:24px 0 12px;">평가 양식 · 업적 역량 비중</div>
+        <div class="radio-cards">
+          {% for v, t, d in [(100,'업적만','목표 달성 100% · 역량 평가 없음'),(70,'업적 70 · 역량 30','일반 권장'),(50,'업적 50 · 역량 50','행동·가치 비중 큼')] %}
+          <label class="radio-card">
+            <input type="radio" name="form_goal_weight" value="{{ v }}" {{ 'checked' if fw.goal == v else '' }}>
+            <div class="radio-card-body"><div><div class="radio-card-name">{{ t }}</div><div class="radio-card-desc">{{ d }} · {{ fw.name }}에 적용</div></div></div>
+          </label>
+          {% endfor %}
+        </div>
+        <div style="font-size:12px; color:var(--tx-3); margin-top:8px;">역량 항목·평가자 비중·동료 문항은 <a href="{{ url_for('review_forms') }}">평가 양식</a>에서 편집합니다. 이미 만든 주기에는 반영되지 않습니다.</div>
+
         <div class="section-label" id="perf-culture" style="font-size:11px;font-weight:800;color:var(--text-muted);letter-spacing:.08em;margin:24px 0 12px;">1:1 · 피드백</div>
         {% set oo_cad = config.get('one_on_one_cadence_days') or 14 %}
         <div class="radio-cards">

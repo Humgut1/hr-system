@@ -58,6 +58,9 @@
                 &nbsp;·&nbsp;
                 <i class="fas fa-bullseye" style="margin-right:4px;"></i>
                 목표 {{ c.goal_count }}개
+                &nbsp;·&nbsp;
+                <i class="fas fa-list-check" style="margin-right:4px;"></i>
+                {{ cycle_forms[c.id].name }}
                 {% if c.stage == 'appeal' and c.appeal_until %}
                 &nbsp;·&nbsp;
                 <i class="fas fa-gavel" style="margin-right:4px;"></i>
@@ -150,6 +153,20 @@
             </label>
             <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px; padding:3px 10px;">저장</button>
           </form>
+          {% if c.stage in ('goal', 'progress') and review_forms %}
+          <form method="post" action="{{ url_for('performance_cycle_form', cycle_id=c.id) }}"
+                style="display:flex; gap:8px; align-items:center; margin-top:6px; flex-wrap:wrap;"
+                onsubmit="return confirm('「{{ c.name }}」 주기에 선택한 양식을 다시 적용할까요? 평가 시작 전까지만 바꿀 수 있습니다.')">
+            <span style="font-size:11px; color:var(--tx-3); font-weight:700;">평가 양식</span>
+            <select name="form_id" class="input" style="width:auto; min-width:180px; font-size:11px; padding:3px 6px;">
+              {% for f in review_forms %}
+              <option value="{{ f.id }}" {{ 'selected' if f.id == cycle_forms[c.id].form_id }}>{{ f.name }} · 업적 {{ f.goal_weight }} / 역량 {{ f.comp_weight }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px; padding:3px 10px;">다시 적용</button>
+            <a href="{{ url_for('review_forms') }}" style="font-size:11px; color:var(--tx-3);">양식 관리</a>
+          </form>
+          {% endif %}
           {% endif %}
         </div>
         {% endfor %}
@@ -197,6 +214,16 @@
           </div>
           <div style="font-size:11px; color:var(--tx-3); margin:-8px 0 16px;">
             마감일을 설정하면 성과 화면에 D-day가 표시되고, 경과 시 경고 배지가 붙습니다.
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <label class="form-label">평가 양식 <a href="{{ url_for('review_forms') }}" style="font-weight:400; color:var(--tx-3); margin-left:6px;">양식 관리</a></label>
+            <select name="form_id" class="input">
+              {% for f in review_forms %}
+              <option value="{{ f.id }}" {{ 'selected' if f.is_default }}>{{ f.name }} · 업적 {{ f.goal_weight }} / 역량 {{ f.comp_weight }}</option>
+              {% endfor %}
+            </select>
+            <div style="font-size:11px; color:var(--tx-3); margin-top:5px;">주기 생성 시 양식이 복사됩니다. 목표 수립·진행 단계까지 다시 적용할 수 있습니다.</div>
           </div>
 
           <label style="display:flex; align-items:flex-start; gap:10px; margin-bottom:20px; cursor:pointer;

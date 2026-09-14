@@ -1,6 +1,45 @@
 import sqlite3
 import os
 from werkzeug.security import generate_password_hash
+import json
+
+# C3 — 평가 양식 기본값 (app.py cycle_form 폴백과 공유하는 단일 출처)
+DEFAULT_REVIEW_FORM = {
+    'name': '기본 평가 양식',
+    'goal_weight': 70, 'comp_weight': 30,
+    'self_weight': 10, 'peer_weight': 20, 'mgr_weight': 70,
+    'competencies': [
+        {'key': 'expertise', 'name': '직무 전문성', 'desc': '담당 업무 지식·기술을 갖추고 결과물의 품질을 지킨다'},
+        {'key': 'problem', 'name': '문제 해결', 'desc': '원인을 구조적으로 파악하고 실행 가능한 대안을 낸다'},
+        {'key': 'collab', 'name': '협업·소통', 'desc': '정보를 적시에 공유하고 이견을 합의로 이끈다'},
+        {'key': 'ownership', 'name': '책임감·주도성', 'desc': '맡은 일을 끝까지 완수하고 필요한 일을 먼저 찾아 실행한다'},
+        {'key': 'growth', 'name': '성장·학습', 'desc': '피드백을 수용하고 스스로 학습해 역량을 넓힌다'},
+    ],
+    'peer_prompts': [
+        {'label': 'Continue', 'desc': '계속했으면 하는 것'},
+        {'label': 'Stop', 'desc': '그만했으면 하는 것'},
+        {'label': 'Start', 'desc': '시작했으면 하는 것'},
+    ],
+    'upward_questions': [
+        '매니저는 나의 성장을 위한 구체적인 피드백을 제공한다.',
+        '매니저는 불필요하게 세부 사항을 통제하지 않는다 (마이크로매니징 없음).',
+        '매니저는 팀 목표와 우선순위를 명확하게 전달한다.',
+        '매니저는 나를 한 사람으로서 배려한다.',
+        '전반적으로 이 매니저와 계속 일하고 싶다.',
+    ],
+}
+
+
+def review_form_snapshot(row):
+    """review_forms 행 → 주기에 복사할 JSON 스냅샷 문자열."""
+    return json.dumps({
+        'form_id': row['id'], 'name': row['name'],
+        'goal_weight': row['goal_weight'], 'comp_weight': row['comp_weight'],
+        'self_weight': row['self_weight'], 'peer_weight': row['peer_weight'], 'mgr_weight': row['mgr_weight'],
+        'competencies': json.loads(row['competencies'] or '[]'),
+        'peer_prompts': json.loads(row['peer_prompts'] or '[]'),
+        'upward_questions': json.loads(row['upward_questions'] or '[]'),
+    }, ensure_ascii=False)
 
 _db_dir  = os.environ.get('DB_DIR', '')
 DATABASE = os.path.join(_db_dir, 'hr_system.db') if _db_dir else 'hr_system.db'
@@ -2008,6 +2047,76 @@ def init_db(db_path: str = None):
             for _col, _typ in _cols:
                 if _col not in _have:
                     c.execute(f'ALTER TABLE {_tbl} ADD COLUMN {_col} {_typ}')
+
+        # ── C3 평가 양식 · 역량 평가 · 목표 정렬 ─────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS review_forms (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            name             TEXT NOT NULL,
+            goal_weight      INTEGER NOT NULL DEFAULT 70,
+            comp_weight      INTEGER NOT NULL DEFAULT 30,
+            self_weight      INTEGER NOT NULL DEFAULT 10,
+            peer_weight      INTEGER NOT NULL DEFAULT 20,
+            mgr_weight       INTEGER NOT NULL DEFAULT 70,
+            competencies     TEXT,
+            peer_prompts     TEXT,
+            upward_questions TEXT,
+            is_default       INTEGER NOT NULL DEFAULT 0,
+            created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS competency_scores (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            cycle_id    INTEGER NOT NULL REFERENCES performance_cycles(id),
+            user_id     INTEGER NOT NULL REFERENCES users(id),
+            comp_key    TEXT NOT NULL,
+            rater_type  TEXT NOT NULL CHECK(rater_type IN ('self','manager')),
+            rater_id    INTEGER NOT NULL REFERENCES users(id),
+            score       INTEGER NOT NULL CHECK(score BETWEEN 1 AND 5),
+            comment     TEXT,
+            updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(cycle_id, user_id, comp_key, rater_id)
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS org_goals (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            cycle_id      INTEGER NOT NULL REFERENCES performance_cycles(id),
+            scope         TEXT NOT NULL CHECK(scope IN ('company','dept')),
+            department_id INTEGER REFERENCES departments(id),
+            parent_id     INTEGER REFERENCES org_goals(id),
+            title         TEXT NOT NULL,
+            description   TEXT,
+            owner_id      INTEGER REFERENCES users(id),
+            created_by    INTEGER REFERENCES users(id),
+            created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_comp_scores ON competency_scores(cycle_id, user_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_org_goals_cycle ON org_goals(cycle_id, scope)')
+        _c3_cols = {
+            'performance_cycles': [('form_id', 'INTEGER'), ('form_json', 'TEXT')],
+            'performance_goals': [('aligned_goal_id', 'INTEGER')],
+        }
+        for _tbl, _cols in _c3_cols.items():
+            _have = {r[1] for r in c.execute(f'PRAGMA table_info({_tbl})')}
+            if not _have:
+                continue
+            for _col, _typ in _cols:
+                if _col not in _have:
+                    c.execute(f'ALTER TABLE {_tbl} ADD COLUMN {_col} {_typ}')
+        if not c.execute('SELECT 1 FROM review_forms LIMIT 1').fetchone():
+            _f = DEFAULT_REVIEW_FORM
+            c.execute(
+                'INSERT INTO review_forms (name, goal_weight, comp_weight, self_weight, peer_weight, mgr_weight, '
+                'competencies, peer_prompts, upward_questions, is_default) VALUES (?,?,?,?,?,?,?,?,?,1)',
+                (_f['name'], _f['goal_weight'], _f['comp_weight'], _f['self_weight'], _f['peer_weight'],
+                 _f['mgr_weight'], json.dumps(_f['competencies'], ensure_ascii=False),
+                 json.dumps(_f['peer_prompts'], ensure_ascii=False),
+                 json.dumps(_f['upward_questions'], ensure_ascii=False)))
+            # 아직 평가에 들어가지 않은 주기(목표 수립·진행)에만 기본 양식 적용 — 평가 중·종료 주기는 기존 산식 유지
+            _df = c.execute('SELECT * FROM review_forms WHERE is_default=1 LIMIT 1').fetchone()
+            _cyc_cols = {r[1] for r in c.execute('PRAGMA table_info(performance_cycles)')}
+            if _df and 'stage' in _cyc_cols:
+                c.execute("UPDATE performance_cycles SET form_id=?, form_json=? "
+                          "WHERE form_json IS NULL AND stage IN ('goal','progress')",
+                          (_df['id'], review_form_snapshot(_df)))
 
         conn.commit()
     finally:

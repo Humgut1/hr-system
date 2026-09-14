@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+{% block title %}목표 정렬{% endblock %}
+{% block page_title %}성과{% endblock %}
+
+{% block extra_css %}
+<style>
+  .wh-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
+  .wh-head h1 { font-size:18px; font-weight:650; margin:0; }
+  .wh-head .sp { margin-left:auto; }
+  .wh-sum { display:flex; flex-wrap:wrap; gap:6px 22px; font-size:12.5px; color:var(--tx-3); margin:0 0 18px; }
+  .wh-sum b { font:600 12.5px var(--mono); color:var(--tx-1); margin-left:6px; }
+  .wh-sum .wait b { color:var(--wait); }
+  .wh-basis { font-size:12px; color:var(--tx-3); margin:8px 0 0; line-height:1.7; }
+  .fb-form { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:14px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line-2); }
+  .fb-form .full { grid-column:1 / -1; }
+  .fb-form label { display:block; font-size:11.5px; color:var(--tx-3); margin-bottom:5px; }
+  .fb-form input, .fb-form select, .al-edit input, .al-edit select, .al-pick select { width:100%; height:30px; padding:0 8px; font-size:12.5px; background:var(--surface); color:var(--tx-1); border:1px solid var(--line); border-radius:6px; }
+  .fb-form .foot { grid-column:1 / -1; display:flex; align-items:center; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--tx-3); }
+  .fb-form .foot .btn { margin-left:auto; }
+  .al-new { max-width:880px; margin:0 0 28px; }
+  .ltable td.wrap { white-space:normal; line-height:1.5; padding-top:8px; padding-bottom:8px; }
+  .al-t { display:flex; align-items:baseline; gap:8px; }
+  .al-scope { font-size:11px; color:var(--tx-3); border:1px solid var(--line); border-radius:4px; padding:0 5px; white-space:nowrap; }
+  .al-d1 .al-t { padding-left:22px; }
+  .al-d2 .al-t { padding-left:44px; }
+  .al-person .al-t { color:var(--tx-2); font-size:12.5px; }
+  .al-desc { font-size:11.5px; color:var(--tx-3); margin-top:2px; }
+  .al-edit summary { font-size:11.5px; color:var(--tx-3); cursor:pointer; list-style:none; }
+  .al-edit summary::-webkit-details-marker { display:none; }
+  .al-edit summary:hover { color:var(--tx-1); }
+  .al-editbox { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0 4px; min-width:360px; }
+  .al-editbox .full { grid-column:1 / -1; }
+  .al-editbox .acts { grid-column:1 / -1; display:flex; gap:6px; justify-content:flex-end; }
+  .al-pick { display:flex; gap:6px; align-items:center; margin:0; min-width:260px; }
+  .al-bar { display:inline-block; width:64px; height:4px; background:var(--line); border-radius:2px; vertical-align:middle; margin-right:6px; overflow:hidden; }
+  .al-bar i { display:block; height:100%; background:var(--tx-2); }
+  @media (max-width: 760px) { .fb-form { grid-template-columns:1fr; } .al-editbox { min-width:0; grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% macro progress(v) -%}
+{% if v is none %}<span class="t3">-</span>{% else %}<span class="al-bar"><i style="width:{{ [v, 100] | min }}%;"></i></span><span style="font:500 12px var(--mono);">{{ v }}%</span>{% endif %}
+{%- endmacro %}
+
+{% macro goal_rows(n, depth) -%}
+{% set o = n.goal %}
+<tr class="al-d{{ depth }}">
+  <td class="wrap">
+    <div class="al-t">
+      <span class="al-scope">{{ '전사' if o.scope == 'company' else (o.dept_name or '부서') }}</span>
+      <span style="font-weight:{{ 600 if depth == 0 else 500 }};">{{ o.title }}</span>
+    </div>
+    {% if o.description %}<div class="al-desc" style="padding-left:{{ depth * 22 }}px;">{{ o.description }}</div>{% endif %}
+    {% if n.can_edit %}
+    <details class="al-edit" style="padding-left:{{ depth * 22 }}px;">
+      <summary>수정</summary>
+      <div class="al-editbox">
+        <form method="POST" action="{{ url_for('org_goal_edit', og_id=o.id) }}" style="display:contents;">
+          <input type="hidden" name="action" value="update">
+          <div class="full"><input name="title" maxlength="120" required value="{{ o.title }}" aria-label="목표명"></div>
+          <div class="full"><input name="description" maxlength="1000" value="{{ o.description or '' }}" placeholder="설명 · 측정 기준" aria-label="설명"></div>
+          {% if o.scope == 'dept' %}
+          <div class="full">
+            <select name="parent_id" aria-label="상위 전사 목표">
+              <option value="">상위 전사 목표 없음</option>
+              {% for c in company_goals %}<option value="{{ c.id }}" {{ 'selected' if o.parent_id == c.id }}>{{ c.title }}</option>{% endfor %}
+            </select>
+          </div>
+          {% endif %}
+          <div class="acts"><button class="btn btn-primary btn-sm" type="submit">저장</button></div>
+        </form>
+        <form method="POST" action="{{ url_for('org_goal_edit', og_id=o.id) }}" class="acts" style="margin:0;" onsubmit="return confirm('이 목표를 삭제할까요? 연결된 하위 목표는 연결만 해제됩니다.');">
+          <input type="hidden" name="action" value="delete">
+          <button class="btn btn-ghost btn-sm" type="submit">삭제</button>
+        </form>
+      </div>
+    </details>
+    {% endif %}
+  </td>
+  <td class="t2">{{ o.owner_name or '-' }}</td>
+  <td class="m r">{{ n.aligned_n }}</td>
+  <td>{{ progress(n.rollup) }}</td>
+</tr>
+{% for p in n.people %}
+<tr class="al-person al-d{{ depth + 1 if depth < 2 else 2 }}">
+  <td class="wrap"><div class="al-t"><span class="t3" style="white-space:nowrap;">{{ p.user_name }}</span><span>{{ p.title }}</span></div></td>
+  <td class="t3">{{ goal_approval_label.get(p.approval_status, '') }}</td>
+  <td class="m r t3">{{ p.weight }}%</td>
+  <td>{{ progress(p.progress or 0) }}</td>
+</tr>
+{% endfor %}
+{% for s in n.subs %}{{ goal_rows(s, depth + 1) }}{% endfor %}
+{%- endmacro %}
+
+{% block content %}
+<div class="wh-head">
+  <h1>목표 정렬</h1>
+  <span class="sp"></span>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('performance', cycle=cycle.id if cycle else None) }}">성과 평가</a>
+</div>
+
+{% if cycles %}
+<div class="fchips">
+  {% for c in cycles %}
+  <a class="fchip {{ 'on' if cycle and c.id == cycle.id }}" href="{{ url_for('goal_alignment', cycle=c.id) }}">{{ c.name }}{% if c.status == 'active' %} <b>진행</b>{% endif %}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not cycle %}
+<p class="wh-basis">평가 주기가 없습니다. 평가 주기를 먼저 만들어주세요.</p>
+{% else %}
+<div class="wh-sum">
+  <span>전사 목표<b>{{ company_goals | length }}</b></span>
+  <span>개인 목표<b>{{ total }}</b></span>
+  <span>상위 목표 연결<b>{{ aligned_total }}</b></span>
+  <span class="{{ 'wait' if total - aligned_total }}">미연결<b>{{ total - aligned_total }}</b></span>
+  <span>연결률<b>{{ ((aligned_total / total * 100) | round | int) if total else 0 }}%</b></span>
+</div>
+
+{% if can_create %}
+<section class="al-new" id="new">
+  <div class="sec-head"><h2>{{ '전사·부서 목표 등록' if session.get('user_role') == 'admin' else '부서 목표 등록' }}</h2><span class="cnt">{{ cycle.name }}</span></div>
+  <form method="POST" action="{{ url_for('org_goal_new') }}" class="fb-form">
+    <input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+    <div>
+      <label for="og-scope">구분</label>
+      <select id="og-scope" name="scope" onchange="alScope(this.value)">
+        {% if session.get('user_role') == 'admin' %}<option value="company">전사 목표</option>{% endif %}
+        <option value="dept">부서 목표</option>
+      </select>
+    </div>
+    <div id="og-dept-wrap">
+      <label for="og-dept">부서</label>
+      <select id="og-dept" name="department_id">
+        {% for d in depts %}<option value="{{ d.id }}" {{ 'selected' if d.id == my_dept }}>{{ d.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="full">
+      <label for="og-title">목표명</label>
+      <input id="og-title" name="title" maxlength="120" required placeholder="예) 신규 고객 매출 비중 30% 달성">
+    </div>
+    <div id="og-parent-wrap">
+      <label for="og-parent">상위 전사 목표</label>
+      <select id="og-parent" name="parent_id">
+        <option value="">없음</option>
+        {% for c in company_goals %}<option value="{{ c.id }}">{{ c.title }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="og-desc">설명 · 측정 기준</label>
+      <input id="og-desc" name="description" maxlength="1000" placeholder="선택">
+    </div>
+    <div class="foot">
+      <span>개인 목표는 목표 작성 화면이나 성과 평가 화면에서 이 목표에 연결합니다</span>
+      <button class="btn btn-primary btn-sm" type="submit">등록</button>
+    </div>
+  </form>
+</section>
+{% endif %}
+
+<section style="margin:0 0 28px;">
+  <div class="sec-head"><h2>전사 목표</h2><span class="cnt">{{ company | length }}</span></div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>목표</th><th>담당</th><th class="r">연결 개인 목표</th><th>평균 진행률</th></tr></thead>
+    <tbody>
+      {% for n in company %}{{ goal_rows(n, 0) }}{% else %}
+      <tr class="empty"><td colspan="4">등록된 전사 목표 없음{% if session.get('user_role') == 'admin' and cycle.status == 'active' %} · 위에서 등록하세요{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{% if loose %}
+<section style="margin:0 0 28px;">
+  <div class="sec-head"><h2>전사 목표에 연결되지 않은 부서 목표</h2><span class="cnt">{{ loose | length }}</span></div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>목표</th><th>담당</th><th class="r">연결 개인 목표</th><th>평균 진행률</th></tr></thead>
+    <tbody>{% for n in loose %}{{ goal_rows(n, 0) }}{% endfor %}</tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<section>
+  <div class="sec-head"><h2>상위 목표 미연결 개인 목표</h2><span class="cnt">{{ total - aligned_total }}</span></div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>부서</th><th class="r">미연결</th><th>목표</th></tr></thead>
+    <tbody>
+      {% for dept_id, u in unaligned %}
+      <tr>
+        <td>{{ u.dept_name }}</td>
+        <td class="m r {{ 'late' if u.n }}">{{ u.n }}</td>
+        <td class="wrap">
+          {% if u.goals %}
+          {% set opts = align_opts.get('company', []) + align_opts.get(dept_id, []) %}
+          {% for g in u.goals %}
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:4px 0;">
+            <span class="t3" style="white-space:nowrap;">{{ g.user_name }}</span>
+            <span style="flex:1; min-width:160px;">{{ g.title }}</span>
+            {% if cycle.status == 'active' and cycle.stage in ('goal', 'progress') and opts %}
+            <form method="POST" action="{{ url_for('performance_goal_align', goal_id=g.id) }}" class="al-pick">
+              <input type="hidden" name="next" value="{{ url_for('goal_alignment', cycle=cycle.id) }}">
+              <select name="aligned_goal_id" aria-label="상위 목표 선택" required>
+                <option value="">상위 목표 선택</option>
+                {% for o in opts %}<option value="{{ o.id }}">{{ '전사' if o.scope == 'company' else (o.dept_name or '부서') }} · {{ o.title }}</option>{% endfor %}
+              </select>
+              <button class="btn btn-ghost btn-sm" type="submit">연결</button>
+            </form>
+            {% endif %}
+          </div>
+          {% endfor %}
+          {% else %}
+          <span class="t3">{{ '팀원 목표는 매니저·HR만 볼 수 있음' if u.n else '' }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr class="empty"><td colspan="3">미연결 목표 없음</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="wh-basis">
+    평균 진행률 = 연결된 개인 목표 진행률과 하위 부서 목표 평균 진행률의 단순 평균 · 연결은 목표 수립·진행 단계에서만 바꿀 수 있음<br>
+    개인 목표는 같은 주기의 전사 목표 또는 소속 부서 목표에만 연결 · 개인 목표 내용은 본인·매니저·HR만 봄
+  </p>
+</section>
+{% endif %}
+
+<script>
+function alScope(v) {
+  var d = document.getElementById('og-dept-wrap'), p = document.getElementById('og-parent-wrap');
+  if (d) d.hidden = v !== 'dept';
+  if (p) p.hidden = v !== 'dept';
+}
+(function () { var s = document.getElementById('og-scope'); if (s) alScope(s.value); })();
+</script>
+{% endblock %}

@@ -151,19 +151,19 @@
     </div>
     {% if r.strength %}
     <div style="margin-top:12px; padding:10px 14px; background:var(--green-bg); border-radius:var(--r-sm);">
-      <div style="font-size:11px; font-weight:700; color:var(--green); margin-bottom:3px;">Continue — 계속했으면 하는 것</div>
+      <div style="font-size:11px; font-weight:700; color:var(--green); margin-bottom:3px;">{{ peer_prompts[0].label or 'Continue' }}{% if peer_prompts[0].desc %} — {{ peer_prompts[0].desc }}{% endif %}</div>
       <div style="font-size:13px; color:var(--tx-2);">{{ r.strength }}</div>
     </div>
     {% endif %}
     {% if r.comment %}
     <div style="margin-top:8px; padding:10px 14px; background:var(--red-bg); border-radius:var(--r-sm);">
-      <div style="font-size:11px; font-weight:700; color:var(--red); margin-bottom:3px;">Stop — 그만했으면 하는 것</div>
+      <div style="font-size:11px; font-weight:700; color:var(--red); margin-bottom:3px;">{{ peer_prompts[1].label or 'Stop' }}{% if peer_prompts[1].desc %} — {{ peer_prompts[1].desc }}{% endif %}</div>
       <div style="font-size:13px; color:var(--tx-2);">{{ r.comment }}</div>
     </div>
     {% endif %}
     {% if r.improvement %}
     <div style="margin-top:8px; padding:10px 14px; background:var(--info-bg); border-radius:var(--r-sm);">
-      <div style="font-size:11px; font-weight:700; color:var(--info); margin-bottom:3px;">Start — 시작했으면 하는 것</div>
+      <div style="font-size:11px; font-weight:700; color:var(--info); margin-bottom:3px;">{{ peer_prompts[2].label or 'Start' }}{% if peer_prompts[2].desc %} — {{ peer_prompts[2].desc }}{% endif %}</div>
       <div style="font-size:13px; color:var(--tx-2);">{{ r.improvement }}</div>
     </div>
     {% endif %}
@@ -188,10 +188,10 @@
     총 {{ received_upward.count }}건의 응답.
   </div>
   <div class="peer-card">
-    {% for i in range(1, 6) %}
+    {% for q in upward_questions %}{% set i = loop.index %}
     {% set avg = received_upward.avgs['q' ~ i] %}
     <div class="q-bar">
-      <div class="q-bar-label">{{ upward_questions[i-1] }}</div>
+      <div class="q-bar-label">{{ q }}</div>
       <div class="q-bar-fill-bg">
         <div class="q-bar-fill" style="width:{{ (avg / 5 * 100)|int if avg else 0 }}%;"></div>
       </div>

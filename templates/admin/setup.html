@@ -460,6 +460,14 @@
         <label class="chk"><input type="checkbox" name="use_self_review" value="1" {{ 'checked' if config.get('use_self_review',1) }}> 자기평가</label>
         <label class="chk"><input type="checkbox" name="use_peer_review" value="1" {{ 'checked' if config.get('use_peer_review',1) }}> 다면평가</label>
       </div>
+      {% set fw = default_form_weights() %}
+      <div class="su-sec">업적 · 역량 비중 <span class="aside">기본 평가 양식 · <a href="{{ url_for('review_forms') }}">역량 항목·평가자 비중 편집</a></span></div>
+      <div class="opts c3">
+        {% for v, t, d in [(100,'업적만','목표 달성 100% · 역량 평가 없음'),(70,'업적 70 · 역량 30','일반 권장'),(50,'업적 50 · 역량 50','행동·가치 비중 큼')] %}
+        <label class="opt"><input type="radio" name="form_goal_weight" value="{{ v }}" {{ 'checked' if fw.goal == v }}>
+          <div><div class="t">{{ t }}</div><div class="d">{{ d }}</div></div></label>
+        {% endfor %}
+      </div>
       <div class="su-sec">등급 체계</div>
       <div class="opts c4">
         {% for v, t, d in [('SABCD','S · A · B · C · D','5등급'),('15','1 ~ 5점','점수 절대평가'),('EE_ME_ME_NI','EE · ME · NI','기대 대비 3단계'),('OKR','OKR 달성률','목표 대비 0~100%')] %}

@@ -2,213 +2,114 @@
 {% block title %}{% if review_type == 'upward' %}매니저 평가{% else %}동료 평가{% endif %}{% endblock %}
 {% block page_title %}{% if review_type == 'upward' %}매니저 평가{% else %}동료 평가{% endif %}{% endblock %}
 
+{% block extra_css %}
+<style>
+  .wh-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
+  .wh-head h1 { font-size:18px; font-weight:650; margin:0; }
+  .wh-head .sp { margin-left:auto; }
+  .wh-basis { font-size:12px; color:var(--tx-3); margin:8px 0 0; line-height:1.7; }
+  .pw-layout { display:grid; grid-template-columns:minmax(0,680px) 300px; gap:28px; align-items:start; }
+  .pw-sec { margin:0 0 22px; }
+  .pw-q { padding:12px 0; border-bottom:1px solid var(--line-2); }
+  .pw-q:first-of-type { border-top:1px solid var(--line); }
+  .pw-q .lb { font-size:13px; font-weight:650; color:var(--tx-1); }
+  .pw-q .ds { font-size:12px; color:var(--tx-3); margin-top:2px; }
+  .pw-q textarea { width:100%; margin-top:8px; min-height:74px; padding:8px 10px; font-size:13px; line-height:1.6; resize:vertical; background:var(--surface); color:var(--tx-1); border:1px solid var(--line); border-radius:6px; }
+  .pw-scale { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .pw-scale input { display:none; }
+  .pw-scale label { min-width:34px; height:32px; padding:0 10px; display:flex; align-items:center; justify-content:center; gap:6px; font-size:12px; border:1px solid var(--line); border-radius:6px; color:var(--tx-2); background:var(--surface); cursor:pointer; white-space:nowrap; }
+  .pw-scale label b { font:600 12px var(--mono); color:var(--tx-1); }
+  .pw-scale input:checked + label { background:var(--inv-bg); border-color:var(--inv-bg); color:var(--inv-tx); }
+  .pw-scale input:checked + label b { color:var(--inv-tx); }
+  .pw-scale input:focus-visible + label { outline:2px solid var(--line-strong); outline-offset:1px; }
+  .pw-err { font-size:12.5px; color:var(--late); margin:0 0 14px; }
+  .pw-foot { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+  .pw-ref { position:sticky; top:80px; }
+  .pw-ref .item { padding:10px 0; border-bottom:1px solid var(--line-2); font-size:12.5px; }
+  .pw-ref .item .mt { font:500 11px var(--mono); color:var(--tx-3); margin-top:3px; }
+  @media (max-width: 900px) { .pw-layout { grid-template-columns:1fr; } .pw-ref { position:static; } }
+</style>
+{% endblock %}
+
 {% block content %}
-<div style="display:grid; grid-template-columns:minmax(0,660px) 300px; gap:20px; justify-content:center; align-items:start;"
-     class="pw-layout">
-<style>@media (max-width:900px){ .pw-layout { grid-template-columns:1fr !important; } }</style>
-<div class="card">
-  <div class="card-head">
-    <span class="card-title">
-      {% if review_type == 'upward' %}
-        <i class="fas fa-users" style="color:var(--info);"></i> 매니저 평가 — {{ reviewee.name }}
-      {% else %}
-        <i class="fas fa-star" style="color:var(--orange);"></i> 동료 평가 — {{ reviewee.name }}
-      {% endif %}
-    </span>
-    <span style="font-size:12px; color:var(--tx-3);">{{ cycle.name }}</span>
-  </div>
-  <div class="card-body">
+<div class="wh-head">
+  <h1>{{ '매니저 평가' if review_type == 'upward' else '동료 평가' }} · {{ reviewee.name }}</h1>
+  <span style="font-size:12px; color:var(--tx-3);">{{ cycle.name }}</span>
+  <span class="sp"></span>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('peer_reviews_page', cycle=cycle.id) }}">다면평가 목록</a>
+</div>
 
-    <!-- 익명성 안내 배너 (피어/상향 모두) -->
-    <div style="background:var(--info-bg); border:1px solid var(--info-bg); border-radius:var(--r-sm);
-                padding:12px 16px; margin-bottom:20px; font-size:13px; color:var(--info);">
-      <i class="fas fa-lock"></i>
-      {% if review_type == 'upward' %}
-        <strong>완전 익명 보장</strong> — 작성자 신원은 공개되지 않으며, <strong>3명 이상</strong> 응답이 모인 후에만 결과가 공개됩니다.
-      {% else %}
-        <strong>익명 처리</strong> — 작성자 신원은 매니저에게도 공개되지 않습니다. <strong>3명 이상</strong> 응답 시에만 집계 결과가 공개됩니다.
-      {% endif %}
-    </div>
+<div class="pw-layout">
+<div>
+  {% if error %}<p class="pw-err">{{ error }}</p>{% endif %}
 
-    {% if error %}
-    <div class="alert alert-error" style="margin-bottom:18px;">{{ error }}</div>
-    {% endif %}
-
-    <form method="POST">
-
-      {% if review_type == 'peer' %}
-      <!-- ── 피어리뷰: Start / Stop / Continue 프레임워크 ── -->
-
-      <!-- Overall Score -->
-      <div class="field" style="margin-bottom:28px;">
-        <label class="form-label" style="font-size:14px; font-weight:700;">종합 점수</label>
-        <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
-          {% for val, lbl, bg, tc in [
-            (5, 'S — 탁월',       'var(--green-bg)', 'var(--done)'),
-            (4, 'A — 우수',       'var(--surface-2)', 'var(--tx-1)'),
-            (3, 'B — 양호',       'var(--surface-2)', 'var(--tx-1)'),
-            (2, 'C — 개선필요',   'var(--orange-bg)', 'var(--wait)'),
-            (1, 'D — 미흡',       'var(--red-bg)', 'var(--late)'),
-          ] %}
-          <label style="cursor:pointer;">
-            <input type="radio" name="score" value="{{ val }}"
-                   {% if existing and existing.score == val %}checked{% endif %}
-                   style="display:none;" class="score-radio">
-            <span class="score-opt" data-val="{{ val }}" data-color="{{ tc }}"
-                  style="display:inline-block; padding:10px 18px; border-radius:10px;
-                         border:2px solid {{ bg }}; background:{{ bg }}; color:{{ tc }};
-                         font-size:13px; font-weight:700; transition:all .15s;
-                         {% if existing and existing.score == val %}outline:3px solid {{ tc }};{% endif %}">
-              {{ lbl }}
-            </span>
-          </label>
-          {% endfor %}
-        </div>
+  <form method="POST">
+    {% if review_type == 'peer' %}
+    <section class="pw-sec">
+      <div class="sec-head"><h2>종합 점수</h2><span class="cnt">1 미흡 ~ 5 탁월</span></div>
+      <div class="pw-scale">
+        {% for val, lbl in [(1,'미흡'),(2,'개선 필요'),(3,'양호'),(4,'우수'),(5,'탁월')] %}
+        <input type="radio" id="sc-{{ val }}" name="score" value="{{ val }}" {{ 'checked' if existing and existing.score == val }}>
+        <label for="sc-{{ val }}"><b>{{ val }}</b>{{ lbl }}</label>
+        {% endfor %}
       </div>
+    </section>
 
-      <!-- Start / Stop / Continue 3섹션 -->
-      <div style="background:var(--green-bg); border:1px solid var(--green); border-radius:10px;
-                  padding:16px 18px; margin-bottom:16px;">
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-          <span style="font-size:20px;"></span>
-          <div>
-            <div style="font-size:14px; font-weight:700; color:var(--green);">Continue</div>
-            <div style="font-size:12px; color:var(--green);">계속했으면 하는 것 — 지금 잘하고 있으니 유지해줬으면 하는 행동</div>
-          </div>
-        </div>
-        <textarea name="strength" class="input" rows="3"
-                  style="margin-top:4px; resize:vertical; border-color:var(--green);"
-                  placeholder="예) 복잡한 문제를 팀 전체와 공유하며 함께 해결하려는 태도가 인상적입니다. 계속해줬으면 합니다."
-                  required>{{ existing.strength if existing and existing.strength else '' }}</textarea>
+    <section class="pw-sec">
+      <div class="sec-head"><h2>서술 의견</h2><span class="cnt">{{ peer_prompts | selectattr('label') | list | length }}</span></div>
+      {% for pr in peer_prompts if pr.label %}
+      <div class="pw-q">
+        <label class="lb" for="pr-{{ pr.col }}">{{ pr.label }}</label>
+        {% if pr.desc %}<div class="ds">{{ pr.desc }}</div>{% endif %}
+        <textarea id="pr-{{ pr.col }}" name="{{ pr.col }}" required maxlength="2000">{{ existing[pr.col] if existing and existing[pr.col] else '' }}</textarea>
       </div>
+      {% endfor %}
+    </section>
 
-      <div style="background:var(--red-bg); border:1px solid var(--red-bg); border-radius:10px;
-                  padding:16px 18px; margin-bottom:16px;">
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-          <span style="font-size:20px;"></span>
-          <div>
-            <div style="font-size:14px; font-weight:700; color:var(--red);">Stop</div>
-            <div style="font-size:12px; color:var(--red);">그만했으면 하는 것 — 지금 하고 있지만 개선이 필요한 행동</div>
-          </div>
-        </div>
-        <textarea name="comment" class="input" rows="3"
-                  style="margin-top:4px; resize:vertical; border-color:var(--red-bg);"
-                  placeholder="예) 급할 때 슬랙보다 전화를 자주 하시는데, 집중이 끊겨 어렵습니다. 슬랙으로 먼저 연락해주시면 좋겠습니다."
-                  required>{{ existing.comment if existing and existing.comment else '' }}</textarea>
-      </div>
-
-      <div style="background:var(--info-bg); border:1px solid var(--info-bg); border-radius:10px;
-                  padding:16px 18px; margin-bottom:28px;">
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-          <span style="font-size:20px;"></span>
-          <div>
-            <div style="font-size:14px; font-weight:700; color:var(--info);">Start</div>
-            <div style="font-size:12px; color:var(--info);">앞으로 시작했으면 하는 것 — 새롭게 시도해줬으면 하는 행동</div>
-          </div>
-        </div>
-        <textarea name="improvement" class="input" rows="3"
-                  style="margin-top:4px; resize:vertical; border-color:var(--info-bg);"
-                  placeholder="예) 코드 리뷰 시 변경 배경 설명을 코멘트로 남겨주시면 의도 파악에 큰 도움이 될 것 같습니다."
-                  required>{{ existing.improvement if existing and existing.improvement else '' }}</textarea>
-      </div>
-
-      {% else %}
-      <!-- ── 상향 평가: 5개 리커트 문항 ── -->
-      {% for i in range(1, 6) %}
-      {% set q = upward_questions[i-1] %}
+    {% else %}
+    <section class="pw-sec">
+      <div class="sec-head"><h2>매니저 평가 문항</h2><span class="cnt">{{ upward_questions | length }}</span></div>
+      {% for q in upward_questions %}{% set i = loop.index %}
       {% set cur = existing['q' ~ i ~ '_score'] if existing else 0 %}
-      <div class="field" style="margin-bottom:22px;">
-        <label class="form-label" style="font-size:14px; font-weight:700;">Q{{ i }}. {{ q }}</label>
-        <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
-          {% for val, lbl in [(5,'매우 동의'),(4,'동의'),(3,'보통'),(2,'비동의'),(1,'매우 비동의')] %}
-          <label style="cursor:pointer;">
-            <input type="radio" name="q{{ i }}" value="{{ val }}"
-                   {% if cur == val %}checked{% endif %}
-                   style="display:none;" class="q-radio-{{ i }}">
-            <span class="q-opt-{{ i }}"
-                  style="display:inline-block; padding:8px 14px; border-radius:8px; font-size:12px; font-weight:600;
-                         border:2px solid var(--border); background:var(--bg); color:var(--tx-2);
-                         transition:all .15s; white-space:nowrap;
-                         {% if cur == val %}border-color:var(--info); background:var(--info-bg); color:var(--info);{% endif %}">
-              {{ val }}점 {{ lbl }}
-            </span>
-          </label>
+      <div class="pw-q">
+        <div class="lb">Q{{ i }}. {{ q }}</div>
+        <div class="pw-scale">
+          {% for val, lbl in [(1,'매우 비동의'),(2,'비동의'),(3,'보통'),(4,'동의'),(5,'매우 동의')] %}
+          <input type="radio" id="q{{ i }}-{{ val }}" name="q{{ i }}" value="{{ val }}" {{ 'checked' if cur == val }}>
+          <label for="q{{ i }}-{{ val }}"><b>{{ val }}</b>{{ lbl }}</label>
           {% endfor %}
         </div>
       </div>
       {% endfor %}
-
-      <div class="field" style="margin-bottom:28px;">
-        <label class="form-label" style="font-size:14px; font-weight:700;">추가 의견 <span style="font-weight:400; color:var(--tx-3);">(선택)</span></label>
-        <textarea name="comment" class="input" rows="3" style="margin-top:8px; resize:vertical;"
-                  placeholder="매니저에게 익명으로 전달할 자유로운 의견을 남겨주세요.">{{ existing.comment if existing and existing.comment else '' }}</textarea>
+      <div class="pw-q">
+        <label class="lb" for="up-comment">추가 의견 <span style="font-weight:400; color:var(--tx-3);">선택</span></label>
+        <textarea id="up-comment" name="comment" maxlength="2000">{{ existing.comment if existing and existing.comment else '' }}</textarea>
       </div>
-      {% endif %}
-
-      <div style="display:flex; gap:10px;">
-        <button type="submit" class="btn btn-primary" style="flex:1;">저장</button>
-        <a href="{{ url_for('peer_reviews_page', cycle=cycle.id) }}" class="btn btn-ghost" style="flex:1; text-align:center;">취소</a>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- 참고 패널 — 평가 대상자의 이번 주기 목표 (R1-B) -->
-<div class="card" style="position:sticky; top:80px;">
-  <div style="padding:16px 18px;">
-    <div style="font-size:13px; font-weight:800; margin-bottom:12px;">
-      <i class="fas fa-paperclip" style="color:var(--primary);"></i> 참고 — {{ reviewee.name }}님의 목표
-    </div>
-    {% if reviewee_goals %}
-    {% for g in reviewee_goals %}
-    <div style="background:var(--bg); border:1px dashed var(--border); border-radius:10px;
-                padding:10px 13px; margin-bottom:8px;">
-      <div style="font-size:12px; font-weight:700;">
-        <span class="badge {% if g.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}"
-              style="font-size:10px; margin-right:4px;">{{ g.category }}</span>
-        {{ g.title }}
-      </div>
-      <div style="font-size:11px; color:var(--tx-3); margin-top:4px;">가중치 {{ g.weight }}% · 진행률 {{ g.progress or 0 }}%</div>
-    </div>
-    {% endfor %}
-    <div style="font-size:11px; color:var(--tx-3); margin-top:8px;">
-      목표 달성 과정에서 관찰한 행동을 근거로 작성하면 더 좋은 피드백이 됩니다.
-    </div>
-    {% else %}
-    <div style="font-size:12px; color:var(--tx-3);">이번 주기에 확정된 목표가 없습니다.</div>
+    </section>
     {% endif %}
-  </div>
+
+    <p class="wh-basis">
+      {% if review_type == 'upward' %}작성자는 드러나지 않으며 응답이 3건 이상 모인 뒤에만 평균이 공개됩니다. 종합 점수에는 들어가지 않습니다.
+      {% else %}작성자는 매니저에게도 드러나지 않으며 응답이 3건 이상일 때만 집계가 공개됩니다.{% endif %}
+    </p>
+    <div class="pw-foot">
+      <a href="{{ url_for('peer_reviews_page', cycle=cycle.id) }}" class="btn btn-ghost btn-sm">취소</a>
+      <button type="submit" class="btn btn-primary btn-sm">저장</button>
+    </div>
+  </form>
 </div>
 
-</div>{# end pw-layout #}
-{% endblock %}
-
-{% block scripts %}
-<script>
-// 종합 점수 선택 강조
-document.querySelectorAll('.score-radio').forEach(function(radio) {
-  radio.addEventListener('change', function() {
-    document.querySelectorAll('.score-opt').forEach(function(opt) { opt.style.outline = ''; });
-    var opt = this.parentElement.querySelector('.score-opt');
-    opt.style.outline = '3px solid ' + opt.dataset.color;
-  });
-});
-
-// 상향 평가 선택 강조
-{% for i in range(1, 6) %}
-document.querySelectorAll('.q-radio-{{ i }}').forEach(function(radio) {
-  radio.addEventListener('change', function() {
-    document.querySelectorAll('.q-opt-{{ i }}').forEach(function(opt) {
-      opt.style.borderColor = 'var(--border)';
-      opt.style.background  = 'var(--bg)';
-      opt.style.color       = 'var(--tx-2)';
-    });
-    var opt = this.parentElement.querySelector('.q-opt-{{ i }}');
-    opt.style.borderColor = '#1e40af';
-    opt.style.background  = '#dbeafe';
-    opt.style.color       = '#1e40af';
-  });
-});
-{% endfor %}
-</script>
+<aside class="pw-ref">
+  <div class="sec-head"><h2>{{ reviewee.name }}님의 목표</h2><span class="cnt">{{ reviewee_goals | length }}</span></div>
+  {% for g in reviewee_goals %}
+  <div class="item">
+    <div>{{ g.title }}</div>
+    <div class="mt">{{ g.category }} · 가중치 {{ g.weight }}% · 진행률 {{ g.progress or 0 }}%</div>
+  </div>
+  {% else %}
+  <div class="item" style="color:var(--tx-3);">이번 주기에 확정된 목표 없음</div>
+  {% endfor %}
+  <p class="wh-basis">목표를 수행하며 관찰한 행동을 근거로 작성합니다.</p>
+</aside>
+</div>
 {% endblock %}

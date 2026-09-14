@@ -121,7 +121,7 @@
           <div class="tm-goal-title">{{ g.title }}
             <span class="appr-badge appr-{{ g.approval_status }}" style="margin-left:6px;">{{ goal_approval_label[g.approval_status] }}</span>
           </div>
-          <div class="tm-goal-meta">가중치 {{ g.weight }}%</div>
+          <div class="tm-goal-meta">가중치 {{ g.weight }}%{% if g.aligned_goal_id and c3.org_goals.get(g.aligned_goal_id) %} · 상위 목표 {{ c3.org_goals[g.aligned_goal_id].title }}{% endif %}</div>
           {% if g.description %}
           <div style="font-size:12.5px; color:var(--tx-2); margin-top:8px; white-space:pre-line;">{{ g.description }}</div>
           {% endif %}
@@ -143,7 +143,7 @@
           <span class="badge {% if g.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}" style="font-size:11px;">{{ g.category }}</span>
           <div style="flex:1;">
             <div class="tm-goal-title">{{ g.title }}</div>
-            <div class="tm-goal-meta">가중치 {{ g.weight }}% · 진행률 {{ g.progress or 0 }}%</div>
+            <div class="tm-goal-meta">가중치 {{ g.weight }}% · 진행률 {{ g.progress or 0 }}%{% if g.aligned_goal_id and c3.org_goals.get(g.aligned_goal_id) %} · 상위 목표 {{ c3.org_goals[g.aligned_goal_id].title }}{% endif %}</div>
             <div class="progress-bar-bg" style="margin-top:6px; max-width:340px;">
               <div class="progress-bar-fill" style="width:{{ g.progress or 0 }}%;"></div>
             </div>
@@ -176,6 +176,34 @@
       </div>
       {% endif %}
       {% endfor %}
+
+      {% if not c3.form.legacy and c3.form.competencies %}
+      <div class="tm-goal" id="comp-mgr">
+        <div class="tm-goal-title">역량 평가</div>
+        <div class="tm-goal-meta">{{ c3.form.name }} · 업적 {{ c3.form.goal_weight }}% · 역량 {{ c3.form.comp_weight }}% · 1 미흡 ~ 5 탁월</div>
+        {% for c in c3.form.competencies %}{% set sf = c3.comp_self.get(c.key) %}{% set mn = c3.comp_mine.get(c.key) %}
+        <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line-2);">
+          <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;">
+            <span style="font-size:13px; font-weight:700;">{{ c.name }}</span>
+            <span class="tm-goal-meta" style="margin:0;">{{ c.desc }}</span>
+          </div>
+          {% if sf %}
+          <div class="tm-self"><b>본인 자기평가 — {{ sf.score }}점</b>{{ sf.comment or '코멘트 없음' }}</div>
+          {% else %}
+          <div class="tm-self" style="color:var(--tx-3);"><b>자기평가</b>아직 제출하지 않았습니다.</div>
+          {% endif %}
+          <div class="tm-score">
+            {% for s in [1,2,3,4,5] %}
+            <input type="radio" id="comp-{{ c.key }}-{{ s }}" name="comp_{{ c.key }}" value="{{ s }}" {% if mn and mn.score == s %}checked{% endif %}>
+            <label for="comp-{{ c.key }}-{{ s }}">{{ s }}</label>
+            {% endfor %}
+          </div>
+          <textarea name="compc_{{ c.key }}" class="input" rows="2" placeholder="근거가 된 행동 (선택)"
+                    style="width:100%; margin-top:10px; resize:vertical; font-size:12.5px;">{{ mn.comment if mn and mn.comment else '' }}</textarea>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
 
       <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
         <button type="submit" class="btn btn-ghost">
@@ -214,6 +242,7 @@
         <span class="badge {% if g.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}" style="font-size:11px;">{{ g.category }}</span>
         <div style="flex:1;">
           <div class="tm-goal-title">{{ g.title }}</div>
+          {% if g.aligned_goal_id and c3.org_goals.get(g.aligned_goal_id) %}<div class="tm-goal-meta">상위 목표 {{ c3.org_goals[g.aligned_goal_id].title }}</div>{% endif %}
           <div class="progress-bar-bg" style="margin-top:6px; max-width:340px;">
             <div class="progress-bar-fill" style="width:{{ g.progress or 0 }}%;"></div>
           </div>
@@ -250,6 +279,10 @@
         <div class="tm-ref-item">
           <b>목표</b>
           {{ goals|length }}개 · 가중치 합 {{ weight_sum }}% · 확정 {{ confirmed_count }}개
+        </div>
+        <div class="tm-ref-item">
+          <b>평가 양식</b>
+          {{ c3.form.name }}<br><span style="font-size:11.5px; color:var(--tx-3);">{{ c3.basis }}</span>
         </div>
         <div class="tm-ref-item">
           <b>진행률</b>
