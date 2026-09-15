@@ -3746,10 +3746,12 @@ def hires_list():
     if session.get('user_role') == 'admin':
         api_token = get_or_create_api_token(session.get('tenant_id', 1))
 
+    upcoming = workplace.upcoming_start_days(db, today) if status_filter == 'waiting' else []
+
     return render_template('hires/list.html',
                            hires=hires, counts=counts, status_filter=status_filter,
                            source_label=HIRE_SOURCE_LABEL,
-                           api_token=api_token,
+                           api_token=api_token, upcoming=upcoming,
                            active_page='hires')
 
 
@@ -10873,53 +10875,75 @@ def performance_cycle_activate(cycle_id):
 def me_onboarding():
     db  = get_db()
     uid = session['user_id']
+    # 인사팀 미리보기: 입사자가 보게 될 화면을 그대로(체크는 못 함)
+    preview = None
+    pid = request.args.get('user', type=int)
+    if pid and pid != uid and session.get('user_role') in ('admin', 'recruiter'):
+        preview = db.execute('SELECT id, name FROM users WHERE id=?', (pid,)).fetchone()
+        if not preview:
+            abort(404)
+        uid = pid
 
-    # 행이 없으면 기본 체크리스트 생성 (기존 직원도 볼 수 있도록)
-    count = db.execute("SELECT COUNT(*) FROM onboarding_progress WHERE user_id=?", (uid,)).fetchone()[0]
-    if count == 0:
-        from integrations.dispatcher import ONBOARDING_TASKS, _seed_onboarding_tasks
+    content_tasks = workplace.onboarding_tasks(db)
+    rows = db.execute("SELECT task_key, done FROM onboarding_progress WHERE user_id=?", (uid,)).fetchall()
+    ckeys = {t['key'] for t in content_tasks}
+    # 회사 자료의 체크리스트로 맞춘다 — 자료에 없는 항목을 이미 체크했으면(진행 기록이 사라지므로) 그대로 둔다
+    if rows and content_tasks and not any(r['done'] for r in rows if r['task_key'] not in ckeys):
+        for i, t in enumerate(content_tasks):
+            db.execute("INSERT OR IGNORE INTO onboarding_progress (user_id, task_key, task_label, category, sort_order) "
+                       "VALUES (?,?,?,?,?)", (uid, t['key'], t['label'], t.get('category') or 'general', i + 1))
+            db.execute("UPDATE onboarding_progress SET task_label=?, category=?, sort_order=? WHERE user_id=? AND task_key=?",
+                       (t['label'], t.get('category') or 'general', i + 1, uid, t['key']))
+        db.execute("DELETE FROM onboarding_progress WHERE user_id=? AND task_key NOT IN (%s)" % ','.join('?' * len(ckeys)),
+                   (uid, *ckeys))
+        db.commit()
+    if not rows:
+        from integrations.dispatcher import _seed_onboarding_tasks
         _seed_onboarding_tasks(get_tenant_db_path(session.get('tenant_id', 1)), uid)
 
-    tasks = db.execute(
-        "SELECT * FROM onboarding_progress WHERE user_id=? ORDER BY sort_order",
-        (uid,)
-    ).fetchall()
-    tasks = [dict(t) for t in tasks]
+    plan = workplace.onboarding_plan(db, uid)
+    vals = plan['values'] if plan else {}
+    due = plan['due'] if plan else {}
+    today = date.today()
+    tasks = []
+    for t in db.execute("SELECT * FROM onboarding_progress WHERE user_id=? ORDER BY sort_order", (uid,)).fetchall():
+        t = dict(t)
+        t['label'] = workplace.fill(t['task_label'], vals) if vals else t['task_label']
+        d = due.get(t['task_key'])
+        t['due'] = d
+        t['due_label'] = '%s(%s)' % (d.strftime('%m.%d'), workplace.WEEKDAY_KO[d.weekday()]) if d else ''
+        # 기한 지남은 입사 두 달 안에만 — 오래 다닌 직원에게 빨간 줄을 늘어놓지 않는다
+        t['late'] = bool(d and d < today and not t['done'] and (today - d).days <= 60)
+        tasks.append(t)
 
-    # 카테고리별 그룹핑
+    # 기한(며칠째까지) 순으로 묶는다 — 자료가 없으면 예전처럼 분류별
     from collections import OrderedDict
-    CAT_LABEL = {
-        'setup':    '시스템 설정',
-        'learning': '학습 & 이해',
-        'admin':    '행정 처리',
-        'social':   '팀 문화',
-        'team':     '팀 온보딩',
-    }
     grouped = OrderedDict()
-    for t in tasks:
-        cat = t['category']
-        grouped.setdefault(cat, {'label': CAT_LABEL.get(cat, cat), 'tasks': []})
-        grouped[cat]['tasks'].append(t)
+    if due:
+        for t in sorted(tasks, key=lambda t: (t['due'] is None, t['due'] or today, t['sort_order'])):
+            key = t['due_label'] or '기한 없음'
+            grouped.setdefault(key, {'label': key, 'tasks': []})['tasks'].append(t)
+    else:
+        for t in tasks:
+            cat = t['category']
+            grouped.setdefault(cat, {'label': workplace.TASK_CATEGORIES.get(cat, cat), 'tasks': []})['tasks'].append(t)
 
     total = len(tasks)
     done  = sum(1 for t in tasks if t['done'])
-    pct   = int(done / total * 100) if total else 0
-
-    # 버디 정보
-    buddy = db.execute(
+    me = db.execute("SELECT jira_epic_key, hire_date FROM users WHERE id=?", (uid,)).fetchone()
+    buddy = plan['who']['buddy'] if plan else db.execute(
         "SELECT u.name, u.email, d.name AS dept, p.name AS pos "
         "FROM users u LEFT JOIN departments d ON u.department_id=d.id "
         "LEFT JOIN positions p ON u.position_id=p.id "
-        "WHERE u.id=(SELECT buddy_id FROM users WHERE id=?)", (uid,)
-    ).fetchone()
-
-    # Jira 에픽 키
-    me = db.execute("SELECT jira_epic_key, hire_date FROM users WHERE id=?", (uid,)).fetchone()
+        "WHERE u.id=(SELECT buddy_id FROM users WHERE id=?)", (uid,)).fetchone()
 
     return render_template('me/onboarding.html',
-        grouped=grouped, total=total, done=done, pct=pct,
-        buddy=buddy, jira_epic_key=me['jira_epic_key'] if me else None,
-        hire_date=me['hire_date'] if me else None)
+        plan=plan, grouped=grouped, total=total, done=done,
+        pct=int(done / total * 100) if total else 0,
+        late=sum(1 for t in tasks if t['late']),
+        buddy=buddy, manager=plan['who']['manager'] if plan else None,
+        jira_epic_key=me['jira_epic_key'] if me else None,
+        hire_date=me['hire_date'] if me else None, preview=preview, active_page='me_onboarding')
 
 
 @app.route('/me/onboarding/<task_key>/done', methods=['POST'])

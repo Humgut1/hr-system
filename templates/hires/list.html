@@ -71,6 +71,39 @@
   </div>
 </div>
 
+{% if upcoming %}
+<!-- 다가오는 입사일: 월·수 오리엔테이션 -->
+<style>
+.up-days { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); border:1px solid var(--line); border-radius:var(--r); background:var(--surface); margin-bottom:18px; overflow:hidden; }
+.up-day { padding:11px 14px; border-left:1px solid var(--line); min-width:0; }
+.up-day:first-child { border-left:0; }
+.up-d { display:flex; gap:8px; align-items:baseline; font-size:13px; font-weight:700; color:var(--tx-1); font-variant-numeric:tabular-nums; }
+.up-d small { font-weight:400; font-size:11.5px; color:var(--tx-3); }
+.up-d .n { margin-left:auto; font-size:12px; font-weight:600; }
+.up-where { font-size:11.5px; color:var(--tx-3); margin:2px 0 6px; font-variant-numeric:tabular-nums; }
+.up-ppl { font-size:12px; color:var(--tx-2); line-height:1.6; }
+.up-ppl span { color:var(--tx-3); }
+.up-free { font-size:12px; color:var(--tx-3); }
+@media (max-width:640px) { .up-day { border-left:0; border-top:1px solid var(--line); } .up-day:first-child { border-top:0; } }
+</style>
+<div style="font-size:12px; font-weight:700; color:var(--tx-2); margin:0 0 6px;">다가오는 입사일 <span style="font-weight:400; color:var(--tx-3);">{{ start_weekdays_label() }}요일 · 오리엔테이션은 입사일마다 자동으로 잡힙니다</span></div>
+<div class="up-days">
+  {% for u in upcoming %}
+  <div class="up-day">
+    <div class="up-d">{{ u.label }}<small>{% if u.dday == 0 %}오늘{% else %}D-{{ u.dday }}{% endif %}</small><span class="n">{{ u.people|length }}명</span></div>
+    <div class="up-where">{{ u.start }}~{{ u.end }} · {% if u.floor %}{{ u.floor }}층 {% endif %}{{ u.room }}</div>
+    {% if u.people %}
+    <div class="up-ppl">{% for p in u.people %}{% if p.src == 'user' %}<a href="{{ url_for('me_onboarding', user=p.id) }}" title="온보딩 화면 미리보기">{{ p.name }}</a>{% else %}{{ p.name }}{% endif %}{% if p.dept %} <span>{{ p.dept }}</span>{% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}</div>
+    {% elif u.released %}
+    <div class="up-free">입사자 없음 · 교육장 예약이 풀렸습니다</div>
+    {% else %}
+    <div class="up-free">입사자 없음 · D-2 까지 없으면 교육장이 풀립니다</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <!-- 상태 탭 -->
 <div class="hire-tabs" data-tour-page="hires-status-tabs">
   {% for key, label in [('waiting','입사 대기'), ('converted','전환 완료'), ('cancelled','취소'), ('all','전체')] %}

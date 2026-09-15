@@ -1,146 +1,305 @@
 {% extends "base.html" %}
 {% block title %}온보딩{% endblock %}
+{% block page_title %}온보딩{% endblock %}
+
+{% block extra_css %}
+<style>
+/* 입사자 한 사람의 첫날·첫 주. 내용은 회사·건물 설정에서 가져온 온보딩 자료, 날짜는 입사일에서 계산. */
+.ob-wrap { max-width:1180px; }
+.ob-head { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
+.ob-name { font-size:18px; font-weight:700; color:var(--tx-1); }
+.ob-meta { font-size:12.5px; color:var(--tx-3); margin-top:3px; font-variant-numeric:tabular-nums; }
+.ob-prog { min-width:240px; }
+.ob-prog-t { font-size:12px; color:var(--tx-2); display:flex; justify-content:space-between; gap:10px; margin-bottom:5px; font-variant-numeric:tabular-nums; }
+.ob-bar { height:6px; background:var(--surface-2); border:1px solid var(--line); border-radius:3px; overflow:hidden; }
+.ob-bar i { display:block; height:100%; background:var(--inv-bg); }
+.ob-late { color:var(--late); }
+
+.ob-grid { display:grid; grid-template-columns:minmax(0, 1fr) 320px; gap:16px; align-items:start; }
+@media (max-width:1000px) { .ob-grid { grid-template-columns:minmax(0, 1fr); } }
+.ob-block { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:14px 16px; margin-bottom:12px; }
+.ob-sec { font-size:13px; font-weight:700; color:var(--tx-1); margin:0 0 10px; display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.ob-sec small { font-weight:400; font-size:12px; color:var(--tx-3); }
+
+/* 첫날 오는 길 */
+.ob-arrive { display:grid; grid-template-columns:120px minmax(0, 1fr); gap:6px 14px; font-size:12.5px; }
+.ob-arrive dt { color:var(--tx-3); }
+.ob-arrive dd { margin:0; color:var(--tx-1); }
+.ob-arrive ul { margin:0; padding-left:16px; }
+.ob-big { font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; }
+
+/* 첫 주 일정 */
+.ob-day { border-top:1px solid var(--line); }
+.ob-day:first-of-type { border-top:0; }
+.ob-day > summary { list-style:none; cursor:pointer; padding:9px 0; display:flex; gap:10px; align-items:baseline; font-size:12.5px; }
+.ob-day > summary::-webkit-details-marker { display:none; }
+.ob-day > summary b { color:var(--tx-1); font-size:13px; }
+.ob-day > summary .d { color:var(--tx-2); font-variant-numeric:tabular-nums; }
+.ob-day > summary .c { color:var(--tx-3); margin-left:auto; }
+.ob-day > summary:focus-visible { outline:2px solid var(--line-strong); outline-offset:2px; }
+.ob-day.past > summary b, .ob-day.past > summary .d { color:var(--tx-3); }
+.ob-tag { font-size:10.5px; font-weight:600; padding:1px 7px; border-radius:var(--r-sm); border:1px solid var(--line-strong); color:var(--tx-1); }
+.ob-rows { padding:0 0 10px; }
+.ob-row { display:grid; grid-template-columns:92px minmax(0, 1fr) 150px; gap:10px; padding:7px 0; border-top:1px dashed var(--line); font-size:12.5px; }
+.ob-row:first-child { border-top:0; }
+.ob-row .t { font-variant-numeric:tabular-nums; color:var(--tx-2); }
+.ob-row .ttl { color:var(--tx-1); font-weight:600; }
+.ob-row .dt { color:var(--tx-3); font-size:11.5px; margin-top:2px; line-height:1.5; }
+.ob-row .w { color:var(--tx-2); font-size:12px; }
+.ob-row .w small { display:block; color:var(--tx-3); font-size:11px; }
+.ob-row.fixed { background:repeating-linear-gradient(135deg, var(--surface-2) 0 6px, transparent 6px 12px); margin:0 -8px; padding:7px 8px; border-radius:var(--r-sm); border-top-color:transparent; }
+@media (max-width:640px) {
+  .ob-row { grid-template-columns:70px minmax(0, 1fr); }
+  .ob-row .w { grid-column:2; }
+  .ob-arrive { grid-template-columns:minmax(0, 1fr); gap:2px; }
+  .ob-arrive dd { margin-bottom:8px; }
+}
+
+/* 체크리스트 */
+.ob-group { font-size:11px; font-weight:600; color:var(--tx-3); margin:12px 0 4px; letter-spacing:.02em; }
+.ob-group:first-of-type { margin-top:0; }
+.ob-task { display:flex; align-items:center; gap:10px; width:100%; padding:7px 8px; margin:0 -8px; background:transparent; border:0; border-radius:var(--r-sm); text-align:left; font:inherit; font-size:12.5px; color:var(--tx-1); cursor:pointer; }
+.ob-task:disabled { cursor:default; }
+.ob-task:hover:not(:disabled) { background:var(--hover); }
+.ob-task:focus-visible { outline:2px solid var(--line-strong); outline-offset:-2px; }
+.ob-task .box { width:16px; height:16px; flex-shrink:0; border:1.5px solid var(--line-strong); border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--inv-tx); }
+.ob-task.done .box { background:var(--done); border-color:var(--done); }
+.ob-task.done .lb { color:var(--tx-3); text-decoration:line-through; }
+.ob-task .lb { flex:1; min-width:0; }
+.ob-task .r { font-size:11px; color:var(--tx-3); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.ob-task .r.late { color:var(--late); }
+.ob-task .go { font-size:11px; color:var(--tx-2); text-decoration:underline; text-underline-offset:2px; }
+
+/* 옆 칸 */
+.ob-person { display:grid; grid-template-columns:44px minmax(0, 1fr); gap:2px 10px; font-size:12.5px; padding:6px 0; }
+.ob-person + .ob-person { border-top:1px solid var(--line); }
+.ob-person .k { color:var(--tx-3); font-size:11.5px; padding-top:1px; }
+.ob-person .v b { color:var(--tx-1); font-weight:600; }
+.ob-person .v span { display:block; color:var(--tx-3); font-size:11.5px; }
+.ob-person .v a { color:var(--tx-2); font-size:11.5px; }
+.ob-kv { font-size:12.5px; color:var(--tx-2); line-height:1.7; }
+.ob-kv b { color:var(--tx-1); font-weight:600; }
+.ob-letter { font-size:12.5px; line-height:1.8; color:var(--tx-2); white-space:pre-line; }
+.ob-qa { border-top:1px solid var(--line); }
+.ob-qa:first-of-type { border-top:0; }
+.ob-qa > summary { cursor:pointer; padding:8px 0; font-size:12.5px; color:var(--tx-1); list-style:none; display:flex; gap:8px; }
+.ob-qa > summary::-webkit-details-marker { display:none; }
+.ob-qa > summary::before { content:'+'; color:var(--tx-3); width:10px; flex-shrink:0; }
+.ob-qa[open] > summary::before { content:'−'; }
+.ob-qa > summary:focus-visible { outline:2px solid var(--line-strong); outline-offset:2px; }
+.ob-qa p { margin:0 0 10px 18px; font-size:12px; line-height:1.7; color:var(--tx-2); }
+.ob-qa ol { margin:0 0 10px 18px; padding-left:16px; font-size:12px; line-height:1.7; color:var(--tx-2); }
+.ob-empty { font-size:12.5px; color:var(--tx-3); }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="page-header" style="margin-bottom:1.5rem">
-  <h1 class="page-title">온보딩</h1>
-  <p style="color:var(--tx-2);margin-top:.25rem">환영합니다! 아래 체크리스트를 하나씩 완료해 주세요.</p>
+<div class="ob-wrap">
+{% if preview %}
+<div class="ob-block" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--tx-2);">
+  <b style="color:var(--tx-1);">미리보기</b> {{ preview.name }}님이 보는 온보딩 화면입니다. 체크는 본인만 할 수 있습니다.
+  <a href="{{ url_for('hires_list') }}" class="btn btn-ghost btn-sm" style="margin-left:auto;">입사 예정으로</a>
 </div>
+{% endif %}
 
-<!-- 진행률 카드 -->
-<div class="card" style="margin-bottom:1.5rem;padding:1.5rem">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
-    <span style="font-weight:600;font-size:1rem">전체 진행률</span>
-    <span style="font-size:1.5rem;font-weight:700;color:var(--primary)">{{ pct }}%</span>
-  </div>
-  <div style="height:12px;background:var(--line);border-radius:6px;overflow:hidden">
-    <div style="height:100%;width:{{ pct }}%;background:var(--primary);border-radius:6px;transition:width .4s ease"></div>
-  </div>
-  <div style="margin-top:.5rem;font-size:.85rem;color:var(--tx-2)">{{ done }} / {{ total }} 완료</div>
-</div>
-
-<!-- 버디 카드 -->
-{% if buddy %}
-<div class="card" style="margin-bottom:1.5rem;padding:1.25rem;display:flex;align-items:center;gap:1rem;border-left:4px solid var(--primary)">
-  <div style="width:48px;height:48px;border-radius:50%;background:var(--primary-light,var(--surface-2));display:flex;align-items:center;justify-content:center;font-size:1.25rem"></div>
+<div class="ob-head">
   <div>
-    <div style="font-weight:600">내 버디 (Buddy)</div>
-    <div style="font-size:.9rem;color:var(--tx-2)">{{ buddy.name }} · {{ buddy.dept or '' }} {{ buddy.pos or '' }}</div>
-    <a href="mailto:{{ buddy.email }}" style="font-size:.85rem;color:var(--primary)">{{ buddy.email }}</a>
-  </div>
-  <div style="margin-left:auto;text-align:right;font-size:.8rem;color:var(--tx-2)">
-    궁금한 점은 Slack DM으로<br>언제든지 물어보세요 
-  </div>
-</div>
-{% endif %}
-
-<!-- Jira 에픽 링크 -->
-{% if jira_epic_key %}
-<div style="margin-bottom:1.5rem">
-  <a href="{{ config.JIRA_BASE_URL or 'https://talentcorehr.atlassian.net' }}/browse/{{ jira_epic_key }}"
-     target="_blank" class="btn btn-outline" style="font-size:.85rem">
-    <i class="fas fa-external-link-alt"></i> Jira 온보딩 태스크 보기 ({{ jira_epic_key }})
-  </a>
-</div>
-{% endif %}
-
-<!-- Day 1 스케줄 -->
-<div class="card" style="margin-bottom:1.5rem;padding:1.25rem">
-  <div style="font-weight:600;margin-bottom:.75rem">Day 1 스케줄 ({{ hire_date or '입사일' }})</div>
-  <div style="display:flex;flex-direction:column;gap:.5rem;font-size:.9rem">
-    {% set schedule = [
-      ('09:00', '로비 집결 — 버디 & HR 팀장 맞이'),
-      ('09:30', '오리엔테이션 키트 수령, 회사 안내 투어'),
-      ('10:30', '보안 서약서 & 개인정보 동의서 서명 (HR)'),
-      ('11:00', '노트북 수령 & 계정 세팅 (IT 동행)'),
-      ('12:00', '팀 점심 (버디 동행)'),
-      ('13:30', '팀 소개 & 업무 오리엔테이션 (매니저)'),
-      ('15:00', '필수 앱 설치 & Slack 프로필 완성'),
-      ('16:00', 'TalentCore 온보딩 체크리스트 시작 ← 지금 여기!'),
-    ] %}
-    {% for time, desc in schedule %}
-    <div style="display:flex;gap:.75rem">
-      <span style="min-width:50px;color:var(--primary);font-weight:600;font-variant-numeric:tabular-nums">{{ time }}</span>
-      <span style="color:var(--tx-1)">{{ desc }}</span>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-
-<!-- 체크리스트 카테고리별 -->
-{% for cat_key, cat in grouped.items() %}
-<div class="card" style="margin-bottom:1.25rem;padding:1.25rem">
-  <div style="font-weight:600;margin-bottom:.75rem;font-size:.95rem;color:var(--tx-2);text-transform:uppercase;letter-spacing:.05em">
-    {{ cat.label }}
-  </div>
-  <div style="display:flex;flex-direction:column;gap:.5rem">
-    {% for task in cat.tasks %}
-    {% set is_profile = task.task_key == 'talentcore_login' %}
-    {% if is_profile and not task.done %}
-    <a href="{{ url_for('profile') }}" style="text-decoration:none">
-    {% endif %}
-    <div class="onboarding-task{% if task.done %} done{% endif %}" data-key="{{ task.task_key }}"
-         style="display:flex;align-items:center;gap:.75rem;padding:.6rem .75rem;border-radius:8px;
-                cursor:pointer;
-                background:{% if task.done %}var(--green-bg, var(--green-bg)){% elif is_profile %}var(--surface-2){% else %}var(--surface){% endif %};
-                border:1px solid {% if task.done %}var(--green,var(--done)){% elif is_profile %}var(--surface-2){% else %}var(--line){% endif %};
-                transition:.15s">
-      <div class="check-circle" style="width:22px;height:22px;border-radius:50%;
-           border:2px solid {% if task.done %}var(--green,var(--done)){% else %}var(--line){% endif %};
-           background:{% if task.done %}var(--green,var(--done)){% else %}transparent{% endif %};
-           display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.15s">
-        {% if task.done %}<span style="color:var(--on-primary);font-size:.7rem">✓</span>{% endif %}
-      </div>
-      <span style="flex:1;font-size:.9rem;{% if task.done %}text-decoration:line-through;color:var(--tx-2){% else %}color:var(--tx-1){% endif %}">
-        {{ task.task_label }}
-        {% if is_profile and not task.done %}
-        <span style="font-size:.75rem;color:var(--primary);margin-left:.4rem">→ 주소·비상연락처 직접 입력</span>
-        {% endif %}
-      </span>
-      {% if task.done and task.done_at %}
-      <span style="font-size:.75rem;color:var(--tx-2)">{{ task.done_at[:10] }}</span>
-      {% elif is_profile and not task.done %}
-      <span style="font-size:.75rem;color:var(--primary);font-weight:600">클릭 →</span>
+    {% if plan %}
+    <div class="ob-name">{{ plan.who.user.name }}님, {{ plan['values'].company_name }}에 오신 것을 환영합니다</div>
+    <div class="ob-meta">
+      {{ plan['values'].hire_date }} 입사 · {{ plan['values'].department }} · {{ plan['values'].position }}
+      {% if plan.dday is not none %}
+        · {% if plan.dday > 0 %}입사 D-{{ plan.dday }}{% elif plan.dday == 0 %}오늘 첫 출근{% else %}입사 {{ -plan.dday + 1 }}일째{% endif %}
       {% endif %}
     </div>
-    {% if is_profile and not task.done %}
-    </a>
+    {% else %}
+    <div class="ob-name">온보딩</div>
+    <div class="ob-meta">{% if hire_date %}{{ hire_date }} 입사 · {% endif %}체크리스트를 하나씩 끝내 주세요</div>
     {% endif %}
-    {% endfor %}
+  </div>
+  <div class="ob-prog">
+    <div class="ob-prog-t">
+      <span>체크리스트 {{ done }} / {{ total }}</span>
+      {% if late %}<span class="ob-late">기한 지남 {{ late }}</span>{% elif total and done == total %}<span>모두 완료</span>{% endif %}
+    </div>
+    <div class="ob-bar"><i style="width:{{ pct }}%"></i></div>
   </div>
 </div>
-{% endfor %}
 
-{% if pct == 100 %}
-<div class="card" style="padding:2rem;text-align:center;background:linear-gradient(135deg,var(--primary) 0%,var(--primary) 100%);color:var(--on-primary);border:none;margin-bottom:2rem">
-  <div style="font-size:2.5rem;margin-bottom:.5rem"></div>
-  <div style="font-size:1.25rem;font-weight:700">온보딩 완료!</div>
-  <div style="opacity:.9;margin-top:.25rem">이제 본격적인 업무를 시작할 준비가 되었어요. 화이팅!</div>
-</div>
+<div class="ob-grid">
+<div>
+
+{% if plan %}
+  {# ── 첫날 오는 길 ── #}
+  {% if plan.dday is none or plan.dday >= -1 %}
+  <section class="ob-block">
+    <h2 class="ob-sec">첫날 오는 길 <small>{{ plan.days[0].label if plan.days else '' }}</small></h2>
+    <dl class="ob-arrive">
+      {% if plan.arrive_time %}
+      <dt>도착</dt>
+      <dd><span class="ob-big">{{ plan.arrive_time }}</span> 까지 {{ plan.meet_place }}</dd>
+      {% endif %}
+      <dt>오리엔테이션</dt>
+      <dd>{{ plan.orientation.start }}~{{ plan.orientation.end }} · {% if plan.orientation.floor %}{{ plan.orientation.floor }}층 {% endif %}{{ plan.orientation.room }}</dd>
+      {% if plan.site %}
+      <dt>주소</dt>
+      <dd>{{ plan.site.address }}{% if plan.site.address_detail %} {{ plan.site.address_detail }}{% endif %}{% if plan.site.building %} ({{ plan.site.building }}){% endif %}</dd>
+      {% if plan.site.transit %}
+      <dt>대중교통</dt>
+      <dd><ul>{% for t in plan.site.transit %}<li>{{ t }}</li>{% endfor %}</ul></dd>
+      {% endif %}
+      {% if plan.site.visitor_access %}
+      <dt>건물 출입</dt>
+      <dd>사원증이 나오기 전이라 방문객 동선으로 들어옵니다. {{ plan.site.visitor_access }}</dd>
+      {% endif %}
+      {% if plan.site.parking %}
+      <dt>주차</dt>
+      <dd>{{ plan.site.parking }}</dd>
+      {% endif %}
+      {% endif %}
+      {% if plan.bring %}
+      <dt>챙겨 올 것</dt>
+      <dd><ul>{% for b in plan.bring %}<li>{{ b }}</li>{% endfor %}</ul></dd>
+      {% endif %}
+    </dl>
+  </section>
+  {% endif %}
+
+  {# ── 첫 주 일정 ── #}
+  <section class="ob-block">
+    <h2 class="ob-sec">첫 주 일정 <small>입사일부터 주말·공휴일을 빼고 셉니다</small></h2>
+    {% for day in plan.days %}
+    <details class="ob-day{% if day.past %} past{% endif %}" {% if not day.past %}open{% endif %}>
+      <summary>
+        <b>{{ day.n }}일차</b><span class="d">{{ day.label }}</span>
+        {% if day.today %}<span class="ob-tag">오늘</span>{% endif %}
+        <span class="c">{{ day['items']|length }}개</span>
+      </summary>
+      <div class="ob-rows">
+        {% for it in day['items'] %}
+        <div class="ob-row{% if it.orientation %} fixed{% endif %}">
+          <div class="t">{{ it.time }}{% if it.end %}–{{ it.end }}{% endif %}</div>
+          <div>
+            <div class="ttl">{{ it.title }}</div>
+            {% if it.detail %}<div class="dt">{{ it.detail }}</div>{% endif %}
+          </div>
+          <div class="w">{{ it.where.label }}{% if it.owner %}<small>{{ it.owner }}</small>{% endif %}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endfor %}
+    {% if not plan.days %}<div class="ob-empty">등록된 일정이 없습니다.</div>{% endif %}
+  </section>
 {% endif %}
 
+  {# ── 체크리스트 ── #}
+  <section class="ob-block">
+    <h2 class="ob-sec">체크리스트 <small>누르면 완료 표시가 바뀝니다</small></h2>
+    {% for key, g in grouped.items() %}
+      <div class="ob-group">{% if plan and plan.due %}{{ g.label }}까지{% else %}{{ g.label }}{% endif %}</div>
+      {% for t in g.tasks %}
+      <button type="button" class="ob-task{% if t.done %} done{% endif %}"{% if preview %} disabled{% endif %} data-key="{{ t.task_key }}" aria-pressed="{{ 'true' if t.done else 'false' }}">
+        <span class="box" aria-hidden="true">{% if t.done %}✓{% endif %}</span>
+        <span class="lb">{{ t.label }}
+          {% if t.task_key == 'talentcore_login' and not t.done %}<a class="go" href="{{ url_for('profile') }}" onclick="event.stopPropagation()">내 정보 입력</a>{% endif %}
+        </span>
+        {% if t.done and t.done_at %}<span class="r">{{ t.done_at[5:10]|replace('-', '.') }} 완료</span>
+        {% elif t.late %}<span class="r late">기한 지남</span>{% endif %}
+      </button>
+      {% endfor %}
+    {% endfor %}
+    {% if not total %}<div class="ob-empty">체크리스트가 없습니다.</div>{% endif %}
+  </section>
+
+{% if plan and plan.sessions %}
+  <section class="ob-block">
+    <h2 class="ob-sec">교육 내용 <small>첫 주 교육에서 다루는 것</small></h2>
+    {% for s in plan.sessions %}
+    <details class="ob-qa">
+      <summary>{{ s.title }}<span style="margin-left:auto;color:var(--tx-3);font-size:11.5px;white-space:nowrap;">{{ s.owner }}{% if s.minutes %} · {{ s.minutes }}분{% endif %}</span></summary>
+      <ol>{% for x in s.slides %}<li>{{ x }}</li>{% endfor %}</ol>
+    </details>
+    {% endfor %}
+  </section>
+{% endif %}
+</div>
+
+<aside>
+  <section class="ob-block">
+    <h2 class="ob-sec">함께할 사람</h2>
+    <div class="ob-person">
+      <div class="k">팀장</div>
+      <div class="v">{% if manager %}<b>{{ manager.name }}</b><span>{{ manager.dept or '' }} {{ manager.pos or '' }}</span>{% if manager.email %}<a href="mailto:{{ manager.email }}">{{ manager.email }}</a>{% endif %}{% else %}<span>아직 지정되지 않았습니다</span>{% endif %}</div>
+    </div>
+    <div class="ob-person">
+      <div class="k">버디</div>
+      <div class="v">{% if buddy %}<b>{{ buddy.name }}</b><span>{{ buddy.dept or '' }} {{ buddy.pos or '' }}</span>{% if buddy.email %}<a href="mailto:{{ buddy.email }}">{{ buddy.email }}</a>{% endif %}{% else %}<span>아직 지정되지 않았습니다. 인사팀이 첫 주 안에 정해 드립니다.</span>{% endif %}</div>
+    </div>
+  </section>
+
+  {% if plan and (plan.team_floor or plan.team_room) %}
+  <section class="ob-block">
+    <h2 class="ob-sec">내 자리</h2>
+    <div class="ob-kv">
+      {% if plan.team_floor %}<b>{{ plan.team_floor.floor }}층</b>{% if plan.team_floor.label %} · {{ plan.team_floor.label }}{% endif %}<br>{% endif %}
+      {% if plan.team_room %}팀 회의는 <b>{{ plan.team_room.name }}</b>에서 합니다<br>{% endif %}
+      {% if plan.team_floor %}<a href="{{ url_for('rooms', floor=plan.team_floor.site_code ~ '-' ~ plan.team_floor.floor) }}">{{ plan.team_floor.floor }}층 배치도·회의실 예약</a>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if plan and plan.welcome_letter %}
+  <section class="ob-block">
+    <h2 class="ob-sec">환영 편지</h2>
+    <div class="ob-letter">{{ plan.welcome_letter }}</div>
+  </section>
+  {% endif %}
+
+  {% if plan and plan.office_guide %}
+  <section class="ob-block">
+    <h2 class="ob-sec">사무실 안내</h2>
+    {% for g in plan.office_guide %}
+    <details class="ob-qa"><summary>{{ g.title }}</summary><p>{{ g.body }}</p></details>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if plan and plan.faq %}
+  <section class="ob-block">
+    <h2 class="ob-sec">자주 묻는 질문</h2>
+    {% for f in plan.faq %}
+    <details class="ob-qa"><summary>{{ f.q }}</summary><p>{{ f.a }}</p></details>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if jira_epic_key %}
+  <a href="{{ config.JIRA_BASE_URL or 'https://talentcorehr.atlassian.net' }}/browse/{{ jira_epic_key }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
+    Jira 온보딩 태스크 ({{ jira_epic_key }})
+  </a>
+  {% endif %}
+</aside>
+</div>
+</div>
+
 <script>
-document.querySelectorAll('.onboarding-task').forEach(el => {
-  el.addEventListener('click', async () => {
-    const key    = el.dataset.key;
-    const isDone = el.classList.contains('done');
-    const fd     = new FormData();
-    fd.append('done', isDone ? '0' : '1');
+document.querySelectorAll('.ob-task:not([disabled])').forEach(function (el) {
+  el.addEventListener('click', async function () {
+    const fd = new FormData();
+    fd.append('done', el.classList.contains('done') ? '0' : '1');
     el.style.opacity = '.5';
     try {
-      const resp = await fetch(`/me/onboarding/${encodeURIComponent(key)}/done`, {
-        method: 'POST',
-        body: fd,
-        credentials: 'same-origin'
+      const resp = await fetch('/me/onboarding/' + encodeURIComponent(el.dataset.key) + '/done', {
+        method: 'POST', body: fd, credentials: 'same-origin',
+        headers: { 'X-CSRF-Token': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' }
       });
-      if (resp.ok || resp.status === 204) {
-        location.reload();
-      } else {
-        el.style.opacity = '1';
-        alert('저장 실패: ' + resp.status);
-      }
-    } catch(e) {
+      if (resp.ok) { location.reload(); return; }
       el.style.opacity = '1';
-      alert('네트워크 오류: ' + e);
+      alert('저장하지 못했습니다 (' + resp.status + '). 새로고침 후 다시 눌러 주세요.');
+    } catch (e) {
+      el.style.opacity = '1';
+      alert('서버에 연결하지 못했습니다. 네트워크를 확인해 주세요.');
     }
   });
 });

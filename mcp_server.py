@@ -507,7 +507,7 @@ def handle_get_onboarding_status(user: dict) -> str:
             "SELECT COUNT(*) AS c FROM onboarding_progress WHERE user_id=?", (h['id'],)
         ).fetchone()['c']
         done_tasks = db.execute(
-            "SELECT COUNT(*) AS c FROM onboarding_progress WHERE user_id=? AND status='done'",
+            "SELECT COUNT(*) AS c FROM onboarding_progress WHERE user_id=? AND done=1",
             (h['id'],)
         ).fetchone()['c']
 

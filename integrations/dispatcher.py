@@ -70,7 +70,16 @@ def _enabled(service: str) -> bool:
 def _seed_onboarding_tasks(db_path: str, user_id: int):
     """신규 직원의 온보딩 체크리스트 항목 생성"""
     conn = sqlite3.connect(db_path)
-    for key, label, category, order in ONBOARDING_TASKS:
+    # 회사·건물 설정에서 가져온 온보딩 자료가 있으면 그 체크리스트를 쓴다(자리표시자는 화면에서 채움)
+    rows = ONBOARDING_TASKS
+    try:
+        import workplace
+        content = workplace.onboarding_tasks(conn)
+        if content:
+            rows = [(t['key'], t['label'], t.get('category') or 'general', i + 1) for i, t in enumerate(content)]
+    except Exception:
+        pass
+    for key, label, category, order in rows:
         conn.execute(
             "INSERT OR IGNORE INTO onboarding_progress "
             "(user_id, task_key, task_label, category, sort_order) VALUES (?,?,?,?,?)",

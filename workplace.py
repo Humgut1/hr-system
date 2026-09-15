@@ -899,3 +899,155 @@ def export_data(conn):
     if ob is not None:
         out['onboarding'] = ob
     return out
+
+
+# ── 온보딩: 가져온 자료 + 그 사람의 입사일·부서·팀장·버디 → 첫 주 안내 ──────
+def onboarding_tasks(conn):
+    """체크리스트 원본. 자료가 없으면 빈 목록(부르는 쪽이 옛 기본 목록으로 대신한다)."""
+    ob = onboarding_content(conn) or {}
+    return [t for t in (ob.get('tasks') or []) if isinstance(t, dict) and t.get('key') and t.get('label')]
+
+
+def onboarding_person(conn, user_id):
+    """자리표시자에 들어갈 값. 팀장은 보고라인(manager_id), 없으면 부서장."""
+    u = conn.execute(
+        'SELECT u.id, u.name, u.hire_date, u.department_id, u.manager_id, u.buddy_id, '
+        'd.name AS dept, d.leader_id, p.name AS pos FROM users u '
+        'LEFT JOIN departments d ON d.id=u.department_id LEFT JOIN positions p ON p.id=u.position_id '
+        'WHERE u.id=?', (user_id,)).fetchone()
+    if not u:
+        return None
+
+    def person(pid):
+        if not pid or pid == user_id:
+            return None
+        r = conn.execute('SELECT u.id, u.name, u.email, d.name AS dept, p.name AS pos FROM users u '
+                         'LEFT JOIN departments d ON d.id=u.department_id LEFT JOIN positions p ON p.id=u.position_id '
+                         'WHERE u.id=?', (pid,)).fetchone()
+        return dict(r) if r else None
+
+    co = {r[0]: r[1] for r in conn.execute("SELECT key, value FROM company_settings WHERE key IN ('name', 'address')")}
+    manager = person(u['manager_id']) or person(u['leader_id'])
+    buddy = person(u['buddy_id'])
+    hd = to_date(u['hire_date'])
+    return {
+        'user': dict(u), 'manager': manager, 'buddy': buddy, 'hire': hd,
+        'values': {
+            'employee_name': u['name'], 'department': u['dept'] or '소속 부서', 'position': u['pos'] or '담당 직무',
+            'hire_date': '%s(%s)' % (hd.strftime('%Y.%m.%d'), WEEKDAY_KO[hd.weekday()]) if hd else '입사일',
+            'manager_name': manager['name'] if manager else '팀장',
+            'buddy_name': buddy['name'] if buddy else '버디',
+            'company_name': co.get('name') or '회사', 'company_address': co.get('address') or '',
+        },
+    }
+
+
+def _where(conn, code, team, cache):
+    """일정의 방 코드 → 사람이 읽는 장소. TEAM 은 그 사람 팀 층의 회의실."""
+    if code in cache:
+        return cache[code]
+    r = team if code == 'TEAM' else (room(conn, code) if code else None)
+    if r:
+        out = {'code': r['code'], 'name': r['name'], 'floor': r['floor'], 'label': '%s층 %s' % (r['floor'], r['name'])}
+    elif code == 'TEAM':
+        out = {'code': None, 'name': '팀 자리', 'floor': None, 'label': '팀 자리'}
+    else:
+        out = {'code': code, 'name': code or '', 'floor': None, 'label': code or ''}
+    cache[code] = out
+    return out
+
+
+def onboarding_plan(conn, user_id, today=None):
+    """한 사람의 첫날·첫 주 안내. 자료(onboarding_content)가 없으면 None."""
+    ob = onboarding_content(conn)
+    who = onboarding_person(conn, user_id)
+    if not ob or not who:
+        return None
+    today = today or date.today()
+    st = settings(conn)
+    vals = who['values']
+    team = team_room(conn, who['user']['department_id'])
+    tfloor = dept_floor(conn, who['user']['department_id'])
+    hire = who['hire']
+    cache = {}
+
+    def owner(role):
+        if role == '팀장' and who['manager']:
+            return '팀장 %s' % who['manager']['name']
+        if role == '버디' and who['buddy']:
+            return '버디 %s' % who['buddy']['name']
+        return role or ''
+
+    def item(x):
+        t = str(x.get('time') or '')
+        try:
+            end = fmt_hm(hm(t) + int(x.get('minutes') or 0))
+        except (ValueError, TypeError):
+            end = ''
+        code = x.get('room') or ''
+        return {
+            'time': t, 'end': end, 'title': fill(x.get('title'), vals), 'detail': fill(x.get('detail'), vals),
+            'where': _where(conn, code, team, cache), 'owner': owner(x.get('owner_role')),
+            'orientation': code == st['orientation_room'] and t == st['orientation_start'],
+        }
+
+    fd = ob.get('first_day') or {}
+    by_day = {1: [item(x) for x in (fd.get('schedule') or [])]}
+    for x in ob.get('first_week') or []:
+        try:
+            n = int(x.get('day') or 0)
+        except (TypeError, ValueError):
+            continue
+        if n >= 1:
+            by_day.setdefault(n, []).append(item(x))
+    days = []
+    for n in sorted(by_day):
+        d = working_day(conn, hire, n) if hire else None
+        days.append({'n': n, 'date': d, 'label': ('%s(%s)' % (d.strftime('%m.%d'), WEEKDAY_KO[d.weekday()])) if d else '',
+                     'today': d == today, 'past': bool(d and d < today),
+                     'items': sorted(by_day[n], key=lambda i: i['time'])})
+
+    due = {}
+    for t in ob.get('tasks') or []:
+        try:
+            n = int(t.get('due_day') or 0)
+        except (TypeError, ValueError):
+            n = 0
+        if t.get('key') and n >= 1:
+            due[t['key']] = working_day(conn, hire, n) if hire else None
+    site = (sites(conn) or [None])[0]
+    orient = room(conn, st['orientation_room'])
+    return {
+        'who': who, 'values': vals, 'days': days, 'due': due,
+        'dday': (hire - today).days if hire else None,
+        'arrive_time': fd.get('arrive_time') or '', 'meet_place': fill(fd.get('meet_place'), vals),
+        'bring': [fill(b, vals) for b in (fd.get('bring') or [])],
+        'site': site, 'team_room': team, 'team_floor': tfloor,
+        'orientation': {'room': orient['name'] if orient else st['orientation_room'], 'floor': orient['floor'] if orient else None,
+                        'start': st['orientation_start'], 'end': st['orientation_end']},
+        'welcome_letter': fill(ob.get('welcome_letter'), vals),
+        'office_guide': [{'title': fill(g.get('title'), vals), 'body': fill(g.get('body'), vals)}
+                         for g in (ob.get('office_guide') or []) if isinstance(g, dict)],
+        'faq': [{'q': fill(f.get('q'), vals), 'a': fill(f.get('a'), vals)} for f in (ob.get('faq') or []) if isinstance(f, dict)],
+        'sessions': [{'title': fill(s.get('title'), vals), 'owner': s.get('owner_role') or '', 'minutes': s.get('minutes'),
+                      'slides': [fill(x, vals) for x in (s.get('slides') or [])]}
+                     for s in (ob.get('sessions') or []) if isinstance(s, dict)],
+    }
+
+
+def upcoming_start_days(conn, today=None, n=4):
+    """인사팀용: 다가오는 입사일마다 누가 오는지와 오리엔테이션 장소."""
+    today = today or date.today()
+    st = settings(conn)
+    orient = room(conn, st['orientation_room'])
+    out = []
+    for d in next_start_dates(conn, today, n, st):
+        people = hires_on(conn, d)
+        left = (d - today).days
+        out.append({
+            'date': d, 'label': '%s(%s)' % (d.strftime('%m.%d'), WEEKDAY_KO[d.weekday()]), 'dday': left,
+            'people': people, 'room': orient['name'] if orient else st['orientation_room'],
+            'floor': orient['floor'] if orient else None, 'start': st['orientation_start'], 'end': st['orientation_end'],
+            'released': not people and left <= st['release_days'],
+        })
+    return out
