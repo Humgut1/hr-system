@@ -1,0 +1,93 @@
+{
+  "onboarding": {
+    "first_day": {
+      "arrive_time": "09:30",
+      "meet_place": "HQ 1층 방문객 라운지",
+      "bring": ["신분증", "개인 노트북(지급 예정인 경우 제외)", "입사 제출서류 원본 또는 요청받은 사본", "개인 물병"],
+      "schedule": [
+        {"time": "09:30", "minutes": 30, "title": "로비 집합 및 입사 확인", "room": "HQ-1E", "owner_role": "인사팀", "detail": "방문객 라운지에서 입사 확인 후 사원증, 좌석, 출입 권한 및 당일 일정 안내"},
+        {"time": "10:00", "minutes": 90, "title": "신규 입사자 오리엔테이션", "room": "HQ-1F", "owner_role": "인사팀", "detail": "회사 소개, 조직 체계, 근무제도, 평가·보상, 복리후생, 보안 및 정보보호 원칙 안내"},
+        {"time": "11:30", "minutes": 60, "title": "개인 장비 및 계정 설정", "room": "HQ-3B", "owner_role": "인사팀", "detail": "Google Workspace, Slack, Notion, Jira, 1Password 계정 확인 및 기본 설정"},
+        {"time": "12:30", "minutes": 60, "title": "점심 및 팀 소개", "room": "HQ-1E", "owner_role": "버디", "detail": "회사 주변 식사 동선과 점심 이용 방법을 안내하고 버디와 간단한 식사"},
+        {"time": "13:30", "minutes": 60, "title": "부서 및 직무 이해", "room": "TEAM", "owner_role": "팀장", "detail": "{{department}}의 주요 업무, 팀 목표, 협업 부서 및 {{position}}의 역할 설명"},
+        {"time": "14:30", "minutes": 30, "title": "사무실 및 보안 동선 안내", "room": "HQ-1E", "owner_role": "인사팀", "detail": "출입구, 회의실, 탕비실, 프린터, 비상대피 동선 및 방문객 응대 절차 안내"},
+        {"time": "15:00", "minutes": 90, "title": "팀 온보딩 및 업무 시작", "room": "TEAM", "owner_role": "팀장", "detail": "팀 업무 방식, 정기회의, 커뮤니케이션 원칙, 첫 주 우선순위 및 초기 업무 안내"},
+        {"time": "16:30", "minutes": 60, "title": "필수 교육 및 보안 설정 점검", "room": "HQ-3B", "owner_role": "인사팀", "detail": "개인정보 보호, 계정 보안, 비밀번호 관리, 1Password 사용 및 필수 서약 확인"},
+        {"time": "17:30", "minutes": 30, "title": "첫날 마무리 및 Q&A", "room": "TEAM", "owner_role": "팀장", "detail": "첫날 적응 상황을 확인하고 질문을 정리한 뒤 둘째 날 업무 계획을 공유"}
+      ]
+    },
+    "first_week": [
+      {"day": 2, "time": "09:30", "minutes": 60, "title": "회사 업무 도구 기본 교육", "room": "HQ-1F", "owner_role": "인사팀", "detail": "Slack, Google Workspace, Notion, Jira, 1Password의 기본 사용 원칙과 계정 보안 안내"},
+      {"day": 2, "time": "14:00", "minutes": 60, "title": "부서 업무 프로세스 이해", "room": "TEAM", "owner_role": "팀장", "detail": "{{department}}의 업무 흐름과 주요 협업 프로세스를 사례 중심으로 설명"},
+      {"day": 3, "time": "14:00", "minutes": 60, "title": "서비스 및 제품 구조 이해", "room": "HQ-1F", "owner_role": "서비스기획팀", "detail": "주요 제품군, 핵심 고객, 제품 개발과 운영 구조를 이해"},
+      {"day": 3, "time": "15:00", "minutes": 60, "title": "팀 업무 동행 세션", "room": "HQ-3B", "owner_role": "버디", "detail": "실제 업무 화면과 협업 문서를 함께 확인하며 조직 내 업무 흐름을 익힘"},
+      {"day": 4, "time": "14:00", "minutes": 60, "title": "보안 및 개인정보 보호 교육", "room": "HQ-1F", "owner_role": "보안팀", "detail": "사내 정보 분류, 외부 공유, 계정 관리, 개인정보 처리의 기본 원칙 교육"},
+      {"day": 4, "time": "15:00", "minutes": 60, "title": "첫 업무 리뷰", "room": "TEAM", "owner_role": "팀장", "detail": "배정된 첫 업무를 확인하고 목표, 산출물, 우선순위 및 지원 필요 사항 점검"},
+      {"day": 5, "time": "11:00", "minutes": 60, "title": "협업 커뮤니케이션 실습", "room": "HQ-3B", "owner_role": "버디", "detail": "Slack, Notion, Jira에서 질문·공유·이슈 관리 시 사용하는 기본 커뮤니케이션 방식 실습"},
+      {"day": 5, "time": "16:00", "minutes": 60, "title": "첫 주 회고 및 다음 주 계획", "room": "TEAM", "owner_role": "팀장", "detail": "첫 주 적응 상황과 이해도를 점검하고 다음 주 목표와 지원 계획을 확정"},
+      {"day": 5, "time": "17:00", "minutes": 30, "title": "인사 온보딩 체크", "room": "HQ-3A", "owner_role": "인사팀", "detail": "필수 서류, 계정, 교육 이수 및 출입 권한 상태를 최종 확인"}
+    ],
+    "sessions": [
+      {"key": "company_orientation", "title": "회사 및 조직 오리엔테이션", "owner_role": "인사팀", "minutes": 90, "room_type": "training",
+       "slides": ["회사 개요: 코어피플시스템즈의 사업과 핵심 고객", "비전과 전략: 회사가 해결하려는 HR 과제", "제품 구조: 채용·인사·평가·보상 기능 개요", "조직 체계: 부문별 역할과 주요 협업 구조", "근무 원칙: 근무시간·휴가·업무 커뮤니케이션", "평가와 성장: 성과관리와 역량개발 기본 원칙", "복리후생: 직원 지원제도와 이용 방법", "보안 원칙: 회사 정보와 개인정보 보호", "첫 90일: 신규 입사자의 적응 및 성장 기대사항"]},
+      {"key": "tool_basics", "title": "업무 도구 기본 교육", "owner_role": "인사팀", "minutes": 60, "room_type": "training",
+       "slides": ["Slack 기본: 채널 구조와 메시지 작성 원칙", "Slack 협업: 멘션·스레드·파일 공유 기준", "Google Workspace: Gmail·Drive·Calendar 기본 사용", "Notion: 문서 탐색·작성·업데이트 방법", "Jira: 이슈 등록·상태 변경·담당자 지정", "1Password: 계정 보관과 공유 금지 원칙", "업무 알림: 개인 알림 설정과 근무시간 외 대응 기준"]},
+      {"key": "security_privacy", "title": "정보보안 및 개인정보 보호", "owner_role": "보안팀", "minutes": 60, "room_type": "training",
+       "slides": ["정보보안 기본: 회사 데이터의 중요성", "계정 보안: 비밀번호와 다중 인증 관리", "1Password: 안전한 비밀번호 저장과 사용", "개인정보 보호: 수집·이용·공유 시 기본 원칙", "외부 협업: 외부 메일·파일 공유 시 주의사항", "기기 보안: 노트북 잠금·업데이트·분실 대응", "사고 대응: 의심 상황 발견 시 보고 절차"]},
+      {"key": "product_business", "title": "서비스와 고객 이해", "owner_role": "서비스기획팀", "minutes": 60, "room_type": "training",
+       "slides": ["B2B SaaS 시장: 기업용 HR 소프트웨어의 특징", "핵심 고객: 고객사의 규모와 주요 사용자", "채용 솔루션: 채용 운영의 주요 기능", "인사 솔루션: 인사정보와 조직관리 기능", "성과·보상: 평가와 보상 데이터의 활용", "고객 여정: 도입·사용·지원의 전체 흐름", "제품 협업: 기획·개발·품질·운영 간 역할"]},
+      {"key": "communication_collaboration", "title": "협업 및 커뮤니케이션 원칙", "owner_role": "인사팀", "minutes": 60, "room_type": "training",
+       "slides": ["업무 커뮤니케이션 원칙: 명확성·기록·책임", "Slack 사용 기준: 채널 중심 업무 커뮤니케이션", "회의 원칙: 목적·참석자·아젠다·액션아이템", "Notion 문서화: 결정사항과 업무 지식 기록", "Jira 업무관리: 이슈와 일정의 가시화", "피드백 원칙: 사실 기반의 구체적인 의견 전달", "에스컬레이션: 일정·품질·고객 이슈 공유 기준", "협업 갈등: 의견 차이를 다루는 기본 방법"]},
+      {"key": "performance_growth", "title": "평가·성장 및 첫 90일", "owner_role": "인사팀", "minutes": 60, "room_type": "training",
+       "slides": ["성과관리 구조: 목표 설정과 결과 점검", "직무 기대수준: 역할별 책임과 성과 기준", "정기 피드백: 팀장과 구성원의 대화 방식", "성장 지원: 교육·멘토링·업무 경험", "경력개발: 직무 전문성과 리더십 성장", "첫 30일: 적응과 기본 업무 이해", "첫 60일: 독립적인 업무 수행 확대", "첫 90일: 역할 정착과 성과 목표 점검"]}
+    ],
+    "tasks": [
+      {"key": "submit_personal_documents", "label": "입사 필수 서류 제출", "category": "admin", "due_day": 1},
+      {"key": "talentcore_login", "label": "TalentCore 로그인 및 내 정보(주소·비상연락처) 입력", "category": "setup", "due_day": 1},
+      {"key": "activate_company_account", "label": "Google Workspace 계정 활성화", "category": "setup", "due_day": 1},
+      {"key": "join_slack_channels", "label": "Slack 기본 채널 및 부서 채널 참여", "category": "setup", "due_day": 1},
+      {"key": "setup_notion", "label": "Notion 워크스페이스 접속 및 기본 페이지 확인", "category": "setup", "due_day": 1},
+      {"key": "setup_jira", "label": "Jira 프로젝트 접근 권한 확인", "category": "setup", "due_day": 1},
+      {"key": "setup_1password", "label": "1Password 계정 및 기본 보안 설정 완료", "category": "setup", "due_day": 1},
+      {"key": "review_security_policy", "label": "정보보안 및 개인정보 보호 정책 읽기", "category": "learning", "due_day": 2},
+      {"key": "complete_mandatory_training", "label": "신규 입사자 필수 교육 이수", "category": "learning", "due_day": 3},
+      {"key": "read_team_docs", "label": "{{department}} 주요 업무 문서 읽기", "category": "learning", "due_day": 3},
+      {"key": "meet_buddy", "label": "{{buddy_name}}과 첫 온보딩 미팅 진행", "category": "social", "due_day": 3},
+      {"key": "schedule_manager_one_on_one", "label": "{{manager_name}}과 첫 1:1 일정 확정", "category": "team", "due_day": 4},
+      {"key": "create_jira_profile", "label": "Jira 프로필 및 알림 설정 완료", "category": "setup", "due_day": 4},
+      {"key": "review_team_calendar", "label": "팀 정기회의 및 공용 일정 확인", "category": "team", "due_day": 4},
+      {"key": "complete_first_task", "label": "첫 배정 업무의 초안 또는 결과물 제출", "category": "team", "due_day": 5},
+      {"key": "first_week_reflection", "label": "첫 주 온보딩 회고 작성 및 공유", "category": "learning", "due_day": 5}
+    ],
+    "welcome_letter": "환영합니다. {{company_name}}의 새로운 구성원이 되신 것을 진심으로 환영합니다. {{hire_date}}부터 {{department}}에서 {{position}}으로 새로운 여정을 시작하게 된 것을 기쁘게 생각합니다. 입사 초기에는 새로운 업무와 환경을 익히는 데 시간이 필요할 수 있습니다. {{manager_name}}과 {{buddy_name}}이 업무와 조직에 원활하게 적응하실 수 있도록 지원할 예정입니다. 회사의 제품과 문화를 이해하고 동료들과 편안하게 협업하실 수 있도록 온보딩 프로그램을 준비했습니다. {{company_address}}에서 의미 있는 경험과 성장을 만들어 가시기를 바랍니다. 다시 한번 입사를 환영합니다.",
+    "office_guide": [
+      {"title": "층별 안내", "body": "1층은 방문객 라운지, 면접실, 교육장과 주요 회의공간이 있는 방문객 중심 층입니다. 2층은 비즈니스·고객지원, 3층은 운영·경영지원, 4층과 5층은 테크, 6층은 경영진 구역으로 운영합니다."},
+      {"title": "출입 및 사원증", "body": "직원은 사원증 카드 또는 모바일 인증으로 출입합니다. 사원증을 분실하거나 모바일 인증에 문제가 발생한 경우 인사팀에 즉시 문의합니다."},
+      {"title": "면접 및 방문객", "body": "방문객과 면접자는 1층 방문객 라운지에서 담당자를 호출한 후 안내를 받아 이동합니다. 방문객에게 임의로 사내 출입 권한을 제공하지 않습니다."},
+      {"title": "회의실 이용", "body": "회의실은 TalentCore 회의실 예약에서 예약합니다. 사용 후에는 화이트보드 내용을 정리하고 장비와 가구를 원상태로 정돈합니다."},
+      {"title": "식사", "body": "점심 식사는 회사 인근 식당을 이용하며 팀별 식사 일정에 따라 자율적으로 이동합니다. 외부 음식 주문 시 건물 출입 동선과 수령 방법을 확인합니다."},
+      {"title": "탕비실", "body": "각 층 탕비실의 음료와 기본 비품은 공용으로 사용합니다. 사용한 컵과 식기는 즉시 정리하고 음식물은 지정된 장소에 보관합니다."},
+      {"title": "택배 및 우편", "body": "개인 택배는 업무 공간으로 직접 배송하지 않고 지정된 수령 공간을 이용합니다. 회사 중요 우편물은 수신 부서를 확인한 후 전달합니다."},
+      {"title": "보안", "body": "외부인이 직원 전용 공간에 혼자 이동하지 않도록 하며, 문을 열어두거나 출입문을 타인에게 대신 인증해 주지 않습니다. 중요 문서는 사내 승인된 저장소에서만 관리합니다."},
+      {"title": "프린터 및 문서", "body": "출력 시 부서와 문서의 보안 등급을 확인합니다. 개인정보 또는 민감정보가 포함된 문서는 출력 후 즉시 회수하고 불필요한 출력물은 지정된 방법으로 폐기합니다."},
+      {"title": "비상 상황", "body": "화재나 기타 비상상황이 발생하면 가까운 비상구를 통해 대피하고 엘리베이터를 사용하지 않습니다. 상황 종료 전 사내 안내 또는 관계기관의 지시에 따릅니다."},
+      {"title": "업무 집중 공간", "body": "폰부스는 1인 통화와 화상회의를 위해 사용하며 장시간 점유하지 않습니다. 집중이 필요한 경우 팀 내 공유된 공간 이용 원칙을 준수합니다."}
+    ],
+    "faq": [
+      {"q": "출근하면 가장 먼저 어디로 가야 하나요?", "a": "첫날은 09:30까지 1층 방문객 라운지로 오시면 됩니다. 이후에는 사원증 또는 모바일 인증으로 해당 층의 본인 좌석으로 이동합니다."},
+      {"q": "회사 출입카드를 분실했습니다. 어떻게 해야 하나요?", "a": "즉시 인사팀에 알려 출입 권한을 정지하고 재발급 절차를 진행합니다."},
+      {"q": "회사 이메일은 어디에서 확인하나요?", "a": "Google Workspace의 Gmail을 사용합니다. 계정 활성화 후 회사 이메일과 Calendar를 함께 확인합니다."},
+      {"q": "Slack에서는 어떤 채널을 사용하나요?", "a": "전사 공지 채널과 {{department}}의 부서 채널을 기본으로 사용합니다. 업무 주제에 맞는 채널에서 대화하고 중요한 업무 결정은 문서로 남깁니다."},
+      {"q": "Notion은 주로 무엇에 사용하나요?", "a": "조직 안내, 업무 매뉴얼, 프로젝트 문서, 회의 기록 등 사내 지식과 업무 정보를 관리하는 데 사용합니다."},
+      {"q": "Jira는 어떤 업무에 사용하나요?", "a": "주로 프로젝트와 업무 이슈를 등록하고 상태, 담당자, 일정 및 우선순위를 관리하는 데 사용합니다."},
+      {"q": "비밀번호는 어디에 저장하나요?", "a": "회사 계정과 업무용 비밀번호는 1Password를 사용해 안전하게 관리합니다. 비밀번호를 Slack이나 문서에 평문으로 공유하지 않습니다."},
+      {"q": "회의실은 어떻게 예약하나요?", "a": "TalentCore 왼쪽 메뉴의 회의실 예약에서 층과 시간을 골라 예약합니다. 예약하면 캘린더 초대 파일을 받을 수 있고, 쓰지 않게 되면 내 예약에서 바로 취소합니다."},
+      {"q": "점심시간은 정해져 있나요?", "a": "기본적으로 업무 일정에 맞춰 운영하며 팀의 업무 상황과 회의 일정을 고려해 탄력적으로 이용합니다."},
+      {"q": "재택근무나 근무시간에 대한 문의는 누구에게 하나요?", "a": "회사의 근무제도와 개인 근무 일정에 대한 문의는 인사팀에 확인하고, 실제 팀 단위 운영은 {{manager_name}}과 조율합니다."},
+      {"q": "휴가 신청은 어떻게 하나요?", "a": "사내 인사 시스템에서 휴가를 신청하고 팀 일정에 영향을 줄 수 있는 경우 {{manager_name}}과 사전에 협의합니다."},
+      {"q": "첫 업무가 어렵거나 이해되지 않을 때는 누구에게 물어보나요?", "a": "우선 {{buddy_name}}에게 기본적인 업무 환경과 절차를 문의하고, 업무 우선순위나 목표에 대한 판단은 {{manager_name}}과 확인합니다."},
+      {"q": "회사의 보안 사고가 의심되면 어떻게 해야 하나요?", "a": "의심되는 이메일, 링크, 파일 또는 계정 이상을 임의로 처리하지 말고 즉시 보안팀 또는 인사팀에 상황을 공유합니다."},
+      {"q": "개인 택배를 회사에서 받아도 되나요?", "a": "가능한 경우 지정된 수령 공간을 이용하며 업무 공간으로 직접 배송하는 것은 피합니다. 회사 중요 우편물과 혼동되지 않도록 발송 정보를 확인합니다."}
+    ]
+  }
+}

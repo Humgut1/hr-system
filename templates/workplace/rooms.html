@@ -1,0 +1,298 @@
+{% extends 'base.html' %}
+{% from 'workplace/_floormap.html' import floor_css, floor_map %}
+{% block title %}회의실 예약{% endblock %}
+{% block page_title %}회의실 예약{% endblock %}
+
+{% block extra_css %}
+{{ floor_css() }}
+<style>
+/* 층을 고르고, 배치도에서 방을 보고, 시간표 빈칸을 눌러 예약한다. 30분 단위 · 08:00~20:00.
+   입사일(월·수) 교육장 오전은 오리엔테이션으로 막혀 있다. */
+.rm-wrap { max-width:1240px; }
+.rm-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.rm-date { display:flex; align-items:center; gap:4px; }
+.rm-day { font-size:15px; font-weight:700; color:var(--tx-1); margin:0 6px; font-variant-numeric:tabular-nums; }
+.rm-in { padding:6px 9px; font-size:12.5px; border:1px solid var(--line-2); border-radius:var(--r-sm); background:var(--bg); color:var(--tx-1); width:100%; }
+.rm-in:focus { outline:none; border-color:var(--line-strong); }
+.rm-note { font-size:12px; color:var(--tx-3); }
+.rm-tabs { display:flex; gap:2px; border-bottom:1px solid var(--line); margin-bottom:12px; overflow-x:auto; }
+.rm-tab { padding:7px 12px; font-size:12.5px; color:var(--tx-3); border-bottom:2px solid transparent; white-space:nowrap; text-decoration:none; }
+.rm-tab:hover { color:var(--tx-1); }
+.rm-tab.on { color:var(--tx-1); border-bottom-color:var(--tx-1); font-weight:600; }
+
+.rm-grid { display:grid; grid-template-columns:minmax(0, 1fr) 300px; gap:16px; align-items:start; }
+@media (max-width:1000px) { .rm-grid { grid-template-columns:minmax(0, 1fr); } }
+.rm-block { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:14px 16px; margin-bottom:12px; }
+.rm-sec { font-size:13px; font-weight:700; color:var(--tx-1); margin:0 0 8px; display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.rm-sec small { font-weight:400; font-size:12px; color:var(--tx-3); }
+.rm-floorhead { font-size:12px; color:var(--tx-2); margin-bottom:8px; }
+
+/* 시간표 */
+.tl-scroll { overflow-x:auto; }
+.tl { min-width:860px; }
+.tl-line { display:grid; grid-template-columns:132px minmax(0, 1fr); align-items:stretch; }
+.tl-line + .tl-line { border-top:1px solid var(--line); }
+.tl-rc { padding:6px 8px 6px 0; font-size:12px; color:var(--tx-1); font-weight:600; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.tl-rc small { display:block; font-weight:400; font-size:10.5px; color:var(--tx-3); }
+.tl-line.is-sel .tl-rc { text-decoration:underline; text-underline-offset:3px; }
+.tl-hours { display:grid; grid-template-columns:repeat({{ slots|length if slots else 24 }}, minmax(0, 1fr)); font-size:10.5px; color:var(--tx-3); font-variant-numeric:tabular-nums; }
+.tl-hours span { border-left:1px solid var(--line); padding:0 0 3px 3px; }
+.tl-track { display:grid; grid-template-columns:repeat({{ slots|length if slots else 24 }}, minmax(0, 1fr)); grid-template-rows:40px; padding:3px 0; }
+.tl-slot { grid-row:1; border:0; border-left:1px solid var(--line); background:transparent; cursor:pointer; padding:0; min-width:0; }
+.tl-slot.hr { border-left-color:var(--line-2); }
+.tl-slot:hover:not(:disabled) { background:var(--hover); }
+.tl-slot:disabled { cursor:default; }
+.tl-slot.past { background:repeating-linear-gradient(135deg, transparent 0 4px, var(--surface-2) 4px 8px); }
+.tl-slot.pick { background:var(--inv-bg); }
+.tl-slot:focus-visible { outline:2px solid var(--line-strong); outline-offset:-2px; }
+.tl-line.locked .tl-slot { cursor:not-allowed; }
+.tl-b {
+  grid-row:1; z-index:1; margin:0 1px; min-width:0; overflow:hidden; padding:3px 6px; pointer-events:auto;
+  background:var(--surface-2); border:1px solid var(--line-2); border-radius:var(--r-sm);
+  font-size:11px; line-height:1.35; color:var(--tx-2);
+}
+.tl-b b { display:block; font-weight:600; color:var(--tx-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tl-b span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+.tl-b.mine { border-color:var(--line-strong); background:var(--surface); }
+.tl-b.orientation { background:repeating-linear-gradient(135deg, var(--surface-2) 0 6px, transparent 6px 12px); border-style:dashed; }
+.tl-legend { display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:var(--tx-3); margin-top:8px; }
+.tl-legend i { display:inline-block; width:14px; height:10px; vertical-align:-1px; margin-right:4px; border:1px solid var(--line-2); border-radius:2px; }
+
+/* 예약 폼 · 내 예약 */
+.bk-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.bk-cap { font-size:10.5px; font-weight:600; color:var(--tx-3); margin:8px 0 3px; }
+.bk-msg { font-size:12px; margin-top:8px; min-height:18px; color:var(--late); }
+.bk-foot { margin-top:10px; display:flex; gap:8px; }
+.my-item { padding:9px 0; border-top:1px solid var(--line); font-size:12.5px; }
+.my-item:first-of-type { border-top:0; padding-top:2px; }
+.my-when { font-variant-numeric:tabular-nums; font-weight:600; color:var(--tx-1); }
+.my-sub { color:var(--tx-3); font-size:11.5px; margin-top:1px; }
+.my-act { display:flex; gap:4px; margin-top:5px; }
+.my-act form { margin:0; }
+.rm-empty { font-size:12.5px; color:var(--tx-3); padding:30px 0; text-align:center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rm-wrap">
+{% if empty %}
+  <div class="rm-block rm-empty">
+    회의실 자료가 아직 없습니다.
+    {% if session.get('user_role') == 'admin' %}<a href="{{ url_for('workplace_settings') }}">회사·건물에서 자료 넣기</a>{% else %}인사팀에 문의해 주세요.{% endif %}
+  </div>
+{% else %}
+
+<div class="rm-bar">
+  <div class="rm-date">
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('rooms', date=prev_day.isoformat(), floor=cur_key) }}" aria-label="전날"><i class="fa-solid fa-chevron-left"></i></a>
+    <span class="rm-day">{{ day.strftime('%m.%d') }} ({{ weekday }})</span>
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('rooms', date=next_day.isoformat(), floor=cur_key) }}" aria-label="다음날"><i class="fa-solid fa-chevron-right"></i></a>
+  </div>
+  <input type="date" class="rm-in" style="width:auto;" value="{{ day.isoformat() }}" id="rm-date-pick" aria-label="날짜 선택">
+  {% if day != today %}<a class="btn btn-secondary btn-sm" href="{{ url_for('rooms', floor=cur_key) }}">오늘</a>{% endif %}
+  {% if is_start_day %}<span class="rm-note">입사일 · {{ st.orientation_room }} {{ st.orientation_start }}~{{ st.orientation_end }} 오리엔테이션</span>{% endif %}
+</div>
+
+<div class="rm-tabs">
+  {% for f in floors %}
+  {% set k = f.site_code ~ '-' ~ f.floor %}
+  <a class="rm-tab{% if k == cur_key %} on{% endif %}" href="{{ url_for('rooms', date=day.isoformat() if day != today else None, floor=k) }}">{{ f.floor }}층{% if f.label %} · {{ f.label }}{% endif %}</a>
+  {% endfor %}
+</div>
+
+<div class="rm-grid">
+<div>
+  <div class="rm-block">
+    <div class="rm-floorhead">{% if cur.departments %}{{ cur.departments|join(' · ') }}{% else %}{{ cur.label }}{% endif %}</div>
+    {{ floor_map(cur, rooms, bookable_label, status, clickable=True) }}
+  </div>
+
+  <div class="rm-block">
+    <div class="rm-sec">시간표 <small>빈칸을 누르면 오른쪽에 예약이 채워집니다</small></div>
+    <div class="tl-scroll">
+    <div class="tl">
+      <div class="tl-line" style="border:0;">
+        <div></div>
+        <div class="tl-hours">
+          {% for s in slots %}{% if s.endswith(':00') %}<span style="grid-column:{{ loop.index }} / span 2;">{{ s[:2] }}</span>{% endif %}{% endfor %}
+        </div>
+      </div>
+      {% for row in rows %}
+      {% set r = row.room %}
+      <div class="tl-line{% if not row.can %} locked{% endif %}" data-room="{{ r.code }}">
+        <div class="tl-rc" title="{{ r.name }} · {{ r.capacity }}인">{{ r.name }}<small>{{ r.capacity }}인{% if not row.can %} · {{ bookable_label[r.bookable_by] }} 전용{% endif %}</small></div>
+        <div class="tl-track">
+          {% for s in slots %}
+          {% set past = day < today or (now_hm and s < now_hm[:3] ~ ('30' if now_hm[3:] >= '30' else '00')) %}
+          <button type="button" class="tl-slot{% if s.endswith(':00') %} hr{% endif %}{% if past %} past{% endif %}"
+            style="grid-column:{{ loop.index }};" data-i="{{ loop.index }}" data-t="{{ s }}"
+            {% if past or loop.index in row.taken or not row.can or r.type == 'lounge' %}disabled{% endif %}
+            aria-label="{{ r.name }} {{ s }}"></button>
+          {% endfor %}
+          {% for b in row['items'] %}
+          <div class="tl-b {{ b.kind }}{% if b.mine %} mine{% endif %}" style="grid-column:{{ b.col }} / span {{ b.span }};"
+            title="{{ b.start_at[11:16] }}~{{ b.end_at[11:16] }} {{ b.title }}{% if b.people %} — {{ b.people|map(attribute='name')|join(', ') }}{% endif %}">
+            <b>{{ b.title }}</b>
+            <span>{{ b.start_at[11:16] }}~{{ b.end_at[11:16] }}{% if b.mine %} · 내 예약{% elif b.user_name %} · {{ b.user_name }}{% elif b.booked_by %} · {{ b.booked_by }}{% endif %}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    </div>
+    <div class="tl-legend">
+      <span><i style="background:var(--surface-2);"></i>예약됨</span>
+      <span><i style="border-color:var(--line-strong);"></i>내 예약</span>
+      <span><i style="background:repeating-linear-gradient(135deg, var(--surface-2) 0 3px, transparent 3px 6px); border-style:dashed;"></i>입사자 오리엔테이션</span>
+    </div>
+  </div>
+</div>
+
+<aside>
+  <form method="post" action="{{ url_for('room_book') }}" class="rm-block" id="bk">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="date" value="{{ day.isoformat() }}">
+    <input type="hidden" name="floor" value="{{ cur_key }}">
+    <div class="rm-sec">예약하기 <small>{{ day.strftime('%m.%d') }} ({{ weekday }})</small></div>
+    {% if day < today %}
+      <div class="rm-note">지난 날짜는 예약할 수 없습니다.</div>
+    {% else %}
+    <div class="bk-cap">회의실</div>
+    <select name="room" class="rm-in" id="bk-room" required>
+      <option value="">— 배치도나 시간표에서 고르기 —</option>
+      {% for row in rows if row.can and row.room.type != 'lounge' %}
+      <option value="{{ row.room.code }}">{{ row.room.name }} · {{ row.room.capacity }}인</option>
+      {% endfor %}
+    </select>
+    <div class="bk-row">
+      <div>
+        <div class="bk-cap">시작</div>
+        <select name="start" class="rm-in" id="bk-start" required>
+          {% for s in slots %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <div class="bk-cap">종료</div>
+        <select name="end" class="rm-in" id="bk-end" required>
+          {% for s in slots[1:] %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+          <option value="{{ grid_end }}">{{ grid_end }}</option>
+        </select>
+      </div>
+    </div>
+    <div class="bk-cap">회의 이름</div>
+    <input type="text" name="title" class="rm-in" maxlength="80" required placeholder="예: 주간 스프린트 리뷰">
+    <div class="bk-row">
+      <div>
+        <div class="bk-cap">인원</div>
+        <input type="number" name="attendees" class="rm-in" min="1" max="200" id="bk-people">
+      </div>
+      <div></div>
+    </div>
+    <div class="bk-cap">메모 <span style="font-weight:400;">(선택)</span></div>
+    <input type="text" name="note" class="rm-in" maxlength="300">
+    <div class="bk-msg" id="bk-msg" role="status"></div>
+    <div class="bk-foot"><button type="submit" class="btn btn-primary btn-sm">예약</button></div>
+    {% endif %}
+  </form>
+
+  <div class="rm-block">
+    <div class="rm-sec">내 예약 <small>{{ mine|length }}건</small></div>
+    {% for b in mine %}
+    <div class="my-item">
+      <div class="my-when">{{ b.label }}</div>
+      <div>{{ b.title }}</div>
+      <div class="my-sub">{{ b.room_name }} · {{ b.floor }}층{% if b.kind == 'interview' %} · 면접{% endif %}</div>
+      <div class="my-act">
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('room_ics', bid=b.id) }}">캘린더에 추가</a>
+        <form method="post" action="{{ url_for('room_cancel', bid=b.id) }}" onsubmit="return confirm('이 예약을 취소할까요?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="floor" value="{{ cur_key }}">
+          <button type="submit" class="btn btn-ghost btn-sm">취소</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="rm-note">다가오는 예약이 없습니다.</div>
+    {% endfor %}
+  </div>
+</aside>
+</div>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% if not empty %}
+<script>
+(function () {
+  var pick = document.getElementById('rm-date-pick');
+  if (pick) pick.addEventListener('change', function () {
+    if (!pick.value) return;
+    var u = new URL(location.href); u.searchParams.set('date', pick.value); location.href = u.toString();
+  });
+  var form = document.getElementById('bk');
+  var roomSel = document.getElementById('bk-room');
+  if (!roomSel) return;
+  var startSel = document.getElementById('bk-start'), endSel = document.getElementById('bk-end');
+  var msg = document.getElementById('bk-msg');
+  var slots = {{ slots|tojson }}.concat(['{{ grid_end }}']);
+
+  function line(code) { return document.querySelector('.tl-line[data-room="' + code + '"]'); }
+  function takenIdx(code) {
+    var l = line(code), out = {};
+    if (!l) return out;
+    l.querySelectorAll('.tl-slot').forEach(function (b) { if (b.disabled) out[b.dataset.t] = 1; });
+    return out;
+  }
+  function paint() {
+    document.querySelectorAll('.tl-slot.pick').forEach(function (b) { b.classList.remove('pick'); });
+    document.querySelectorAll('.tl-line.is-sel').forEach(function (b) { b.classList.remove('is-sel'); });
+    document.querySelectorAll('.fm-room.is-sel').forEach(function (b) { b.classList.remove('is-sel'); });
+    var code = roomSel.value; msg.textContent = '';
+    if (!code) return;
+    var l = line(code);
+    if (l) l.classList.add('is-sel');
+    var m = document.querySelector('.fm-room[data-room="' + code + '"]');
+    if (m) m.classList.add('is-sel');
+    var s = slots.indexOf(startSel.value), e = slots.indexOf(endSel.value);
+    if (e <= s) { msg.textContent = '종료 시간이 시작 시간보다 늦어야 합니다'; return; }
+    var taken = takenIdx(code), clash = false;
+    for (var i = s; i < e; i++) {
+      var b = l && l.querySelector('.tl-slot[data-t="' + slots[i] + '"]');
+      if (taken[slots[i]]) clash = true; else if (b) b.classList.add('pick');
+    }
+    if (clash) msg.textContent = '고른 시간에 이미 예약이 있거나 지난 시간이 섞여 있습니다';
+  }
+  function choose(code, t) {
+    roomSel.value = code;
+    if (roomSel.value !== code) { msg.textContent = '이 방은 예약 권한이 없습니다'; return; }
+    if (t) {
+      startSel.value = t;
+      var s = slots.indexOf(t), taken = takenIdx(code), e = s + 1;
+      while (e < s + 2 && e < slots.length - 1 && !taken[slots[e]]) e++;
+      endSel.value = slots[e];
+    }
+    paint();
+  }
+  document.querySelectorAll('.tl-slot').forEach(function (b) {
+    b.addEventListener('click', function () { choose(b.closest('.tl-line').dataset.room, b.dataset.t); });
+  });
+  document.querySelectorAll('button.fm-room').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var code = b.dataset.room, l = line(code);
+      var first = l && Array.prototype.find.call(l.querySelectorAll('.tl-slot'), function (x) { return !x.disabled; });
+      choose(code, first ? first.dataset.t : null);
+      if (l) l.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  });
+  [roomSel, startSel, endSel].forEach(function (el) { el.addEventListener('change', paint); });
+  form.addEventListener('submit', function (ev) {
+    paint();
+    if (msg.textContent) { ev.preventDefault(); }
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

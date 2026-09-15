@@ -33,6 +33,7 @@
     {'l':'결재함', 'u':url_for('approvals_hub'), 'p':['approvals'], 's':MGR, 'i':'fa-stamp'},
     {'l':'공지사항', 'u':url_for('announcements'), 'p':['announcements'], 's':True, 'i':'fa-bullhorn'},
     {'l':'알림', 'u':url_for('notifications'), 'p':['notifications'], 's':True, 'i':'fa-bell'},
+    {'l':'회의실 예약', 'u':url_for('rooms'), 'p':['rooms'], 's':True, 'i':'fa-door-closed'},
   ]},
   {'key':'hiring', 'label':'채용', 'gi':'fa-user-plus', 'items':[
     {'l':'채용 요청', 'u':url_for('requisition_list'), 'p':['requisition'], 's':R in ('admin','manager','recruiter'), 'i':'fa-file-signature'},
@@ -80,6 +81,7 @@
   {'l':'회사 설정', 'u':url_for('admin_settings'), 'p':['settings','holidays','overtime_monitor','schedules','admin_welfare_points'], 's':ADM, 'i':'fa-building'},
   {'l':'조직·직급', 'u':url_for('departments'), 'p':['departments'], 's':ADM, 'i':'fa-layer-group'},
   {'l':'채용 결재선', 'u':url_for('requisition_flow_settings'), 'p':['reqflow'], 's':ADM, 'i':'fa-route'},
+  {'l':'회사·건물', 'u':url_for('workplace_settings'), 'p':['workplace'], 's':ADM, 'i':'fa-building-user'},
   {'l':'Hire 연동', 'u':url_for('hire_settings'), 'p':['hiresettings'], 's':ADM, 'i':'fa-link'},
   {'l':'외부 연동', 'u':url_for('admin_integrations'), 'p':['integrations'], 's':ADM, 'i':'fa-plug'},
   {'l':'감사 로그', 'u':url_for('admin_audit_logs'), 'p':['audit_logs'], 's':ADM, 'i':'fa-clipboard-list'},

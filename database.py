@@ -2222,6 +2222,10 @@ def init_db(db_path: str = None):
                     c.execute(f'ALTER TABLE company_config ADD COLUMN {_col} INTEGER DEFAULT 0')
             c.execute('UPDATE company_config SET copilot_enabled=0')
 
+        # ── 회의실·온보딩 V1: 건물·층·회의실·예약·온보딩 콘텐츠 (workplace.py) ──
+        import workplace
+        workplace.ensure_schema(c)
+
         conn.commit()
     finally:
         conn.close()

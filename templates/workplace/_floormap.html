@@ -1,0 +1,49 @@
+{# 층별 배치도 — 층을 grid_w × grid_h 칸으로 나누고 방을 x·y·w·h 칸에 놓는다.
+   색은 상태에만 쓴다: 사용 중(--late) · 곧 비는 방 없음 · 선택(무채색 반전). 방 종류는 글자로만 구분. #}
+{% macro floor_css() %}
+<style>
+.fm-scroll { overflow-x:auto; }
+.fm {
+  display:grid; gap:3px; min-width:640px; padding:10px;
+  background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r);
+}
+.fm-room {
+  position:relative; display:flex; flex-direction:column; justify-content:flex-start; gap:1px;
+  min-width:0; overflow:hidden; padding:5px 7px; text-align:left; font:inherit;
+  background:var(--surface); border:1px solid var(--line-2); border-radius:var(--r-sm); color:var(--tx-1);
+}
+.fm-room.fm-lounge, .fm-room.fm-phone { background:transparent; border-style:dashed; }
+.fm-room.fm-off { color:var(--tx-3); background:transparent; }
+button.fm-room { cursor:pointer; }
+button.fm-room:hover { border-color:var(--line-strong); }
+button.fm-room:focus-visible { outline:2px solid var(--line-strong); outline-offset:1px; }
+.fm-room.is-sel { background:var(--inv-bg); color:var(--inv-tx); border-color:var(--inv-bg); }
+.fm-room.is-sel .fm-m { color:var(--inv-tx); opacity:.75; }
+.fm-n { font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.fm-m { font-size:10.5px; color:var(--tx-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-variant-numeric:tabular-nums; }
+.fm-s { font-size:10.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.fm-s.busy { color:var(--late); }
+.fm-s.free { color:var(--done); }
+.fm-s.lock { color:var(--tx-3); }
+.fm-legend { display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:var(--tx-3); margin-top:6px; }
+</style>
+{% endmacro %}
+
+{% macro floor_map(f, rooms, bookable_label, status={}, clickable=False) %}
+<div class="fm-scroll">
+<div class="fm" style="grid-template-columns:repeat({{ f.grid_w }}, minmax(0, 1fr)); grid-template-rows:repeat({{ f.grid_h }}, 24px);">
+  {% for r in rooms if r.site_code == f.site_code and r.floor == f.floor %}
+    {% set s = status.get(r.code) %}
+    {% set tag = 'button' if clickable and r.type not in ('lounge',) else 'div' %}
+    <{{ tag }} {% if tag == 'button' %}type="button"{% endif %}
+      class="fm-room fm-{{ r.type }}{% if s and s.cls %} {{ s.cls }}{% endif %}" data-room="{{ r.code }}"
+      style="grid-column:{{ r.x + 1 }} / span {{ r.w }}; grid-row:{{ r.y + 1 }} / span {{ r.h }};"
+      title="{{ r.name }} · {{ r.type_label }} · {{ r.capacity }}인{% if r.equipment %} · {{ r.equipment|join(', ') }}{% endif %}">
+      <span class="fm-n">{{ r.name }}</span>
+      <span class="fm-m">{{ r.type_label }} · {{ r.capacity }}인{% if r.bookable_by != 'all' %} · {{ bookable_label[r.bookable_by] }}{% endif %}</span>
+      {% if s and s.text %}<span class="fm-s {{ s.kind }}">{{ s.text }}</span>{% endif %}
+    </{{ tag }}>
+  {% endfor %}
+</div>
+</div>
+{% endmacro %}

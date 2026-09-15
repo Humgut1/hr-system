@@ -12,7 +12,7 @@ from datetime import datetime, date, timedelta
 from functools import wraps
 
 from flask import (Flask, abort, flash, g, redirect, render_template,
-                   request, session, url_for, jsonify)
+                   request, session, url_for, jsonify, Response)
 from werkzeug.security import check_password_hash, generate_password_hash
 from payroll_utils import (calc_payslip, calc_annual_leave, compute_leave_balance, fmt_krw,
                            calc_severance, check_min_wage, MIN_WAGE_MONTHLY,
@@ -94,6 +94,7 @@ TOSS_SECRET_KEY = os.environ.get(
 # ── DB 초기화 ────────────────────────────────────────────────
 from database import init_db, DEFAULT_REVIEW_FORM, review_form_snapshot
 import copilot
+import workplace
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -144,6 +145,8 @@ _COMPANY_DEFAULTS = {
     'ceo':     os.environ.get('COMPANY_CEO',     '대표이사'),
     'address': os.environ.get('COMPANY_ADDRESS', '서울특별시 강남구 테헤란로 000'),
     'tel':     os.environ.get('COMPANY_TEL',     '02-0000-0000'),
+    # 회사·건물 가져오기(workplace)로 채워지는 값
+    'name_en': '', 'founded': '', 'industry': '', 'website': '', 'intro': '', 'zip': '',
 }
 
 def get_company_info():
@@ -12592,6 +12595,236 @@ def requisition_flow_settings():
         role_hints=FLOW_ROLE_HINT,
         active_page='reqflow'
     )
+
+
+# ── 회사·건물 (회의실·온보딩 V1) ─────────────────────────────────────────
+# 건물·층·회의실·온보딩 자료는 GPT 등에서 만든 JSON 을 붙여 넣어 한 번에 넣는다.
+# 검사 → 미리보기 → 저장 두 단계. 입사일 요일·오리엔테이션 고정 예약 규칙도 여기서.
+@app.route('/settings/workplace', methods=['GET', 'POST'])
+@admin_required
+def workplace_settings():
+    db = get_db()
+    preview, raw = None, ''
+    if request.method == 'POST':
+        act = request.form.get('action', '')
+        if act == 'rules':
+            f = request.form
+            wds = sorted({int(w) for w in f.getlist('start_weekdays') if w.isdigit() and int(w) < 7})
+            o_s, o_e = f.get('orientation_start', ''), f.get('orientation_end', '')
+            room_code = f.get('orientation_room', '')
+            try:
+                ok_time = workplace.hm(o_s) < workplace.hm(o_e)
+            except (ValueError, IndexError):
+                ok_time = False
+            try:
+                rel = max(0, min(14, int(f.get('orientation_release_days') or 2)))
+            except ValueError:
+                rel = 2
+            if not wds:
+                flash('입사 요일을 하나 이상 골라 주세요', 'error')
+            elif not ok_time:
+                flash('오리엔테이션 종료 시간이 시작 시간보다 늦어야 합니다', 'error')
+            elif not workplace.room(db, room_code):
+                flash('오리엔테이션 방을 골라 주세요', 'error')
+            else:
+                vals = {'start_weekdays': ','.join(map(str, wds)), 'orientation_room': room_code,
+                        'orientation_start': o_s, 'orientation_end': o_e,
+                        'orientation_release_days': str(rel)}
+                for k, v in vals.items():
+                    db.execute('INSERT INTO company_settings (key, value) VALUES (?, ?) '
+                               'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (k, v))
+                db.commit()
+                log_audit('update', 'document', detail='workplace_rules ' + json.dumps(vals, ensure_ascii=False))
+                flash('입사일·오리엔테이션 규칙 저장 완료', 'success')
+            return redirect(url_for('workplace_settings'))
+        if act in ('check', 'import'):
+            raw = request.form.get('data', '')
+            try:
+                data = workplace.parse_blobs(raw)
+            except ValueError as e:
+                preview = {'fatal': str(e)}
+            else:
+                errors, warnings, summary = workplace.validate(db, data)
+                preview = {'errors': errors, 'warnings': warnings, 'summary': summary}
+                if act == 'import' and not errors:
+                    workplace.import_data(db, data, session.get('user_id'))
+                    db.commit()
+                    log_audit('update', 'document', detail='workplace_import ' + json.dumps(summary, ensure_ascii=False))
+                    parts = []
+                    if summary['rooms']:
+                        parts.append('층 %d · 회의실 %d' % (summary['floors'], summary['rooms']))
+                    if summary['has_onboarding']:
+                        parts.append('온보딩 할 일 %d' % summary['tasks'])
+                    flash('저장 완료 — ' + ' · '.join(parts) + (' · 확인 필요 %d건' % len(warnings) if warnings else ''), 'success')
+                    return redirect(url_for('workplace_settings'))
+
+    st = workplace.settings(db)
+    today = date.today()
+    fl = workplace.floors(db)
+    rms = workplace.rooms(db)
+    starts = workplace.next_start_dates(db, today, 6, st)
+    upcoming = [{'date': d, 'wd': workplace.WEEKDAY_KO[d.weekday()], 'people': workplace.hires_on(db, d),
+                 'released': (d - today).days <= st['release_days'] and not workplace.hires_on(db, d)}
+                for d in starts]
+    next_year_holidays = db.execute('SELECT COUNT(*) FROM public_holidays WHERE year=?', (today.year + 1,)).fetchone()[0]
+    return render_template('workplace/settings.html',
+        st=st, sites=workplace.sites(db), floors=fl, rooms=rms,
+        room_types=workplace.ROOM_TYPES, bookable_label=workplace.BOOKABLE_LABEL,
+        company=get_company_info(), onboarding=workplace.onboarding_content(db),
+        upcoming=upcoming, weekday_ko=workplace.WEEKDAY_KO,
+        next_year_holidays=next_year_holidays, next_year=today.year + 1,
+        preview=preview, raw=raw, active_page='workplace')
+
+
+def _rooms_redirect(d=None, floor=None):
+    return redirect(url_for('rooms', date=d or request.form.get('date') or None,
+                            floor=floor or request.form.get('floor') or None))
+
+
+@app.route('/rooms')
+@login_required
+def rooms():
+    """회의실 예약 — 층 배치도 + 30분 칸 시간표 + 내 예약."""
+    db = get_db()
+    uid, role = session.get('user_id'), session.get('user_role')
+    fl = workplace.floors(db)
+    if not fl:
+        return render_template('workplace/rooms.html', empty=True, active_page='rooms')
+    today = date.today()
+    now = datetime.now()
+    day = workplace.to_date(request.args.get('date')) or today
+    fkey = request.args.get('floor', '')
+    cur = next((f for f in fl if '%s-%s' % (f['site_code'], f['floor']) == fkey), None)
+    if not cur:
+        me = db.execute('SELECT department_id FROM users WHERE id=?', (uid,)).fetchone()
+        cur = (workplace.dept_floor(db, me['department_id']) if me else None) or fl[0]
+    all_rooms = workplace.rooms(db)
+    frooms = [r for r in all_rooms if r['site_code'] == cur['site_code'] and r['floor'] == cur['floor']]
+    is_hr = workplace.is_hr_member(db, uid, role)
+    st = workplace.settings(db)
+
+    by_room = {r['code']: [] for r in frooms}
+    for b in workplace.bookings_between(db, day, day):
+        if b['room_code'] in by_room:
+            b['mine'] = b['user_id'] == uid
+            if b['kind'] == 'interview' and not is_hr and not b['mine']:
+                b['title'] = '면접'
+            by_room[b['room_code']].append(b)
+    for blk in workplace.orientation_blocks(db, day, day, today=today, st=st):
+        if blk['room_code'] in by_room:
+            blk['mine'] = False
+            if not is_hr:
+                blk['title'] = '신규 입사자 오리엔테이션'
+            by_room[blk['room_code']].append(blk)
+
+    slots = []
+    t = workplace.hm(workplace.GRID_START)
+    while t < workplace.hm(workplace.GRID_END):
+        slots.append(workplace.fmt_hm(t))
+        t += workplace.SLOT_MIN
+    now_hm = now.strftime('%H:%M') if day == today else None
+
+    rows, status = [], {}
+    for r in frooms:
+        items = sorted(by_room[r['code']], key=lambda b: b['start_at'])
+        for b in items:
+            b['col'] = (workplace.hm(b['start_at'][11:16]) - workplace.hm(workplace.GRID_START)) // workplace.SLOT_MIN + 1
+            b['span'] = max(1, (workplace.hm(b['end_at'][11:16]) - workplace.hm(b['start_at'][11:16])) // workplace.SLOT_MIN)
+        taken = set()
+        for b in items:
+            taken.update(range(b['col'], b['col'] + b['span']))
+        ok = workplace.can_book(db, r, uid, role)
+        rows.append({'room': r, 'items': items, 'taken': sorted(taken), 'can': ok})
+        if day < today:
+            continue
+        if now_hm:
+            busy = next((b for b in items if b['start_at'][11:16] <= now_hm < b['end_at'][11:16]), None)
+            nxt = next((b for b in items if b['start_at'][11:16] > now_hm), None)
+            if busy:
+                status[r['code']] = {'kind': 'busy', 'text': '사용 중 ~%s' % busy['end_at'][11:16]}
+            elif nxt:
+                status[r['code']] = {'kind': 'free', 'text': '비어 있음 · %s부터 예약' % nxt['start_at'][11:16]}
+            else:
+                status[r['code']] = {'kind': 'free', 'text': '오늘 비어 있음'}
+        else:
+            status[r['code']] = {'kind': 'lock' if items else 'free',
+                                 'text': ('예약 %d건' % len(items)) if items else '종일 비어 있음'}
+        if not ok:
+            status[r['code']]['text'] = workplace.BOOKABLE_LABEL[r['bookable_by']] + ' 전용 · ' + status[r['code']]['text']
+
+    mine = [dict(b) for b in db.execute(
+        "SELECT b.*, r.name AS room_name, r.floor FROM room_bookings b JOIN workplace_rooms r ON r.code=b.room_code "
+        "WHERE b.user_id=? AND b.status='active' AND b.end_at >= ? ORDER BY b.start_at LIMIT 30",
+        (uid, now.strftime('%Y-%m-%d %H:%M')))]
+    for b in mine:
+        d = workplace.to_date(b['start_at'])
+        b['label'] = '%s (%s) %s~%s' % (d.strftime('%m.%d'), workplace.WEEKDAY_KO[d.weekday()], b['start_at'][11:16], b['end_at'][11:16])
+
+    return render_template('workplace/rooms.html', empty=False,
+        floors=fl, cur=cur, cur_key='%s-%s' % (cur['site_code'], cur['floor']), rooms=frooms, rows=rows,
+        status=status, slots=slots, day=day, today=today, now_hm=now_hm,
+        prev_day=day - timedelta(days=1), next_day=day + timedelta(days=1),
+        weekday=workplace.WEEKDAY_KO[day.weekday()], mine=mine, bookable_label=workplace.BOOKABLE_LABEL,
+        is_start_day=workplace.is_start_day(db, day, st), st=st,
+        grid_start=workplace.GRID_START, grid_end=workplace.GRID_END, active_page='rooms')
+
+
+@app.route('/rooms/book', methods=['POST'])
+@login_required
+def room_book():
+    db = get_db()
+    f = request.form
+    d = f.get('date', '')
+    bid, err, _hit = workplace.create_booking(
+        db, f.get('room', ''), f.get('title', ''),
+        '%s %s' % (d, f.get('start', '')), '%s %s' % (d, f.get('end', '')),
+        user_id=session.get('user_id'), role=session.get('user_role'),
+        attendees=f.get('attendees') if (f.get('attendees') or '').isdigit() else 0,
+        note=f.get('note', ''), booked_by=session.get('user_name', ''))
+    if err:
+        flash(err, 'error')
+    else:
+        db.commit()
+        rm = workplace.room(db, f.get('room'))
+        flash('%s %s %s~%s 예약 완료' % (rm['name'], d[5:].replace('-', '.'), f.get('start'), f.get('end')), 'success')
+    return _rooms_redirect(d)
+
+
+@app.route('/rooms/bookings/<int:bid>/cancel', methods=['POST'])
+@login_required
+def room_cancel(bid):
+    db = get_db()
+    b = db.execute("SELECT * FROM room_bookings WHERE id=? AND status='active'", (bid,)).fetchone()
+    if not b:
+        flash('이미 취소되었거나 없는 예약입니다', 'error')
+    elif b['user_id'] != session.get('user_id') and session.get('user_role') != 'admin':
+        flash('본인 예약만 취소할 수 있습니다', 'error')
+    else:
+        db.execute("UPDATE room_bookings SET status='cancelled', cancelled_at=CURRENT_TIMESTAMP WHERE id=?", (bid,))
+        db.commit()
+        flash('예약을 취소했습니다 — %s %s' % (b['title'], b['start_at'][5:].replace('-', '.')), 'success')
+    return _rooms_redirect(b['start_at'][:10] if b else None)
+
+
+@app.route('/rooms/bookings/<int:bid>.ics')
+@login_required
+def room_ics(bid):
+    db = get_db()
+    b = db.execute('SELECT * FROM room_bookings WHERE id=?', (bid,)).fetchone()
+    if not b or (b['user_id'] != session.get('user_id') and session.get('user_role') != 'admin'):
+        abort(404)
+    rm = workplace.room(db, b['room_code'])
+    site = next((s for s in workplace.sites(db) if s['code'] == rm['site_code']), None)
+    return Response(workplace.ics_text(dict(b), rm, site), mimetype='text/calendar',
+                    headers={'Content-Disposition': 'attachment; filename="booking-%d.ics"' % bid})
+
+
+@app.route('/settings/workplace/export')
+@admin_required
+def workplace_export():
+    body = json.dumps(workplace.export_data(get_db()), ensure_ascii=False, indent=2)
+    return Response(body, mimetype='application/json',
+                    headers={'Content-Disposition': 'attachment; filename="workplace.json"'})
 
 
 @app.route('/recruit/dashboard')
