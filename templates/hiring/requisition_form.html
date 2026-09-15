@@ -70,17 +70,17 @@
 /* 고용형태 카드 */
 .emp-type-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; }
 @media (max-width: 640px) { .emp-type-grid { grid-template-columns: repeat(3,1fr); } }
+/* 선택 상태는 반전(무채색)으로만 표시한다 — 예전 그라데이션 변수가 없어져 선택된 칸이 투명하게 사라졌었다 */
 .emp-type-card {
-  padding: 10px 6px; border-radius: var(--radius-sm);
-  background: var(--surface-container-low);
+  padding: 10px 6px; border-radius: var(--r-sm);
+  background: var(--surface); border: 1px solid var(--line-2);
   text-align: center; cursor: pointer;
-  transition: all .15s; font-size: 12px; font-weight: 600;
-  color: var(--on-surface-variant); user-select: none;
+  transition: background .12s, border-color .12s; font-size: 12.5px; font-weight: 600;
+  color: var(--tx-2); user-select: none;
 }
-.emp-type-card:hover { background: var(--secondary-container); color: var(--on-secondary-container); }
+.emp-type-card:hover { border-color: var(--line-strong); color: var(--tx-1); background: var(--hover); }
 .emp-type-card.selected {
-  background: linear-gradient(135deg, var(--primary), var(--primary-container));
-  color: var(--on-primary); box-shadow: 0 4px 12px var(--surface-2);
+  background: var(--inv-bg); color: var(--inv-tx); border-color: var(--inv-bg);
 }
 .emp-type-card .etc-icon { font-size: 18px; display: block; margin-bottom: 4px; }
 
@@ -193,14 +193,26 @@
   background:var(--bg); border:1px solid var(--border);
   font-size:12px; line-height:1.7; color:var(--tx-2);
 }
-.flow-note .h { font-weight:800; color:var(--tx-1); margin-bottom:5px; display:block; }
-.flow-chain { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
-.flow-pill {
-  padding:3px 10px; border-radius:20px; background:var(--surface);
-  border:1px solid var(--border); font-size:11.5px; font-weight:700; color:var(--tx-1);
+.flow-note .h { font-weight:700; color:var(--tx-1); margin-bottom:6px; display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.flow-note .h small { font-weight:400; color:var(--tx-3); font-size:11.5px; }
+.flow-chain { display:flex; flex-direction:column; }
+.flow-empty { font-size:12px; color:var(--tx-3); padding:4px 0; }
+/* 결재자 한 줄 — 순번 · 단계 · 사람 · 경로 메모 */
+.flow-step {
+  display:grid; grid-template-columns:22px 120px 1fr auto; gap:10px; align-items:baseline;
+  padding:6px 0; border-top:1px solid var(--line);
 }
-.flow-arrow { color:var(--tx-3); font-size:11px; }
-.flow-days { font-size:11px; color:var(--tx-3); margin-left:2px; font-weight:600; }
+.flow-step:first-child { border-top:0; }
+@media (max-width:640px) { .flow-step { grid-template-columns:22px 1fr; } .flow-step > :nth-child(n+3) { grid-column:2; } }
+.flow-step .no { font-family:var(--mono); font-size:11px; color:var(--tx-3); }
+.flow-step .lb { font-size:12px; color:var(--tx-2); }
+.flow-step .who { font-size:13px; font-weight:600; color:var(--tx-1); }
+.flow-step .who small { font-weight:400; color:var(--tx-3); font-size:11.5px; margin-left:6px; }
+.flow-step .memo { font-size:11px; color:var(--tx-3); margin-top:2px; font-weight:400; }
+.flow-step .memo.route { color:var(--wait); }
+.flow-step .sla { font-family:var(--mono); font-size:11px; color:var(--tx-3); white-space:nowrap; }
+.flow-step.skip .lb, .flow-step.skip .who { color:var(--tx-3); text-decoration:line-through; font-weight:400; }
+.flow-days { font-size:11px; color:var(--tx-3); font-weight:400; }
 .iv-preview { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
 .iv-slot { flex:1 1 180px; border:1px solid var(--border); border-radius:8px;
            padding:10px 12px; display:flex; flex-direction:column; gap:4px;
@@ -236,7 +248,7 @@
       </div>
 
       <div class="flow-note">
-        <span class="h">이 유형의 결재선</span>
+        <span class="h">결재선 <small id="flow-sum"></small></span>
         <div class="flow-chain" id="flow-chain"></div>
       </div>
 
@@ -573,7 +585,7 @@
    "몇 명까지 뽑아도 되나"가 아니라 "이 채용이 돈을 새로 쓰는가"가
    결재 단계를 정한다. 고르는 순간 몇 단계를 밟게 되는지 바로 보여 준다. */
 var FLOW  = {{ flow_preview | tojson }};
-var ROLES = {'dept_head': '요청 부서의 부서장', 'hr': '인사팀', 'user': '지정한 사람'};
+var FLOW_URL = {{ url_for('requisition_flow_preview') | tojson }};
 
 function pickHireType(key, card) {
   document.getElementById('ht-hidden').value = key;
@@ -582,20 +594,52 @@ function pickHireType(key, card) {
   renderFlow(key);
 }
 
+function esc(t) {
+  return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) {
+    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+  });
+}
+
+/* 부서 + 채용 유형 + 요청자(나) → 실제 결재자. 상신할 때와 같은 규칙을 서버에서 계산한다 */
+var flowSeq = 0;
 function renderFlow(key) {
   var box = document.getElementById('flow-chain');
+  var sum = document.getElementById('flow-sum');
   if (!box) return;
-  var steps = FLOW[key] || [];
-  var days  = 0;
-  var html  = '';
-  steps.forEach(function (st, i) {
-    days += (st.sla_days || 2);
-    if (i) html += '<span class="flow-arrow"><i class="fas fa-chevron-right"></i></span>';
-    html += '<span class="flow-pill">' + (i + 1) + '. ' +
-            (st.label || ROLES[st.role_kind] || '') + '</span>';
-  });
-  html += '<span class="flow-days">· 넉넉히 잡아 ' + days + '일</span>';
-  box.innerHTML = html || '<span class="flow-days">결재 단계가 없습니다.</span>';
+  var dept = (document.getElementById('dept-select') || {}).value;
+  if (!dept) {
+    var names = (FLOW[key] || []).map(function (st) { return esc(st.label); }).join(' → ');
+    box.innerHTML = '<div class="flow-empty">' + names + '<br>부서를 고르면 단계마다 결재자 이름이 표시됩니다.</div>';
+    sum.textContent = '';
+  } else {
+    var my = ++flowSeq;
+    fetch(FLOW_URL + '?dept=' + encodeURIComponent(dept) + '&hire_type=' + encodeURIComponent(key),
+          {credentials: 'same-origin'})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (my !== flowSeq) return;
+        var html = '';
+        (d.steps || []).forEach(function (st) {
+          var who = st.name
+            ? esc(st.name) + '<small>' + esc([st.pos, st.dept].filter(Boolean).join(' · ')) + '</small>'
+            : '<small>결재자 없음</small>';
+          var memo = '';
+          if (st.skipped) memo += '<div class="memo">' + esc(st.skipped) + '</div>';
+          else if (st.note) memo += '<div class="memo route">' + esc(st.note) + '</div>';
+          if (!st.skipped && st.delegate_name) memo += '<div class="memo">부재 시 대결 ' + esc(st.delegate_name) + '</div>';
+          html += '<div class="flow-step' + (st.skipped ? ' skip' : '') + '">' +
+                  '<span class="no">' + (st.step_no || '–') + '</span>' +
+                  '<span class="lb">' + esc(st.label) + '</span>' +
+                  '<span class="who">' + who + memo + '</span>' +
+                  '<span class="sla">' + (st.skipped ? '' : st.sla_days + '일') + '</span></div>';
+        });
+        box.innerHTML = html || '<div class="flow-empty">결재 단계가 없습니다.</div>';
+        sum.textContent = d.count ? d.count + '단계 · 최대 ' + d.total_days + '일' : '';
+      })
+      .catch(function () {
+        if (my === flowSeq) box.innerHTML = '<div class="flow-empty">결재자를 불러오지 못했습니다.</div>';
+      });
+  }
 
   document.getElementById('backfill-field').style.display = (key === 'backfill') ? '' : 'none';
   document.getElementById('backfill-select').required     = (key === 'backfill');
@@ -604,6 +648,10 @@ function renderFlow(key) {
 
 document.addEventListener('DOMContentLoaded', function () {
   renderFlow(document.getElementById('ht-hidden').value);
+  var ds = document.getElementById('dept-select');
+  if (ds) ds.addEventListener('change', function () {
+    renderFlow(document.getElementById('ht-hidden').value);
+  });
   renderSeatLines();
 });
 

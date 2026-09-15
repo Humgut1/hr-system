@@ -4,60 +4,109 @@
 
 {% block extra_css %}
 <style>
-/* 결재선은 회사마다 다르다. 코드에 박아두면 회사가 바뀔 때마다 개발자를 불러야 한다.
-   여기서 바꾸면 다음에 올라오는 요청서부터 바로 적용된다. */
-.rf-lead {
-  display:flex; align-items:flex-start; gap:9px; max-width:880px; margin-bottom:18px;
-  background:var(--surface); border:1px solid var(--border); border-radius:10px;
-  padding:12px 15px; font-size:12.5px; line-height:1.75; color:var(--tx-2);
-}
-.rf-lead i { color:var(--primary); margin-top:3px; }
-.rf-lead b { color:var(--tx-1); }
+/* 결재선은 회사마다 다르다. 여기서 바꾸면 다음에 올라오는 요청서부터 바로 적용된다.
+   결재자는 '역할'로 적고, 실제 사람은 상신하는 순간 조직도와 아래 결재 역할 표로 정해진다. */
+.rf-wrap { max-width:1040px; }
+.rf-sec { font-size:13px; font-weight:700; color:var(--tx-1); margin:22px 0 8px; }
+.rf-sec small { font-weight:400; color:var(--tx-3); margin-left:8px; font-size:12px; }
 
 .rf-block {
-  background:var(--surface); border:1px solid var(--border); border-radius:10px;
-  padding:16px 18px; margin-bottom:14px;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+  padding:14px 18px; margin-bottom:12px;
 }
-.rf-head { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:4px; }
-.rf-name { font-size:15px; font-weight:800; color:var(--tx-1); letter-spacing:-.01em; }
-.rf-hint { font-size:12px; color:var(--tx-3); }
+.rf-head { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+.rf-name { font-size:14px; font-weight:700; color:var(--tx-1); }
+.rf-hint { font-size:12px; color:var(--tx-3); line-height:1.6; }
 
+/* C레벨 표 */
+.rr-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+.rr-table th { text-align:left; font-size:11px; font-weight:600; color:var(--tx-3); padding:6px 8px;
+  border-bottom:1px solid var(--line); }
+.rr-table td { padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+.rr-table tr:last-child td { border-bottom:0; }
+.rr-key { font-family:var(--mono); font-size:11.5px; color:var(--tx-2); width:64px; }
+.rr-title { color:var(--tx-1); font-weight:600; width:150px; }
+.rr-miss { color:var(--late); font-size:11.5px; }
+
+/* 단계 줄 */
 .rf-row {
-  display:grid; grid-template-columns:34px 1.1fr 1.4fr 1.4fr 92px;
-  gap:9px; align-items:center; padding:8px 0;
-  border-bottom:1px solid var(--border);
+  display:grid; grid-template-columns:28px 1.2fr 1.4fr 1.2fr 80px;
+  gap:9px; align-items:start; padding:8px 0; border-bottom:1px solid var(--line);
 }
 .rf-row:last-of-type { border-bottom:0; }
-@media (max-width:840px) { .rf-row { grid-template-columns:34px 1fr; } }
+@media (max-width:840px) { .rf-row { grid-template-columns:28px 1fr; } .rf-row > div:nth-child(n+3) { grid-column:2; } }
 .rf-no {
-  width:26px; height:26px; border-radius:50%; background:var(--bg-3); color:var(--tx-3);
-  display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800;
+  width:24px; height:24px; margin-top:16px; border-radius:50%; border:1px solid var(--line-2); color:var(--tx-3);
+  display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:700;
 }
-.rf-row.on .rf-no { background:var(--primary); color:var(--on-primary); }
-.rf-cap { font-size:10.5px; font-weight:700; color:var(--tx-3); letter-spacing:.02em; margin-bottom:3px; }
+.rf-row.on .rf-no { background:var(--inv-bg); color:var(--inv-tx); border-color:var(--inv-bg); }
+.rf-cap { font-size:10.5px; font-weight:600; color:var(--tx-3); margin-bottom:3px; }
 .rf-in {
-  width:100%; padding:6px 9px; font-size:12.5px; border:1.5px solid var(--border);
-  border-radius:7px; background:var(--bg); color:var(--tx-1);
+  width:100%; padding:6px 9px; font-size:12.5px; border:1px solid var(--line-2);
+  border-radius:var(--r-sm); background:var(--bg); color:var(--tx-1);
 }
-.rf-in:focus { outline:none; border-color:var(--primary); }
+.rf-in:focus { outline:none; border-color:var(--line-strong); }
+.rf-in:disabled { color:var(--tx-3); background:var(--surface-2); }
 .rf-days { text-align:right; font-variant-numeric:tabular-nums; }
-.rf-foot { display:flex; align-items:center; gap:12px; margin-top:16px; }
+.rf-rule { font-size:11px; color:var(--tx-3); margin-top:4px; line-height:1.5; min-height:16px; }
+.rf-foot { display:flex; align-items:center; gap:12px; margin:16px 0 30px; flex-wrap:wrap; }
+
+.rf-rules { font-size:12px; color:var(--tx-2); line-height:1.8; margin:0; padding-left:18px; }
+.rf-rules b { color:var(--tx-1); font-weight:600; }
 </style>
 {% endblock %}
 
 {% block content %}
-
-<div class="rf-lead">
-  <i class="fas fa-route"></i>
-  <div>
-    <b>충원 구분별 결재선</b><br>
-    결원 충원: 인건비 증가 없음 · 계획 증원 / 예산 외 증원: 인건비 증가.
-    변경 내용은 신규 상신 건부터 적용 (진행 중인 결재는 기존 결재선 유지)
-  </div>
-</div>
+<div class="rf-wrap">
 
 <form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="rf-block">
+    <div class="rf-head"><span class="rf-name">결재선 원칙</span></div>
+    <ul class="rf-rules">
+      <li><b>본인 결재 금지</b> — 요청자가 그 자리의 결재자면 한 단계 위로 올라갑니다 (팀장이 올리면 실장부터).</li>
+      <li><b>공석이면 위로</b> — 조직장이 비어 있거나 퇴사했으면 상위 조직장, 끝까지 없으면 대표이사.</li>
+      <li><b>같은 사람은 한 번만</b> — 앞 단계와 결재자가 같으면 뒤 단계는 생략됩니다.</li>
+      <li><b>대결</b> — 결재자가 휴가(연차·병가 등)거나 퇴사했으면 대결자가 대신 처리할 수 있습니다. 조직장의 대결자는 그 위 조직장입니다.</li>
+      <li><b>결재자는 상신할 때 확정</b> — 이후 조직이 바뀌어도 진행 중인 요청서는 그대로이며, 관리자가 요청서 화면에서 사유를 적고 바꿀 수 있습니다.</li>
+    </ul>
+  </div>
+
+  <div class="rf-sec">결재 역할 <small>경영진(C레벨)·인사 담당 단계를 누가 결재하는지</small></div>
+  <div class="rf-block" style="overflow-x:auto;">
+    <table class="rr-table">
+      <thead><tr><th>역할</th><th>직함</th><th>결재자</th><th>대결자 (부재 시)</th></tr></thead>
+      <tbody>
+      {% for key, r in exec_roles.items() %}
+        <tr>
+          <td class="rr-key">{{ r.short }}</td>
+          <td class="rr-title">{{ r.title }}
+            {% if not r.user_id %}<div class="rr-miss">미지정 — 대표이사가 대신 결재</div>{% endif %}
+          </td>
+          <td>
+            <select name="role_{{ key }}_user" class="rf-in">
+              <option value="">— 미지정 —</option>
+              {% for u in people %}
+              <option value="{{ u.id }}" {% if r.user_id == u.id %}selected{% endif %}>{{ u.name }}{% if u.pos_name %} · {{ u.pos_name.replace(' — ', ' ') }}{% endif %}{% if u.dept_name %} · {{ u.dept_name }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <select name="role_{{ key }}_delegate" class="rf-in">
+              <option value="">— 없음 —</option>
+              {% for u in people %}
+              <option value="{{ u.id }}" {% if r.delegate_id == u.id %}selected{% endif %}>{{ u.name }}{% if u.pos_name %} · {{ u.pos_name.replace(' — ', ' ') }}{% endif %}{% if u.dept_name %} · {{ u.dept_name }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="rf-sec">충원 구분별 단계 <small>결원 충원은 인건비 증가 없음 · 계획/예산 외 증원은 인건비 증가 · 최대 6단계</small></div>
 
   {% for ht, label in hire_type_labels.items() %}
   {% set steps = flows.get(ht, []) %}
@@ -66,42 +115,43 @@
       <span class="rf-name">{{ label }}</span>
       <span class="rf-hint">{{ hire_type_hints.get(ht, '') }}</span>
     </div>
-    <div class="rf-hint" style="margin-bottom:10px;">
-      단계를 빼려면 <b>결재자</b>를 "— 쓰지 않음 —"으로 바꾸세요. 최대 6단계까지 만들 수 있습니다.
-    </div>
 
     {% for i in range(1, 7) %}
     {% set st = steps[i-1] if steps|length >= i else None %}
-    <div class="rf-row {% if st %}on{% endif %}">
+    <div class="rf-row {% if st %}on{% endif %}" data-ht="{{ ht }}" data-i="{{ i }}">
       <div class="rf-no">{{ i }}</div>
 
       <div>
-        <div class="rf-cap">결재자</div>
-        <select name="{{ ht }}_kind_{{ i }}" class="rf-in" onchange="togglePerson(this, '{{ ht }}', {{ i }})">
+        <div class="rf-cap">결재자 유형</div>
+        <select name="{{ ht }}_kind_{{ i }}" class="rf-in js-kind">
           <option value="">— 쓰지 않음 —</option>
           {% for k, kl in role_labels.items() %}
           <option value="{{ k }}" {% if st and st.role_kind == k %}selected{% endif %}>{{ kl }}</option>
           {% endfor %}
         </select>
+        <div class="rf-rule js-rule"></div>
       </div>
 
       <div>
-        <div class="rf-cap">사람 지정 <span style="font-weight:400;">("지정한 사람"일 때만)</span></div>
-        <select name="{{ ht }}_user_{{ i }}" class="rf-in" id="{{ ht }}_user_{{ i }}"
-                {% if not (st and st.role_kind == 'user') %}disabled{% endif %}>
-          <option value="">— 정하지 않음 (인사팀이 대신 처리) —</option>
+        <div class="rf-cap">대상</div>
+        <select name="{{ ht }}_exec_{{ i }}" class="rf-in js-exec" {% if not (st and st.role_kind == 'exec') %}hidden{% endif %}>
+          {% for key, r in exec_roles.items() %}{% if key != 'hr_desk' %}
+          <option value="{{ key }}" {% if st and st.exec_key == key %}selected{% endif %}>{{ r.short }} · {{ r.title }}{% if r.user_name %} ({{ r.user_name }}){% endif %}</option>
+          {% endif %}{% endfor %}
+        </select>
+        <select name="{{ ht }}_user_{{ i }}" class="rf-in js-user" {% if not (st and st.role_kind == 'user') %}hidden{% endif %}>
+          <option value="">— 선택 —</option>
           {% for u in people %}
-          <option value="{{ u.id }}" {% if st and st.user_id == u.id %}selected{% endif %}>
-            {{ u.name }}{% if u.pos_name %} · {{ u.pos_name }}{% endif %}{% if u.dept_name %} · {{ u.dept_name }}{% endif %}
-          </option>
+          <option value="{{ u.id }}" {% if st and st.user_id == u.id %}selected{% endif %}>{{ u.name }}{% if u.pos_name %} · {{ u.pos_name.replace(' — ', ' ') }}{% endif %}{% if u.dept_name %} · {{ u.dept_name }}{% endif %}</option>
           {% endfor %}
         </select>
+        <input class="rf-in js-auto" disabled value="조직도에서 자동" {% if st and st.role_kind in ('exec','user') %}hidden{% endif %}>
       </div>
 
       <div>
         <div class="rf-cap">단계 이름</div>
         <input type="text" name="{{ ht }}_label_{{ i }}" class="rf-in" maxlength="40"
-               value="{{ st.label if st else '' }}" placeholder="예: 부서장 승인">
+               value="{{ st.label if st else '' }}" placeholder="예: 조직장 승인">
       </div>
 
       <div>
@@ -115,24 +165,31 @@
   {% endfor %}
 
   <div class="rf-foot">
-    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 결재선 저장</button>
-    <span class="rf-hint">
-      "요청 부서의 부서장"은 요청서에 적힌 부서의 팀장·관리자를 자동으로 찾습니다.
-      그런 사람이 없으면 인사팀이 대신 봅니다.
-    </span>
+    <button type="submit" class="btn btn-primary btn-sm">결재선 저장</button>
+    <span class="rf-hint">저장하면 다음 상신부터 적용됩니다. 진행 중인 결재는 기존 결재자를 유지합니다.</span>
   </div>
 </form>
-
+</div>
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
 <script>
-function togglePerson(sel, ht, i) {
-  var box = document.getElementById(ht + '_user_' + i);
-  if (!box) return;
-  box.disabled = (sel.value !== 'user');
-  if (box.disabled) box.value = '';
-}
+(function () {
+  var HINTS = {{ role_hints | tojson }};
+  function sync(row) {
+    var kind = row.querySelector('.js-kind').value;
+    row.classList.toggle('on', !!kind);
+    row.querySelector('.js-exec').hidden = kind !== 'exec';
+    row.querySelector('.js-user').hidden = kind !== 'user';
+    row.querySelector('.js-auto').hidden = kind === 'exec' || kind === 'user';
+    row.querySelector('.js-auto').value = kind ? '조직도에서 자동' : '—';
+    row.querySelector('.js-rule').textContent = HINTS[kind] || '';
+  }
+  document.querySelectorAll('.rf-row').forEach(function (row) {
+    sync(row);
+    row.querySelector('.js-kind').addEventListener('change', function () { sync(row); });
+  });
+})();
 </script>
 {% endblock %}

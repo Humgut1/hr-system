@@ -62,26 +62,84 @@
           {% else %}{{ st.step_no }}{% endif %}
         </div>
         <div style="flex:1; min-width:0;">
-          <div style="font-size:13px; font-weight:700; color:var(--tx-1);">
-            {{ st.label or role_labels.get(st.role_kind, '') }}
-            <span style="font-weight:500; font-size:11.5px; color:var(--tx-3); margin-left:6px;">
-              {{ role_labels.get(st.role_kind, '') }}
-            </span>
-          </div>
-          <div style="font-size:11.5px; color:var(--tx-3); margin-top:3px;">
-            {% if st.status == 'approved' %}
-              {{ st.approver_name or '—' }} 승인 · {{ st.acted_at[:16] if st.acted_at else '' }}
-            {% elif st.status == 'rejected' %}
-              {{ st.approver_name or '—' }} 반려 · {{ st.acted_at[:16] if st.acted_at else '' }}
-            {% elif cur_step and st.id == cur_step.id %}
-              지금 이 단계 대기 중{% if st.due_at %} · {{ st.due_at[:10] }}까지{% endif %}
+          <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;">
+            <span style="font-size:12px; color:var(--tx-2); min-width:110px;">{{ st.label or role_labels.get(st.role_kind, '') }}</span>
+            {% if st.assignee_name %}
+            <span style="font-size:13px; font-weight:600; color:var(--tx-1);">{{ st.assignee_name }}</span>
+            <span style="font-size:11.5px; color:var(--tx-3);">{{ ((st.assignee_pos or '').replace(' — ', ' '), st.assignee_dept) | select | join(' · ') }}</span>
             {% else %}
-              앞 단계가 끝나면 시작합니다
+            <span style="font-size:11.5px; color:var(--tx-3);">{{ role_labels.get(st.role_kind, '') }}</span>
+            {% endif %}
+          </div>
+          {% if st.route_note %}
+          <div style="font-size:11px; color:var(--wait); margin-top:2px;">{{ st.route_note }}</div>
+          {% endif %}
+          <div style="font-size:11.5px; color:var(--tx-3); margin-top:3px;">
+            {% set how = acted_as_labels.get(st.acted_as or 'self', '') %}
+            {% if st.status == 'approved' %}
+              {{ st.approver_name or '—' }} 승인{% if how %} ({{ how }}){% endif %} · {{ st.acted_at[:16] if st.acted_at else '' }}
+            {% elif st.status == 'rejected' %}
+              {{ st.approver_name or '—' }} 반려{% if how %} ({{ how }}){% endif %} · {{ st.acted_at[:16] if st.acted_at else '' }}
+            {% elif cur_step and st.id == cur_step.id %}
+              대기 중{% if st.due_at %} · {{ st.due_at[:10] }}까지{% endif %}
+              {% if st.delegate_name %} · 부재 시 대결 {{ st.delegate_name }}{% if cur_away %} <b style="color:var(--wait);">(결재자 부재 — 대결 가능)</b>{% endif %}{% endif %}
+            {% else %}
+              앞 단계 완료 후 시작{% if st.delegate_name %} · 부재 시 대결 {{ st.delegate_name }}{% endif %}
             {% endif %}
           </div>
           {% if st.comment %}
           <div style="margin-top:6px; font-size:12px; color:var(--tx-2); background:var(--bg);
                       padding:7px 10px; border-radius:6px; white-space:pre-wrap;">{{ st.comment }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 승인 후 절차 — 요청서가 승인된 뒤 무엇을 누가 하는지 -->
+  {% if req.status in ('approved', 'posted') %}
+  {% set live_cnt = openings | selectattr('status', 'in', ['open', 'filled']) | list | length %}
+  {% set g_done = [
+      openings | length > 0,
+      live_cnt > 0 or req.status == 'posted',
+      fill.reserved > 0 or fill.filled > 0,
+      fill.reserved > 0 or fill.filled > 0,
+      fill.done ] %}
+  {% set g_now = g_done.index(false) if false in g_done else 99 %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head">
+      <span class="card-title">승인 후 절차</span>
+      <span style="font-size:11.5px; color:var(--tx-3);">충원 {{ fill.filled }}/{{ fill.total }} · 예약 {{ fill.reserved }}</span>
+    </div>
+    <div class="card-body" style="padding:6px 20px 14px;">
+      {% set guide = [
+        ('포지션 생성', '최종 승인과 동시에 인원 수만큼 포지션(자리) 카드가 만들어집니다.', '자동', None),
+        ('Hire로 공고 보내기', '포지션 화면에서 이 요청서의 카드를 골라 "Hire로 보내기"를 누르면 Hire에 공고가 생깁니다.', '인사·채용 담당', url_for('opening_board')),
+        ('서류·면접·오퍼', 'Hire에서 지원자를 받고 1차(' ~ (chain.hm_name or '부서장') ~ ') · 2차(' ~ (chain.senior_name or '차상위 조직장') ~ (', ' ~ req.collab_leader_name if req.collab_leader_name and req.collab_leader_name != chain.senior_name else '') ~ ') 면접 후 오퍼를 보냅니다.', '채용 담당 · 면접관', None),
+        ('입사 예정자 예약', '지원자가 오퍼를 수락하면 포지션이 그 사람 이름으로 예약되고, 입사 예정자 목록에 올라갑니다.', '자동', None),
+        ('입사 · 충원', '입사일에 입사 예정자를 직원으로 전환하면 계정이 만들어지고 포지션이 충원으로 닫힙니다.', '인사 담당', None),
+      ] %}
+      {% for t, d, who, link in guide %}
+      {% set i = loop.index0 %}
+      <div style="display:grid; grid-template-columns:22px 1fr auto; gap:10px; padding:9px 0;
+                  {% if not loop.last %}border-bottom:1px solid var(--line);{% endif %}">
+        <span style="font-family:var(--mono); font-size:11px; padding-top:2px;
+                     color:{% if g_done[i] %}var(--done){% elif i == g_now %}var(--wait){% else %}var(--tx-3){% endif %};">
+          {% if g_done[i] %}<i class="fas fa-check"></i>{% else %}{{ loop.index }}{% endif %}</span>
+        <div>
+          <div style="font-size:13px; font-weight:600; color:{% if g_done[i] or i == g_now %}var(--tx-1){% else %}var(--tx-2){% endif %};">
+            {{ t }}
+            <span style="font-size:11px; font-weight:400; color:var(--tx-3); margin-left:6px;">{{ who }}</span>
+            {% if i == g_now %}<span style="font-size:11px; font-weight:600; color:var(--wait); margin-left:6px;">지금 단계</span>{% endif %}
+          </div>
+          <div style="font-size:12px; color:var(--tx-3); margin-top:2px; line-height:1.6;">{{ d }}</div>
+        </div>
+        <div>
+          {% if link and i == g_now and session.user_role in ('admin', 'recruiter') %}
+          <a href="{{ link }}" class="btn btn-primary btn-sm">포지션 화면</a>
+          {% if not hire_ready %}<div style="font-size:11px; color:var(--late); margin-top:4px;">Hire 연동 미설정</div>{% endif %}
           {% endif %}
         </div>
       </div>
@@ -306,11 +364,38 @@
     </div>
   </div>
   {% elif cur_step %}
+  {% set cur_row = steps | selectattr('id', 'equalto', cur_step.id) | first %}
   <div class="info-banner" style="margin-bottom:16px;">
     <i class="fas fa-hourglass-half"></i>
-    지금은 <strong>{{ cur_step.label or role_labels.get(cur_step.role_kind, '') }}</strong> 결재 대기.
+    지금은 <strong>{{ cur_step.label or role_labels.get(cur_step.role_kind, '') }}</strong>
+    {% if cur_row and cur_row.assignee_name %}({{ cur_row.assignee_name }}){% endif %} 결재 대기.
     {% if cur_step.due_at %} {{ cur_step.due_at[:10] }}까지 처리를 기다립니다.{% endif %}
   </div>
+  {% endif %}
+
+  <!-- 관리자 — 지금 차례 결재자 바꾸기 (퇴사·장기 부재·조직 개편) -->
+  {% if cur_step and session.user_role == 'admin' and reassign_pool %}
+  <details class="card" style="margin-bottom:16px;">
+    <summary style="padding:12px 20px; cursor:pointer; font-size:13px; font-weight:600; color:var(--tx-1);">
+      결재자 변경 <span style="font-weight:400; color:var(--tx-3); font-size:12px; margin-left:6px;">관리자 · 지금 단계만 · 사유 기록</span>
+    </summary>
+    <form method="POST" action="{{ url_for('requisition_reassign', req_id=req.id) }}"
+          style="padding:0 20px 16px; display:grid; grid-template-columns:1fr 1fr auto; gap:8px; align-items:end;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label style="font-size:11px; color:var(--tx-3);">새 결재자
+        <select name="user_id" class="form-control" required>
+          <option value="">— 선택 —</option>
+          {% for u in reassign_pool %}
+          <option value="{{ u.id }}" {% if u.id == cur_step.assignee_id %}disabled{% endif %}>{{ u.name }}{% if u.pos_name %} · {{ u.pos_name.replace(' — ', ' ') }}{% endif %}{% if u.dept_name %} · {{ u.dept_name }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label style="font-size:11px; color:var(--tx-3);">사유
+        <input name="reason" class="form-control" maxlength="80" required placeholder="예: 결재자 장기 휴직">
+      </label>
+      <button type="submit" class="btn btn-ghost btn-sm">변경</button>
+    </form>
+  </details>
   {% endif %}
 
 </div>

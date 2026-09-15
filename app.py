@@ -1271,8 +1271,9 @@ def _setup_save_org(db, f):
                 db.execute('UPDATE requisition_flow_steps SET label=?, sla_days=? WHERE hire_type=? AND step_no=?',
                            (label, sla, ht, s['step_no']))
             else:
-                db.execute('INSERT INTO requisition_flow_steps (hire_type, step_no, role_kind, user_id, label, sla_days) '
-                           'VALUES (?,?,?,?,?,?)', (ht, s['step_no'], s['role_kind'], s.get('user_id'), label, sla))
+                db.execute('INSERT INTO requisition_flow_steps (hire_type, step_no, role_kind, exec_key, user_id, label, sla_days) '
+                           'VALUES (?,?,?,?,?,?,?)', (ht, s['step_no'], s['role_kind'], s.get('exec_key'),
+                                                      s.get('user_id'), label, sla))
 
     # Hire 연동 — 토큰은 입력했을 때만 교체
     if 'hire_url' in f:
@@ -6402,8 +6403,16 @@ def collect_approval_rows(db, uid, role, dept_id):
         if is_admin:
             rs = db.execute(base_sql).fetchall()
         else:
-            rs = db.execute(base_sql + "AND a.role_kind='dept_head' AND r.department_id=?",
-                            (dept_id,)).fetchall()
+            # 상신 때 박아 둔 결재자·대결자 기준. 결재선 2판 이전 요청서만 예전 부서 규칙으로 찾는다
+            me = session['user_id']
+            rs = db.execute(base_sql + "AND (a.assignee_id=? OR a.delegate_id=? "
+                            "     OR (a.assignee_id IS NULL AND a.role_kind='dept_head' AND r.department_id=?))",
+                            (me, me, dept_id)).fetchall()
+            # 대결자는 결재자가 부재일 때만 차례가 온다
+            rs = [r for r in rs if me in _step_approver_ids(
+                db, db.execute('SELECT * FROM job_requisitions WHERE id=?', (r['id'],)).fetchone(),
+                db.execute('SELECT * FROM requisition_approvals WHERE requisition_id=? AND step_no=?',
+                           (r['id'], r['step_no'])).fetchone())]
     except sqlite3.OperationalError:
         rs = []
     for r in rs:
@@ -11316,10 +11325,23 @@ REQUISITION_HIRE_TYPE_HINT = {
     'new_unplanned': '인력계획 외 증원 · 인건비 증가',
 }
 FLOW_ROLE_LABEL = {
-    'dept_head': '요청 부서의 부서장',
-    'hr':        '인사팀',
-    'user':      '지정한 사람',
+    'dept_head':     '조직장',
+    'upper_head':    '차상위 조직장',
+    'division_head': '부문장',
+    'hr':            '인사 담당',
+    'exec':          '경영진 (C레벨)',
+    'user':          '지정한 사람',
 }
+# 결재자를 '어떻게 찾는가' — 설정 화면과 요청서 미리보기에 그대로 보여 준다
+FLOW_ROLE_HINT = {
+    'dept_head':     '요청 부서의 조직장 · 요청자 본인이 조직장이거나 공석이면 한 단계 위 조직장',
+    'upper_head':    '위 조직장의 한 단계 위 조직장 · 없으면 대표이사',
+    'division_head': '요청 부서가 속한 부문의 장 · 공석이거나 본인이면 대표이사',
+    'hr':            '결재 역할의 "인사 담당 결재자"',
+    'exec':          '결재 역할에서 지정한 C레벨 · 미지정이거나 본인이면 대표이사',
+    'user':          '지정한 한 사람',
+}
+ACTED_AS_LABEL = {'self': '', 'delegate': '대결', 'admin': '관리자 대리 처리'}
 OPENING_STATUS_LABEL = {
     'approved': '공고 전',
     'open':     '채용 진행',
@@ -11417,13 +11439,20 @@ def api_salary_band():
 # ==============================================================
 
 DEFAULT_FLOW = {
-    'backfill':      [(1, 'hr',        '인사팀 확인',        2)],
-    'new_planned':   [(1, 'dept_head', '부서장 승인',        2),
-                      (2, 'hr',        '인사팀 승인',        2)],
-    'new_unplanned': [(1, 'dept_head', '부서장 승인',        2),
-                      (2, 'hr',        '인사팀 승인',        3),
-                      (3, 'user',      '최종 승인 (경영진)', 5)],
+    'backfill':      [(1, 'dept_head',     None,   '조직장 확인',      2),
+                      (2, 'hr',            None,   '인사 확인',        2)],
+    'new_planned':   [(1, 'dept_head',     None,   '조직장 승인',      2),
+                      (2, 'hr',            None,   '인사 승인',        2)],
+    'new_unplanned': [(1, 'dept_head',     None,   '조직장 승인',      2),
+                      (2, 'division_head', None,   '부문장 승인',      2),
+                      (3, 'exec',          'chro', '인사 승인 (CHRO)', 2),
+                      (4, 'exec',          'cfo',  '예산 승인 (CFO)',  3),
+                      (5, 'exec',          'ceo',  '최종 승인 (CEO)',  3)],
 }
+
+# 결재를 못 하는 날로 보는 휴가 — 재택·외출·반차는 결재 가능으로 본다
+AWAY_LEAVE_TYPES = ('annual', 'sick', 'maternity', 'paternity', 'parental', 'family_care',
+                    'bereavement', 'military', 'compensation', 'menstrual', 'miscarriage', 'fertility')
 
 
 def _flow_template(db, hire_type):
@@ -11434,16 +11463,186 @@ def _flow_template(db, hire_type):
     ).fetchall()
     if rows:
         return [dict(r) for r in rows]
-    return [{'step_no': n, 'role_kind': rk, 'user_id': None, 'label': lb, 'sla_days': sla}
-            for n, rk, lb, sla in DEFAULT_FLOW[ht]]
+    return [{'step_no': n, 'role_kind': rk, 'exec_key': ek, 'user_id': None, 'label': lb, 'sla_days': sla}
+            for n, rk, ek, lb, sla in DEFAULT_FLOW[ht]]
 
 
 def _hr_admin_ids(db):
     return [r['id'] for r in db.execute("SELECT id FROM users WHERE role='admin'").fetchall()]
 
 
+def _approval_roles(db):
+    """C레벨·인사 담당 — key → {title, short, user_id, user_name, delegate_id, ...}"""
+    try:
+        rows = db.execute(
+            'SELECT r.*, u.name AS user_name, u.status AS user_status, dg.name AS delegate_name '
+            'FROM approval_roles r LEFT JOIN users u ON u.id=r.user_id '
+            'LEFT JOIN users dg ON dg.id=r.delegate_id ORDER BY r.sort_order').fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    return {r['key']: dict(r) for r in rows}
+
+
+def _is_away(db, uid, day=None):
+    """지금 결재할 수 없는 사람인가 — 퇴사했거나 오늘 휴가 중."""
+    if not uid:
+        return True
+    u = db.execute('SELECT status FROM users WHERE id=?', (uid,)).fetchone()
+    if not u or u['status'] != 'active':
+        return True
+    day = day or date.today().isoformat()
+    try:
+        return bool(db.execute(
+            "SELECT 1 FROM leave_requests WHERE user_id=? AND status='approved' "
+            "AND start_date<=? AND end_date>=? AND type IN (%s) LIMIT 1"
+            % ','.join('?' * len(AWAY_LEAVE_TYPES)),
+            (uid, day, day) + AWAY_LEAVE_TYPES).fetchone())
+    except sqlite3.OperationalError:
+        return False
+
+
+def _org_leaders_up(db, dept_id):
+    """부서에서 위로 올라가며 [(부서명, 조직장id 또는 None)] — 퇴사자가 조직장이면 공석으로 본다."""
+    out, seen = [], set()
+    while dept_id and dept_id not in seen:
+        seen.add(dept_id)
+        d = db.execute(
+            'SELECT d.id, d.name, d.parent_id, d.leader_id, u.status FROM departments d '
+            'LEFT JOIN users u ON u.id=d.leader_id WHERE d.id=?', (dept_id,)).fetchone()
+        if not d:
+            break
+        out.append((d['name'], d['leader_id'] if d['leader_id'] and d['status'] == 'active' else None))
+        dept_id = d['parent_id']
+    return out
+
+
+def _plan_flow(db, dept_id, requester_id, hire_type):
+    """결재선을 실제 사람으로 푼다. 요청서 미리보기와 상신이 같은 함수를 쓴다.
+
+    원칙 (전결·대결 규정의 최소형):
+      · 본인 결재 금지 — 요청자가 그 자리 사람이면 한 단계 위로 올린다.
+      · 공석이면 위로 올린다. 끝까지 없으면 대표이사, 대표이사도 없으면 시스템 관리자.
+      · 같은 사람이 두 번 나오면 뒤 단계는 생략한다.
+      · 결재자가 부재(휴가·퇴사)면 대결자가 대신 처리할 수 있다.
+    """
+    roles  = _approval_roles(db)
+    ceo    = roles.get('ceo') or {}
+    ceo_id = ceo.get('user_id') if ceo.get('user_status') == 'active' else None
+    admins = _hr_admin_ids(db)
+    chain  = _org_leaders_up(db, dept_id)
+
+    # 요청자 기준으로 결재할 수 있는 조직장 사다리 (본인·공석 제외)
+    ladder = []
+    for _dname, lid in chain:
+        if lid and lid != requester_id and lid not in ladder:
+            ladder.append(lid)
+    head_note = ''
+    if chain:
+        if chain[0][1] == requester_id:
+            head_note = '요청자 본인이 부서장 → 상위 조직장'
+        elif not chain[0][1]:
+            head_note = '부서장 공석 → 상위 조직장'
+
+    def active(uid):
+        if not uid:
+            return None
+        r = db.execute("SELECT id FROM users WHERE id=? AND status='active'", (uid,)).fetchone()
+        return r['id'] if r else None
+
+    plan, n = [], 0
+    for st in _flow_template(db, hire_type):
+        kind, key = st['role_kind'], (st.get('exec_key') or '')
+        uid = dlg = None
+        note = ''
+        if kind == 'dept_head':
+            if ladder:
+                uid, note = ladder[0], head_note
+                dlg = ladder[1] if len(ladder) > 1 else ceo_id
+            else:
+                uid, note = ceo_id, '상위 조직장 없음 → 대표이사'
+        elif kind == 'upper_head':
+            if len(ladder) > 1:
+                uid = ladder[1]
+                dlg = ladder[2] if len(ladder) > 2 else ceo_id
+            else:
+                uid, note = ceo_id, '차상위 조직장 없음 → 대표이사'
+        elif kind == 'division_head':
+            root = chain[-1][1] if chain else None
+            if root and root != requester_id:
+                uid, dlg = root, ceo_id
+            else:
+                uid, note = ceo_id, ('요청자 본인이 부문장 → 대표이사' if root else '부문장 공석 → 대표이사')
+        elif kind in ('exec', 'hr'):
+            r = roles.get(key if kind == 'exec' else 'hr_desk') or {}
+            title = r.get('short') or r.get('title') or key.upper()
+            uid, dlg = active(r.get('user_id')), active(r.get('delegate_id'))
+            if kind == 'hr':
+                if uid == requester_id:
+                    uid, dlg, note = dlg, None, '요청자 본인이 인사 담당 → 대결자'
+                if not uid:
+                    uid, note = (admins[0] if admins else None), '인사 담당 미지정 → 시스템 관리자'
+            else:
+                if not uid:
+                    uid, dlg, note = ceo_id, None, '%s 미지정 → 대표이사' % title
+                elif uid == requester_id and key != 'ceo':
+                    uid, dlg, note = ceo_id, None, '요청자 본인이 %s → 대표이사' % title
+        else:  # user
+            uid = active(st.get('user_id'))
+            if not uid:
+                note = '지정한 사람 없음 → 시스템 관리자'
+        if not uid:
+            uid = admins[0] if admins else None
+            note = note or '결재자를 찾지 못함 → 시스템 관리자'
+
+        if dlg in (uid, requester_id):
+            dlg = None
+        p = _person_brief(db, uid)
+        d = _person_brief(db, dlg)
+        plan.append({
+            'role_kind': kind, 'exec_key': key or None,
+            'label': st.get('label') or FLOW_ROLE_LABEL.get(kind, ''),
+            'sla_days': int(st.get('sla_days') or 2),
+            'assignee_id': uid, 'name': p['name'], 'pos': p['pos'], 'dept': p['dept'],
+            'delegate_id': dlg, 'delegate_name': d['name'],
+            'note': note, 'skipped': '', 'step_no': None,
+        })
+
+    # 같은 사람이 여러 번 나오면 마지막(더 높은) 단계에서 한 번만 결재한다
+    for i, item in enumerate(plan):
+        if item['assignee_id'] and item['assignee_id'] == requester_id:
+            item['skipped'] = '요청자 본인 결재 — 생략'
+        elif item['assignee_id'] and any(x['assignee_id'] == item['assignee_id'] for x in plan[i + 1:]):
+            item['skipped'] = '뒤 단계와 같은 결재자 — 생략'
+        if not item['skipped']:
+            n += 1
+            item['step_no'] = n
+    return plan
+
+
+def _person_brief(db, uid):
+    if not uid:
+        return {'name': None, 'pos': None, 'dept': None}
+    r = db.execute(
+        'SELECT u.name, p.name AS pos, d.name AS dept FROM users u '
+        'LEFT JOIN positions p ON p.id=u.position_id LEFT JOIN departments d ON d.id=u.department_id '
+        'WHERE u.id=?', (uid,)).fetchone()
+    if not r:
+        return {'name': None, 'pos': None, 'dept': None}
+    return {'name': r['name'], 'pos': (r['pos'] or '').replace(' — ', ' ') or None, 'dept': r['dept']}
+
+
 def _step_approver_ids(db, req, step):
-    """한 단계를 '누가 눌러야 하는가'를 실제 사람 목록으로 바꾼다."""
+    """한 단계를 '누가 눌러야 하는가'를 실제 사람 목록으로 바꾼다.
+
+    상신 때 박아 둔 결재자가 기본이고, 그 사람이 부재면 대결자도 누를 수 있다.
+    """
+    step = dict(step)
+    if step.get('assignee_id'):
+        ids = [step['assignee_id']]
+        if step.get('delegate_id') and _is_away(db, step['assignee_id']):
+            ids.append(step['delegate_id'])
+        return ids
+    # 결재선 2판 이전에 올라간 요청서 — 예전 규칙 그대로
     kind = step['role_kind']
     if kind == 'dept_head':
         ids = [r['id'] for r in db.execute(
@@ -11457,25 +11656,37 @@ def _step_approver_ids(db, req, step):
 
 
 def _build_requisition_flow(db, req):
-    """요청서 한 건에 결재 단계들을 깔아 준다(이미 있으면 그대로 둔다)."""
+    """요청서 한 건에 결재 단계들을 깔아 준다(이미 있으면 그대로 둔다). 결재자는 이 순간 고정된다."""
     if db.execute('SELECT 1 FROM requisition_approvals WHERE requisition_id=? LIMIT 1',
                   (req['id'],)).fetchone():
         return
     cum = 0
-    for st in _flow_template(db, req['hire_type'] if 'hire_type' in req.keys() else None):
-        cum += int(st.get('sla_days') or 2)
+    plan = _plan_flow(db, req['department_id'], req['requester_id'],
+                      req['hire_type'] if 'hire_type' in req.keys() else None)
+    for st in plan:
+        if st['skipped']:
+            continue
+        cum += st['sla_days']
         db.execute(
             'INSERT INTO requisition_approvals '
-            '(requisition_id, step_no, role_kind, label, due_at) VALUES (?,?,?,?,?)',
-            (req['id'], st['step_no'], st['role_kind'], st.get('label') or '',
-             (datetime.now() + timedelta(days=cum)).strftime('%Y-%m-%d %H:%M:%S')))
+            '(requisition_id, step_no, role_kind, exec_key, label, due_at, assignee_id, delegate_id, route_note) '
+            'VALUES (?,?,?,?,?,?,?,?,?)',
+            (req['id'], st['step_no'], st['role_kind'], st['exec_key'], st['label'],
+             (datetime.now() + timedelta(days=cum)).strftime('%Y-%m-%d %H:%M:%S'),
+             st['assignee_id'], st['delegate_id'], st['note'] or None))
     db.commit()
 
 
 def _flow_rows(db, req_id):
     return db.execute(
-        'SELECT a.*, u.name AS approver_name FROM requisition_approvals a '
+        'SELECT a.*, u.name AS approver_name, s.name AS assignee_name, g.name AS delegate_name, '
+        '       sp.name AS assignee_pos, sd.name AS assignee_dept '
+        'FROM requisition_approvals a '
         'LEFT JOIN users u ON a.approver_id=u.id '
+        'LEFT JOIN users s ON a.assignee_id=s.id '
+        'LEFT JOIN positions sp ON s.position_id=sp.id '
+        'LEFT JOIN departments sd ON s.department_id=sd.id '
+        'LEFT JOIN users g ON a.delegate_id=g.id '
         'WHERE a.requisition_id=? ORDER BY a.step_no', (req_id,)).fetchall()
 
 
@@ -11491,6 +11702,13 @@ def _can_act_on_step(db, req, step, uid, role):
     if role == 'admin':
         return True
     return uid in _step_approver_ids(db, req, dict(step))
+
+
+def _is_requisition_approver(db, req_id, uid):
+    """결재선에 이름이 올라간 사람 — 부서가 달라도 요청서를 볼 수 있어야 한다."""
+    return bool(db.execute(
+        'SELECT 1 FROM requisition_approvals WHERE requisition_id=? AND (assignee_id=? OR delegate_id=?) LIMIT 1',
+        (req_id, uid, uid)).fetchone())
 
 
 def _notify_step(db, req, step):
@@ -11624,14 +11842,16 @@ def requisition_list():
         'WHERE 1=1'
     )
     params = []
+    on_line = ('r.id IN (SELECT requisition_id FROM requisition_approvals '
+               'WHERE assignee_id=? OR delegate_id=?)')
     if role == 'manager':
         mgr_dept = session.get('dept_id') or 0
-        # 본인 신청 + 같은 부서 신청 (부서장으로서 승인할 것들)
-        sql += ' AND (r.requester_id=? OR r.department_id=?)'
-        params += [uid, mgr_dept]
+        # 본인 신청 + 같은 부서 신청 + 결재선에 이름이 오른 요청서
+        sql += ' AND (r.requester_id=? OR r.department_id=? OR %s)' % on_line
+        params += [uid, mgr_dept, uid, uid]
     elif role not in ('admin', 'recruiter'):
-        sql += ' AND r.requester_id=?'
-        params.append(uid)
+        sql += ' AND (r.requester_id=? OR %s)' % on_line
+        params += [uid, uid, uid]
 
     if status_f:
         sql += ' AND r.status=?'
@@ -11817,7 +12037,8 @@ def requisition_detail(req_id):
 
     # 권한 체크: 본인 or 매니저(같은 부서) or admin/recruiter
     mgr_dept = session.get('dept_id') or 0
-    if role not in ('admin', 'recruiter') and req['requester_id'] != uid:
+    if role not in ('admin', 'recruiter') and req['requester_id'] != uid \
+            and not _is_requisition_approver(db, req_id, uid):
         if role != 'manager' or req['department_id'] != mgr_dept:
             flash('접근 권한이 없습니다.', 'error')
             return redirect(url_for('requisition_list'))
@@ -11864,9 +12085,22 @@ def requisition_detail(req_id):
     # 이 요청서 한 장에서 면접관 세 자리가 결정된다 (1차 HM · 2차 차상위 · 2차 협업 리더)
     chain = _dept_leader_chain(db, req['department_id'])
 
+    # 지금 차례 결재자가 부재면 대결자가 누를 수 있다 — 화면에 그 사실을 보여 준다
+    cur_away = bool(step and step['assignee_id'] and _is_away(db, step['assignee_id']))
+    reassign_pool = []
+    if role == 'admin' and step:
+        reassign_pool = db.execute(
+            "SELECT u.id, u.name, d.name AS dept_name, p.name AS pos_name FROM users u "
+            "LEFT JOIN departments d ON u.department_id=d.id LEFT JOIN positions p ON u.position_id=p.id "
+            "WHERE u.status='active' AND u.id!=? ORDER BY (u.role='employee'), d.name, u.name",
+            (req['requester_id'],)).fetchall()
+    hire_ready = _hire_config()['ready'] if role in ('admin', 'recruiter') else False
+
     return render_template('hiring/requisition_detail.html',
         req=req, posting=posting, chain=chain,
-        steps=steps, cur_step=step,
+        steps=steps, cur_step=step, cur_away=cur_away,
+        reassign_pool=reassign_pool, hire_ready=hire_ready,
+        acted_as_labels=ACTED_AS_LABEL,
         can_act=_can_act_on_step(db, req, step, uid, role),
         openings=openings, backfill_of=backfill_of,
         lines=lines, fill=fill,
@@ -11910,11 +12144,18 @@ def requisition_act(req_id):
 
     action  = request.form.get('action', 'approve')
     comment = request.form.get('comment', '').strip()
+    # 누가 어떤 자격으로 눌렀는가 — 본인 / 대결 / 관리자 대리
+    if not step['assignee_id'] or uid == step['assignee_id']:
+        acted_as = 'self'
+    elif uid in _step_approver_ids(db, req, dict(step)):
+        acted_as = 'delegate'
+    else:
+        acted_as = 'admin'
 
     if action != 'approve':
         db.execute(
-            "UPDATE requisition_approvals SET status='rejected', approver_id=?, comment=?, "
-            "acted_at=CURRENT_TIMESTAMP WHERE id=?", (uid, comment, step['id']))
+            "UPDATE requisition_approvals SET status='rejected', approver_id=?, comment=?, acted_as=?, "
+            "acted_at=CURRENT_TIMESTAMP WHERE id=?", (uid, comment, acted_as, step['id']))
         db.execute(
             "UPDATE job_requisitions SET status='rejected', updated_at=CURRENT_TIMESTAMP WHERE id=?",
             (req_id,))
@@ -11928,8 +12169,8 @@ def requisition_act(req_id):
         return redirect(url_for('requisition_detail', req_id=req_id))
 
     db.execute(
-        "UPDATE requisition_approvals SET status='approved', approver_id=?, comment=?, "
-        "acted_at=CURRENT_TIMESTAMP WHERE id=?", (uid, comment, step['id']))
+        "UPDATE requisition_approvals SET status='approved', approver_id=?, comment=?, acted_as=?, "
+        "acted_at=CURRENT_TIMESTAMP WHERE id=?", (uid, comment, acted_as, step['id']))
     # 옛 화면들이 아직 보는 칸도 같이 채워 둔다
     if step['role_kind'] == 'dept_head':
         db.execute('UPDATE job_requisitions SET dept_approver_id=?, dept_approved_at=CURRENT_TIMESTAMP '
@@ -11956,6 +12197,58 @@ def requisition_act(req_id):
                      link=url_for('requisition_detail', req_id=req_id))
     db.commit()
     flash(u'최종 승인 완료 — 포지션 %d건 생성' % (n or req['headcount']), 'success')
+    return redirect(url_for('requisition_detail', req_id=req_id))
+
+
+@app.route('/requisitions/flow-preview')
+@login_required
+def requisition_flow_preview():
+    """요청서 작성 화면 — 부서·채용 유형을 고르는 순간 '누구의 승인이 필요한가'를 사람 이름으로."""
+    db = get_db()
+    ht = request.args.get('hire_type', 'new_planned')
+    try:
+        dept_id = int(request.args.get('dept') or 0) or None
+    except ValueError:
+        dept_id = None
+    if not dept_id:
+        return jsonify({'ok': False, 'steps': []})
+    plan = _plan_flow(db, dept_id, session['user_id'], ht)
+    live = [p for p in plan if not p['skipped']]
+    return jsonify({'ok': True, 'steps': plan,
+                    'total_days': sum(p['sla_days'] for p in live),
+                    'count': len(live)})
+
+
+@app.route('/requisitions/<int:req_id>/reassign', methods=['POST'])
+@login_required
+@admin_required
+def requisition_reassign(req_id):
+    """지금 차례 결재자를 바꾼다(퇴사·장기 부재·조직 개편). 사유는 기록으로 남는다."""
+    db  = get_db()
+    req = db.execute('SELECT * FROM job_requisitions WHERE id=?', (req_id,)).fetchone()
+    step = _current_step(db, req_id) if req else None
+    try:
+        new_uid = int(request.form.get('user_id') or 0)
+    except ValueError:
+        new_uid = 0
+    reason = request.form.get('reason', '').strip()
+    person = db.execute("SELECT id, name FROM users WHERE id=? AND status='active'", (new_uid,)).fetchone()
+    if not step or not person or not reason:
+        flash('바꿀 결재자와 사유를 모두 입력하세요.', 'error')
+        return redirect(url_for('requisition_detail', req_id=req_id))
+    if new_uid == req['requester_id']:
+        flash('요청자 본인은 결재자가 될 수 없습니다.', 'error')
+        return redirect(url_for('requisition_detail', req_id=req_id))
+    before = db.execute('SELECT name FROM users WHERE id=?', (step['assignee_id'],)).fetchone() \
+        if step['assignee_id'] else None
+    note = '%s → %s 변경 (%s · %s)' % (before['name'] if before else '미지정', person['name'],
+                                    session.get('user_name') or '관리자', reason)
+    db.execute('UPDATE requisition_approvals SET assignee_id=?, delegate_id=NULL, route_note=? WHERE id=?',
+               (new_uid, note, step['id']))
+    db.commit()
+    _notify_step(db, req, db.execute('SELECT * FROM requisition_approvals WHERE id=?', (step['id'],)).fetchone())
+    db.commit()
+    flash('%s 단계 결재자를 %s(으)로 바꿨습니다.' % (step['label'] or '', person['name']), 'success')
     return redirect(url_for('requisition_detail', req_id=req_id))
 
 
@@ -12194,16 +12487,29 @@ def opening_push():
         with urllib.request.urlopen(hreq, timeout=15) as resp:
             out = json.loads(resp.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
-        detail = ''
+        detail, err = '', {}
         try:
             err = json.loads(e.read().decode('utf-8')) or {}
             detail = err.get('message') or err.get('error') or ''
         except Exception:
             pass
-        flash('Hire 가 받지 않았습니다 (%s). %s' % (e.code, detail), 'error')
-        return redirect(back)
+        if e.code == 409 and err.get('error') == 'already-linked' and err.get('position_id'):
+            # 지난번에 보냈는데 응답을 못 받은 경우 — Hire 에 이미 공고가 있으니 그 번호로 연결만 한다
+            out = {'ok': True, 'position_id': err['position_id']}
+        else:
+            flash('Hire 가 받지 않았습니다 (%s). %s' % (e.code, detail), 'error')
+            return redirect(back)
     except Exception as e:
-        flash('Hire 에 연결하지 못했습니다 — %s' % e, 'error')
+        # 승인·포지션 카드는 이미 저장돼 있다 — 보내기만 실패했으니 Hire 를 켜고 다시 누르면 된다
+        reason = getattr(e, 'reason', e)
+        if isinstance(reason, ConnectionRefusedError) or 'refused' in str(reason).lower() or '10061' in str(reason):
+            why = 'Hire 서버가 꺼져 있습니다'
+        elif 'timed out' in str(reason).lower() or isinstance(reason, TimeoutError):
+            why = 'Hire 서버가 응답하지 않습니다'
+        else:
+            why = '주소를 찾을 수 없습니다'
+        flash('Hire(%s)에 보내지 못했습니다 — %s. 포지션은 그대로 남아 있으니 Hire가 켜진 뒤 다시 보내세요. '
+              '주소는 설정 > Hire 연동에서 바꿉니다.' % (cfg['url'], why), 'error')
         return redirect(back)
 
     pid = (out or {}).get('position_id')
@@ -12239,6 +12545,13 @@ def requisition_flow_settings():
     db = get_db()
     if request.method == 'POST':
         f = request.form
+        # C레벨·인사 담당 결재자와 대결자
+        for key in _approval_roles(db):
+            u  = f.get('role_%s_user' % key) or None
+            dg = f.get('role_%s_delegate' % key) or None
+            if u and dg and u == dg:
+                dg = None
+            db.execute('UPDATE approval_roles SET user_id=?, delegate_id=? WHERE key=?', (u, dg, key))
         db.execute('DELETE FROM requisition_flow_steps')
         for ht in REQUISITION_HIRE_TYPE_LABEL:
             step_no = 0
@@ -12251,10 +12564,11 @@ def requisition_flow_settings():
                     sla = max(1, int(f.get('%s_sla_%d' % (ht, i)) or 2))
                 except ValueError:
                     sla = 2
+                ek = f.get('%s_exec_%d' % (ht, i)) or 'ceo'
                 db.execute(
                     'INSERT INTO requisition_flow_steps '
-                    '(hire_type, step_no, role_kind, user_id, label, sla_days) VALUES (?,?,?,?,?,?)',
-                    (ht, step_no, kind,
+                    '(hire_type, step_no, role_kind, exec_key, user_id, label, sla_days) VALUES (?,?,?,?,?,?,?)',
+                    (ht, step_no, kind, ek if kind == 'exec' else None,
                      (f.get('%s_user_%d' % (ht, i)) or None) if kind == 'user' else None,
                      f.get('%s_label_%d' % (ht, i), '').strip() or FLOW_ROLE_LABEL[kind],
                      sla))
@@ -12268,11 +12582,14 @@ def requisition_flow_settings():
         "LEFT JOIN positions p ON u.position_id=p.id "
         "LEFT JOIN departments d ON u.department_id=d.id "
         "WHERE u.status='active' ORDER BY u.name").fetchall()
+    roles = _approval_roles(db)
     return render_template('hiring/requisition_flow.html',
         flows=flows, people=people,
+        exec_roles=roles,
         hire_type_labels=REQUISITION_HIRE_TYPE_LABEL,
         hire_type_hints=REQUISITION_HIRE_TYPE_HINT,
         role_labels=FLOW_ROLE_LABEL,
+        role_hints=FLOW_ROLE_HINT,
         active_page='reqflow'
     )
 

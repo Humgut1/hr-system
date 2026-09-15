@@ -1393,17 +1393,98 @@ def init_db(db_path: str = None):
         ''')
         c.execute('CREATE INDEX IF NOT EXISTS idx_reqline_req ON requisition_lines(requisition_id, seq)')
 
-        # 기본 결재선 — 비어 있을 때만 심는다(관리자가 고친 값을 덮어쓰지 않기 위해).
-        if not c.execute('SELECT 1 FROM requisition_flow_steps LIMIT 1').fetchone():
+        # v1.9 결재선 2판 — 조직도 기반 결재자 + C레벨 지정 + 대결자.
+        # 1) 서식 테이블의 결재자 종류를 넓힌다(CHECK 제약 때문에 테이블을 다시 만든다).
+        _rfs_sql = (c.execute("SELECT sql FROM sqlite_master WHERE name='requisition_flow_steps'")
+                    .fetchone() or [''])[0] or ''
+        if 'exec' not in _rfs_sql:
+            c.execute('ALTER TABLE requisition_flow_steps RENAME TO _rfs_old')
+            c.execute('''CREATE TABLE requisition_flow_steps (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                hire_type  TEXT NOT NULL,
+                step_no    INTEGER NOT NULL,
+                role_kind  TEXT NOT NULL DEFAULT 'hr'
+                           CHECK(role_kind IN ('dept_head','upper_head','division_head','hr','exec','user')),
+                exec_key   TEXT,
+                user_id    INTEGER REFERENCES users(id),
+                label      TEXT,
+                sla_days   INTEGER NOT NULL DEFAULT 2,
+                UNIQUE(hire_type, step_no)
+            )''')
+            c.execute('INSERT INTO requisition_flow_steps (hire_type, step_no, role_kind, user_id, label, sla_days) '
+                      'SELECT hire_type, step_no, role_kind, user_id, label, sla_days FROM _rfs_old')
+            c.execute('DROP TABLE _rfs_old')
+
+        # 2) 결재 기록에 '상신 시점에 정해진 결재자'를 박아 둔다. 결재선은 올리는 순간 고정된다.
+        _ra_cols = {r[1] for r in c.execute('PRAGMA table_info(requisition_approvals)').fetchall()}
+        for _col, _ddl in (('exec_key',    'TEXT'),
+                           ('assignee_id', 'INTEGER REFERENCES users(id)'),
+                           ('delegate_id', 'INTEGER REFERENCES users(id)'),
+                           ('route_note',  'TEXT'),
+                           ('acted_as',    'TEXT')):
+            if _col not in _ra_cols:
+                c.execute(f'ALTER TABLE requisition_approvals ADD COLUMN {_col} {_ddl}')
+
+        # 3) 결재 역할 — C레벨과 인사 담당. 사람이 바뀌면 여기 한 곳만 고친다.
+        c.execute('''CREATE TABLE IF NOT EXISTS approval_roles (
+            key         TEXT PRIMARY KEY,
+            title       TEXT NOT NULL,
+            short       TEXT,
+            user_id     INTEGER REFERENCES users(id),
+            delegate_id INTEGER REFERENCES users(id),
+            sort_order  INTEGER NOT NULL DEFAULT 0
+        )''')
+        if not c.execute('SELECT 1 FROM approval_roles LIMIT 1').fetchone():
+            def _lead(pattern, dtype=None):
+                sql = 'SELECT leader_id FROM departments WHERE name LIKE ? AND leader_id IS NOT NULL'
+                args = [pattern]
+                if dtype:
+                    sql += ' AND dept_type=?'
+                    args.append(dtype)
+                row = c.execute(sql + ' ORDER BY id LIMIT 1', args).fetchone()
+                return row[0] if row else None
+            # 대표이사 = 부문장들이 보고하는 사람
+            _ceo = c.execute(
+                "SELECT u.manager_id FROM departments d JOIN users u ON u.id=d.leader_id "
+                "WHERE d.parent_id IS NULL AND u.manager_id IS NOT NULL "
+                "GROUP BY u.manager_id ORDER BY COUNT(*) DESC LIMIT 1").fetchone()
+            _ceo = _ceo[0] if _ceo else None
+            _coo = _lead('%운영 부문%', 'division')
+            _hr_team = _lead('인사팀')
+            if not _hr_team:
+                _adm = c.execute("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1").fetchone()
+                _hr_team = _adm[0] if _adm else None
             c.executemany(
-                'INSERT INTO requisition_flow_steps (hire_type, step_no, role_kind, label, sla_days) '
-                'VALUES (?,?,?,?,?)', [
-                    ('backfill',      1, 'hr',        '인사팀 확인',        2),
-                    ('new_planned',   1, 'dept_head', '부서장 승인',        2),
-                    ('new_planned',   2, 'hr',        '인사팀 승인',        2),
-                    ('new_unplanned', 1, 'dept_head', '부서장 승인',        2),
-                    ('new_unplanned', 2, 'hr',        '인사팀 승인',        3),
-                    ('new_unplanned', 3, 'user',      '최종 승인 (경영진)', 5),
+                'INSERT INTO approval_roles (key, title, short, user_id, delegate_id, sort_order) VALUES (?,?,?,?,?,?)', [
+                    ('ceo',     '대표이사',           'CEO',  _ceo,                      _coo,                        1),
+                    ('coo',     '최고운영책임자',     'COO',  _coo,                      _lead('%서비스운영 본부%'),  2),
+                    ('cfo',     '최고재무책임자',     'CFO',  _lead('%경영지원 부문%'),  _lead('%재무 본부%'),       3),
+                    ('chro',    '최고인사책임자',     'CHRO', _lead('%인사 본부%'),      _lead('HR실'),              4),
+                    ('cto',     '최고기술책임자',     'CTO',  _lead('%테크 부문%'),      _lead('%엔지니어링 본부%'), 5),
+                    ('cbo',     '최고사업책임자',     'CBO',  _lead('%비즈니스 부문%'),  _lead('%영업 본부%'),       6),
+                    ('hr_desk', '인사 담당 결재자',   '인사', _hr_team,                  _lead('HR실'),              10),
+                ])
+
+        # 4) 기본 결재선. 비어 있거나, 첫 판 기본값 그대로(경영진 단계에 사람이 비어 있던 것)면 새 기본값으로 바꾼다.
+        _OLD_DEFAULT = {('backfill', 1, 'hr'), ('new_planned', 1, 'dept_head'), ('new_planned', 2, 'hr'),
+                        ('new_unplanned', 1, 'dept_head'), ('new_unplanned', 2, 'hr'), ('new_unplanned', 3, 'user')}
+        _cur = c.execute('SELECT hire_type, step_no, role_kind, user_id FROM requisition_flow_steps').fetchall()
+        _is_old = ({(r[0], r[1], r[2]) for r in _cur} == _OLD_DEFAULT
+                   and all(r[3] is None for r in _cur))
+        if not _cur or _is_old:
+            c.execute('DELETE FROM requisition_flow_steps')
+            c.executemany(
+                'INSERT INTO requisition_flow_steps (hire_type, step_no, role_kind, exec_key, label, sla_days) '
+                'VALUES (?,?,?,?,?,?)', [
+                    ('backfill',      1, 'dept_head',     None,   '조직장 확인',       2),
+                    ('backfill',      2, 'hr',            None,   '인사 확인',         2),
+                    ('new_planned',   1, 'dept_head',     None,   '조직장 승인',       2),
+                    ('new_planned',   2, 'hr',            None,   '인사 승인',         2),
+                    ('new_unplanned', 1, 'dept_head',     None,   '조직장 승인',       2),
+                    ('new_unplanned', 2, 'division_head', None,   '부문장 승인',       2),
+                    ('new_unplanned', 3, 'exec',          'chro', '인사 승인 (CHRO)',  2),
+                    ('new_unplanned', 4, 'exec',          'cfo',  '예산 승인 (CFO)',   3),
+                    ('new_unplanned', 5, 'exec',          'ceo',  '최종 승인 (CEO)',   3),
                 ])
 
         # ── v0.61.0 면접 관리 + 채용 컴플라이언스 로그 ─────────────────────
