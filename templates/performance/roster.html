@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+{% block title %}평가 명단{% endblock %}
+{% block page_title %}평가 명단{% endblock %}
+
+{% block extra_css %}
+<style>
+.rs-strip { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));
+  border:1px solid var(--line); border-top:none; border-left:none;
+  border-radius:var(--r); margin-bottom:18px; overflow:hidden; }
+.rs-strip > div { padding:10px 14px; border-top:1px solid var(--line); border-left:1px solid var(--line); }
+.rs-strip b { display:block; font-size:18px; font-weight:750; margin-top:3px; }
+.rs-strip span { font-size:11.5px; color:var(--tx-3); }
+.rs-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:14px; }
+.rs-f { height:28px; padding:0 12px; display:inline-flex; align-items:center; border-radius:20px;
+  border:1px solid var(--line); background:var(--surface); color:var(--tx-2);
+  font-size:12.5px; font-weight:600; text-decoration:none; white-space:nowrap; }
+.rs-f.on { background:var(--inv-bg); color:var(--inv-tx); border-color:var(--inv-bg); }
+.rs-act { position:sticky; bottom:0; z-index:5; display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  padding:12px 16px; border-top:1px solid var(--line); background:var(--surface); }
+.rs-sel { font-size:12.5px; color:var(--tx-3); margin-right:auto; }
+.rs-src { font-size:11.5px; color:var(--tx-3); }
+.rs-none { color:var(--late); font-weight:600; }
+.rs-lock { font-size:12.5px; color:var(--tx-2); padding:10px 16px;
+  border:1px solid var(--line); border-radius:var(--r); margin-bottom:14px; }
+@media (max-width:760px) { .rs-act { padding:10px 12px; } }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="card" style="margin-bottom:18px;">
+  <div style="padding:18px 20px; display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+    <div style="flex:1; min-width:200px;">
+      <div style="font-size:15px; font-weight:800;">{{ cycle.name }}</div>
+      <div style="font-size:12px; color:var(--tx-3); margin-top:3px;">
+        {{ cycle.start_date }} ~ {{ cycle.end_date }}
+        {% if cycle.roster_locked_at %}· <span class="badge badge-active">명단 확정</span>
+        {% else %}· <span class="badge badge-pending">명단 미확정</span>{% endif %}
+      </div>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="{{ url_for('performance_cycles') }}" class="btn btn-ghost btn-sm">주기 목록</a>
+      {% if not cycle.roster_locked_at %}
+      <form method="post" action="{{ url_for('performance_roster_build', cycle_id=cycle.id) }}">
+        <button class="btn btn-secondary btn-sm">{% if summary.total %}명단 새로고침{% else %}명단 만들기{% endif %}</button>
+      </form>
+      {% endif %}
+      {% if summary.total %}
+      <form method="post" action="{{ url_for('performance_roster_lock', cycle_id=cycle.id) }}">
+        <button class="btn {% if cycle.roster_locked_at %}btn-ghost{% else %}btn-primary{% endif %} btn-sm">
+          {% if cycle.roster_locked_at %}확정 풀기{% else %}명단 확정{% endif %}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if not summary.total %}
+<div class="card" style="padding:40px 20px; text-align:center;">
+  <div style="font-size:14px; font-weight:700;">아직 명단이 없습니다</div>
+  <div style="font-size:12.5px; color:var(--tx-3); margin-top:6px;">
+    [명단 만들기]를 누르면 재직자 전원을 불러와 대상·평가자를 채웁니다.
+    입사 {{ min_months }}개월 미만 · 퇴사 예정 · 인턴은 자동으로 대상에서 빠집니다.
+  </div>
+  <form method="post" action="{{ url_for('performance_roster_build', cycle_id=cycle.id) }}" style="margin-top:14px;">
+    <button class="btn btn-primary">명단 만들기</button>
+  </form>
+</div>
+{% else %}
+
+<div class="rs-strip">
+  <div><span>평가 대상</span><b>{{ summary.inc }}명</b></div>
+  <div><span>제외</span><b>{{ summary.exc }}명</b></div>
+  <div><span>평가자 없음</span><b>{{ summary.norev }}명</b></div>
+  <div><span>전체 재직자</span><b>{{ summary.total }}명</b></div>
+</div>
+
+{% if cycle.roster_locked_at %}
+<div class="rs-lock">명단이 확정되어 바꿀 수 없습니다. 바꾸려면 위에서 [확정 풀기]를 누릅니다.</div>
+{% endif %}
+
+<div class="rs-bar">
+  <a class="rs-f {% if view=='in' %}on{% endif %}"    href="{{ url_for('performance_roster', cycle_id=cycle.id, view='in',    q=q or None) }}">대상 {{ summary.inc }}</a>
+  <a class="rs-f {% if view=='out' %}on{% endif %}"   href="{{ url_for('performance_roster', cycle_id=cycle.id, view='out',   q=q or None) }}">제외 {{ summary.exc }}</a>
+  <a class="rs-f {% if view=='norev' %}on{% endif %}" href="{{ url_for('performance_roster', cycle_id=cycle.id, view='norev', q=q or None) }}">평가자 없음 {{ summary.norev }}</a>
+  <a class="rs-f {% if view=='all' %}on{% endif %}"   href="{{ url_for('performance_roster', cycle_id=cycle.id, view='all',   q=q or None) }}">전체 {{ summary.total }}</a>
+  <form method="get" action="{{ url_for('performance_roster', cycle_id=cycle.id) }}" style="display:flex; gap:6px; margin-left:auto;">
+    <input type="hidden" name="view" value="{{ view }}">
+    <input type="search" name="q" value="{{ q }}" placeholder="이름·조직" class="input" style="height:28px; width:160px; font-size:12.5px;">
+    <button class="btn btn-ghost btn-sm">찾기</button>
+  </form>
+</div>
+
+<form method="post" action="{{ url_for('performance_roster_bulk', cycle_id=cycle.id) }}">
+<input type="hidden" name="view" value="{{ view }}">
+<input type="hidden" name="q" value="{{ q }}">
+
+<div class="card">
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:34px;"><input type="checkbox" id="rs-all" onclick="rsAll(this)"{% if cycle.roster_locked_at %} disabled{% endif %}></th>
+          <th>이름</th>
+          <th>조직</th>
+          <th>입사일</th>
+          <th>상태</th>
+          <th>평가자</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><input type="checkbox" name="user_ids" value="{{ r.user_id }}" class="rs-cb" onclick="rsCount()"{% if cycle.roster_locked_at %} disabled{% endif %}></td>
+          <td>
+            <div class="u-name">{{ r.name }}</div>
+            <div class="u-sub">{{ r.position or '—' }}{% if r.emp_no %} · {{ r.emp_no }}{% endif %}</div>
+          </td>
+          <td>{{ r.dept or '미지정' }}</td>
+          <td>{{ r.hire_date or '—' }}</td>
+          <td>
+            {% if r.included %}
+              <span class="badge badge-active">대상</span>
+            {% else %}
+              <span class="badge badge-inactive">제외</span>
+              <div class="rs-src">{{ exclude_label.get(r.exclude_code, '')|replace('{m}', min_months|string) }}</div>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.reviewer_id %}
+              {{ r.reviewer_name }}
+              <div class="rs-src">
+                {{ reviewer_src.get(r.reviewer_src, '') }}{% if load.get(r.reviewer_id, 0) > 1 %} · {{ load[r.reviewer_id] }}명 담당{% endif %}
+              </div>
+            {% elif r.included %}
+              <span class="rs-none">지정 필요</span>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center; color:var(--tx-3); padding:30px;">해당하는 사람이 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if not cycle.roster_locked_at %}
+  <div class="rs-act">
+    <span class="rs-sel" id="rs-cnt">선택 0명</span>
+    <button class="btn btn-secondary btn-sm" name="action" value="include">대상에 넣기</button>
+    <button class="btn btn-secondary btn-sm" name="action" value="exclude">대상에서 빼기</button>
+    <select name="reviewer_id" class="input" style="height:28px; font-size:12.5px; max-width:200px;">
+      <option value="">평가자 고르기</option>
+      {% for c in candidates %}
+      <option value="{{ c.id }}">{{ c.name }}{% if c.dept %} · {{ c.dept }}{% endif %}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-secondary btn-sm" name="action" value="reviewer">평가자 지정</button>
+  </div>
+  {% endif %}
+</div>
+</form>
+{% endif %}
+
+<script>
+function rsAll(box) {
+  document.querySelectorAll('.rs-cb').forEach(function (c) { c.checked = box.checked; });
+  rsCount();
+}
+function rsCount() {
+  var n = document.querySelectorAll('.rs-cb:checked').length;
+  var el = document.getElementById('rs-cnt');
+  if (el) el.textContent = '선택 ' + n + '명';
+}
+</script>
+{% endblock %}

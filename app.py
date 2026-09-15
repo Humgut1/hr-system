@@ -573,6 +573,9 @@ PERF_ADDONS = {
 }
 _ADDON_BY_ENDPOINT = {ep: k for k, v in PERF_ADDONS.items() for ep in v[3]}
 
+# 평가 명단에서 신입을 빼는 기준 (주기 종료일 기준 근속 개월)
+PERF_MIN_MONTHS_CHOICES = [0, 1, 3, 6]
+
 
 def perf_addons(db=None):
     """켜진 부가 기능 {key: bool} — 컬럼이 없던 옛 DB는 끔으로 본다. 요청당 1회 조회."""
@@ -596,6 +599,13 @@ def save_perf_addons(db, f):
         return
     for col, *_ in PERF_ADDONS.values():
         db.execute(f'UPDATE company_config SET {col}=? WHERE id=1', (1 if f.get(col) else 0,))
+    try:
+        mm = int(f.get('perf_min_months', 3))
+    except (TypeError, ValueError):
+        mm = 3
+    if mm not in PERF_MIN_MONTHS_CHOICES:
+        mm = 3
+    db.execute('UPDATE company_config SET perf_min_months=? WHERE id=1', (mm,))
     g.pop('perf_addons', None)
 
 
@@ -10762,12 +10772,17 @@ def performance_cycles():
         if cyc['status'] != 'active':
             continue
         if cyc['stage'] == 'goal':
+            parts = []
+            if not cyc['roster_locked_at']:
+                parts.append('평가 명단 미확정')
             n = db.execute(
                 "SELECT COUNT(DISTINCT user_id) FROM performance_goals "
                 "WHERE cycle_id=? AND approval_status != 'confirmed'", (cyc['id'],)
             ).fetchone()[0]
             if n:
-                pending_info[cyc['id']] = f'목표 미확정 {n}명'
+                parts.append(f'목표 미확정 {n}명')
+            if parts:
+                pending_info[cyc['id']] = ' · '.join(parts)
         elif cyc['stage'] == 'review':
             no_self = db.execute(
                 "SELECT COUNT(DISTINCT user_id) FROM performance_goals "
@@ -10997,6 +11012,289 @@ def performance_cycle_activate(cycle_id):
     db.commit()
     flash(f'"{cycle["name"]}" 평가 주기가 활성화되었습니다.', 'success')
     return redirect(url_for('performance_cycles'))
+
+
+# ── P1 평가 명단: 대상자·평가자 ──────────────────────────────
+PERF_EXCLUDE_LABEL = {
+    'new':     '입사 {m}개월 미만',
+    'leaving': '퇴사 예정',
+    'intern':  '인턴',
+    'manual':  '직접 제외',
+}
+PERF_REVIEWER_SRC = {
+    'manager':     '보고라인',
+    'dept_leader': '부서장',
+    'up_leader':   '상위 부서장',
+    'manual':      '직접 지정',
+}
+
+
+def perf_min_months(db=None):
+    """평가 대상에서 빼는 신입 기준 개월 수 (기본 3개월)."""
+    try:
+        row = (db or get_db()).execute(
+            'SELECT perf_min_months FROM company_config WHERE id=1').fetchone()
+        if row and row['perf_min_months'] is not None:
+            return int(row['perf_min_months'])
+    except Exception:
+        pass
+    return 3
+
+
+def perf_exclude_label(code, min_m):
+    return PERF_EXCLUDE_LABEL.get(code, '').replace('{m}', str(min_m))
+
+
+def _months_between(d1, d2):
+    """d1(입사일)부터 d2까지 만으로 몇 개월."""
+    m = (d2.year - d1.year) * 12 + (d2.month - d1.month)
+    if d2.day < d1.day:
+        m -= 1
+    return m
+
+
+def _roster_defaults(db, cycle):
+    """주기 기준으로 재직자 전원의 기본 포함 여부·평가자를 계산한다."""
+    base = cycle['end_date'] or date.today().isoformat()
+    try:
+        base_d = date.fromisoformat(base)
+    except (ValueError, TypeError):
+        base_d = date.today()
+    min_m = perf_min_months(db)
+
+    deps   = db.execute('SELECT id, parent_id, leader_id FROM departments').fetchall()
+    parent = {d['id']: d['parent_id'] for d in deps}
+    leader = {d['id']: d['leader_id'] for d in deps}
+
+    users = db.execute(
+        "SELECT id, department_id, manager_id, hire_date, employment_type, termination_date "
+        "FROM users WHERE status='active' AND role != 'guest'"
+    ).fetchall()
+    active_ids = {u['id'] for u in users}
+
+    def _leader_up(did, uid):
+        """부서장 → 상위 부서장 순으로 본인이 아닌 재직자를 찾는다."""
+        seen, cur, first = set(), did, True
+        while cur and cur not in seen:
+            seen.add(cur)
+            lid = leader.get(cur)
+            if lid and lid != uid and lid in active_ids:
+                return lid, ('dept_leader' if first else 'up_leader')
+            cur, first = parent.get(cur), False
+        return None, ''
+
+    out = {}
+    for u in users:
+        code = ''
+        if u['employment_type'] == 'intern':
+            code = 'intern'
+        elif u['termination_date'] and u['termination_date'] <= base:
+            code = 'leaving'
+        elif u['hire_date']:
+            try:
+                if _months_between(date.fromisoformat(u['hire_date']), base_d) < min_m:
+                    code = 'new'
+            except (ValueError, TypeError):
+                pass
+        if u['manager_id'] and u['manager_id'] != u['id'] and u['manager_id'] in active_ids:
+            rid, src = u['manager_id'], 'manager'
+        else:
+            rid, src = _leader_up(u['department_id'], u['id'])
+        out[u['id']] = {'included': 0 if code else 1, 'exclude_code': code,
+                        'reviewer_id': rid, 'reviewer_src': src}
+    return out
+
+
+def build_cycle_roster(db, cycle, uid):
+    """명단을 만들거나 새로고침한다. 사람이 손댄 줄(manual=1)은 그대로 둔다."""
+    defaults = _roster_defaults(db, cycle)
+    have = {r['user_id']: r['manual'] for r in db.execute(
+        'SELECT user_id, manual FROM cycle_participants WHERE cycle_id=?', (cycle['id'],)).fetchall()}
+
+    added = changed = 0
+    for user_id, d in defaults.items():
+        if user_id not in have:
+            db.execute(
+                'INSERT INTO cycle_participants '
+                '(cycle_id, user_id, included, exclude_code, reviewer_id, reviewer_src, updated_by) '
+                'VALUES (?,?,?,?,?,?,?)',
+                (cycle['id'], user_id, d['included'], d['exclude_code'],
+                 d['reviewer_id'], d['reviewer_src'], uid))
+            added += 1
+        elif not have[user_id]:
+            db.execute(
+                'UPDATE cycle_participants SET included=?, exclude_code=?, reviewer_id=?, '
+                '       reviewer_src=?, updated_by=?, updated_at=CURRENT_TIMESTAMP '
+                'WHERE cycle_id=? AND user_id=?',
+                (d['included'], d['exclude_code'], d['reviewer_id'], d['reviewer_src'],
+                 uid, cycle['id'], user_id))
+            changed += 1
+
+    removed = [u for u, m in have.items() if u not in defaults and not m]
+    for u in removed:
+        db.execute('DELETE FROM cycle_participants WHERE cycle_id=? AND user_id=?', (cycle['id'], u))
+    db.commit()
+    return added, changed, len(removed)
+
+
+def _roster_cycle(db, cycle_id):
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cycle:
+        abort(404)
+    return cycle
+
+
+@app.route('/performance/cycles/<int:cycle_id>/roster')
+@admin_required
+def performance_roster(cycle_id):
+    db    = get_db()
+    cycle = _roster_cycle(db, cycle_id)
+    view  = request.args.get('view', 'in')
+    q     = (request.args.get('q') or '').strip()
+    min_m = perf_min_months(db)
+
+    rows = db.execute(
+        'SELECT cp.*, u.name, u.emp_no, u.hire_date, u.employment_type, '
+        '       d.name AS dept, p.name AS position, r.name AS reviewer_name '
+        'FROM cycle_participants cp '
+        'JOIN users u ON u.id = cp.user_id '
+        'LEFT JOIN departments d ON d.id = u.department_id '
+        'LEFT JOIN positions   p ON p.id = u.position_id '
+        'LEFT JOIN users       r ON r.id = cp.reviewer_id '
+        'WHERE cp.cycle_id=? ORDER BY d.name, u.name', (cycle_id,)).fetchall()
+
+    summary = {
+        'total': len(rows),
+        'inc':   sum(1 for r in rows if r['included']),
+        'exc':   sum(1 for r in rows if not r['included']),
+        'norev': sum(1 for r in rows if r['included'] and not r['reviewer_id']),
+    }
+
+    def _keep(r):
+        if q and q not in (r['name'] or '') and q not in (r['dept'] or ''):
+            return False
+        if view == 'in':
+            return bool(r['included'])
+        if view == 'out':
+            return not r['included']
+        if view == 'norev':
+            return bool(r['included']) and not r['reviewer_id']
+        return True
+
+    shown = [r for r in rows if _keep(r)]
+
+    # 평가자를 몇 명씩 보는지 — 한 사람에게 몰렸는지 확인용
+    load = {}
+    for r in rows:
+        if r['included'] and r['reviewer_id']:
+            load[r['reviewer_id']] = load.get(r['reviewer_id'], 0) + 1
+
+    candidates = db.execute(
+        "SELECT u.id, u.name, d.name AS dept FROM users u "
+        "LEFT JOIN departments d ON d.id = u.department_id "
+        "WHERE u.status='active' AND u.role != 'guest' ORDER BY d.name, u.name").fetchall()
+
+    return render_template('performance/roster.html',
+                           cycle=cycle, rows=shown, summary=summary, view=view, q=q,
+                           load=load, candidates=candidates, min_months=min_m,
+                           exclude_label=PERF_EXCLUDE_LABEL, reviewer_src=PERF_REVIEWER_SRC,
+                           active_page='performance_cycles')
+
+
+@app.route('/performance/cycles/<int:cycle_id>/roster/build', methods=['POST'])
+@admin_required
+def performance_roster_build(cycle_id):
+    db    = get_db()
+    cycle = _roster_cycle(db, cycle_id)
+    if cycle['roster_locked_at']:
+        flash('명단이 확정되어 있습니다. 확정을 풀고 다시 만들어 주세요.', 'error')
+        return redirect(url_for('performance_roster', cycle_id=cycle_id))
+    added, changed, removed = build_cycle_roster(db, cycle, session['user_id'])
+    parts = []
+    if added:   parts.append(f'새로 {added}명')
+    if changed: parts.append(f'갱신 {changed}명')
+    if removed: parts.append(f'제외 {removed}명')
+    flash('명단을 만들었습니다. ' + (' · '.join(parts) if parts else '바뀐 사람이 없습니다.'), 'success')
+    return redirect(url_for('performance_roster', cycle_id=cycle_id))
+
+
+@app.route('/performance/cycles/<int:cycle_id>/roster/bulk', methods=['POST'])
+@admin_required
+def performance_roster_bulk(cycle_id):
+    db    = get_db()
+    cycle = _roster_cycle(db, cycle_id)
+    if cycle['roster_locked_at']:
+        flash('명단이 확정되어 있어 바꿀 수 없습니다.', 'error')
+        return redirect(url_for('performance_roster', cycle_id=cycle_id))
+
+    action = request.form.get('action', '')
+    ids    = [int(v) for v in request.form.getlist('user_ids') if v.isdigit()]
+    back   = url_for('performance_roster', cycle_id=cycle_id,
+                     view=request.form.get('view', 'in'), q=request.form.get('q', '') or None)
+    if not ids:
+        flash('먼저 대상을 선택해 주세요.', 'error')
+        return redirect(back)
+
+    uid  = session['user_id']
+    marks = ','.join('?' * len(ids))
+    if action == 'include':
+        db.execute(f"UPDATE cycle_participants SET included=1, exclude_code='', manual=1, "
+                   f"updated_by=?, updated_at=CURRENT_TIMESTAMP "
+                   f"WHERE cycle_id=? AND user_id IN ({marks})", [uid, cycle_id] + ids)
+        flash(f'{len(ids)}명을 평가 대상에 넣었습니다.', 'success')
+    elif action == 'exclude':
+        db.execute(f"UPDATE cycle_participants SET included=0, exclude_code='manual', manual=1, "
+                   f"updated_by=?, updated_at=CURRENT_TIMESTAMP "
+                   f"WHERE cycle_id=? AND user_id IN ({marks})", [uid, cycle_id] + ids)
+        flash(f'{len(ids)}명을 평가 대상에서 뺐습니다.', 'success')
+    elif action == 'reviewer':
+        rid = request.form.get('reviewer_id', type=int)
+        if not rid:
+            flash('평가자를 골라 주세요.', 'error')
+            return redirect(back)
+        if rid in ids:
+            flash('자기 자신을 평가자로 지정할 수 없습니다.', 'error')
+            return redirect(back)
+        db.execute(f"UPDATE cycle_participants SET reviewer_id=?, reviewer_src='manual', manual=1, "
+                   f"updated_by=?, updated_at=CURRENT_TIMESTAMP "
+                   f"WHERE cycle_id=? AND user_id IN ({marks})", [rid, uid, cycle_id] + ids)
+        name = db.execute('SELECT name FROM users WHERE id=?', (rid,)).fetchone()
+        flash(f'{len(ids)}명의 평가자를 {name["name"] if name else ""}(으)로 바꿨습니다.', 'success')
+    else:
+        flash('알 수 없는 작업입니다.', 'error')
+        return redirect(back)
+
+    db.commit()
+    return redirect(back)
+
+
+@app.route('/performance/cycles/<int:cycle_id>/roster/lock', methods=['POST'])
+@admin_required
+def performance_roster_lock(cycle_id):
+    db    = get_db()
+    cycle = _roster_cycle(db, cycle_id)
+    if cycle['roster_locked_at']:
+        db.execute('UPDATE performance_cycles SET roster_locked_at=NULL WHERE id=?', (cycle_id,))
+        db.commit()
+        flash('명단 확정을 풀었습니다.', 'success')
+        return redirect(url_for('performance_roster', cycle_id=cycle_id))
+
+    norev = db.execute('SELECT COUNT(*) FROM cycle_participants '
+                       'WHERE cycle_id=? AND included=1 AND reviewer_id IS NULL',
+                       (cycle_id,)).fetchone()[0]
+    if norev:
+        flash(f'평가자가 없는 대상 {norev}명을 먼저 지정해 주세요.', 'error')
+        return redirect(url_for('performance_roster', cycle_id=cycle_id, view='norev'))
+    total = db.execute('SELECT COUNT(*) FROM cycle_participants WHERE cycle_id=? AND included=1',
+                       (cycle_id,)).fetchone()[0]
+    if not total:
+        flash('평가 대상이 한 명도 없습니다.', 'error')
+        return redirect(url_for('performance_roster', cycle_id=cycle_id))
+
+    db.execute('UPDATE performance_cycles SET roster_locked_at=CURRENT_TIMESTAMP WHERE id=?', (cycle_id,))
+    db.commit()
+    flash(f'평가 대상 {total}명으로 명단을 확정했습니다.', 'success')
+    return redirect(url_for('performance_roster', cycle_id=cycle_id))
 
 
 # ── Onboarding Dashboard ────────────────────────────────────

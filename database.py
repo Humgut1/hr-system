@@ -2232,6 +2232,30 @@ def init_db(db_path: str = None):
                     c.execute(f'ALTER TABLE company_config ADD COLUMN {_col} INTEGER DEFAULT 0')
             c.execute('UPDATE company_config SET copilot_enabled=0')
 
+        # ── P1 평가 명단: 주기별 대상자·평가자 ─────────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS cycle_participants (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            cycle_id       INTEGER NOT NULL REFERENCES performance_cycles(id),
+            user_id        INTEGER NOT NULL REFERENCES users(id),
+            included       INTEGER NOT NULL DEFAULT 1,
+            exclude_code   TEXT NOT NULL DEFAULT '',
+            reviewer_id    INTEGER REFERENCES users(id),
+            reviewer_src   TEXT NOT NULL DEFAULT '',
+            manual         INTEGER NOT NULL DEFAULT 0,
+            updated_by     INTEGER REFERENCES users(id),
+            updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(cycle_id, user_id)
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_cycle_participants_cycle '
+                  'ON cycle_participants(cycle_id, included)')
+        _cyc = {r[1] for r in c.execute('PRAGMA table_info(performance_cycles)')}
+        if _cyc and 'roster_locked_at' not in _cyc:
+            c.execute('ALTER TABLE performance_cycles ADD COLUMN roster_locked_at TIMESTAMP')
+        _have = {r[1] for r in c.execute('PRAGMA table_info(company_config)')}
+        if _have and 'perf_min_months' not in _have:
+            c.execute('ALTER TABLE company_config ADD COLUMN perf_min_months INTEGER DEFAULT 3')
+
         # ── 회의실·온보딩 V1: 건물·층·회의실·예약·온보딩 콘텐츠 (workplace.py) ──
         import workplace
         workplace.ensure_schema(c)

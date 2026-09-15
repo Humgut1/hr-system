@@ -520,6 +520,18 @@
         </div>
         <div style="font-size:12px; color:var(--tx-3); margin-top:8px;">역량 항목·평가자 비중·동료 문항은 <a href="{{ url_for('review_forms') }}">평가 양식</a>에서 편집합니다. 이미 만든 주기에는 반영되지 않습니다.</div>
 
+        <div class="section-label" id="perf-roster" style="font-size:11px;font-weight:800;color:var(--text-muted);letter-spacing:.08em;margin:24px 0 12px;">평가 대상 기준</div>
+        {% set _mm = (config.get('perf_min_months') if config.get('perf_min_months') is not none else 3)|int %}
+        <div class="radio-cards">
+          {% for v, t, d in [(0,'전원 포함','입사일과 상관없이 모두 평가'),(1,'입사 1개월 미만 제외','직전 입사자만 제외'),(3,'입사 3개월 미만 제외','일반 권장'),(6,'입사 6개월 미만 제외','반기 평가에 많이 씀')] %}
+          <label class="radio-card">
+            <input type="radio" name="perf_min_months" value="{{ v }}" {{ 'checked' if _mm == v else '' }}>
+            <div class="radio-card-body"><div><div class="radio-card-name">{{ t }}</div><div class="radio-card-desc">{{ d }}</div></div></div>
+          </label>
+          {% endfor %}
+        </div>
+        <div style="font-size:12px; color:var(--tx-3); margin-top:8px;">주기 종료일 기준입니다. 퇴사 예정자·인턴은 항상 제외로 시작하고, <a href="{{ url_for('performance_cycles') }}">평가 주기</a>의 평가 명단에서 직접 넣고 뺄 수 있습니다.</div>
+
         <div class="section-label" id="perf-addons" style="font-size:11px;font-weight:800;color:var(--text-muted);letter-spacing:.08em;margin:24px 0 12px;">성과 부가 기능</div>
         <input type="hidden" name="addon_section" value="1">
         <div style="overflow-x:auto;">

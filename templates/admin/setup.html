@@ -498,6 +498,14 @@
           <div><div class="t">{{ t }}</div><div class="d">{{ d }}</div></div></label>
         {% endfor %}
       </div>
+      <div class="su-sec">평가 대상 기준 <span class="aside">주기 종료일 기준 근속</span></div>
+      {% set _mm = (config.get('perf_min_months') if config.get('perf_min_months') is not none else 3)|int %}
+      <div class="opts c2">
+        {% for v, t, d in [(0,'전원 포함','입사일과 상관없이 모두'),(1,'1개월 미만 제외','직전 입사자만'),(3,'3개월 미만 제외','일반 권장'),(6,'6개월 미만 제외','반기 평가')] %}
+        <label class="opt"><input type="radio" name="perf_min_months" value="{{ v }}" {{ 'checked' if _mm == v }}>
+          <div><div class="t">{{ t }}</div><div class="d">{{ d }}</div></div></label>
+        {% endfor %}
+      </div>
       <div class="su-sec">부가 기능 <span class="aside">기본 끔 · 필요한 것만 켜기</span></div>
       <input type="hidden" name="addon_section" value="1">
       <div class="chks">
