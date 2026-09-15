@@ -2133,6 +2133,14 @@ def init_db(db_path: str = None):
         if _have and 'copilot_enabled' not in _have:
             c.execute('ALTER TABLE company_config ADD COLUMN copilot_enabled INTEGER DEFAULT 1')
 
+        # ── 성과 부가 기능 스위치 — 성과는 다면평가 배정·캘리브레이션 세팅 중심, 나머지는 기본 끔 ──
+        _have = {r[1] for r in c.execute('PRAGMA table_info(company_config)')}
+        if _have and 'use_one_on_one' not in _have:
+            for _col in ('use_one_on_one', 'use_feedback', 'use_goal_alignment', 'use_succession'):
+                if _col not in _have:
+                    c.execute(f'ALTER TABLE company_config ADD COLUMN {_col} INTEGER DEFAULT 0')
+            c.execute('UPDATE company_config SET copilot_enabled=0')
+
         conn.commit()
     finally:
         conn.close()

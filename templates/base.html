@@ -44,7 +44,7 @@
     {'l':'조직도', 'u':url_for('org_chart'), 'p':['org'], 's':True, 'i':'fa-sitemap'},
     {'l':'근로계약', 'u':url_for('contracts_list'), 'p':['contracts'], 's':True, 'i':'fa-file-contract'},
     {'l':'온보딩', 'u':url_for('me_onboarding'), 'p':['me_onboarding','onboarding'], 's':'onboarding' in PF, 'i':'fa-list-check'},
-    {'l':'승계 계획', 'u':url_for('succession'), 'p':['succession'], 's':MGR and 'succession' in PF, 'i':'fa-chess-king'},
+    {'l':'승계 계획', 'u':url_for('succession'), 'p':['succession'], 's':MGR and 'succession' in PF and addon.succession, 'i':'fa-chess-king'},
   ]},
   {'key':'work', 'label':'근태', 'gi':'fa-clock', 'items':[
     {'l':'출퇴근 기록', 'u':url_for('attendance_home'), 'p':['attendance_home'], 't':'home', 's':True, 'i':'fa-clock'},
@@ -63,9 +63,9 @@
   ]},
   {'key':'perf', 'label':'성과', 'gi':'fa-chart-line', 'items':[
     {'l':'성과 평가', 'u':url_for('performance'), 'p':['performance','performance_cycles'], 's':'performance' in PF, 'i':'fa-chart-line'},
-    {'l':'1:1 면담', 'u':url_for('one_on_ones'), 'p':['one_on_ones'], 's':'performance' in PF, 'i':'fa-user-group'},
-    {'l':'피드백', 'u':url_for('feedback_home'), 'p':['feedback'], 's':'performance' in PF, 'i':'fa-comment-dots'},
-    {'l':'목표 정렬', 'u':url_for('goal_alignment'), 'p':['goal_alignment'], 's':'performance' in PF, 'i':'fa-sitemap'},
+    {'l':'1:1 면담', 'u':url_for('one_on_ones'), 'p':['one_on_ones'], 's':'performance' in PF and addon.one_on_one, 'i':'fa-user-group'},
+    {'l':'피드백', 'u':url_for('feedback_home'), 'p':['feedback'], 's':'performance' in PF and addon.feedback, 'i':'fa-comment-dots'},
+    {'l':'목표 정렬', 'u':url_for('goal_alignment'), 'p':['goal_alignment'], 's':'performance' in PF and addon.goal_alignment, 'i':'fa-sitemap'},
     {'l':'평가 양식', 'u':url_for('review_forms'), 'p':['review_forms'], 's':ADM and 'performance' in PF, 'i':'fa-list-check'},
     {'l':'다면평가', 'u':url_for('peer_reviews_page'), 'p':['peer'], 's':'peer_review' in PF and peer_enabled, 'i':'fa-star'},
     {'l':'다면평가 배정', 'u':url_for('peer_assignments'), 'p':['peer_assignments'], 's':MGR and 'peer_review' in PF and peer_enabled, 'i':'fa-comments'},

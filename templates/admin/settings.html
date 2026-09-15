@@ -520,8 +520,28 @@
         </div>
         <div style="font-size:12px; color:var(--tx-3); margin-top:8px;">역량 항목·평가자 비중·동료 문항은 <a href="{{ url_for('review_forms') }}">평가 양식</a>에서 편집합니다. 이미 만든 주기에는 반영되지 않습니다.</div>
 
+        <div class="section-label" id="perf-addons" style="font-size:11px;font-weight:800;color:var(--text-muted);letter-spacing:.08em;margin:24px 0 12px;">성과 부가 기능</div>
+        <input type="hidden" name="addon_section" value="1">
+        <div style="overflow-x:auto;">
+        <table class="ltable">
+          <thead><tr><th style="width:56px;">사용</th><th>기능</th><th>하는 일</th></tr></thead>
+          <tbody>
+            {% for k, a in perf_addon_defs.items() %}
+            <tr><td><input type="checkbox" name="{{ a[0] }}" value="1" {{ 'checked' if addon[k] }} aria-label="{{ a[1] }} 사용"></td>
+              <td>{{ a[1] }}</td><td class="t2">{{ a[2] }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        <div style="font-size:12px; color:var(--tx-3); margin-top:8px;">끄면 메뉴·홈 할 일·평가 화면에서 숨겨지고 주소로 들어와도 열리지 않습니다. 기록은 지워지지 않아 다시 켜면 그대로 보입니다. Copilot은 아래에서 따로 켭니다.</div>
+
+        {% if addon.one_on_one or addon.feedback %}
         <div class="section-label" id="perf-culture" style="font-size:11px;font-weight:800;color:var(--text-muted);letter-spacing:.08em;margin:24px 0 12px;">1:1 · 피드백</div>
+        {% endif %}
         {% set oo_cad = config.get('one_on_one_cadence_days') or 14 %}
+        {% if not addon.one_on_one %}
+        <input type="hidden" name="one_on_one_cadence_days" value="{{ oo_cad }}">
+        {% else %}
         <div class="radio-cards">
           {% for v, t, d in [(7,'매주','팀원별 7일 · 빠르게 움직이는 팀'),(14,'격주','팀원별 14일 · 일반 권장'),(30,'매월','팀원별 30일 · 최소 기준')] %}
           <label class="radio-card">
@@ -530,10 +550,15 @@
           </label>
           {% endfor %}
         </div>
+        {% endif %}
+        {% if not addon.feedback %}
+        {% if config.get('feedback_public_praise', 1) %}<input type="hidden" name="feedback_public_praise" value="1">{% endif %}
+        {% else %}
         <label style="display:flex; align-items:center; gap:8px; margin-top:12px; font-size:13px; color:var(--tx-2);">
           <input type="checkbox" name="feedback_public_praise" value="1" {{ 'checked' if config.get('feedback_public_praise', 1) else '' }}>
           칭찬 전사 공개 허용 · 개선 제안은 항상 받는 사람·매니저만
         </label>
+        {% endif %}
 
         <div class="section-label" id="copilot" style="font-size:11px;font-weight:800;color:var(--text-muted);letter-spacing:.08em;margin:24px 0 12px;">Copilot · 평가·보상 보조</div>
         <input type="hidden" name="copilot_section" value="1">

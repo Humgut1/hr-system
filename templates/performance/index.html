@@ -542,7 +542,8 @@
           {% endif %}
 
           {% set ag = org_goal_map.get(g.aligned_goal_id) if g.aligned_goal_id else None %}
-          {% if stage in ('goal', 'progress') and align_options %}
+          {% if not addon.goal_alignment %}
+          {% elif stage in ('goal', 'progress') and align_options %}
           <div class="al-inline">
             <span>상위 목표</span>
             <form method="POST" action="{{ url_for('performance_goal_align', goal_id=g.id) }}">

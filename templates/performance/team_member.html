@@ -152,7 +152,7 @@
           <div class="tm-goal-title">{{ g.title }}
             <span class="appr-badge appr-{{ g.approval_status }}" style="margin-left:6px;">{{ goal_approval_label[g.approval_status] }}</span>
           </div>
-          <div class="tm-goal-meta">가중치 {{ g.weight }}%{% if g.aligned_goal_id and c3.org_goals.get(g.aligned_goal_id) %} · 상위 목표 {{ c3.org_goals[g.aligned_goal_id].title }}{% endif %}</div>
+          <div class="tm-goal-meta">가중치 {{ g.weight }}%{% if addon.goal_alignment and g.aligned_goal_id and c3.org_goals.get(g.aligned_goal_id) %} · 상위 목표 {{ c3.org_goals[g.aligned_goal_id].title }}{% endif %}</div>
           {% if g.description %}
           <div style="font-size:12.5px; color:var(--tx-2); margin-top:8px; white-space:pre-line;">{{ g.description }}</div>
           {% endif %}
@@ -185,7 +185,7 @@
           <span class="badge {% if g.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}" style="font-size:11px;">{{ g.category }}</span>
           <div style="flex:1;">
             <div class="tm-goal-title">{{ g.title }}</div>
-            <div class="tm-goal-meta">가중치 {{ g.weight }}% · 진행률 {{ g.progress or 0 }}%{% if g.aligned_goal_id and c3.org_goals.get(g.aligned_goal_id) %} · 상위 목표 {{ c3.org_goals[g.aligned_goal_id].title }}{% endif %}</div>
+            <div class="tm-goal-meta">가중치 {{ g.weight }}% · 진행률 {{ g.progress or 0 }}%{% if addon.goal_alignment and g.aligned_goal_id and c3.org_goals.get(g.aligned_goal_id) %} · 상위 목표 {{ c3.org_goals[g.aligned_goal_id].title }}{% endif %}</div>
             <div class="progress-bar-bg" style="margin-top:6px; max-width:340px;">
               <div class="progress-bar-fill" style="width:{{ g.progress or 0 }}%;"></div>
             </div>
@@ -284,7 +284,7 @@
         <span class="badge {% if g.category == 'OKR' %}badge-info{% else %}badge-pending{% endif %}" style="font-size:11px;">{{ g.category }}</span>
         <div style="flex:1;">
           <div class="tm-goal-title">{{ g.title }}</div>
-          {% if g.aligned_goal_id and c3.org_goals.get(g.aligned_goal_id) %}<div class="tm-goal-meta">상위 목표 {{ c3.org_goals[g.aligned_goal_id].title }}</div>{% endif %}
+          {% if addon.goal_alignment and g.aligned_goal_id and c3.org_goals.get(g.aligned_goal_id) %}<div class="tm-goal-meta">상위 목표 {{ c3.org_goals[g.aligned_goal_id].title }}</div>{% endif %}
           <div class="progress-bar-bg" style="margin-top:6px; max-width:340px;">
             <div class="progress-bar-fill" style="width:{{ g.progress or 0 }}%;"></div>
           </div>
@@ -346,12 +346,15 @@
           이력 없음
           {% endif %}
         </div>
+        {% if addon.one_on_one %}
         <div class="tm-ref-item">
           <b>1:1 면담</b>
           사이클 기간 완료 {{ c2.oo_count }}회 · 마지막 {{ c2.oo_last[:10] if c2.oo_last else '없음' }}{% if c2.open_actions %} · 미완료 액션 <span style="color:var(--wait);">{{ c2.open_actions }}</span>{% endif %}
           {% if c2.oo_next %}<br><a href="{{ url_for('one_on_one', mid=c2.oo_next.id) }}">다음 1:1 {{ c2.oo_next.scheduled_at }}</a>
           {% elif c2.can_1on1 %}<br><a href="{{ url_for('one_on_ones', emp=emp.id) }}#new">1:1 일정 잡기</a>{% endif %}
         </div>
+        {% endif %}
+        {% if addon.feedback %}
         <div class="tm-ref-item">
           <b>피드백 · 사이클 기간</b>
           {% for k, label in kind_label.items() %}{{ ' · ' if not loop.first }}{{ label }} {{ c2.fb_counts[k] }}{% endfor %}
@@ -361,6 +364,7 @@
           <br><a href="{{ url_for('feedback_home', tab='team', emp=emp.id) }}">전체 보기</a>
           {% if c2.can_1on1 %} · <a href="{{ url_for('feedback_home', tab='requests', subject=emp.id) }}#ask">동료 의견 요청</a>{% endif %}
         </div>
+        {% endif %}
         <div class="tm-ref-item">
           <b>목표 체크인</b>
           체크인 {{ c2.checked_in }} / {{ c2.goal_n }}목표{% if not c2.risk_goals %} · 주의·위험 없음{% endif %}

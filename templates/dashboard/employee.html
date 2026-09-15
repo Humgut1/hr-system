@@ -185,7 +185,7 @@
     <div class="card">
       <div class="card-head">
         <span class="card-title">성과 할 일</span>
-        <a href="{{ url_for('one_on_ones') }}" class="btn btn-ghost btn-sm">1:1 면담</a>
+        {% if addon.one_on_one %}<a href="{{ url_for('one_on_ones') }}" class="btn btn-ghost btn-sm">1:1 면담</a>{% endif %}
       </div>
       <div>
         {% for it in perf_todo %}

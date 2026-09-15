@@ -555,6 +555,62 @@ def inject_peer_enabled():
         return {'peer_enabled': True}
 
 
+# ── 성과 부가 기능 스위치 ─────────────────────────────────────────
+# 성과의 중심은 대상자·다면평가 배정·캘리브레이션 세팅. 아래 기능은 회사 설정에서 켤 때만 보인다.
+PERF_ADDONS = {
+    'one_on_one': ('use_one_on_one', '1:1 면담', '매니저·팀원 정기 면담 일정·안건·액션 기록',
+                   {'one_on_ones', 'one_on_one'}),
+    'feedback': ('use_feedback', '피드백', '수시 칭찬·개선 제안·동료 의견 요청',
+                 {'feedback_home', 'feedback_give', 'feedback_request_new', 'feedback_request_respond'}),
+    'goal_alignment': ('use_goal_alignment', '목표 정렬', '전사·부서 목표를 만들고 개인 목표를 연결',
+                       {'goal_alignment', 'org_goal_new', 'org_goal_edit', 'performance_goal_align'}),
+    'succession': ('use_succession', '승계 계획', '핵심 포지션별 후계자·준비도 관리',
+                   {'succession', 'export_succession'}),
+}
+_ADDON_BY_ENDPOINT = {ep: k for k, v in PERF_ADDONS.items() for ep in v[3]}
+
+
+def perf_addons(db=None):
+    """켜진 부가 기능 {key: bool} — 컬럼이 없던 옛 DB는 끔으로 본다. 요청당 1회 조회."""
+    if 'perf_addons' in g:
+        return g.perf_addons
+    try:
+        row = (db or get_db()).execute('SELECT * FROM company_config WHERE id=1').fetchone()
+        cfg = dict(row) if row else {}
+    except Exception:
+        cfg = {}
+    out = {k: bool(cfg.get(v[0])) for k, v in PERF_ADDONS.items()}
+    cp = cfg.get('copilot_enabled')
+    out['copilot'] = True if cp is None else bool(cp)
+    g.perf_addons = out
+    return out
+
+
+def save_perf_addons(db, f):
+    """초기 설정·회사 설정 공통 — 스위치 섹션이 함께 제출될 때만 저장."""
+    if 'addon_section' not in f:
+        return
+    for col, *_ in PERF_ADDONS.values():
+        db.execute(f'UPDATE company_config SET {col}=? WHERE id=1', (1 if f.get(col) else 0,))
+    g.pop('perf_addons', None)
+
+
+@app.context_processor
+def inject_perf_addons():
+    if not session.get('user_id'):
+        return {'addon': {k: False for k in list(PERF_ADDONS) + ['copilot']}, 'perf_addon_defs': PERF_ADDONS}
+    return {'addon': perf_addons(), 'perf_addon_defs': PERF_ADDONS}
+
+
+@app.before_request
+def perf_addon_gate():
+    key = _ADDON_BY_ENDPOINT.get(request.endpoint or '')
+    if not key or not session.get('user_id') or perf_addons().get(key):
+        return
+    flash(f"{PERF_ADDONS[key][1]} 기능이 꺼져 있습니다 · 회사 설정 > 성과 부가 기능에서 켤 수 있습니다", 'warning')
+    return redirect(url_for('performance'))
+
+
 def _demo_write_blocked():
     """데모 모드(체험하기)에서는 role과 무관하게 모든 쓰기 요청을 차단한다."""
     if session.get('demo_mode') and request.method == 'POST':
@@ -1057,6 +1113,7 @@ def admin_setup():
         gd_note = save_grade_dist(db, s)
         save_perf_culture(db, s)
         save_default_form_weights(db, s)
+        save_perf_addons(db, s)
         if gd_note:
             notes.insert(0, gd_note)
 
@@ -1318,6 +1375,7 @@ def admin_settings():
         save_default_form_weights(db, s)
         if 'copilot_section' in s:
             db.execute('UPDATE company_config SET copilot_enabled=? WHERE id=1', (1 if s.get('copilot_enabled') else 0,))
+        save_perf_addons(db, s)
         db.commit()
         if gd_note:
             flash('설정 저장 · ' + gd_note, 'warning')
@@ -13748,8 +13806,9 @@ def _c2_team_rows(db, uid, role, dept_id, pc):
 def _c2_todo(db, uid, role, dept_id, pc, with_team=True):
     """홈 인박스용 — 임박 1:1, 주기 초과 팀원, 응답 대기 피드백 요청."""
     items = []
+    ad = perf_addons(db)
     soon = (date.today() + timedelta(days=2)).isoformat() + ' 23:59'
-    for m in db.execute(
+    for m in [] if not ad['one_on_one'] else db.execute(
             "SELECT o.id, o.scheduled_at, o.manager_id, mu.name AS mname, eu.name AS ename "
             "FROM one_on_ones o JOIN users mu ON o.manager_id=mu.id JOIN users eu ON o.employee_id=eu.id "
             "WHERE (o.manager_id=? OR o.employee_id=?) AND o.status='scheduled' AND o.scheduled_at<=? "
@@ -13757,13 +13816,13 @@ def _c2_todo(db, uid, role, dept_id, pc, with_team=True):
         other = m['ename'] if m['manager_id'] == uid else m['mname']
         items.append({'id': m['id'], 'category': 'one_on_one', 'title': f"{other} — 1:1 면담",
                       'sub': m['scheduled_at'], 'link': url_for('one_on_one', mid=m['id'])})
-    if with_team:
+    if with_team and ad['one_on_one']:
         late = [r for r in _c2_team_rows(db, uid, role, dept_id, pc) if r['state'] == 'late']
         if late:
             names = ', '.join(r['name'] for r in late[:3]) + (f" 외 {len(late) - 3}명" if len(late) > 3 else '')
             items.append({'id': 0, 'category': 'one_on_one', 'title': f"1:1 주기 초과 팀원 {len(late)}명",
                           'sub': f"권장 {pc['cadence']}일 · {names}", 'link': url_for('one_on_ones')})
-    for q in db.execute(
+    for q in [] if not ad['feedback'] else db.execute(
             "SELECT fr.id, fr.due_date, ru.name AS rname, su.name AS sname, fr.subject_id, fr.requester_id "
             "FROM feedback_requests fr JOIN users ru ON fr.requester_id=ru.id JOIN users su ON fr.subject_id=su.id "
             "WHERE fr.responder_id=? AND fr.status='pending' ORDER BY fr.id LIMIT 3", (uid,)).fetchall():
