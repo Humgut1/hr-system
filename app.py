@@ -17143,6 +17143,121 @@ from export_utils import (make_wb, write_header, write_row, auto_width,
 import urllib.parse
 
 
+ANALYTICS_AREAS = [('people', '인력'), ('attend', '근태'), ('pay', '보상'), ('exit', '퇴직')]
+ANALYTICS_LEVELS = {'late': '위험', 'wait': '주의', 'ref': '참고', 'done': '정상'}
+
+
+def _analytics_issues(sm, org_rows, grade_gender, leave_util,
+                      ot_violations, ot_warnings, outliers, dept_compa_avg):
+    """분야별 숫자를 훑어 '확인 필요 항목'을 만든다.
+
+    화면은 이 목록만 그린다 — 판단 기준을 한 곳에 모아 두어야
+    나중에 회사마다 기준을 바꿀 때 한 자리만 고치면 된다.
+    """
+    out = []
+
+    def add(key, area, level, title, sub, facts, bars=None, link=None, note=None):
+        out.append({'key': key, 'area': area, 'level': level,
+                    'label': ANALYTICS_LEVELS[level], 'title': title, 'sub': sub,
+                    'facts': facts, 'bars': bars, 'link': link, 'note': note})
+
+    # ── 연차 사용률 ──
+    pct, pace = sm['leave_pct'], sm['leave_pace']
+    lv = 'late' if pct < pace - 25 else 'wait' if pct < pace - 10 else 'done'
+    add('leave', 'attend', lv, '연차 사용률 %s%%' % pct,
+        '전사 · 권장 페이스 %s%%' % pace,
+        [('전사 사용률', '%s%%' % pct), ('권장 페이스', '%s%%' % pace),
+         ('차이', '%+.1f%%p' % (pct - pace))],
+        bars={'title': '연차를 가장 적게 쓴 조직 10곳', 'unit': '%', 'max': 100, 'ref': pace,
+              'ref_label': '오늘 기준 권장 페이스 %s%%' % pace,
+              'rows': [(r['dept'], r['pct'])
+                       for r in sorted(leave_util, key=lambda x: x['pct'])[:10]]},
+        link=('근태 · 연차 열기', '/leave/admin'),
+        note='권장 페이스는 1–12월을 고르게 쓴다고 보았을 때 오늘까지의 비율입니다.')
+
+    # ── 주 52시간 ──
+    nv, nw = len({r['user_id'] for r in ot_violations}), len({r['user_id'] for r in ot_warnings})
+    lv = 'late' if nv else 'wait' if nw else 'done'
+    add('h52', 'attend', lv,
+        '주 52시간 초과 %d명' % nv if nv else ('경고 구간 %d명' % nw if nw else '주 52시간 초과 없음'),
+        '최근 8주 · 경고 구간 %d명' % nw,
+        [('초과', '%d명' % nv), ('경고 구간', '%d명' % nw), ('기간', '최근 8주')],
+        link=('근태 열기', '/attendance/admin'))
+
+    # ── 결원 ──
+    gap, target = sm['hc_gap'], sm['hc_target']
+    gap_pct = round(gap * 100.0 / target, 1) if target else 0
+    lv = 'wait' if target and gap_pct >= 5 else 'ref' if gap else 'done'
+    add('vacancy', 'people', lv,
+        '정원 대비 결원 %d명' % gap if target else '정원이 아직 없습니다',
+        ('정원 %d · 현원 %d' % (target, sm['total_active'])) if target
+        else '초기 설정에서 부서별 정원을 넣으면 결원을 봅니다',
+        [('정원', '%d명' % target), ('현원', '%d명' % sm['total_active']),
+         ('결원', '%d명' % gap), ('12개월 입사', '%d명' % sm['hires_12m'])],
+        bars={'title': '조직별 결원 (하위 조직 기준)', 'unit': '명',
+              'max': max([r['gap'] for r in org_rows if r['leaf'] and r['gap']] + [1]),
+              'rows': sorted([(r['name'], r['gap']) for r in org_rows
+                              if r['leaf'] and r['gap'] and r['gap'] > 0],
+                             key=lambda x: -x[1])[:10]},
+        link=('정원 대장 열기', '/admin/setup'))
+
+    # ── 직급별 여성 비율 ──
+    fa = sm['female_pct']
+    lows = [g for g in grade_gender if g['f_pct'] is not None and g['f_pct'] <= fa - 15]
+    lv = 'wait' if lows else 'ref'
+    worst = min(lows, key=lambda g: g['f_pct']) if lows else None
+    add('grade_f', 'people', lv,
+        ('%s 여성 비율 %d%%' % (worst['grade'], worst['f_pct'])) if worst
+        else '직급별 여성 비율 쏠림 없음',
+        ('%d / %d명 · 전사 %d%%' % (worst['f'], worst['cnt'], fa)) if worst
+        else '전사 %d%% 기준 ±15%%p 안' % fa,
+        [('전사 여성 비율', '%d%%' % fa), ('직급 수', '%d개' % len(grade_gender)),
+         ('전사 대비 낮은 직급', '%d개' % len(lows))],
+        bars={'title': '직급별 여성 비율', 'unit': '%', 'max': 100, 'ref': fa,
+              'ref_label': '전사 여성 비율 %d%%' % fa,
+              'rows': [(g['grade'], g['f_pct']) for g in grade_gender if g['f_pct'] is not None]},
+        note='3명 미만 직급은 개인이 드러나므로 비율을 내지 않습니다.')
+
+    # ── 기준급 대비 낮은 급여 ──
+    low_pay = [e for e in outliers if e['compa_ratio'] and e['compa_ratio'] < 0.85]
+    lv = 'wait' if low_pay else 'done'
+    add('compa', 'pay', lv,
+        '기준 대비 85%% 미만 %d명' % len(low_pay) if low_pay else '기준 대비 낮은 급여 없음',
+        '전체 이상치 %d명(±15%%)' % len(outliers),
+        [('85% 미만', '%d명' % len(low_pay)), ('전체 이상치', '%d명' % len(outliers))],
+        link=('보상 분석 열기', '/compensation/analysis'))
+
+    # ── 부서 간 급여 수준 차이 ──
+    dept_pay = {d: v for d, v in dept_compa_avg.items() if d != '미지정'}
+    if len(dept_pay) >= 2:
+        lo = min(dept_pay.items(), key=lambda kv: kv[1])
+        hi = max(dept_pay.items(), key=lambda kv: kv[1])
+        spread = round((hi[1] - lo[1]) * 100, 1)
+        lv = 'wait' if spread >= 15 else 'ref'
+        add('dept_pay', 'pay', lv, '부서 간 급여 수준 차이 %s%%p' % spread,
+            '%s %d%% · %s %d%%' % (lo[0], round(lo[1] * 100), hi[0], round(hi[1] * 100)),
+            [('가장 낮은 부서', '%s %d%%' % (lo[0], round(lo[1] * 100))),
+             ('가장 높은 부서', '%s %d%%' % (hi[0], round(hi[1] * 100))),
+             ('차이', '%s%%p' % spread)],
+            bars={'title': '부서별 평균 Compa-Ratio', 'unit': '%', 'max': 130,
+                  'rows': sorted([(d, round(v * 100)) for d, v in dept_pay.items()],
+                                 key=lambda x: x[1])},
+            link=('보상 분석 열기', '/compensation/analysis'))
+
+    # ── 최근 12개월 퇴사 ──
+    ex, tr = sm['exits_12m'], sm['turnover_12m']
+    lv = 'ref' if ex == 0 else 'late' if tr >= 15 else 'wait' if tr >= 10 else 'done'
+    add('exit12', 'exit', lv,
+        '12개월 퇴사 %d명' % ex, '이직률 %s%%' % tr,
+        [('12개월 퇴사', '%d명' % ex), ('이직률', '%s%%' % tr),
+         ('재직', '%d명' % sm['total_active']), ('12개월 입사', '%d명' % sm['hires_12m'])],
+        note='퇴사자가 없으면 퇴직 분석에 쓸 표본도 없습니다.' if ex == 0 else None)
+
+    order = {'late': 0, 'wait': 1, 'ref': 2, 'done': 3}
+    out.sort(key=lambda i: order[i['level']])
+    return out
+
+
 @app.route('/analytics')
 @admin_required
 def people_analytics():
@@ -17185,7 +17300,7 @@ def people_analytics():
         [{'dept': _dept_names.get(k, '—'), 'pct': round(sum(v) / len(v), 1)}
          for k, v in _dept_pcts.items() if v],
         key=lambda x: x['pct'], reverse=True
-    )[:8]
+    )
 
     # ── 5. Compa-ratio distribution ─────────────────
     # Compa-ratio = 실제 기본급 / 해당 직급·직군 기준 연봉 × 100
@@ -17202,64 +17317,6 @@ def people_analytics():
         "ORDER BY compa_ratio DESC LIMIT 20"
     ).fetchall()
 
-    # ── 6. Attrition Risk (Deloitte 모델 간소화) ────
-    # 팩터: 재직기간, Compa-ratio, 성과등급, 최근 휴가 사용 패턴
-    risk_rows = db.execute(
-        "SELECT u.id, u.name, u.hire_date, "
-        "  d.name AS dept, p.name AS grade, "
-        "  COALESCE(es.base_salary, 0) AS salary, "
-        "  COALESCE(sg.annual_salary, 0) AS grade_salary, "
-        "  COALESCE(cr.final_grade, 'B') AS perf_grade, "
-        "  COALESCE(lv.leave_days, 0) AS leave_days_used "
-        "FROM users u "
-        "LEFT JOIN departments d ON d.id=u.department_id "
-        "LEFT JOIN positions p ON p.id=u.position_id "
-        "LEFT JOIN employee_salary es ON es.user_id=u.id "
-        "LEFT JOIN salary_grades sg ON sg.position_id=u.position_id AND sg.job_family_id=u.job_family_id "
-        "LEFT JOIN ("
-        "  SELECT user_id, final_grade FROM calibration_results "
-        "  WHERE id IN (SELECT MAX(id) FROM calibration_results GROUP BY user_id)"
-        ") cr ON cr.user_id=u.id "
-        "LEFT JOIN ("
-        "  SELECT user_id, COALESCE(SUM(days),0) AS leave_days "
-        "  FROM leave_requests WHERE status='approved' "
-        "  AND start_date >= date('now','-6 months') GROUP BY user_id"
-        ") lv ON lv.user_id=u.id "
-        "WHERE u.status='active' AND u.role='employee' AND u.hire_date IS NOT NULL "
-        "ORDER BY u.hire_date ASC LIMIT 30"
-    ).fetchall()
-
-    def calc_risk_score(row):
-        score = 0
-        # 재직기간 < 1년: +25, 1-2년: +15
-        if row['hire_date']:
-            from datetime import datetime as dt
-            hd = dt.strptime(row['hire_date'], '%Y-%m-%d').date()
-            months = (today.year - hd.year) * 12 + (today.month - hd.month)
-            if months < 12: score += 25
-            elif months < 24: score += 15
-        # Compa-ratio < 80: +30, 80-95: +15
-        if row['grade_salary'] and row['grade_salary'] > 0:
-            compa = row['salary'] * 12 / row['grade_salary'] * 100
-            if compa < 80: score += 30
-            elif compa < 95: score += 15
-        # 성과 등급 C/D: +20
-        if row['perf_grade'] in ('C', 'D'): score += 20
-        # 최근 6개월 휴가 0일: +10 (번아웃 징후)
-        if row['leave_days_used'] == 0: score += 10
-        return min(score, 100)
-
-    risk_employees = []
-    for r in risk_rows:
-        risk = calc_risk_score(r)
-        if risk >= 20:
-            risk_employees.append({
-                'name': r['name'], 'dept': r['dept'] or '—',
-                'grade': r['grade'] or '—', 'risk': risk,
-                'level': 'high' if risk >= 60 else ('medium' if risk >= 35 else 'low')
-            })
-    risk_employees.sort(key=lambda x: x['risk'], reverse=True)
-
     # ── 7. 핵심 요약 지표 ───────────────────────────
     total_active = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
     total_resigned = db.execute("SELECT COUNT(*) FROM users WHERE status='resigned'").fetchone()[0]
@@ -17270,7 +17327,6 @@ def people_analytics():
     ).fetchone()
     avg_tenure = round(avg_tenure_row['avg_tenure'] or 0, 1)
     open_reqs = db.execute("SELECT COUNT(*) FROM job_postings WHERE status='open'").fetchone()[0]
-    high_risk_count = sum(1 for e in risk_employees if e['level'] == 'high')
 
     # export 탭용 추가 데이터
     cycles      = db.execute('SELECT id, name FROM performance_cycles ORDER BY id DESC').fetchall()
@@ -17421,13 +17477,136 @@ def people_analytics():
         'reason_labels': EXIT_REASON_CATEGORY_LABEL,
     }
 
+
+    # ── 8. 조직별 현원·정원(결원) ─────────────────────
+    # 정원 대장은 상위 조직(부문·본부)에 하위까지 합친 숫자가 들어 있다.
+    # 그래서 현원도 하위 조직까지 굴려서 같은 눈높이로 비교한다.
+    _fy = today.year
+    _target = {r[0]: r[1] for r in db.execute(
+        'SELECT department_id, target_count FROM department_headcount WHERE fiscal_year=?', (_fy,)).fetchall()}
+    _deps = db.execute('SELECT id, name, parent_id FROM departments ORDER BY id').fetchall()
+    _parent = {d['id']: d['parent_id'] for d in _deps}
+    _dname = {d['id']: d['name'] for d in _deps}
+    _kids = {}
+    for d in _deps:
+        _kids.setdefault(d['parent_id'], []).append(d['id'])
+
+    def _chain(did):
+        """자기 자신 + 상위 조직들 (순환 방어)."""
+        out, seen, cur = [], set(), did
+        while cur and cur not in seen:
+            out.append(cur)
+            seen.add(cur)
+            cur = _parent.get(cur)
+        return out
+
+    _cut12 = (today - timedelta(days=365)).isoformat()
+    _hc, _fe, _h12 = {}, {}, {}
+    for u in db.execute(
+        "SELECT department_id, gender, hire_date FROM users "
+        "WHERE status='active' AND department_id IS NOT NULL").fetchall():
+        for did in _chain(u['department_id']):
+            _hc[did] = _hc.get(did, 0) + 1
+            if u['gender'] == 'F':
+                _fe[did] = _fe.get(did, 0) + 1
+            if u['hire_date'] and u['hire_date'] >= _cut12:
+                _h12[did] = _h12.get(did, 0) + 1
+
+    org_rows = []
+
+    def _walk(did, depth):
+        hc, t = _hc.get(did, 0), _target.get(did)
+        if hc or t:
+            org_rows.append({
+                'id': did, 'name': _dname.get(did, '—'),
+                'depth': depth, 'hc': hc, 'target': t,
+                'gap': (t - hc) if t is not None else None,
+                'f_pct': round(_fe.get(did, 0) * 100.0 / hc) if hc >= 3 else None,
+                'h12': _h12.get(did, 0),
+                'leaf': did not in _kids,
+            })
+        for k in _kids.get(did, []):
+            _walk(k, depth + 1)
+
+    for _root in _kids.get(None, []):
+        _walk(_root, 0)
+
+    # 상위에 정원이 있으면 하위 정원은 그 안에 이미 포함 → 맨 위 것만 더한다
+    hc_target_total = sum(t for did, t in _target.items()
+                          if _parent.get(did) not in _target)
+    hc_gap_total = max(hc_target_total - total_active, 0) if hc_target_total else 0
+
+    # ── 9. 직급별 성별 구성 ───────────────────────────
+    grade_gender = []
+    for r in db.execute(
+        "SELECT p.name AS grade, p.level, COUNT(u.id) AS cnt, "
+        "  SUM(CASE WHEN u.gender='F' THEN 1 ELSE 0 END) AS f "
+        "FROM positions p JOIN users u ON u.position_id=p.id AND u.status='active' "
+        "GROUP BY p.id ORDER BY p.level ASC").fetchall():
+        grade_gender.append({'grade': r['grade'], 'cnt': r['cnt'], 'f': r['f'] or 0,
+                             'f_pct': round((r['f'] or 0) * 100.0 / r['cnt']) if r['cnt'] >= 3 else None})
+    _f_all = db.execute("SELECT COUNT(*) FROM users WHERE status='active' AND gender='F'").fetchone()[0]
+    female_pct = round(_f_all * 100.0 / total_active) if total_active else 0
+
+    # ── 10. 근속·연령 분포 ────────────────────────────
+    tenure_buckets = [('1년 미만', 0), ('1–3년', 0), ('3–5년', 0), ('5–10년', 0), ('10년 이상', 0)]
+    tenure_dist_active = dict(tenure_buckets)
+    _ages = []
+    for r in db.execute(
+        "SELECT hire_date, birth_date FROM users WHERE status='active'").fetchall():
+        if r['hire_date']:
+            try:
+                y = (today - date.fromisoformat(r['hire_date'])).days / 365.25
+            except ValueError:
+                y = None
+            if y is not None:
+                k = ('1년 미만' if y < 1 else '1–3년' if y < 3 else '3–5년' if y < 5
+                     else '5–10년' if y < 10 else '10년 이상')
+                tenure_dist_active[k] += 1
+        if r['birth_date']:
+            try:
+                _ages.append((today - date.fromisoformat(r['birth_date'])).days / 365.25)
+            except ValueError:
+                pass
+    tenure_dist_active = [(k, tenure_dist_active[k]) for k, _ in tenure_buckets]
+    avg_age = round(sum(_ages) / len(_ages), 1) if _ages else None
+
+    # ── 11. 연차 사용률(전사) · 권장 페이스 ────────────
+    _lv_tot = _lv_used = 0
+    for e in _emps:
+        b = get_leave_balance(db, e['id'])
+        _lv_tot += b['total']
+        _lv_used += b['used']
+    leave_pct_all = round(_lv_used * 100.0 / _lv_tot, 1) if _lv_tot else 0.0
+    leave_pace = round(today.timetuple().tm_yday * 100.0 / 365)
+
+    # ── 12. 최근 12개월 입·퇴사 ───────────────────────
+    hires_12m = db.execute(
+        "SELECT COUNT(*) FROM users WHERE status='active' AND hire_date >= date('now','-12 months')"
+    ).fetchone()[0]
+    exits_12m = db.execute(
+        "SELECT COUNT(*) FROM users WHERE termination_date IS NOT NULL "
+        "AND termination_date >= date('now','-12 months')").fetchone()[0]
+    turnover_12m = round(exits_12m * 100.0 / total_active, 1) if total_active else 0.0
+
+    summary = {
+        'total_active': total_active, 'hc_target': hc_target_total, 'hc_gap': hc_gap_total,
+        'female_pct': female_pct, 'avg_tenure': avg_tenure, 'avg_age': avg_age,
+        'hires_12m': hires_12m, 'exits_12m': exits_12m, 'turnover_12m': turnover_12m,
+        'leave_pct': leave_pct_all, 'leave_pace': leave_pace,
+    }
+
+    issues = _analytics_issues(summary, org_rows, grade_gender, leave_util,
+                               ot_violations, ot_warnings, outliers, dept_compa_avg)
+
     return render_template('analytics/index.html',
         active_page='analytics',
         total_active=total_active, turnover_rate=turnover_rate,
-        avg_tenure=avg_tenure, open_reqs=open_reqs, high_risk_count=high_risk_count,
+        avg_tenure=avg_tenure, open_reqs=open_reqs,
         dept_headcount=dept_headcount, grade_headcount=grade_headcount,
         monthly_turnover=monthly_turnover, leave_util=leave_util,
-        compa_rows=compa_rows, risk_employees=risk_employees,
+        compa_rows=compa_rows, org_rows=org_rows, grade_gender=grade_gender,
+        tenure_dist_active=tenure_dist_active, summary=summary, issues=issues,
         cycles=cycles, today_year=today_year, today_month=today_month,
         pay_equity=pay_equity, outliers=outliers, dept_compa_avg=dept_compa_avg,
         bonus_configs=bonus_configs,
@@ -17691,7 +17870,7 @@ def export_attendance():
 @app.route('/report/builder')
 @admin_required
 def report_builder():
-    return redirect(url_for('people_analytics', tab='wizard'))
+    return redirect(url_for('people_analytics', tab='report'))
 
 
 @app.route('/report/preview', methods=['POST'])
