@@ -430,8 +430,11 @@
         </div>
         <div class="field">
           <label>희망 입사일</label>
-          <input type="date" name="target_start_date" class="input"
-                 value="{{ req.target_start_date if req and req.target_start_date else '' }}">
+          {% set _cur = req.target_start_date if req and req.target_start_date else '' %}
+          <select name="target_start_date" class="input">
+            <option value="">미정</option>
+            {% for o in start_date_choices(_cur, 52) %}<option value="{{ o.value }}"{% if o.value == _cur %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </select>
         </div>
       </div>
     </div>

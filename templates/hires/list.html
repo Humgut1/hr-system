@@ -207,8 +207,11 @@
           <input type="text" name="name" class="input" required>
         </div>
         <div class="field">
-          <label class="form-label">입사 예정일</label>
-          <input type="date" name="start_date" class="input">
+          <label class="form-label">입사 예정일 <small style="font-weight:400; color:var(--tx-3);">{{ start_weekdays_label() }}요일만</small></label>
+          <select name="start_date" class="input">
+            <option value="">협의 중</option>
+            {% for o in start_date_choices() %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}
+          </select>
         </div>
       </div>
       <div class="grid-2" style="gap:12px;">

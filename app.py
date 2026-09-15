@@ -3673,6 +3673,37 @@ def _normalize_hire_date(val):
         return None
 
 
+def _ko_day(d):
+    return '%s(%s)' % (d.strftime('%m.%d'), workplace.WEEKDAY_KO[d.weekday()])
+
+
+def _start_date_rule_msg(conn, iso):
+    """입사일 규칙(회사·건물 설정의 입사 요일, 공휴일 제외)에 어긋나면 안내문, 맞으면 None.
+    비어 있으면 '협의 중'이라 통과시킨다."""
+    if not iso:
+        return None
+    p = workplace.start_date_problem(conn, iso)
+    if not p:
+        return None
+    msg, nxt = p
+    return msg + (' — 가까운 입사일: ' + ', '.join(_ko_day(d) for d in nxt) if nxt else '')
+
+
+def _start_date_choices(current=None, n=26):
+    """입사일 고르는 칸에 넣을 날짜들. 규칙이 생기기 전에 잡힌 날은 맨 위에 그대로 남긴다."""
+    db = get_db()
+    out = [{'value': d.isoformat(),
+            'label': '%s (%s)' % (d.strftime('%Y.%m.%d'), workplace.WEEKDAY_KO[d.weekday()])}
+           for d in workplace.next_start_dates(db, date.today(), n)]
+    if current and current not in [o['value'] for o in out]:
+        out.insert(0, {'value': current, 'label': '%s (규칙 밖 · 이미 잡힌 날)' % current})
+    return out
+
+
+app.jinja_env.globals['start_date_choices'] = _start_date_choices
+app.jinja_env.globals['start_weekdays_label'] = lambda: workplace.weekdays_label(workplace.settings(get_db())['weekdays'])
+
+
 @app.route('/hires')
 @recruiter_or_admin
 def hires_list():
@@ -3739,8 +3770,11 @@ def hires_new():
     except ValueError:
         salary = None
 
+    rule = _start_date_rule_msg(db, start)
     if not name:
         flash('이름은 필수입니다.', 'error')
+    elif rule:
+        flash(rule, 'error')
     elif email and db.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone():
         flash('이미 등록된 직원의 이메일입니다.', 'error')
     else:
@@ -3885,6 +3919,11 @@ def hires_webhook():
     conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
     conn.row_factory = sqlite3.Row
     try:
+        # 입사일 규칙 — 월·수(공휴일 제외)만. 어긋나면 가까운 입사일을 같이 돌려준다.
+        prob = workplace.start_date_problem(conn, start) if start else None
+        if prob:
+            return {'ok': False, 'error': 'start_date not allowed', 'detail': prob[0],
+                    'next_dates': [d.isoformat() for d in prob[1]]}, 422
         email = str(payload.get('email') or '').strip() or None
         if email:
             if conn.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone():
@@ -4027,6 +4066,41 @@ def openings_api():
             'count': len(seats),
             'open': sum(1 for s in seats if s['open']),
             'seats': seats}
+
+
+@app.route('/api/workplace/start-dates', methods=['GET'])
+def workplace_start_dates_api():
+    """입사 가능일 내주기 — Hire 오퍼에서 입사일을 고를 때 쓴다 (회의실·온보딩 V1 W3).
+
+    입사 요일·공휴일·오리엔테이션 시간은 TalentCore 것이다. Hire 는 이 목록에서만 고르게 하고,
+    보낼 때 /api/hires 가 한 번 더 검사한다(어긋나면 422 + 가까운 입사일).
+
+    인증: X-API-Token (/api/hires · /api/directory 와 같은 열쇠)
+    ?from=YYYY-MM-DD (기본 오늘) &n=개수(기본 26, 최대 104)
+    """
+    tenant = get_tenant_by_api_token(request.headers.get('X-API-Token', ''))
+    if not tenant:
+        return {'ok': False, 'error': 'invalid token'}, 401
+    d_from = workplace.to_date(request.args.get('from')) or date.today()
+    try:
+        n = max(1, min(104, int(request.args.get('n') or 26)))
+    except ValueError:
+        n = 26
+    conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
+    conn.row_factory = sqlite3.Row
+    try:
+        st = workplace.settings(conn)
+        dates = workplace.next_start_dates(conn, d_from, n, st)
+        rm = workplace.room(conn, st['orientation_room'])
+    finally:
+        conn.close()
+    return {'ok': True,
+            'weekdays': st['weekdays'],
+            'weekdays_label': workplace.weekdays_label(st['weekdays']),
+            'orientation': {'room': st['orientation_room'],
+                            'room_name': rm['name'] if rm else '',
+                            'start': st['orientation_start'], 'end': st['orientation_end']},
+            'dates': [{'date': d.isoformat(), 'weekday': workplace.WEEKDAY_KO[d.weekday()]} for d in dates]}
 
 
 @app.route('/api/directory', methods=['GET'])
@@ -11957,6 +12031,10 @@ def requisition_new():
 
     if request.method == 'POST':
         f = request.form
+        rule = _start_date_rule_msg(db, _normalize_hire_date(f.get('target_start_date', '')))
+        if rule:
+            flash('희망 입사일: ' + rule, 'error')
+            return redirect(url_for('requisition_new'))
         rid = db.execute(
             'INSERT INTO job_requisitions '
             '(title, department_id, position_id, job_family_id, track, '
