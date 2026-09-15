@@ -200,7 +200,8 @@ def start_date_problem(conn, d, st=None):
         return None
     allowed = weekdays_label(st['weekdays'])
     hn = holiday_name(conn, dd) if dd.weekday() in st['weekdays'] else None
-    why = ('%s(%s)은 공휴일(%s)이라 입사일로 쓸 수 없습니다' % (dd.isoformat(), WEEKDAY_KO[dd.weekday()], hn)
+    wd = WEEKDAY_KO[dd.weekday()]
+    why = ('%s(%s)%s 공휴일(%s)이라 입사일로 쓸 수 없습니다' % (dd.isoformat(), wd, '은' if _jong(wd) else '는', hn)
            if hn else '입사일은 매주 %s요일만 가능합니다 — %s(%s)' % (allowed, dd.isoformat(), WEEKDAY_KO[dd.weekday()]))
     return (why, next_start_dates(conn, dd, 3, st))
 
