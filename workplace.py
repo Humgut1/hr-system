@@ -521,7 +521,7 @@ def ics_text(b, rm, site=None):
 
 
 # ── 면접실 추천 ────────────────────────────────────────────────────────
-def recommend_rooms(conn, start_at, end_at, people=2, mode='onsite', needs=(), limit=3, today=None):
+def recommend_rooms(conn, start_at, end_at, people=2, mode='onsite', needs=(), limit=3, today=None, exclude_id=None):
     """자동 배정이 아니라 추천 — 인원 맞는 가장 작은 방 · 필요한 장비 · 낮은 층 · 시간 전체가 빈 방."""
     start_at = parse_dt(start_at) if isinstance(start_at, str) else start_at
     end_at = parse_dt(end_at) if isinstance(end_at, str) else end_at
@@ -545,7 +545,7 @@ def recommend_rooms(conn, start_at, end_at, people=2, mode='onsite', needs=(), l
         missing = [n for n in needs if n not in eq and not (n == '화상회의' and rm['type'] == 'phone')]
         if missing:
             continue
-        hit = find_conflict(conn, rm['code'], start_at, end_at, today=today)
+        hit = find_conflict(conn, rm['code'], start_at, end_at, exclude_id=exclude_id, today=today)
         if video:
             rank = {'phone': 0, 'interview': 1, 'small': 1, 'meeting': 2, 'large': 3}.get(rm['type'], 3)
         else:

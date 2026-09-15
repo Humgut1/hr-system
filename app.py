@@ -327,7 +327,8 @@ def get_leave_balance(db, user_id, year=None, include_pending=False):
 # ══════════════════════════════════════════════════════════════
 
 # 외부 서비스가 직접 호출하는 엔드포인트 (자체 서명 검증으로 보호됨)
-CSRF_EXEMPT_ENDPOINTS = {'billing_webhook', 'slack_command', 'slack_interactive', 'hires_webhook'}
+CSRF_EXEMPT_ENDPOINTS = {'billing_webhook', 'slack_command', 'slack_interactive', 'hires_webhook',
+                         'workplace_rooms_book_api', 'workplace_rooms_cancel_api'}
 
 
 def _get_csrf_token():
@@ -4103,6 +4104,135 @@ def workplace_start_dates_api():
                             'room_name': rm['name'] if rm else '',
                             'start': st['orientation_start'], 'end': st['orientation_end']},
             'dates': [{'date': d.isoformat(), 'weekday': workplace.WEEKDAY_KO[d.weekday()]} for d in dates]}
+
+
+def _iv_slot(date_s, start_s, end_s):
+    """Hire 면접 시간(분 단위 자유)을 회의실 격자(30분)에 맞춰 바깥으로 넓힌다. 14:10~14:55 → 14:00~15:00"""
+    d = workplace.to_date(date_s)
+    try:
+        s, e = workplace.hm(start_s), workplace.hm(end_s)
+    except (ValueError, TypeError):
+        return None, None
+    if not d or e <= s:
+        return None, None
+    step = workplace.SLOT_MIN
+    s, e = s - s % step, e + (-e) % step
+    base = datetime(d.year, d.month, d.day)
+    return base + timedelta(minutes=s), base + timedelta(minutes=e)
+
+
+def _iv_booking(conn, ref):
+    if not ref:
+        return None
+    b = conn.execute("SELECT * FROM room_bookings WHERE ref=? AND kind='interview' AND status='active' "
+                     "ORDER BY id DESC LIMIT 1", (ref,)).fetchone()
+    if not b:
+        return None
+    rm = workplace.room(conn, b['room_code'])
+    return {'id': b['id'], 'room': b['room_code'], 'name': rm['name'] if rm else b['room_code'],
+            'floor': rm['floor'] if rm else None, 'start': b['start_at'], 'end': b['end_at'],
+            'label': '%s층 %s' % (rm['floor'], rm['name']) if rm else b['room_code']}
+
+
+@app.route('/api/workplace/rooms/recommend', methods=['GET'])
+def workplace_rooms_recommend_api():
+    """면접실 추천 — Hire 가 면접 시간이 정해진 뒤 부른다 (회의실·온보딩 V1 W5).
+
+    자동 배정은 하지 않는다. 인원·성격에 따라 맞는 방이 달라서, 추천만 내주고 채용 담당이 고른다.
+    인증: X-API-Token
+    ?date=YYYY-MM-DD&start=HH:MM&end=HH:MM&people=면접관+후보자 수&mode=onsite|video&ref=Hire 면접 id
+    ref 를 주면 이미 잡아 둔 방(booked)도 같이 준다.
+    """
+    tenant = get_tenant_by_api_token(request.headers.get('X-API-Token', ''))
+    if not tenant:
+        return {'ok': False, 'error': 'invalid token'}, 401
+    a = request.args
+    s, e = _iv_slot(a.get('date'), a.get('start'), a.get('end'))
+    if not s:
+        return {'ok': False, 'error': '날짜·시간을 확인해 주세요'}, 400
+    conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
+    conn.row_factory = sqlite3.Row
+    try:
+        if not workplace.has_workplace(conn):
+            return {'ok': True, 'configured': False, 'rooms': [], 'busy': []}
+        people = a.get('people', type=int) or 2
+        booked = _iv_booking(conn, (a.get('ref') or '').strip()[:120])
+        # 이 면접이 이미 잡아 둔 방은 '사용 중'이 아니다 — 같은 시간이면 그대로 추천 목록에 둔다
+        r = workplace.recommend_rooms(conn, s, e, people=people, mode=a.get('mode') or 'onsite',
+                                      exclude_id=booked['id'] if booked else None)
+        r['configured'] = True
+        r['booked'] = booked
+        site = (workplace.sites(conn) or [{}])[0]
+        r['site'] = {'building': site.get('building', ''), 'address': site.get('address', '')}
+    finally:
+        conn.close()
+    return r, (200 if r.get('ok') else 400)
+
+
+@app.route('/api/workplace/rooms/book', methods=['POST'])
+def workplace_rooms_book_api():
+    """면접실 잡기 — 채용 담당이 추천 중 하나를 눌렀을 때. 같은 ref 로 다시 부르면 방·시간을 바꾼다.
+
+    JSON {room, date, start, end, title, ref, people, booked_by, note}
+    겹치면 409 + 겹친 예약 + 그 시간에 비어 있는 다른 추천.
+    """
+    tenant = get_tenant_by_api_token(request.headers.get('X-API-Token', ''))
+    if not tenant:
+        return {'ok': False, 'error': 'invalid token'}, 401
+    j = request.get_json(silent=True) or {}
+    s, e = _iv_slot(j.get('date'), j.get('start'), j.get('end'))
+    ref = str(j.get('ref') or '').strip()[:120]
+    if not s or not ref:
+        return {'ok': False, 'error': '날짜·시간·ref 를 확인해 주세요'}, 400
+    conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
+    conn.row_factory = sqlite3.Row
+    try:
+        rm = workplace.room(conn, j.get('room') or '')
+        if rm and rm['bookable_by'] == 'exec':
+            return {'ok': False, 'error': '%s은 경영진 전용이라 면접실로 잡을 수 없습니다' % rm['name']}, 403
+        old = _iv_booking(conn, ref)
+        if old and old['room'] == j.get('room') and old['start'] == s.strftime('%Y-%m-%d %H:%M') \
+                and old['end'] == e.strftime('%Y-%m-%d %H:%M'):
+            return {'ok': True, 'booking': old, 'unchanged': True}
+        if old:   # 바꾸기 — 새 방이 잡혀야만 옛 방을 놓는다(아래 실패 시 rollback)
+            conn.execute("UPDATE room_bookings SET status='cancelled', cancelled_at=CURRENT_TIMESTAMP WHERE id=?",
+                         (old['id'],))
+        people = int(j.get('people') or 0)
+        bid, err, hit = workplace.create_booking(
+            conn, j.get('room') or '', j.get('title') or '면접', s, e, kind='interview', ref=ref,
+            attendees=people, note=j.get('note') or '', booked_by=(j.get('booked_by') or 'Hire'),
+            skip_permission=True)
+        if err:
+            conn.rollback()
+            body = {'ok': False, 'error': err}
+            if hit:
+                body['conflict'] = {'start': hit['start_at'], 'end': hit['end_at'], 'title': hit['title']}
+                body['alternatives'] = workplace.recommend_rooms(conn, s, e, people=people or 2,
+                                                                 mode=j.get('mode') or 'onsite')['rooms']
+            return body, (409 if hit else 400)
+        conn.commit()
+        return {'ok': True, 'booking': _iv_booking(conn, ref), 'replaced': old}, 201
+    finally:
+        conn.close()
+
+
+@app.route('/api/workplace/rooms/cancel', methods=['POST'])
+def workplace_rooms_cancel_api():
+    """면접실 놓기 — 면접이 취소되거나 화상으로 바뀌었을 때. JSON {ref}"""
+    tenant = get_tenant_by_api_token(request.headers.get('X-API-Token', ''))
+    if not tenant:
+        return {'ok': False, 'error': 'invalid token'}, 401
+    ref = str((request.get_json(silent=True) or {}).get('ref') or '').strip()[:120]
+    if not ref:
+        return {'ok': False, 'error': 'ref required'}, 400
+    conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
+    try:
+        n = conn.execute("UPDATE room_bookings SET status='cancelled', cancelled_at=CURRENT_TIMESTAMP "
+                         "WHERE ref=? AND kind='interview' AND status='active'", (ref,)).rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    return {'ok': True, 'cancelled': n}
 
 
 @app.route('/api/directory', methods=['GET'])
