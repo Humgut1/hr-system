@@ -6951,6 +6951,8 @@ def compensation():
     today_year  = today.year
     today_month = today.month
     _tab        = request.args.get('tab', 'ops')
+    if _tab == 'analysis':
+        return redirect(url_for('comp_analysis'))
 
     active_count = db.execute(
         "SELECT COUNT(*) FROM users WHERE status='active' AND role NOT IN ('admin','guest')"
@@ -7434,6 +7436,401 @@ def salary_adjustment_delete(adj_id):
     log_audit('delete', 'salary', None, f'연봉 조정안 「{adj["name"]}」 삭제')
     flash('조정안이 삭제되었습니다.', 'success')
     return redirect(url_for('salary_adjustments'))
+
+
+# ── C4: 보상 분석 (형평성 · 인상 시뮬레이션 · 인건비 예측) ─────────────────────
+CA_TENURE_BUCKETS = [(0, 1, '1년 미만'), (1, 3, '1~3년'), (3, 5, '3~5년'), (5, 10, '5~10년'), (10, 99, '10년 이상')]
+CA_MIN_GROUP = 3          # 성별 그룹당 최소 인원 — 미만이면 '표본 부족'
+CA_GAP_REVIEW = 5.0       # |여/남 차이| ≥ 5% → '검토'
+CA_SANJAE_DEFAULT = 1.47  # 2026 산재보험 평균 요율(%) — 업종별로 다름
+
+
+def _ca_population(db):
+    """분석 대상: 재직 · 관리자/게스트 제외 · 기본급 등록자 (보상 검토 대상과 같은 기준)"""
+    return [dict(r) for r in db.execute(
+        "SELECT u.id, u.name, u.gender, u.hire_date, u.termination_date, u.employment_type, "
+        "u.department_id, u.position_id, u.job_family_id, d.name dept_name, p.name pos_name, "
+        "COALESCE(p.level, 0) pos_level, jf.name family_name, s.base_salary, "
+        "COALESCE(s.meal_allowance,0) meal, COALESCE(s.transport_allowance,0) trans, "
+        "sg.min_salary, sg.mid_salary, sg.max_salary "
+        "FROM users u JOIN employee_salary s ON s.user_id = u.id "
+        "LEFT JOIN departments d ON d.id = u.department_id "
+        "LEFT JOIN positions p ON p.id = u.position_id "
+        "LEFT JOIN job_families jf ON jf.id = u.job_family_id "
+        "LEFT JOIN salary_grades sg ON sg.id = (SELECT id FROM salary_grades x WHERE x.position_id=u.position_id "
+        "  AND x.job_family_id=u.job_family_id LIMIT 1) "
+        "WHERE u.status='active' AND u.role NOT IN ('admin','guest') AND s.base_salary > 0 "
+        "ORDER BY u.name").fetchall()]
+
+
+def _ca_median(vals):
+    v = sorted(vals)
+    n = len(v)
+    if not n:
+        return None
+    return v[n // 2] if n % 2 else (v[n // 2 - 1] + v[n // 2]) / 2
+
+
+def _ca_tenure(hire_date, today):
+    try:
+        return (today - date.fromisoformat(str(hire_date)[:10])).days / 365.25
+    except (TypeError, ValueError):
+        return None
+
+
+def _ca_gap_pct(f_avg, m_avg):
+    """여성 평균이 남성 평균보다 몇 % 높/낮은지 (음수 = 여성이 낮음)"""
+    if not f_avg or not m_avg:
+        return None
+    return round((f_avg / m_avg - 1) * 100, 1)
+
+
+def _ca_group_rows(emps, keyfn, salary_key='base_salary'):
+    groups = {}
+    for e in emps:
+        k = keyfn(e)
+        if k is None:
+            continue
+        g = groups.setdefault(k, {'key': k, 'F': [], 'M': [], 'all': 0})
+        g['all'] += 1
+        if e['gender'] in ('F', 'M'):
+            g[e['gender']].append(e[salary_key])
+    rows = []
+    for k in sorted(groups, key=lambda x: (x[0], x[1]) if isinstance(x, tuple) else x):
+        g = groups[k]
+        nf, nm = len(g['F']), len(g['M'])
+        f_avg = sum(g['F']) / nf if nf else None
+        m_avg = sum(g['M']) / nm if nm else None
+        gap = _ca_gap_pct(f_avg, m_avg)
+        thin = nf < CA_MIN_GROUP or nm < CA_MIN_GROUP
+        rows.append({'label': k[1] if isinstance(k, tuple) else k, 'n': g['all'], 'nf': nf, 'nm': nm,
+                     'f_avg': f_avg, 'm_avg': m_avg, 'f_med': _ca_median(g['F']), 'm_med': _ca_median(g['M']),
+                     'gap': gap, 'thin': thin, 'review': (not thin and gap is not None and abs(gap) >= CA_GAP_REVIEW)})
+    return rows
+
+
+def _ca_gaps(emps, salary_key='base_salary'):
+    """단순 격차(전체 평균) · 직급 보정 격차(같은 직급 안 여/남 차이의 인원 가중 평균)"""
+    f = [e[salary_key] for e in emps if e['gender'] == 'F']
+    m = [e[salary_key] for e in emps if e['gender'] == 'M']
+    raw = _ca_gap_pct(sum(f) / len(f) if f else None, sum(m) / len(m) if m else None)
+    num = den = 0
+    for r in _ca_group_rows(emps, lambda e: (e['pos_level'], e['pos_name'] or '직급 없음'), salary_key):
+        if r['gap'] is not None and r['nf'] and r['nm']:
+            num += r['gap'] * (r['nf'] + r['nm'])
+            den += r['nf'] + r['nm']
+    return {'nf': len(f), 'nm': len(m), 'f_avg': sum(f) / len(f) if f else None,
+            'm_avg': sum(m) / len(m) if m else None, 'raw': raw,
+            'adjusted': round(num / den, 1) if den else None}
+
+
+def _ca_latest_grades(db):
+    """가장 최근 보정 확정 등급 {user_id: grade} · 주기명 (보정 결과 테이블이 없으면 빈 값)"""
+    if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='calibration_results'").fetchone():
+        return {}, None
+    row = db.execute("SELECT cycle_id FROM calibration_results WHERE final_grade IS NOT NULL "
+                     "ORDER BY cycle_id DESC LIMIT 1").fetchone()
+    if not row:
+        return {}, None
+    cyc = db.execute('SELECT name FROM performance_cycles WHERE id=?', (row['cycle_id'],)).fetchone()
+    grades = {r['user_id']: r['final_grade'] for r in db.execute(
+        'SELECT user_id, final_grade FROM calibration_results WHERE cycle_id=? AND final_grade IS NOT NULL',
+        (row['cycle_id'],)).fetchall()}
+    return grades, (cyc['name'] if cyc else f'주기 {row["cycle_id"]}')
+
+
+def _ca_stability_rate(headcount):
+    """고용보험 고용안정·직업능력개발사업 사업주 요율 (150명 미만 0.25% · 150~999명 0.65% · 1,000명 이상 0.85%)"""
+    if headcount < 150:
+        return 0.0025
+    if headcount < 1000:
+        return 0.0065
+    return 0.0085
+
+
+def _ca_employer_cost(pay, meal, trans, bonus, rates, stab, sanjae):
+    """사업주 부담 4대보험 + 산재 (월, 추정). pay=기본급, bonus=그 달 상여 — 국민연금은 기준소득월액이라 상여 제외"""
+    taxable = pay + max(0, meal - 200_000) + max(0, trans - 200_000)
+    pension_base = min(max(taxable, rates['pension_min']), rates['pension_max'])
+    wage = taxable + bonus
+    health = wage * rates['health']
+    return int(pension_base * rates['pension'] + health + health * rates['ltc_ratio']
+               + wage * (rates['employment'] + stab) + wage * sanjae)
+
+
+def _ca_month_add(y, m, k):
+    t = y * 12 + (m - 1) + k
+    return t // 12, t % 12 + 1
+
+
+def _ca_ym(s):
+    try:
+        return int(str(s)[:4]), int(str(s)[5:7])
+    except (TypeError, ValueError):
+        return None
+
+
+def _ca_equity(db, emps, today):
+    by = request.args.get('by', 'level')
+    keyfns = {
+        'level':  lambda e: (e['pos_level'], e['pos_name'] or '직급 없음'),
+        'family': lambda e: (0, e['family_name'] or '직무 없음'),
+        'dept':   lambda e: (0, e['dept_name'] or '부서 없음'),
+    }
+    if by not in ('level', 'family', 'dept'):
+        by = 'level'
+    rows = _ca_group_rows(emps, keyfns[by])
+    tenure_rows = _ca_group_rows(emps, lambda e: next(
+        ((i, lbl) for i, (lo, hi, lbl) in enumerate(CA_TENURE_BUCKETS)
+         if (_ca_tenure(e['hire_date'], today) is not None and lo <= max(0, _ca_tenure(e['hire_date'], today)) < hi)),
+        None))
+    # 개별 검토 대상: 밴드 하한 미만 · Compa-Ratio 0.85 미만 · 같은 직급·직무 중위값보다 15% 넘게 낮음
+    peers = {}
+    for e in emps:
+        peers.setdefault((e['position_id'], e['job_family_id']), []).append(e['base_salary'])
+    flagged = []
+    for e in emps:
+        reasons = []
+        annual = e['base_salary'] * 12
+        compa = round(annual / e['mid_salary'], 2) if e['mid_salary'] else None
+        if e['min_salary'] and annual < e['min_salary']:
+            reasons.append('밴드 하한 미만')
+        if compa is not None and compa < 0.85:
+            reasons.append('Compa-Ratio 0.85 미만')
+        grp = peers.get((e['position_id'], e['job_family_id']), [])
+        med = _ca_median(grp) if len(grp) >= CA_MIN_GROUP else None
+        if med and e['base_salary'] < med * 0.85:
+            reasons.append(f'동일 직급·직무 중위값 대비 {round((e["base_salary"] / med - 1) * 100)}%')
+        if reasons:
+            flagged.append({**e, 'annual': annual, 'compa': compa, 'peer_med': med, 'reasons': reasons})
+    flagged.sort(key=lambda x: (x['compa'] if x['compa'] is not None else 9, x['name']))
+    return {'by': by, 'rows': rows, 'tenure_rows': tenure_rows, 'flagged': flagged,
+            'gaps': _ca_gaps(emps), 'no_gender': sum(1 for e in emps if e['gender'] not in ('F', 'M')),
+            'review_cnt': sum(1 for r in rows if r['review'])}
+
+
+def _ca_raise(db, emps, today, rates_fn):
+    from payroll_utils import calc_compa_ratio, merit_from_matrix
+    grades, grade_cycle = _ca_latest_grades(db)
+    last_cycle = db.execute('SELECT name, budget_pct, effective_date FROM compensation_review_cycles '
+                            'ORDER BY id DESC LIMIT 1').fetchone()
+    mode = request.args.get('mode', 'matrix')
+    if mode not in ('matrix', 'flat'):
+        mode = 'matrix'
+    no_grades = mode == 'matrix' and not grades
+    if no_grades:
+        mode = 'flat'
+    try:
+        budget = max(0.0, min(50.0, float(request.args.get('budget') or
+                                          (last_cycle['budget_pct'] if last_cycle and last_cycle['budget_pct'] else 4.0))))
+    except ValueError:
+        budget = 4.0
+    try:
+        flat = max(-20.0, min(50.0, float(request.args.get('flat') or budget)))
+    except ValueError:
+        flat = budget
+    nxt = _ca_month_add(today.year, today.month, 1)
+    default_eff = f'{nxt[0]}-{nxt[1]:02d}'
+    if last_cycle and last_cycle['effective_date'] and str(last_cycle['effective_date'])[:7] >= today.isoformat()[:7]:
+        default_eff = str(last_cycle['effective_date'])[:7]
+    eff = request.args.get('eff') or default_eff
+    if not _ca_ym(eff + '-01'):
+        eff = default_eff
+    ey, em = _ca_ym(eff + '-01')
+    floor = request.args.get('floor', '1') == '1'
+
+    stab = _ca_stability_rate(len(emps))
+    rates = rates_fn((ey, em))
+    sanjae = CA_SANJAE_DEFAULT / 100
+    out, by_grade, by_dept = [], {}, {}
+    for e in emps:
+        g = grades.get(e['id'])
+        compa = calc_compa_ratio(e['base_salary'], e['mid_salary'])
+        pct = (merit_from_matrix(db, g, compa) if g else 0.0) if mode == 'matrix' else flat
+        new = _acr_new_salary(e['base_salary'], pct)
+        floored = False
+        if floor and e['min_salary'] and new * 12 < e['min_salary']:
+            new = -(-(-(-e['min_salary'] // 12)) // 10) * 10
+            floored = True
+        cost_old = _ca_employer_cost(e['base_salary'], e['meal'], e['trans'], 0, rates, stab, sanjae)
+        cost_new = _ca_employer_cost(new, e['meal'], e['trans'], 0, rates, stab, sanjae)
+        r = {**e, 'grade': g, 'pct': pct, 'new': new, 'delta': new - e['base_salary'], 'floored': floored,
+             'burden_delta': cost_new - cost_old}
+        out.append(r)
+        gk = g or '등급 없음'
+        bg = by_grade.setdefault(gk, {'label': gk, 'n': 0, 'cur': 0, 'delta': 0})
+        bd = by_dept.setdefault(e['dept_name'] or '부서 없음', {'label': e['dept_name'] or '부서 없음', 'n': 0, 'cur': 0, 'delta': 0})
+        for b in (bg, bd):
+            b['n'] += 1
+            b['cur'] += e['base_salary']
+            b['delta'] += r['delta']
+    cur_sum = sum(e['base_salary'] for e in emps)
+    delta = sum(r['delta'] for r in out)
+    burden = sum(r['burden_delta'] for r in out)
+    severance = delta // 12
+    budget_amt = int(cur_sum * budget / 100)
+    months_left = 13 - em if ey == today.year else (12 if ey > today.year else 0)
+    grade_order = {g: i for i, g in enumerate('SABCD')}
+    for b in list(by_grade.values()) + list(by_dept.values()):
+        b['pct'] = round(b['delta'] / b['cur'] * 100, 2) if b['cur'] else 0
+    gender = []
+    for gk, lbl in (('F', '여성'), ('M', '남성')):
+        rs = [r for r in out if r['gender'] == gk]
+        cur = sum(r['base_salary'] for r in rs)
+        gender.append({'label': lbl, 'n': len(rs), 'pct': round(sum(r['delta'] for r in rs) / cur * 100, 2) if cur else 0,
+                       'delta': sum(r['delta'] for r in rs)})
+    after = [{**r, 'base_salary': r['new']} for r in out]
+    return {
+        'mode': mode, 'no_grades': no_grades, 'grade_cycle': grade_cycle, 'graded': sum(1 for r in out if r['grade']),
+        'budget': budget, 'flat': flat, 'eff': eff, 'ey': ey, 'em': em, 'floor': floor, 'last_cycle': last_cycle,
+        'n': len(out), 'cur_sum': cur_sum, 'new_sum': cur_sum + delta, 'delta': delta, 'annual': delta * 12,
+        'burden': burden, 'severance': severance, 'total_month': delta + burden + severance,
+        'months_left': months_left, 'year_impact': (delta + burden + severance) * months_left,
+        'budget_amt': budget_amt, 'used_pct': round(delta / budget_amt * 100, 1) if budget_amt else None,
+        'over': budget_amt and delta > budget_amt, 'avg_pct': round(delta / cur_sum * 100, 2) if cur_sum else 0,
+        'floored': sum(1 for r in out if r['floored']),
+        'by_grade': sorted(by_grade.values(), key=lambda b: grade_order.get(b['label'], 9)),
+        'by_dept': sorted(by_dept.values(), key=lambda b: -b['delta']),
+        'gender': gender, 'gap_before': _ca_gaps(emps), 'gap_after': _ca_gaps(after),
+        'top': sorted(out, key=lambda r: -r['delta'])[:15],
+    }
+
+
+def _ca_forecast(db, emps, today, rates_fn):
+    hires = request.args.get('hires', '1') == '1'
+    raises = request.args.get('raises', '1') == '1'
+    try:
+        sanjae_pct = max(0.0, min(20.0, float(request.args.get('sanjae') or CA_SANJAE_DEFAULT)))
+    except ValueError:
+        sanjae_pct = CA_SANJAE_DEFAULT
+    sanjae = sanjae_pct / 100
+    months = [_ca_month_add(today.year, today.month, k) for k in range(12)]
+    first_key = months[0][0] * 12 + months[0][1]
+    idx = lambda ym: ym[0] * 12 + ym[1] - first_key   # noqa: E731
+    events = []
+
+    # 사람별 월 기본급 경로: [(시작 인덱스, 기본급)] — 예정 인상·조정안 반영
+    people = {e['id']: {**e, 'steps': [(0, e['base_salary'])], 'start': 0, 'end': 12} for e in emps}
+    for p in people.values():
+        hy = _ca_ym(p['hire_date'])
+        if hy and idx(hy) > 0:
+            p['start'] = min(12, idx(hy))
+            events.append({'i': p['start'], 'kind': '입사 예정', 'who': p['name'], 'amt': p['base_salary']})
+        ty = _ca_ym(p['termination_date'])
+        if ty and idx(ty) < 12:
+            p['end'] = max(0, idx(ty) + 1)
+            events.append({'i': max(0, idx(ty)), 'kind': '퇴사 예정', 'who': p['name'], 'amt': -p['base_salary']})
+    if raises:
+        for r in db.execute(
+                "SELECT ai.user_id, ai.new_salary, a.effective_date, a.name FROM salary_adjustment_items ai "
+                "JOIN salary_adjustments a ON a.id = ai.adjustment_id "
+                "WHERE a.status='scheduled' AND ai.new_salary != ai.old_salary").fetchall():
+            p, ym = people.get(r['user_id']), _ca_ym(r['effective_date'])
+            if p and ym and idx(ym) < 12:
+                p['steps'].append((max(0, idx(ym)), r['new_salary']))
+                events.append({'i': max(0, idx(ym)), 'kind': '연봉 조정안', 'who': f'{p["name"]} · {r["name"]}',
+                               'amt': r['new_salary'] - p['base_salary']})
+        for r in db.execute(
+                "SELECT cr.*, c.effective_date, c.name cycle_name FROM compensation_reviews cr "
+                "JOIN compensation_review_cycles c ON c.id = cr.cycle_id "
+                "WHERE cr.status='approved' AND cr.applied_at IS NULL").fetchall():
+            p, ym = people.get(r['employee_id']), _ca_ym(r['effective_date'])
+            if p and ym and idx(ym) < 12:
+                _, sal = _acr_final(r)
+                if sal and sal != p['base_salary']:
+                    p['steps'].append((max(0, idx(ym)), sal))
+                    events.append({'i': max(0, idx(ym)), 'kind': '보상 검토 인상', 'who': f'{p["name"]} · {r["cycle_name"]}',
+                                   'amt': sal - p['base_salary']})
+
+    bonus = [0] * 12
+    for b in db.execute('SELECT b.amount, b.pay_date, b.bonus_type, u.name FROM bonus_payments b '
+                        'JOIN users u ON u.id = b.user_id').fetchall():
+        ym = _ca_ym(b['pay_date'])
+        if ym and 0 <= idx(ym) < 12:
+            bonus[idx(ym)] += b['amount'] or 0
+    if raises:
+        for r in db.execute(
+                "SELECT cr.proposed_bonus, c.bonus_pay_date, c.effective_date, u.name FROM compensation_reviews cr "
+                "JOIN compensation_review_cycles c ON c.id = cr.cycle_id JOIN users u ON u.id = cr.employee_id "
+                "WHERE cr.status='approved' AND cr.bonus_payment_id IS NULL AND COALESCE(cr.proposed_bonus,0) > 0").fetchall():
+            ym = _ca_ym(r['bonus_pay_date'] or r['effective_date'])
+            if ym and 0 <= idx(ym) < 12:
+                bonus[idx(ym)] += r['proposed_bonus']
+
+    openings = []
+    no_date = 0
+    if hires:
+        for o in db.execute(
+                "SELECT o.title, o.target_start_date, o.salary_min, o.salary_max, d.name dept_name "
+                "FROM job_openings o LEFT JOIN departments d ON d.id = o.department_id "
+                "WHERE o.status IN ('approved','open')").fetchall():
+            ym = _ca_ym(o['target_start_date'])
+            if not ym:
+                no_date += 1
+                continue
+            annual = ((o['salary_min'] or 0) + (o['salary_max'] or 0)) / 2 if o['salary_max'] else (o['salary_min'] or 0)
+            monthly = int(annual / 12) // 10 * 10
+            if monthly <= 0 or idx(ym) >= 12:
+                continue
+            openings.append({'i': max(0, idx(ym)), 'monthly': monthly})
+            events.append({'i': max(0, idx(ym)), 'kind': '채용 계획', 'who': f'{o["title"]} · {o["dept_name"] or "-"}',
+                           'amt': monthly})
+
+    stab = _ca_stability_rate(len(emps))
+    rows = []
+    for i, (y, m) in enumerate(months):
+        rates = rates_fn((y, m))
+        hc = pay = allow = burden = 0
+        for p in people.values():
+            if not (p['start'] <= i < p['end']):
+                continue
+            sal = max((s for s in p['steps'] if s[0] <= i), key=lambda s: s[0])[1]
+            hc += 1
+            pay += sal
+            allow += p['meal'] + p['trans']
+            burden += _ca_employer_cost(sal, p['meal'], p['trans'], 0, rates, stab, sanjae)
+        for o in openings:
+            if o['i'] <= i:
+                hc += 1
+                pay += o['monthly']
+                burden += _ca_employer_cost(o['monthly'], 0, 0, 0, rates, stab, sanjae)
+        # 상여에 붙는 사업주 부담 (건강·장기요양·고용·산재)
+        burden += int(bonus[i] * (rates['health'] * (1 + rates['ltc_ratio']) + rates['employment'] + stab + sanjae))
+        severance = (pay + allow + bonus[i]) // 12
+        total = pay + allow + bonus[i] + burden + severance
+        rows.append({'y': y, 'm': m, 'hc': hc, 'pay': pay, 'allow': allow, 'bonus': bonus[i],
+                     'burden': burden, 'severance': severance, 'total': total})
+    for ev in events:
+        ev['y'], ev['m'] = months[min(11, ev['i'])]
+    events.sort(key=lambda ev: (ev['i'], ev['kind'], ev['who']))
+    last_ps = db.execute("SELECT year, month, COUNT(*) n, SUM(gross_pay) gross FROM payslips "
+                         "WHERE status='confirmed' GROUP BY year, month ORDER BY year DESC, month DESC LIMIT 1").fetchone()
+    peak = max((r['total'] for r in rows), default=0)
+    return {'hires': hires, 'raises': raises, 'sanjae': sanjae_pct, 'stab': stab * 100, 'rows': rows,
+            'events': events, 'no_date': no_date, 'last_ps': last_ps, 'peak': peak,
+            'sum_total': sum(r['total'] for r in rows), 'sum_pay': sum(r['pay'] + r['allow'] for r in rows),
+            'sum_bonus': sum(r['bonus'] for r in rows), 'sum_burden': sum(r['burden'] for r in rows),
+            'sum_sev': sum(r['severance'] for r in rows)}
+
+
+@app.route('/compensation/analysis')
+@admin_required
+def comp_analysis():
+    from payroll_utils import get_insurance_rates
+    db = get_db()
+    today = date.today()
+    view = request.args.get('view', 'equity')
+    if view not in ('equity', 'raise', 'forecast'):
+        view = 'equity'
+    emps = _ca_population(db)
+    ctx = {'view': view, 'n': len(emps), 'today': today}
+    if view == 'equity':
+        ctx['eq'] = _ca_equity(db, emps, today)
+    elif view == 'raise':
+        ctx['rs'] = _ca_raise(db, emps, today, get_insurance_rates)
+    else:
+        ctx['fc'] = _ca_forecast(db, emps, today, get_insurance_rates)
+    return render_template('payroll/comp_analysis.html', active_page='comp_analysis', **ctx)
 
 
 # ── 기존 라우트 → /compensation 리디렉트 ──────────────────────────────────────

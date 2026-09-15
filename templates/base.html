@@ -56,6 +56,7 @@
   {'key':'pay', 'label':'보상', 'gi':'fa-coins', 'items':[
     {'l':'급여·보상 관리', 'u':url_for('compensation'), 'p':['compensation','admin_payroll','salary_bands','bonus_pay','salary_table'], 's':ADM, 'i':'fa-coins'},
     {'l':'보상 검토', 'u':url_for('acr_list'), 'p':['acr'], 's':MGR, 'i':'fa-scale-balanced'},
+    {'l':'보상 분석', 'u':url_for('comp_analysis'), 'p':['comp_analysis'], 's':ADM, 'i':'fa-chart-column'},
     {'l':'급여명세서·증명서', 'u':url_for('payroll_list'), 'p':['my_docs','payroll','certificates','termination_my'], 's':True, 'i':'fa-folder-open'},
     {'l':'복리후생', 'u':url_for('me_benefits'), 'p':['me_benefits'], 's':'welfare' in PF, 'i':'fa-gift'},
     {'l':'복리후생 설정', 'u':url_for('admin_benefits'), 'p':['benefits'], 's':ADM and 'welfare' in PF, 'i':'fa-sliders'},

@@ -1,0 +1,374 @@
+{% extends 'base.html' %}
+{% block title %}보상 분석{% endblock %}
+{% block page_title %}보상{% endblock %}
+
+{% macro man(v) %}{% if v is none %}-{% else %}{{ '{:,.0f}'.format(v / 10000) }}{% endif %}{% endmacro %}
+{% macro won(v) %}{% if v is none %}-{% else %}{{ '{:,.0f}'.format(v) }}{% endif %}{% endmacro %}
+{% macro eok(v) %}{{ '{:,.2f}'.format(v / 100000000) }}억{% endmacro %}
+{% macro sgn(v, unit='%') %}{% if v is none %}-{% else %}{{ '+' if v > 0 else '' }}{{ v }}{{ unit }}{% endif %}{% endmacro %}
+
+{% block extra_css %}
+<style>
+  .wh-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
+  .wh-head h1 { font-size:18px; font-weight:650; margin:0; }
+  .wh-head .sp { margin-left:auto; }
+  .wh-sum { display:flex; flex-wrap:wrap; gap:6px 22px; font-size:12.5px; color:var(--tx-3); margin:0 0 18px; }
+  .wh-sum b { font:600 12.5px var(--mono); color:var(--tx-1); margin-left:6px; }
+  .wh-sum b.wait { color:var(--wait); }
+  .wh-sum b.late { color:var(--late); }
+  .wh-sum b.done { color:var(--done); }
+  .wh-basis { font-size:12px; color:var(--tx-3); margin:8px 0 0; line-height:1.7; }
+  .ca-sec { margin:0 0 28px; }
+  .ca-form { display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px 16px; padding:12px 0 14px; border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin:0 0 18px; }
+  .ca-form label { display:flex; flex-direction:column; gap:4px; font-size:11.5px; color:var(--tx-3); }
+  .ca-form label.chk { flex-direction:row; align-items:center; gap:6px; font-size:12.5px; color:var(--tx-2); height:30px; }
+  .ca-form input[type=number], .ca-form input[type=month], .ca-form select { height:30px; padding:0 8px; border:1px solid var(--line); border-radius:var(--r-sm); background:var(--surface); color:var(--tx-1); font:500 12.5px var(--mono); }
+  .ca-form input[type=number] { width:84px; }
+  .ca-st { font-size:12px; font-weight:600; }
+  .ca-st.wait { color:var(--wait); }
+  .ca-st.late { color:var(--late); }
+  .ca-st.done { color:var(--done); }
+  .ca-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:24px; }
+  .ca-note { font-size:12.5px; color:var(--tx-2); padding:10px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin:0 0 16px; }
+  .ca-chart { width:100%; max-width:760px; height:auto; display:block; margin:0 0 6px; }
+  .ca-chart text { font:500 10.5px var(--mono); fill:var(--tx-3); }
+  .ca-legend { display:flex; gap:16px; font-size:11.5px; color:var(--tx-3); margin:0 0 14px; }
+  .ca-legend i { display:inline-block; width:10px; height:10px; margin-right:5px; vertical-align:-1px; }
+  .ltable tr.tot td { font-weight:600; border-top:1px solid var(--line-strong); }
+  .ltable td.neg { color:var(--late); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wh-head">
+  <h1>보상 분석</h1>
+  <span class="sp"></span>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('acr_list') }}">보상 검토</a>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('salary_adjustments') }}">연봉 조정안</a>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('compensation', tab='ops') }}">급여 운영</a>
+</div>
+
+<div class="fchips">
+  <a class="fchip {{ 'on' if view == 'equity' }}" href="{{ url_for('comp_analysis', view='equity') }}">보상 형평성</a>
+  <a class="fchip {{ 'on' if view == 'raise' }}" href="{{ url_for('comp_analysis', view='raise') }}">인상 시뮬레이션</a>
+  <a class="fchip {{ 'on' if view == 'forecast' }}" href="{{ url_for('comp_analysis', view='forecast') }}">인건비 예측</a>
+</div>
+
+{# ═══════════════════════ 보상 형평성 ═══════════════════════ #}
+{% if view == 'equity' %}
+{% set g = eq.gaps %}
+<div class="wh-sum">
+  <span>분석 대상<b>{{ n }}명</b></span>
+  <span>여/남<b>{{ g.nf }} / {{ g.nm }}</b></span>
+  <span>평균 연봉 여/남<b>{{ man(g.f_avg * 12 if g.f_avg else none) }} / {{ man(g.m_avg * 12 if g.m_avg else none) }}만</b></span>
+  <span>단순 격차<b>{{ sgn(g.raw) }}</b></span>
+  <span>직급 보정 격차<b class="{{ 'wait' if g.adjusted is not none and g.adjusted|abs >= 5 }}">{{ sgn(g.adjusted) }}</b></span>
+  <span>검토 그룹<b class="{{ 'wait' if eq.review_cnt }}">{{ eq.review_cnt }}</b></span>
+  <span>개별 검토<b class="{{ 'wait' if eq.flagged }}">{{ eq.flagged|length }}명</b></span>
+  {% if eq.no_gender %}<span>성별 미입력<b>{{ eq.no_gender }}명</b></span>{% endif %}
+</div>
+
+<section class="ca-sec">
+  <div class="sec-head"><h2>그룹별 여/남 기본급</h2><span class="cnt">{{ eq.rows|length }}</span></div>
+  <div class="fchips">
+    {% for k, lbl in [('level','직급'),('family','직무'),('dept','부서')] %}
+    <a class="fchip {{ 'on' if eq.by == k }}" href="{{ url_for('comp_analysis', view='equity', by=k) }}">{{ lbl }}</a>
+    {% endfor %}
+  </div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr>
+      <th>{{ {'level':'직급','family':'직무','dept':'부서'}[eq.by] }}</th><th class="r">인원</th><th class="r">여/남</th>
+      <th class="r">평균 연봉 여</th><th class="r">평균 연봉 남</th><th class="r">중위 연봉 여</th><th class="r">중위 연봉 남</th>
+      <th class="r">여/남 차이</th><th>상태</th>
+    </tr></thead>
+    <tbody>
+      {% for r in eq.rows %}
+      <tr class="{{ 'dim' if r.thin }}">
+        <td>{{ r.label }}</td>
+        <td class="m r">{{ r.n }}</td>
+        <td class="m r">{{ r.nf }} / {{ r.nm }}</td>
+        <td class="m r">{{ man(r.f_avg * 12 if r.f_avg else none) }}</td>
+        <td class="m r">{{ man(r.m_avg * 12 if r.m_avg else none) }}</td>
+        <td class="m r">{{ man(r.f_med * 12 if r.f_med else none) }}</td>
+        <td class="m r">{{ man(r.m_med * 12 if r.m_med else none) }}</td>
+        <td class="m r">{{ sgn(r.gap) }}</td>
+        <td>{% if r.thin %}<span class="t3">표본 부족</span>{% elif r.review %}<span class="ca-st wait">검토</span>{% else %}<span class="t3">범위 내</span>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr class="empty"><td colspan="9">급여가 등록된 재직자가 없습니다</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="wh-basis">
+    금액 단위 만원 · 연봉 = 월 기본급 × 12 · 여/남 차이 = 여성 평균 ÷ 남성 평균 − 1 (음수는 여성이 낮음)<br>
+    직급 보정 격차 = 같은 직급 안의 여/남 차이를 인원으로 가중 평균 — 직급 구성 차이를 뺀 격차 · 여/남 중 한쪽이 {{ 3 }}명 미만이면 표본 부족 · 차이 5% 이상은 검토
+  </p>
+</section>
+
+<div class="ca-grid">
+<section class="ca-sec">
+  <div class="sec-head"><h2>근속 구간별</h2><span class="cnt">{{ eq.tenure_rows|length }}</span></div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>근속</th><th class="r">여/남</th><th class="r">평균 여</th><th class="r">평균 남</th><th class="r">차이</th><th>상태</th></tr></thead>
+    <tbody>
+      {% for r in eq.tenure_rows %}
+      <tr class="{{ 'dim' if r.thin }}">
+        <td>{{ r.label }}</td>
+        <td class="m r">{{ r.nf }} / {{ r.nm }}</td>
+        <td class="m r">{{ man(r.f_avg * 12 if r.f_avg else none) }}</td>
+        <td class="m r">{{ man(r.m_avg * 12 if r.m_avg else none) }}</td>
+        <td class="m r">{{ sgn(r.gap) }}</td>
+        <td>{% if r.thin %}<span class="t3">표본 부족</span>{% elif r.review %}<span class="ca-st wait">검토</span>{% else %}<span class="t3">범위 내</span>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr class="empty"><td colspan="6">입사일 데이터 없음</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="ca-sec">
+  <div class="sec-head"><h2>공시 대비 체크</h2></div>
+  <table class="ltable">
+    <tbody>
+      <tr><td>직급별 남녀 인원</td><td class="r">{% if eq.by == 'level' %}위 표{% else %}<a href="{{ url_for('comp_analysis', view='equity', by='level') }}">직급 보기</a>{% endif %}</td></tr>
+      <tr><td>직종(직무)별 남녀 인원·임금</td><td class="r">{% if eq.by == 'family' %}위 표{% else %}<a href="{{ url_for('comp_analysis', view='equity', by='family') }}">직무 보기</a>{% endif %}</td></tr>
+      <tr><td>성별 미입력 인원</td><td class="m r">{{ eq.no_gender }}</td></tr>
+      <tr><td>공시 대상 기준</td><td class="r t2">상시 500명 이상 (예정)</td></tr>
+    </tbody>
+  </table>
+  <p class="wh-basis">남녀고용평등법 제8조: 동일 가치 노동에는 동일 임금 · 고용평등 공시제: 2027년부터 500인 이상 기업에 직종·직급별 남녀 인원과 임금 공시 도입 예정 (고용노동부 계획)</p>
+</section>
+</div>
+
+<section class="ca-sec">
+  <div class="sec-head"><h2>개별 검토 대상</h2><span class="cnt">{{ eq.flagged|length }}</span></div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>이름</th><th>부서</th><th>직급 · 직무</th><th class="r">연봉</th><th class="r">밴드 하한</th><th class="r">Compa-Ratio</th><th class="r">동일 직급 중위</th><th>사유</th><th></th></tr></thead>
+    <tbody>
+      {% for e in eq.flagged[:60] %}
+      <tr>
+        <td>{{ e.name }}{% if e.gender in ('F','M') %} <span class="t3">{{ '여' if e.gender == 'F' else '남' }}</span>{% endif %}</td>
+        <td class="t2">{{ e.dept_name or '-' }}</td>
+        <td class="t2">{{ e.pos_name or '-' }} · {{ e.family_name or '-' }}</td>
+        <td class="m r">{{ man(e.annual) }}</td>
+        <td class="m r">{{ man(e.min_salary) if e.min_salary else '-' }}</td>
+        <td class="m r">{{ '%.2f'|format(e.compa) if e.compa is not none else '-' }}</td>
+        <td class="m r">{{ man(e.peer_med * 12) if e.peer_med else '-' }}</td>
+        <td><span class="ca-st wait">{{ e.reasons|join(' · ') }}</span></td>
+        <td class="r"><a class="btn btn-ghost btn-sm" href="{{ url_for('total_compensation', uid=e.id) }}">총보상</a></td>
+      </tr>
+      {% else %}
+      <tr class="empty"><td colspan="9">검토 대상 없음</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="wh-basis">밴드 하한 미만 · Compa-Ratio(연봉 ÷ 밴드 중간값) 0.85 미만 · 같은 직급·직무 중위값보다 15% 넘게 낮음 중 하나라도 해당{% if eq.flagged|length > 60 %} · 상위 60명 표시{% endif %} · 인상은 보상 검토에서 진행</p>
+</section>
+
+{# ═══════════════════════ 인상 시뮬레이션 ═══════════════════════ #}
+{% elif view == 'raise' %}
+<form class="ca-form" method="GET" action="{{ url_for('comp_analysis') }}">
+  <input type="hidden" name="view" value="raise">
+  <label>방식
+    <select name="mode">
+      <option value="matrix" {{ 'selected' if rs.mode == 'matrix' }}>등급 × 밴드 매트릭스</option>
+      <option value="flat" {{ 'selected' if rs.mode == 'flat' }}>일괄 %</option>
+    </select>
+  </label>
+  <label>일괄 인상률 %<input type="number" name="flat" step="0.1" value="{{ rs.flat }}"></label>
+  <label>예산 % (월 기본급 합 대비)<input type="number" name="budget" step="0.1" value="{{ rs.budget }}"></label>
+  <label>적용월<input type="month" name="eff" value="{{ rs.eff }}"></label>
+  <label class="chk"><input type="checkbox" name="floor" value="1" {{ 'checked' if rs.floor }}>밴드 하한까지 보정<input type="hidden" name="floor" value="0"></label>
+  <button class="btn btn-primary btn-sm" type="submit">계산</button>
+</form>
+
+{% if rs.no_grades %}
+<div class="ca-note">보정 확정 등급이 없어 등급 매트릭스를 쓸 수 없습니다. 일괄 {{ rs.flat }}%로 계산했습니다.</div>
+{% endif %}
+
+<div class="wh-sum">
+  <span>대상<b>{{ rs.n }}명</b></span>
+  {% if rs.mode == 'matrix' %}<span>등급 반영<b>{{ rs.graded }}명</b></span><span>등급 기준<b>{{ rs.grade_cycle }}</b></span>{% endif %}
+  <span>평균 인상률<b>{{ rs.avg_pct }}%</b></span>
+  <span>월 기본급 합<b>{{ man(rs.cur_sum) }} → {{ man(rs.new_sum) }}만</b></span>
+  <span>예산 사용<b class="{{ 'late' if rs.over else 'done' }}">{{ rs.used_pct if rs.used_pct is not none else '-' }}%</b></span>
+  {% if rs.floored %}<span>하한 보정<b>{{ rs.floored }}명</b></span>{% endif %}
+</div>
+
+<div class="ca-grid">
+<section class="ca-sec">
+  <div class="sec-head"><h2>비용</h2><span class="cnt">{{ rs.ey }}년 {{ rs.em }}월 적용</span></div>
+  <table class="ltable">
+    <tbody>
+      <tr><td>월 기본급 증가</td><td class="m r">{{ won(rs.delta) }}</td></tr>
+      <tr><td>사업주 4대보험·산재 증가 (월)</td><td class="m r">{{ won(rs.burden) }}</td></tr>
+      <tr><td>퇴직급여 충당 증가 (월)</td><td class="m r">{{ won(rs.severance) }}</td></tr>
+      <tr class="tot"><td>월 총비용 증가</td><td class="m r">{{ won(rs.total_month) }}</td></tr>
+      <tr><td>연간 기본급 증가 (12개월)</td><td class="m r">{{ won(rs.annual) }}</td></tr>
+      <tr><td>{{ rs.ey }}년 영향 ({{ rs.months_left }}개월)</td><td class="m r">{{ won(rs.year_impact) }}</td></tr>
+      <tr><td>예산 (월 기본급 합 × {{ rs.budget }}%)</td><td class="m r">{{ won(rs.budget_amt) }}</td></tr>
+      <tr><td>예산 대비</td><td class="r">{% if rs.over %}<span class="ca-st late">초과 {{ won(rs.delta - rs.budget_amt) }}</span>{% else %}<span class="ca-st done">잔여 {{ won(rs.budget_amt - rs.delta) }}</span>{% endif %}</td></tr>
+    </tbody>
+  </table>
+  <p class="wh-basis">금액 단위 원 · 사업주 부담 = 국민연금(상·하한 적용)·건강·장기요양·고용(고용안정 요율 포함)·산재 {{ 1.47 }}% 추정 · 퇴직급여 충당 = 증가분 ÷ 12</p>
+</section>
+
+<section class="ca-sec">
+  <div class="sec-head"><h2>성별 영향</h2></div>
+  <table class="ltable">
+    <thead><tr><th>구분</th><th class="r">인원</th><th class="r">평균 인상률</th><th class="r">월 증가</th></tr></thead>
+    <tbody>
+      {% for r in rs.gender %}
+      <tr><td>{{ r.label }}</td><td class="m r">{{ r.n }}</td><td class="m r">{{ r.pct }}%</td><td class="m r">{{ won(r.delta) }}</td></tr>
+      {% endfor %}
+      <tr><td>단순 격차</td><td></td><td class="m r" colspan="2">{{ sgn(rs.gap_before.raw) }} → {{ sgn(rs.gap_after.raw) }}</td></tr>
+      <tr><td>직급 보정 격차</td><td></td><td class="m r" colspan="2">{{ sgn(rs.gap_before.adjusted) }} → {{ sgn(rs.gap_after.adjusted) }}</td></tr>
+    </tbody>
+  </table>
+  <p class="wh-basis">인상 후 격차가 벌어지면 보상 검토 단계에서 HR 조정으로 보완</p>
+</section>
+</div>
+
+<div class="ca-grid">
+{% if rs.mode == 'matrix' %}
+<section class="ca-sec">
+  <div class="sec-head"><h2>등급별</h2><span class="cnt">{{ rs.by_grade|length }}</span></div>
+  <table class="ltable">
+    <thead><tr><th>등급</th><th class="r">인원</th><th class="r">인상률</th><th class="r">월 증가</th></tr></thead>
+    <tbody>
+      {% for b in rs.by_grade %}
+      <tr><td>{{ b.label }}</td><td class="m r">{{ b.n }}</td><td class="m r">{{ b.pct }}%</td><td class="m r {{ 'neg' if b.delta < 0 }}">{{ won(b.delta) }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="wh-basis">인상률 = 인상 매트릭스(성과등급 × Compa-Ratio 구간) · 등급 없는 인원은 0%</p>
+</section>
+{% endif %}
+
+<section class="ca-sec">
+  <div class="sec-head"><h2>부서별</h2><span class="cnt">{{ rs.by_dept|length }}</span></div>
+  <div style="overflow-x:auto; max-height:420px; overflow-y:auto;">
+  <table class="ltable">
+    <thead><tr><th>부서</th><th class="r">인원</th><th class="r">현재 월 합</th><th class="r">월 증가</th><th class="r">인상률</th></tr></thead>
+    <tbody>
+      {% for b in rs.by_dept %}
+      <tr><td>{{ b.label }}</td><td class="m r">{{ b.n }}</td><td class="m r">{{ man(b.cur) }}만</td><td class="m r">{{ won(b.delta) }}</td><td class="m r">{{ b.pct }}%</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+</div>
+
+<section class="ca-sec">
+  <div class="sec-head"><h2>인상액 상위</h2><span class="cnt">{{ rs.top|length }}</span>
+    <span class="sp"></span><a class="btn btn-ghost btn-sm" href="{{ url_for('acr_list') }}">보상 검토에서 진행</a></div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>이름</th><th>부서</th><th>직급</th><th>등급</th><th class="r">현재 월 기본급</th><th class="r">인상률</th><th class="r">변경 후</th><th class="r">증가</th></tr></thead>
+    <tbody>
+      {% for r in rs.top %}
+      <tr>
+        <td>{{ r.name }}</td><td class="t2">{{ r.dept_name or '-' }}</td><td class="t2">{{ r.pos_name or '-' }}</td>
+        <td>{{ r.grade or '-' }}</td>
+        <td class="m r">{{ won(r.base_salary) }}</td><td class="m r">{{ r.pct }}%{% if r.floored %} <span class="t3">하한</span>{% endif %}</td>
+        <td class="m r">{{ won(r.new) }}</td><td class="m r">{{ won(r.delta) }}</td>
+      </tr>
+      {% else %}
+      <tr class="empty"><td colspan="8">대상 없음</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="wh-basis">이 화면은 계산만 합니다. 실제 인상은 보상 검토(부서장 제출 → HR 승인 → 연봉계약서 서명 → 적용일 반영)로 진행됩니다.</p>
+</section>
+
+{# ═══════════════════════ 인건비 예측 ═══════════════════════ #}
+{% else %}
+<form class="ca-form" method="GET" action="{{ url_for('comp_analysis') }}">
+  <input type="hidden" name="view" value="forecast">
+  <label class="chk"><input type="checkbox" name="hires" value="1" {{ 'checked' if fc.hires }}>채용 계획 포함<input type="hidden" name="hires" value="0"></label>
+  <label class="chk"><input type="checkbox" name="raises" value="1" {{ 'checked' if fc.raises }}>예정 인상·상여 포함<input type="hidden" name="raises" value="0"></label>
+  <label>산재보험 요율 %<input type="number" name="sanjae" step="0.01" value="{{ fc.sanjae }}"></label>
+  <button class="btn btn-primary btn-sm" type="submit">계산</button>
+</form>
+
+{% set r0 = fc.rows[0] %}{% set r11 = fc.rows[-1] %}
+<div class="wh-sum">
+  <span>12개월 총인건비<b>{{ eok(fc.sum_total) }}</b></span>
+  <span>{{ r0.y }}.{{ '%02d'|format(r0.m) }} 인원<b>{{ r0.hc }}명</b></span>
+  <span>{{ r11.y }}.{{ '%02d'|format(r11.m) }} 인원<b>{{ r11.hc }}명</b></span>
+  <span>이번 달 인건비<b>{{ eok(r0.total) }}</b></span>
+  <span>예정 이벤트<b>{{ fc.events|length }}건</b></span>
+  {% if fc.last_ps %}<span>최근 확정 급여 {{ fc.last_ps.year }}년 {{ fc.last_ps.month }}월<b>{{ eok(fc.last_ps.gross) }} · {{ fc.last_ps.n }}명</b></span>{% endif %}
+</div>
+
+<section class="ca-sec">
+  <div class="sec-head"><h2>월별 인건비</h2><span class="cnt">{{ fc.rows[0].y }}.{{ '%02d'|format(fc.rows[0].m) }} ~ {{ r11.y }}.{{ '%02d'|format(r11.m) }}</span></div>
+  {% set W = 720 %}{% set H = 190 %}{% set top = 22 %}{% set base = 160 %}{% set bw = 38 %}
+  <div style="overflow-x:auto;">
+  <svg class="ca-chart" viewBox="0 0 {{ W }} {{ H }}" role="img" aria-label="월별 인건비 막대그래프" style="min-width:560px;">
+    <line x1="0" x2="{{ W }}" y1="{{ base }}" y2="{{ base }}" style="stroke:var(--line-strong)" stroke-width="1"/>
+    {% for r in fc.rows %}
+      {% set x = 14 + loop.index0 * 58 %}
+      {% set h_all = ((r.total / fc.peak) * (base - top)) if fc.peak else 0 %}
+      {% set h_pay = ((r.pay + r.allow) / fc.peak * (base - top)) if fc.peak else 0 %}
+      <rect x="{{ x }}" y="{{ base - h_all }}" width="{{ bw }}" height="{{ h_all - h_pay }}" style="fill:var(--tx-4)"><title>{{ r.y }}년 {{ r.m }}월 상여·사업주 부담·퇴직 충당 {{ won(r.total - r.pay - r.allow) }}원</title></rect>
+      <rect x="{{ x }}" y="{{ base - h_pay }}" width="{{ bw }}" height="{{ h_pay }}" style="fill:var(--tx-2)"><title>{{ r.y }}년 {{ r.m }}월 기본급·수당 {{ won(r.pay + r.allow) }}원</title></rect>
+      <text x="{{ x + bw / 2 }}" y="{{ base - h_all - 6 }}" text-anchor="middle">{{ '%.1f'|format(r.total / 100000000) }}</text>
+      <text x="{{ x + bw / 2 }}" y="{{ base + 16 }}" text-anchor="middle">{{ r.m }}월</text>
+    {% endfor %}
+  </svg>
+  </div>
+  <div class="ca-legend"><span><i style="background:var(--tx-2)"></i>기본급·수당</span><span><i style="background:var(--tx-4)"></i>상여·사업주 부담·퇴직 충당</span><span>막대 위 숫자 단위 억원</span></div>
+
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>월</th><th class="r">인원</th><th class="r">기본급</th><th class="r">수당</th><th class="r">성과상여</th><th class="r">사업주 4대보험·산재</th><th class="r">퇴직급여 충당</th><th class="r">합계</th></tr></thead>
+    <tbody>
+      {% for r in fc.rows %}
+      <tr>
+        <td class="m">{{ r.y }}.{{ '%02d'|format(r.m) }}</td><td class="m r">{{ r.hc }}</td>
+        <td class="m r">{{ man(r.pay) }}</td><td class="m r">{{ man(r.allow) }}</td>
+        <td class="m r">{{ man(r.bonus) if r.bonus else '-' }}</td><td class="m r">{{ man(r.burden) }}</td>
+        <td class="m r">{{ man(r.severance) }}</td><td class="m r">{{ man(r.total) }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="tot">
+        <td>12개월</td><td></td><td class="m r" colspan="2">{{ man(fc.sum_pay) }}</td><td class="m r">{{ man(fc.sum_bonus) }}</td>
+        <td class="m r">{{ man(fc.sum_burden) }}</td><td class="m r">{{ man(fc.sum_sev) }}</td><td class="m r">{{ man(fc.sum_total) }}</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="wh-basis">
+    금액 단위 만원 · 기준: 현재 재직자 기본급·수당 + 입사 예정자(입사월부터) − 퇴사 예정자(퇴사월 다음 달부터){% if fc.raises %} + 예약된 연봉 조정안·승인된 보상 검토(적용월부터) + 성과상여(지급월){% endif %}{% if fc.hires %} + 승인·진행 중 채용 계획(입사 목표월부터, 제시 연봉 중간값 ÷ 12){% endif %}<br>
+    사업주 부담 = 국민연금 4.75%(기준소득월액 상·하한) · 건강 3.595% · 장기요양(건강보험료 × 13.14%) · 고용 0.9% + 고용안정 {{ '%.2f'|format(fc.stab) }}%(150명 미만 0.25 · 150~999명 0.65 · 1,000명 이상 0.85) · 산재 {{ fc.sanjae }}% (2026 평균, 업종별로 다름) · 퇴직급여 충당 = (기본급 + 수당 + 상여) ÷ 12 · 연장근로수당은 제외
+  </p>
+</section>
+
+<section class="ca-sec">
+  <div class="sec-head"><h2>반영된 예정 이벤트</h2><span class="cnt">{{ fc.events|length }}</span></div>
+  <div style="overflow-x:auto;">
+  <table class="ltable">
+    <thead><tr><th>월</th><th>구분</th><th>대상</th><th class="r">월 기본급 변동</th></tr></thead>
+    <tbody>
+      {% for ev in fc.events %}
+      <tr><td class="m">{{ ev.y }}.{{ '%02d'|format(ev.m) }}</td><td>{{ ev.kind }}</td><td class="t2">{{ ev.who }}</td><td class="m r {{ 'neg' if ev.amt < 0 }}">{{ '+' if ev.amt > 0 }}{{ won(ev.amt) }}</td></tr>
+      {% else %}
+      <tr class="empty"><td colspan="4">12개월 안에 예정된 입사·퇴사·인상·채용 없음</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if fc.no_date %}<p class="wh-basis">입사 목표일이 없는 채용 계획 {{ fc.no_date }}건은 제외</p>{% endif %}
+</section>
+{% endif %}
+{% endblock %}
