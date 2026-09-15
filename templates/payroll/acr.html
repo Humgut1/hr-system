@@ -27,6 +27,14 @@
   .ltable td .note { display:block; font-size:11.5px; color:var(--tx-3); max-width:220px; overflow:hidden; text-overflow:ellipsis; }
   .acr-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:12px 0 0; }
   .acr-bar .cnt { font:500 12px var(--mono); color:var(--tx-3); margin-right:auto; }
+  .cp-row { display:flex; gap:4px; align-items:center; }
+  .cp-why { height:26px; padding:0 8px; font-size:11.5px; background:none; color:var(--tx-2); border:1px solid var(--line); border-radius:4px; cursor:pointer; white-space:nowrap; }
+  .cp-why:hover { border-color:var(--line-strong); color:var(--tx-1); }
+  .cp-why:disabled { opacity:.5; cursor:default; }
+  .cp-out { display:block; font-size:11.5px; line-height:1.5; max-width:260px; white-space:normal; }
+  .cp-out:empty { display:none; }
+  .cp-out .late { color:var(--late); }
+  .cp-out .wait { color:var(--wait); }
 </style>
 {% endblock %}
 
@@ -169,11 +177,13 @@
           </td>
           <td>
             {% if not is_admin and edit %}
-            <input class="txt" name="note_{{ r.employee_id }}" value="{{ r.manager_note or '' }}" placeholder="사유" aria-label="{{ r.emp_name }} 사유">
+            <span class="cp-row"><input class="txt" name="note_{{ r.employee_id }}" value="{{ r.manager_note or '' }}" placeholder="사유" aria-label="{{ r.emp_name }} 사유">{% if copilot.on %}<button type="button" class="cp-why" data-eid="{{ r.employee_id }}" onclick="acrWhy(this)" title="Copilot · {{ 'Claude' if copilot.connected else '규칙 기반' }}">근거</button>{% endif %}</span>
+            <span class="cp-out" id="cp-out-{{ r.employee_id }}"></span>
             {% if r.hr_note %}<span class="note" title="{{ r.hr_note }}">HR: {{ r.hr_note }}</span>{% endif %}
             {% elif is_admin and edit %}
             {% if r.manager_note %}<span class="note" title="{{ r.manager_note }}">부서장: {{ r.manager_note }}</span>{% endif %}
-            <input class="txt" name="hr_note_{{ r.employee_id }}" value="{{ r.hr_note or '' }}" placeholder="HR 메모 (반려 사유)" aria-label="{{ r.emp_name }} HR 메모">
+            <span class="cp-row"><input class="txt" name="hr_note_{{ r.employee_id }}" value="{{ r.hr_note or '' }}" placeholder="HR 메모 (반려 사유)" aria-label="{{ r.emp_name }} HR 메모">{% if copilot.on %}<button type="button" class="cp-why" data-eid="{{ r.employee_id }}" onclick="acrWhy(this)" title="Copilot · {{ 'Claude' if copilot.connected else '규칙 기반' }}">근거</button>{% endif %}</span>
+            <span class="cp-out" id="cp-out-{{ r.employee_id }}"></span>
             {% else %}
             {% if r.manager_note %}<span class="note" title="{{ r.manager_note }}">{{ r.manager_note }}</span>{% endif %}
             {% if r.hr_note %}<span class="note" title="{{ r.hr_note }}">HR: {{ r.hr_note }}</span>{% endif %}
@@ -228,6 +238,37 @@ function acrGo(label) {
   var n = document.querySelectorAll('.acr-chk:checked').length;
   if (!n) { alert('대상을 선택하세요.'); return false; }
   return confirm(n + '명 ' + label + '합니다.');
+}
+function acrWhy(btn) {
+  var eid = btn.dataset.eid, row = btn.closest('tr');
+  var note = row.querySelector('input[name="note_' + eid + '"], input[name="hr_note_' + eid + '"]');
+  var pctEl = row.querySelector('input[name="pct_' + eid + '"], input[name="hr_pct_' + eid + '"]');
+  var out = document.getElementById('cp-out-' + eid);
+  btn.disabled = true; out.textContent = '작성 중…';
+  fetch("{{ url_for('copilot_raise_note', cycle_id=cycle.id, emp_id=0) }}".replace(/0$/, eid), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pct: pctEl ? pctEl.value : null, note: note ? note.value : '' })
+  }).then(function (r) {
+    return r.json().catch(function () { return {}; }).then(function (d) {
+      if (!r.ok) throw new Error(d.error || ('근거를 만들지 못했습니다 (' + r.status + ')'));
+      return d;
+    });
+  }).then(function (d) {
+    out.textContent = '';
+    if (note && d.text) {
+      var cur = note.value.trim();
+      if (!cur || cur === d.text || confirm('입력한 사유를 Copilot 초안으로 바꿀까요?\n\n' + d.text)) note.value = d.text;
+      note.title = note.value;
+    }
+    (d.warnings || []).forEach(function (w) {
+      var s = document.createElement('span');
+      s.className = w.level; s.style.display = 'block'; s.textContent = w.msg;
+      out.appendChild(s);
+    });
+  }).catch(function (e) {
+    out.textContent = '';
+    var s = document.createElement('span'); s.className = 'wait'; s.textContent = e.message; out.appendChild(s);
+  }).then(function () { btn.disabled = false; });
 }
 </script>
 {% endblock %}

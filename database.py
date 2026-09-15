@@ -2118,6 +2118,21 @@ def init_db(db_path: str = None):
                           "WHERE form_json IS NULL AND stage IN ('goal','progress')",
                           (_df['id'], review_form_snapshot(_df)))
 
+        # ── C5 Copilot 평가 보조 ──────────────────────────────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS copilot_logs (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id         INTEGER REFERENCES users(id),
+            feature         TEXT NOT NULL,
+            target_user_id  INTEGER,
+            source          TEXT NOT NULL DEFAULT 'rule',
+            warn_count      INTEGER NOT NULL DEFAULT 0,
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_copilot_logs_created ON copilot_logs(created_at)')
+        _have = {r[1] for r in c.execute('PRAGMA table_info(company_config)')}
+        if _have and 'copilot_enabled' not in _have:
+            c.execute('ALTER TABLE company_config ADD COLUMN copilot_enabled INTEGER DEFAULT 1')
+
         conn.commit()
     finally:
         conn.close()

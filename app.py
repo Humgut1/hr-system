@@ -93,6 +93,7 @@ TOSS_SECRET_KEY = os.environ.get(
 
 # ── DB 초기화 ────────────────────────────────────────────────
 from database import init_db, DEFAULT_REVIEW_FORM, review_form_snapshot
+import copilot
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -1315,6 +1316,8 @@ def admin_settings():
         gd_note = save_grade_dist(db, s)
         save_perf_culture(db, s)
         save_default_form_weights(db, s)
+        if 'copilot_section' in s:
+            db.execute('UPDATE company_config SET copilot_enabled=? WHERE id=1', (1 if s.get('copilot_enabled') else 0,))
         db.commit()
         if gd_note:
             flash('설정 저장 · ' + gd_note, 'warning')
@@ -1331,6 +1334,7 @@ def admin_settings():
                            position_presets=POSITION_PRESETS,
                            approval_workflows=APPROVAL_WORKFLOWS,
                            approval_chains=approval_chains,
+                           copilot=copilot_view(), copilot_usage=_copilot_usage(db),
                            active_page='settings')
 
 
@@ -8451,7 +8455,7 @@ def acr_detail(cycle_id):
                            groups=sorted(groups.values(), key=lambda x: x['dept']), tot=tot,
                            is_admin=is_admin, sel_dept=sel_dept, sel_stage=sel_stage,
                            stage_label=ACR_STAGE_LABEL, period_months=_acr_period_months(db, cycle['perf_cycle_id']),
-                           grade_rewards=_grade_rewards(db), active_page='acr')
+                           grade_rewards=_grade_rewards(db), copilot=copilot_view(), active_page='acr')
 
 
 @app.route('/payroll/acr/<int:cycle_id>/submit', methods=['POST'])
@@ -9749,100 +9753,175 @@ def performance():
                            align_options=_align_options(db, cycle_id, session.get('dept_id')),
                            active_page='performance')
 
+# ── C5 Copilot 평가 보조 ─────────────────────────────────────────
+def copilot_view():
+    """템플릿용 Copilot 상태 — 회사 설정 on/off + 제공자·모델·연결 여부."""
+    on = get_company_config().get('copilot_enabled')
+    return {**copilot.status(), 'on': True if on is None else bool(int(on))}
+
+
+def copilot_api(f):
+    """Copilot JSON 엔드포인트 — 로그인·회사 설정 확인. 저장이 아닌 조회성 요청이라 체험 모드에서도 허용."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            return {'error': '로그인이 필요합니다.'}, 401
+        if not copilot_view()['on']:
+            return {'error': 'Copilot이 꺼져 있습니다. 회사 설정에서 켤 수 있습니다.'}, 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _copilot_log(db, feature, target_uid, source, warn_count=0):
+    if session.get('demo_mode'):
+        return
+    db.execute('INSERT INTO copilot_logs (user_id, feature, target_user_id, source, warn_count) VALUES (?,?,?,?,?)',
+               (session['user_id'], feature, target_uid, source, warn_count))
+    db.commit()
+
+
+def _copilot_usage(db, days=30):
+    rows = db.execute("SELECT feature, COUNT(*) n, SUM(warn_count) w FROM copilot_logs "
+                      "WHERE created_at >= datetime('now', ?) GROUP BY feature", (f'-{days} days',)).fetchall()
+    return {r['feature']: {'n': r['n'], 'w': r['w'] or 0} for r in rows}
+
+
+def _copilot_cycle(db, emp_uid):
+    """팀원 평가 Copilot 공통 — 권한(매니저·관리자 + 팀원 소유권)과 주기."""
+    if session.get('user_role') not in ('admin', 'manager'):
+        abort(403)
+    _team_member_or_403(db, emp_uid)
+    data = request.get_json(silent=True) or {}
+    try:
+        cycle_id = int(data.get('cycle_id') or 0)
+    except (TypeError, ValueError):
+        cycle_id = 0
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (cycle_id,)).fetchone()
+    if not cycle:
+        abort(404)
+    return cycle, data
+
+
+def _copilot_evidence(db, emp_uid, cycle):
+    """평가 초안 근거 — 평가자가 화면에서 볼 수 있는 범위만, 이름 없이."""
+    uid, role = session['user_id'], session['user_role']
+    start = (cycle['start_date'] or '0000-01-01')[:10]
+    end = (cycle['end_date'] or '9999-12-31')[:10] + ' 23:59:59'
+    goals = db.execute("SELECT id, title, progress, self_comment FROM performance_goals "
+                       "WHERE cycle_id=? AND user_id=? AND approval_status='confirmed' ORDER BY created_at",
+                       (cycle['id'], emp_uid)).fetchall()
+    cks = _latest_checkins(db, [g['id'] for g in goals])
+    form = cycle_form(cycle)
+    self_comp = {r['comp_key']: r['comment'] for r in db.execute(
+        "SELECT comp_key, comment FROM competency_scores WHERE cycle_id=? AND user_id=? AND rater_type='self'",
+        (cycle['id'], emp_uid)).fetchall()}
+    pc = get_perf_culture()
+    vis_sql, vis_args = _fb_visible(uid, role, session.get('dept_id'), pc['public_praise'])
+    fb = db.execute(FB_SELECT + f"WHERE f.to_id=? AND f.created_at BETWEEN ? AND ? AND {vis_sql} "
+                    "ORDER BY f.id DESC LIMIT 30", [emp_uid, start, end] + vis_args).fetchall()
+    peer = db.execute("SELECT strength, comment, improvement FROM peer_reviews "
+                      "WHERE cycle_id=? AND reviewee_id=? AND review_type='peer'", (cycle['id'], emp_uid)).fetchall()
+    open_actions = db.execute("SELECT COUNT(*) FROM one_on_one_actions a JOIN one_on_ones o ON a.meeting_id=o.id "
+                              "WHERE o.employee_id=? AND a.status='open'", (emp_uid,)).fetchone()[0]
+
+    def _ck(g):
+        c = cks.get(g['id'])
+        return {'status': c['status'], 'progress': c['progress'], 'comment': c['comment'] or '',
+                'date': c['created_at']} if c else None
+    return {
+        'goals': [{'id': g['id'], 'title': g['title'], 'progress': g['progress'] or 0,
+                   'self_comment': g['self_comment'] or '', 'checkin': _ck(g)} for g in goals],
+        'competencies': [{'key': c['key'], 'name': c['name'], 'desc': c.get('desc', ''),
+                          'self_comment': self_comp.get(c['key']) or ''} for c in form['competencies']],
+        'feedback': [{'kind': f['kind'], 'content': f['content']} for f in fb],
+        'peer': [dict(p) for p in peer] if len(peer) >= 3 else [],
+        'peer_hidden': len(peer) if 0 < len(peer) < 3 else 0,
+        'peer_labels': [p.get('label') or '' for p in form['peer_prompts']],
+        'open_actions': open_actions,
+    }
+
+
+@app.route('/performance/copilot/<int:emp_uid>/draft', methods=['POST'])
+@copilot_api
+def copilot_review_draft(emp_uid):
+    db = get_db()
+    cycle, _ = _copilot_cycle(db, emp_uid)
+    res = copilot.review_draft(_copilot_evidence(db, emp_uid, cycle))
+    _copilot_log(db, 'review_draft', emp_uid, res['source'])
+    return res
+
+
+@app.route('/performance/copilot/<int:emp_uid>/check', methods=['POST'])
+@copilot_api
+def copilot_bias_check(emp_uid):
+    db = get_db()
+    cycle, data = _copilot_cycle(db, emp_uid)
+    items = []
+    for it in (data.get('items') or [])[:60]:
+        if not isinstance(it, dict):
+            continue
+        try:
+            score = int(it.get('score'))
+        except (TypeError, ValueError):
+            score = None
+        items.append({'field': str(it.get('field') or '')[:40], 'label': str(it.get('label') or '')[:80],
+                      'text': str(it.get('text') or '')[:2000], 'score': score if score in (1, 2, 3, 4, 5) else None})
+    res = copilot.bias_check(items)
+    rows = db.execute("SELECT u.gender, AVG(r.score) AS avg FROM performance_reviews r "
+                      "JOIN performance_goals g ON r.goal_id=g.id JOIN users u ON g.user_id=u.id "
+                      "WHERE r.reviewer_id=? AND g.cycle_id=? GROUP BY g.user_id",
+                      (session['user_id'], cycle['id'])).fetchall()
+    res['pattern'] = copilot.rating_pattern([dict(r) for r in rows])
+    _copilot_log(db, 'bias_check', emp_uid, res['source'], len(res['warnings']) + (1 if res['pattern']['warn'] else 0))
+    return res
+
+
+@app.route('/payroll/acr/<int:cycle_id>/copilot/<int:emp_id>', methods=['POST'])
+@copilot_api
+def copilot_raise_note(cycle_id, emp_id):
+    from payroll_utils import calc_compa_ratio
+    role, uid = session.get('user_role'), session['user_id']
+    if role not in ('admin', 'manager'):
+        abort(403)
+    db = get_db()
+    _acr_cycle_or_404(db, cycle_id)
+    rows = _acr_rows(db, cycle_id, ' AND cr.employee_id=?' + ('' if role == 'admin' else ' AND cr.manager_id=?'),
+                     (emp_id,) if role == 'admin' else (emp_id, uid))
+    if not rows:
+        abort(403)
+    r = rows[0]
+    data = request.get_json(silent=True) or {}
+    pct, _ = _acr_final(r)
+    try:
+        if data.get('pct') not in (None, ''):
+            pct = float(data['pct'])
+    except (TypeError, ValueError):
+        pass
+    new_salary = _acr_new_salary(r['current_salary'], pct)
+    band = db.execute('SELECT sg.min_salary, sg.max_salary FROM salary_grades sg JOIN users u '
+                      'ON sg.position_id=u.position_id AND sg.job_family_id=u.job_family_id WHERE u.id=? LIMIT 1',
+                      (emp_id,)).fetchone()
+    res = copilot.raise_note({
+        'grade': r['perf_grade'], 'pct': pct, 'suggested_pct': r['suggested_pct'],
+        'compa': calc_compa_ratio(r['current_salary'], r['mid_salary']),
+        'compa_new': calc_compa_ratio(new_salary, r['mid_salary']), 'new_salary': new_salary,
+        'band_min': band['min_salary'] if band else None, 'band_max': band['max_salary'] if band else None,
+        'note': str(data.get('note') or '')[:500]})
+    _copilot_log(db, 'raise_note', emp_id, res['source'], len(res['warnings']))
+    return res
+
+
 @app.route('/performance/goals/ai-assist', methods=['POST'])
-@login_required
+@copilot_api
 def performance_goal_ai_assist():
-    """Grok AI로 OKR/KPI 작성 도움 — 키 없으면 rule-based fallback"""
-    import urllib.request, urllib.error, json as _json
-
-    title    = request.json.get('title', '').strip()
-    category = request.json.get('category', 'KPI')
-    job      = request.json.get('job', '')
-
+    """Copilot — 목표 SMART 분석. Claude 연결 시 개선안, 아니면 규칙 기반."""
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or '').strip()[:300]
     if not title:
         return {'error': '목표 제목을 먼저 입력해주세요.'}, 400
-
-    grok_key = os.environ.get('GROK_API_KEY', '')
-
-    # ── Grok API 호출 ─────────────────────────────────────
-    if grok_key:
-        system_prompt = (
-            "당신은 HR 성과관리 전문가입니다. "
-            "직원이 작성한 목표를 SMART 기준(Specific·Measurable·Achievable·Relevant·Time-bound)에 맞게 "
-            "개선하고, 측정 기준과 목표치가 명확하도록 도와주세요. "
-            "한국어로 답변하고, JSON 형식으로 반환하세요."
-        )
-        user_prompt = (
-            f"직원 직무: {job or '미입력'}\n"
-            f"목표 유형: {category}\n"
-            f"현재 작성한 목표: {title}\n\n"
-            "다음 JSON 형식으로 개선안을 제시해주세요:\n"
-            '{"improved_title": "개선된 목표 제목", '
-            '"reason": "개선 이유 (1~2문장)", '
-            '"smart_check": {"S": true/false, "M": true/false, "A": true/false, "R": true/false, "T": true/false}, '
-            '"tips": ["팁1", "팁2", "팁3"]}'
-        )
-        try:
-            payload = _json.dumps({
-                "model": "grok-2-latest",
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user",   "content": user_prompt}
-                ],
-                "temperature": 0.7,
-                "max_tokens": 600,
-                "response_format": {"type": "json_object"}
-            }).encode()
-            req = urllib.request.Request(
-                'https://api.x.ai/v1/chat/completions',
-                data=payload,
-                headers={
-                    'Authorization': f'Bearer {grok_key}',
-                    'Content-Type': 'application/json'
-                }
-            )
-            with urllib.request.urlopen(req, timeout=15) as r:
-                resp    = _json.loads(r.read())
-                content = resp['choices'][0]['message']['content']
-                result  = _json.loads(content)
-                result['source'] = 'grok'
-                return result
-        except Exception as e:
-            # API 실패 시 rule-based로 fallback
-            pass
-
-    # ── Rule-based fallback (키 없거나 API 실패 시) ────────
-    smart = {
-        'S': any(w in title for w in ['달성','개선','완료','구축','구현','감소','증가','확보','작성','수립']),
-        'M': any(c.isdigit() for c in title) or any(w in title for w in ['%','건','명','개','회','점','배','원']),
-        'A': len(title) > 5,
-        'R': True,
-        'T': any(w in title for w in ['분기','반기','월','주','연간','Q1','Q2','Q3','Q4','상반기','하반기','까지','이내']),
-    }
-    missing = [k for k, v in smart.items() if not v]
-    tips = []
-    if not smart['M']:
-        tips.append('측정 가능한 수치를 추가하세요. 예: "20% 향상", "3건 완료", "90점 이상"')
-    if not smart['T']:
-        tips.append('기간을 명시하세요. 예: "Q2 말까지", "6월 30일까지", "상반기 내"')
-    if not smart['S']:
-        tips.append('구체적인 행동 동사를 사용하세요. 예: "달성", "구축", "개선", "완료"')
-    if not tips:
-        tips.append('목표가 비교적 잘 작성되었습니다. 측정 기준을 설명란에 구체적으로 적어보세요.')
-
-    improved = title
-    if not smart['M']:
-        improved += ' (수치 목표 추가 필요)'
-    if not smart['T']:
-        improved += ' — Q2 말까지' if category == 'KPI' else ' — 상반기 내'
-
-    return {
-        'improved_title': improved,
-        'reason': f"{'·'.join(missing) + ' 기준이 부족합니다.' if missing else 'SMART 기준을 대체로 충족합니다.'}",
-        'smart_check': smart,
-        'tips': tips,
-        'source': 'rule'
-    }
+    res = copilot.goal_assist(title, data.get('category') or 'KPI', (data.get('job') or '')[:60])
+    _copilot_log(get_db(), 'goal_assist', None, res['source'])
+    return res
 
 
 @app.route('/performance/goals/new', methods=['GET', 'POST'])
@@ -9916,7 +9995,7 @@ def performance_goal_new():
                            my_weights=my_weights,
                            goal_templates=goal_templates_list,
                            align_options=[o for c in cycles for o in _align_options(db, c['id'], session.get('dept_id'))],
-                           active_page='performance')
+                           copilot=copilot_view(), active_page='performance')
 
 
 @app.route('/performance/goals/submit', methods=['POST'])
@@ -10229,7 +10308,7 @@ def performance_team_member(emp_uid):
                            c3=_c3_member_context(db, emp_uid, cycle, uid),
                            ck_label=CHECKIN_STATUS_LABEL, ck_cls=CHECKIN_STATUS_CLS,
                            kind_label=FEEDBACK_KIND_LABEL,
-                           active_page='performance')
+                           copilot=copilot_view(), active_page='performance')
 
 
 @app.route('/performance/team/<int:emp_uid>/review', methods=['POST'])

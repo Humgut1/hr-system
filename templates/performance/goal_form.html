@@ -165,7 +165,7 @@
   border-radius: 20px;
   font-weight: 700;
 }
-.src-grok { background: var(--surface-2); color: var(--tx-1); }
+.src-claude { background: var(--surface-2); color: var(--tx-1); }
 .src-rule  { background: var(--surface-2); color: var(--tx-2); }
 </style>
 {% endblock %}
@@ -282,11 +282,11 @@
   </div>
 
   <!-- ── AI 어시스턴트 패널 ── -->
-  <div class="ai-panel">
+  <div class="ai-panel"{% if not copilot.on %} style="display:none;"{% endif %}>
     <div class="ai-panel-head">
       <div>
         <div class="ai-panel-title">OKR/KPI 작성 도우미</div>
-        <div class="ai-panel-sub">SMART 기준으로 목표를 더 명확하게</div>
+        <div class="ai-panel-sub">Copilot · {{ 'Claude' if copilot.connected else '규칙 기반 (Claude 연결 안 됨)' }}</div>
       </div>
       <span class="ai-badge" id="aiBadge">AI</span>
     </div>
@@ -323,7 +323,7 @@
         <div class="ai-suggest" id="aiSuggest" style="display:none;">
           <div class="ai-suggest-label">
             <i class="fas fa-magic"></i> 개선된 목표
-            <span class="source-badge src-grok" id="srcBadge">Grok AI</span>
+            <span class="source-badge src-rule" id="srcBadge">규칙 기반</span>
           </div>
           <div class="ai-suggest-text" id="aiImproved"></div>
           <button class="ai-apply-btn" onclick="applyImproved()">
@@ -387,16 +387,17 @@ function runAI() {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
+    if (data.error) throw new Error(data.error);
     document.getElementById('aiLoading').style.display = 'none';
     document.getElementById('aiResult').style.display  = 'block';
     document.getElementById('aiBtn').disabled = false;
 
     // 소스 배지
     var badge = document.getElementById('srcBadge');
-    if (data.source === 'grok') {
-      badge.textContent = 'Grok AI';
-      badge.className = 'source-badge src-grok';
-      document.getElementById('aiBadge').textContent = 'Grok AI';
+    if (data.source === 'claude') {
+      badge.textContent = 'Claude';
+      badge.className = 'source-badge src-claude';
+      document.getElementById('aiBadge').textContent = 'Claude';
     } else {
       badge.textContent = '규칙 기반';
       badge.className = 'source-badge src-rule';
@@ -433,12 +434,14 @@ function runAI() {
     // 팁
     var tips = data.tips || [];
     var ul = document.getElementById('aiTips');
-    ul.innerHTML = tips.map(function(t) { return '<li>' + t + '</li>'; }).join('');
+    ul.innerHTML = '';
+    tips.forEach(function(t) { var li = document.createElement('li'); li.textContent = t; ul.appendChild(li); });
   })
-  .catch(function() {
+  .catch(function(err) {
     document.getElementById('aiLoading').style.display = 'none';
+    document.getElementById('aiIntro').style.display = 'block';
     document.getElementById('aiBtn').disabled = false;
-    alert('분석 중 오류가 발생했습니다. 다시 시도해주세요.');
+    alert((err && err.message) || '분석 중 오류가 발생했습니다. 다시 시도해주세요.');
   });
 }
 

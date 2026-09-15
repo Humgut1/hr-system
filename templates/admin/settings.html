@@ -535,6 +535,35 @@
           칭찬 전사 공개 허용 · 개선 제안은 항상 받는 사람·매니저만
         </label>
 
+        <div class="section-label" id="copilot" style="font-size:11px;font-weight:800;color:var(--text-muted);letter-spacing:.08em;margin:24px 0 12px;">Copilot · 평가·보상 보조</div>
+        <input type="hidden" name="copilot_section" value="1">
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--tx-2);">
+          <input type="checkbox" name="copilot_enabled" value="1" {{ 'checked' if copilot.on else '' }}>
+          Copilot 사용 · 평가 초안·표현 점검·인상 근거·목표 분석. 점수·등급은 제안하지 않음
+        </label>
+        <div style="overflow-x:auto; margin-top:12px;">
+        <table class="ltable">
+          <tbody>
+            <tr><td class="t2" style="width:120px;">제공자</td><td>{{ copilot.provider }}</td></tr>
+            <tr><td class="t2">모델</td><td class="m">{{ copilot.model }}</td></tr>
+            <tr><td class="t2">연결 상태</td>
+              <td>{% if copilot.connected %}<span style="color:var(--done);">연결됨</span>
+                  {% else %}<span style="color:var(--wait);">연결 안 됨</span> <span class="t3">· 규칙 기반으로 동작 · 서버 환경변수 ANTHROPIC_API_KEY 설정 후 재시작하면 연결</span>{% endif %}</td></tr>
+          </tbody>
+        </table>
+        </div>
+        <div style="overflow-x:auto; margin-top:12px;">
+        <table class="ltable">
+          <thead><tr><th>기능</th><th>외부 전송 항목 (연결 시 · 이름·사번 제외)</th><th class="r">최근 30일 사용</th><th class="r">지적</th></tr></thead>
+          <tbody>
+            {% for k, label in copilot.feature_label.items() %}{% set u = copilot_usage.get(k) %}
+            <tr><td>{{ label }}</td><td class="t2" style="white-space:normal; min-width:240px;">{{ copilot.sent_fields[k] }}</td>
+              <td class="m r">{{ u.n if u else 0 }}</td><td class="m r">{{ (u.w if u else 0) if k in ('bias_check', 'raise_note') else '-' }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+
         <div style="margin-top:24px;">
           <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 저장</button>
         </div>
