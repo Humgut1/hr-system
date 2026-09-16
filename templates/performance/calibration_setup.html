@@ -63,7 +63,24 @@
   <div><span>회의 미배정</span><b{% if unassigned %} class="cs-late"{% endif %}>{{ unassigned|length }}명</b></div>
   <div><span>평가 미완료</span><b>{{ missing_total }}명</b></div>
   <div><span>날짜 미정</span><b>{{ sessions|rejectattr('meet_date')|list|length }}개</b></div>
+  <div><span>등급 확정</span><b>{{ pub.decided }}<small style="font-size:12px; color:var(--tx-3); margin-left:3px;">/ {{ pub.total }}</small></b></div>
 </div>
+
+{% if sessions %}
+<div class="card" style="margin-bottom:18px;">
+  <form method="post" class="cs-row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="publish">
+    <span style="font-size:12.5px; font-weight:700; margin-right:4px;">결과 공개</span>
+    {% if pub.shared %}<span class="badge badge-active">공개됨 {{ pub.shared }}명</span>
+    {% elif pub.can %}<span class="badge badge-active">전원 확정</span>
+    {% else %}<span class="badge badge-pending">{{ pub.decided }} / {{ pub.total }}</span>{% endif %}
+    <span class="cs-meta" style="flex:1; min-width:160px;">{% if pub.can %}공개하면 직원에게 등급 알림이 가고 7일 이의신청 기간이 시작됩니다{% else %}{{ pub.why }}{% endif %}</span>
+    <button class="btn btn-primary btn-sm"{% if not pub.can %} disabled{% endif %}
+      onclick="return confirm('{{ pub.total }}명에게 평가 결과를 공개합니다. 공개 후에는 이의신청으로만 바꿀 수 있습니다.')">결과 공개</button>
+  </form>
+</div>
+{% endif %}
 
 <div class="card" style="margin-bottom:18px;">
   <form method="post" class="cs-row">
@@ -89,6 +106,8 @@
       <span class="cs-meta">대상 {{ s.n }}명</span>
       {% if stats[s.id].missing %}<span class="badge badge-pending">미완료 {{ stats[s.id].missing }}명</span>
       {% else %}<span class="badge badge-active">평가 완료</span>{% endif %}
+      {% if s.n and stats[s.id].decided >= s.n %}<span class="badge badge-active">등급 확정</span>
+      {% elif stats[s.id].decided %}<span class="badge badge-pending">등급 {{ stats[s.id].decided }}/{{ s.n }}</span>{% endif %}
     </div>
     <form method="post" class="cs-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -133,6 +152,7 @@
         {% if s.notified_at %} · 안내 {{ s.notified_at[:16] }}{% endif %}
       </span>
       <a href="{{ url_for('calibration_session', sid=s.id) }}" class="btn btn-ghost btn-sm">사전자료</a>
+      <a href="{{ url_for('calibration_session_results', sid=s.id) }}" class="btn btn-ghost btn-sm">결과 입력</a>
       <form method="post" style="display:inline;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="notify">

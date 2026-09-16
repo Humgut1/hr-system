@@ -230,13 +230,28 @@ def save_grade_dist(db, f):
 
 
 def grade_dist_groups(db, cycle_id, gd, override=None):
-    """배분 적용 단위별 인원·확정 등급 수. override=(user_id, grade)는 확정 직전 검사용."""
-    emps = db.execute(
-        "SELECT u.id, u.department_id, d.name dn, cr.final_grade FROM users u "
-        "LEFT JOIN departments d ON u.department_id=d.id "
-        "LEFT JOIN calibration_results cr ON cr.user_id=u.id AND cr.cycle_id=? "
-        "WHERE u.status='active' AND u.role NOT IN ('admin','guest')", (cycle_id,)
-    ).fetchall()
+    """배분 적용 단위별 인원·확정 등급 수.
+    override=(user_id, grade) 또는 {user_id: grade} 는 확정 직전 검사용.
+    평가 명단(P1)이 있는 주기는 명단 대상자만 센다."""
+    has_roster = db.execute('SELECT 1 FROM cycle_participants WHERE cycle_id=? LIMIT 1', (cycle_id,)).fetchone()
+    if has_roster:
+        emps = db.execute(
+            "SELECT u.id, u.department_id, d.name dn, cr.final_grade FROM cycle_participants cp "
+            "JOIN users u ON u.id=cp.user_id "
+            "LEFT JOIN departments d ON u.department_id=d.id "
+            "LEFT JOIN calibration_results cr ON cr.user_id=u.id AND cr.cycle_id=cp.cycle_id "
+            "WHERE cp.cycle_id=? AND cp.included=1", (cycle_id,)
+        ).fetchall()
+    else:
+        emps = db.execute(
+            "SELECT u.id, u.department_id, d.name dn, cr.final_grade FROM users u "
+            "LEFT JOIN departments d ON u.department_id=d.id "
+            "LEFT JOIN calibration_results cr ON cr.user_id=u.id AND cr.cycle_id=? "
+            "WHERE u.status='active' AND u.role NOT IN ('admin','guest')", (cycle_id,)
+        ).fetchall()
+    if isinstance(override, tuple):
+        override = {override[0]: override[1]}
+    override = override or {}
     size = {}
     for e in emps:
         size[e['department_id'] or 0] = size.get(e['department_id'] or 0, 0) + 1
@@ -253,8 +268,8 @@ def grade_dist_groups(db, cycle_id, gd, override=None):
                                       'dist': {g: 0 for g in 'SABCD'}})
         grp['total'] += 1
         grade = e['final_grade']
-        if override and e['id'] == override[0]:
-            grade = override[1]
+        if e['id'] in override:
+            grade = override[e['id']]
         if grade in grp['dist']:
             grp['dist'][grade] += 1
             grp['confirmed'] += 1
@@ -11702,7 +11717,8 @@ def calibration_packet(db, session_row):
         'SELECT user_id FROM calibration_session_members WHERE session_id=?', (session_row['id'],))}
     prog = {r['user_id']: r for r in perf_progress(db, cycle) if r['user_id'] in ids}
     saved = {r['user_id']: r for r in db.execute(
-        'SELECT user_id, final_grade FROM calibration_results WHERE cycle_id=?', (cycle['id'],))}
+        'SELECT user_id, final_grade, downgrade_reason, note, is_shared FROM calibration_results WHERE cycle_id=?',
+        (cycle['id'],))}
     rows = []
     for u in ids:
         p = prog.get(u)
@@ -11711,7 +11727,9 @@ def calibration_packet(db, session_row):
         c = _calc_calibration_row(db, u, cycle['id'])
         rows.append({**c, 'dept': p['dept'], 'position': p['position'], 'emp_no': p['emp_no'],
                      'reviewer_name': p['reviewer_name'], 'missing': _cal_missing(p),
-                     'final_grade': saved[u]['final_grade'] if u in saved else None})
+                     'final_grade': saved[u]['final_grade'] if u in saved else None,
+                     'final_reason': (saved[u]['downgrade_reason'] or saved[u]['note'] or '') if u in saved else '',
+                     'is_shared': saved[u]['is_shared'] if u in saved else 0})
     rows.sort(key=lambda r: (r['overall'] is None, -(r['overall'] or 0), r['dept'] or '', r['name']))
 
     gd = get_grade_dist()
@@ -11727,6 +11745,44 @@ def calibration_packet(db, session_row):
         'decided': sum(1 for r in rows if r['final_grade']),
     }
     return cycle, rows, summary, dist, target, gd
+
+
+CAL_GRADE_NUM = {'S': 5, 'A': 4, 'B': 3, 'C': 2, 'D': 1}
+
+
+def cal_grade_rule_error(suggested, final, reason):
+    """등급 조정 규칙 — 권고보다 낮출 때 최대 1단계, 사유 필수."""
+    base = CAL_GRADE_NUM.get(suggested, 3)
+    gap = base - CAL_GRADE_NUM[final]
+    if gap > 1:
+        return f'권고 {suggested or "B"}에서 최대 1단계까지만 낮출 수 있습니다'
+    if gap == 1 and not reason:
+        return '낮출 때는 조정 사유가 필요합니다'
+    return None
+
+
+def cal_publish_state(db, cycle):
+    """결과 공개 가능 여부 — 명단 대상 전원 등급 확정, 조정·평가 단계, 아직 미공개."""
+    cid = cycle['id']
+    total = db.execute('SELECT COUNT(*) FROM cycle_participants WHERE cycle_id=? AND included=1',
+                       (cid,)).fetchone()[0]
+    decided = db.execute('SELECT COUNT(*) FROM cycle_participants cp JOIN calibration_results cr '
+                         'ON cr.cycle_id=cp.cycle_id AND cr.user_id=cp.user_id '
+                         'WHERE cp.cycle_id=? AND cp.included=1', (cid,)).fetchone()[0]
+    shared = db.execute('SELECT COUNT(*) FROM calibration_results WHERE cycle_id=? AND is_shared=1',
+                        (cid,)).fetchone()[0]
+    st = {'total': total, 'decided': decided, 'shared': shared, 'can': False, 'why': ''}
+    if shared or cycle['stage'] in ('appeal', 'closed'):
+        st['why'] = '이미 결과를 공개했습니다.'
+    elif cycle['stage'] not in ('review', 'calibration'):
+        st['why'] = '결과 공개는 평가 진행·HR 조정 단계에서만 할 수 있습니다.'
+    elif not total:
+        st['why'] = '평가 명단이 없습니다.'
+    elif decided < total:
+        st['why'] = f'등급이 정해지지 않은 대상자가 {total - decided}명 있습니다.'
+    else:
+        st['can'] = True
+    return st
 
 
 def _cal_can_view(db, sid):
@@ -11833,6 +11889,14 @@ def calibration_setup(cycle_id):
                 db.commit()
                 log_audit('create', 'performance', None, f'{srow["name"]} 참석자 안내 {len(att)}명')
                 flash(f'참석자 {len(att)}명에게 회의 안내를 보냈습니다.', 'success')
+
+        elif action == 'publish':
+            pub = cal_publish_state(db, cycle)
+            if not pub['can']:
+                flash(pub['why'], 'error')
+            else:
+                ok_pub, msg = publish_calibration_results(db, cycle_id)
+                flash(msg, 'success' if ok_pub else 'error')
         return redirect(url_for('calibration_setup', cycle_id=cycle_id))
 
     sessions = db.execute(
@@ -11845,10 +11909,15 @@ def calibration_setup(cycle_id):
     by_user = {r['user_id']: r for r in rows}
     member_map = {m['user_id']: m['session_id'] for m in db.execute(
         'SELECT user_id, session_id FROM calibration_session_members WHERE cycle_id=?', (cycle_id,))}
-    stats = {s['id']: {'missing': 0} for s in sessions}
+    stats = {s['id']: {'missing': 0, 'decided': 0} for s in sessions}
+    decided = {r['user_id'] for r in db.execute('SELECT user_id FROM calibration_results WHERE cycle_id=?', (cycle_id,))}
     for u, s_id in member_map.items():
-        if u in by_user and _cal_missing(by_user[u]) and s_id in stats:
+        if s_id not in stats or u not in by_user:
+            continue
+        if _cal_missing(by_user[u]):
             stats[s_id]['missing'] += 1
+        if u in decided:
+            stats[s_id]['decided'] += 1
     attendees = {}
     for a in db.execute(
             'SELECT a.session_id, a.user_id, a.role, u.name FROM calibration_session_attendees a '
@@ -11866,6 +11935,7 @@ def calibration_setup(cycle_id):
                            members=sorted(rows, key=lambda r: r['name']), member_map=member_map,
                            levels=CAL_LEVELS, role_label=CAL_ATTENDEE_ROLE,
                            missing_total=sum(1 for r in rows if _cal_missing(r)),
+                           pub=cal_publish_state(db, cycle),
                            active_page='performance_cycles')
 
 
@@ -11886,12 +11956,12 @@ def calibration_session(sid):
         buf = io.StringIO()
         w = csv.writer(buf)
         w.writerow(['이름', '사번', '조직', '직급', '평가자', '자기평가', '평가자 평가', '동료평가',
-                    '종합', '권고 등급', '확정 등급', '미완료', '이상 신호'])
+                    '종합', '권고 등급', '확정 등급', '조정 사유', '미완료', '이상 신호'])
         for r in rows:
             w.writerow([r['name'], r['emp_no'] or '', r['dept'] or '', r['position'] or '',
                         r['reviewer_name'] or '', r['self_avg'] or '', r['mgr_avg'] or '',
                         r['peer_avg'] or '', r['overall'] or '', r['suggested_grade'] or '',
-                        r['final_grade'] or '', ' · '.join(r['missing']), r['anomaly'] or ''])
+                        r['final_grade'] or '', r['final_reason'], ' · '.join(r['missing']), r['anomaly'] or ''])
         log_audit('download', 'performance', None, f'{s["name"]} 사전자료 CSV ({len(rows)}명)')
         return Response('﻿' + buf.getvalue(), mimetype='text/csv; charset=utf-8',
                         headers={'Content-Disposition':
@@ -11906,6 +11976,139 @@ def calibration_session(sid):
                            s=s, cycle=cycle, rows=shown, summary=summary, dist=dist, target=target,
                            gd=gd, view=view, attendees=attendees, role_label=CAL_ATTENDEE_ROLE,
                            is_admin=session.get('user_role') == 'admin',
+                           active_page='performance_cycles')
+
+
+def _read_upload_csv(f):
+    import csv, io
+    b = f.read()
+    for enc in ('utf-8-sig', 'cp949'):
+        try:
+            text = b.decode(enc)
+            break
+        except UnicodeDecodeError:
+            text = None
+    if text is None:
+        return None
+    return list(csv.DictReader(io.StringIO(text)))
+
+
+@app.route('/performance/calibration/sessions/<int:sid>/results', methods=['GET', 'POST'])
+@admin_required
+def calibration_session_results(sid):
+    """P5 — 회의 결과 일괄 입력. 화면에서 등급을 고르거나, 사전자료 CSV 에 확정 등급을 채워 올린다."""
+    db = get_db()
+    s  = _cal_session_or_404(db, sid)
+    cycle, rows, summary, dist, target, gd = calibration_packet(db, s)
+    rows.sort(key=lambda r: (r['dept'] or '', r['name']))
+    locked = None
+    if any(r['is_shared'] for r in rows) or cycle['stage'] in ('appeal', 'closed'):
+        locked = '결과를 이미 공개해 수정할 수 없습니다. 바꿀 일이 있으면 이의신청으로 처리하세요.'
+    elif cycle['stage'] not in ('review', 'calibration'):
+        locked = '결과 입력은 평가 진행·HR 조정 단계에서만 할 수 있습니다.'
+
+    vals = {r['user_id']: {'grade': r['final_grade'] or '', 'reason': r['final_reason'] or ''} for r in rows}
+    errors, notice = {}, None
+
+    if request.method == 'POST':
+        action = request.form.get('action', 'save')
+        if locked:
+            flash(locked, 'error')
+            return redirect(url_for('calibration_session_results', sid=sid))
+
+        if action == 'upload':
+            f = request.files.get('file')
+            data = _read_upload_csv(f) if f and f.filename else None
+            if not data or '확정 등급' not in data[0]:
+                flash('사전자료 CSV 형식의 파일을 올려 주세요. "확정 등급" 칸이 필요합니다.', 'error')
+                return redirect(url_for('calibration_session_results', sid=sid))
+            by_no = {str(r['emp_no']): r for r in rows if r['emp_no']}
+            names = {}
+            for r in rows:
+                names.setdefault(r['name'], []).append(r)
+            filled, skipped = 0, []
+            for line in data:
+                no = (line.get('사번') or '').strip()
+                nm = (line.get('이름') or '').strip()
+                r = by_no.get(no) or (names[nm][0] if len(names.get(nm, [])) == 1 else None)
+                g = (line.get('확정 등급') or '').strip().upper()
+                if not g:
+                    continue
+                if not r:
+                    skipped.append(nm or no or '?')
+                    continue
+                if g not in CAL_GRADE_NUM:
+                    errors[r['user_id']] = f'"{g}" 는 등급이 아닙니다'
+                vals[r['user_id']] = {'grade': g if g in CAL_GRADE_NUM else '',
+                                      'reason': (line.get('조정 사유') or '').strip()[:200]}
+                filled += 1
+            notice = f'파일에서 {filled}명 등급을 불러왔습니다. 확인 후 [저장]을 눌러야 반영됩니다.'
+            if skipped:
+                notice += f' 이 회의에 없는 {len(skipped)}명은 건너뛰었습니다: ' + ', '.join(skipped[:5])
+        else:
+            picked = {}
+            for r in rows:
+                u = r['user_id']
+                g = (request.form.get(f'grade_{u}') or '').strip().upper()
+                reason = (request.form.get(f'reason_{u}') or '').strip()[:200]
+                vals[u] = {'grade': g, 'reason': reason}
+                if not g:
+                    continue
+                if g not in CAL_GRADE_NUM:
+                    errors[u] = '등급을 다시 골라 주세요'
+                    continue
+                err = cal_grade_rule_error(r['suggested_grade'], g, reason)
+                if err:
+                    errors[u] = err
+                else:
+                    picked[u] = (g, reason)
+            if not errors and gd['mode'] == 'forced' and picked:
+                groups, member = grade_dist_groups(db, cycle['id'], gd,
+                                                   override={u: g for u, (g, _) in picked.items()})
+                over = [f'{x["label"]} ' + ', '.join(x['over']) for x in groups if x['over']]
+                if over:
+                    errors[0] = '강제 배분 상한 초과 — ' + ' / '.join(over[:3])
+            if not errors:
+                row_by = {r['user_id']: r for r in rows}
+                changed = 0
+                for u, (g, reason) in picked.items():
+                    r = row_by[u]
+                    if r['final_grade'] == g and (r['final_reason'] or '') == reason:
+                        continue
+                    down = CAL_GRADE_NUM[g] < CAL_GRADE_NUM.get(r['suggested_grade'], 3)
+                    summary_text = generate_calibration_summary(r['name'], r['self_avg'], r['peer_avg'],
+                                                                r['mgr_avg'], r['upward_avg'])
+                    db.execute('''
+                        INSERT INTO calibration_results
+                          (cycle_id, user_id, self_avg, peer_avg, mgr_avg, upward_avg,
+                           suggested_grade, final_grade, summary_text, note,
+                           downgrade_reason, is_shared, decided_by)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?)
+                        ON CONFLICT(cycle_id, user_id) DO UPDATE SET
+                          self_avg=excluded.self_avg, peer_avg=excluded.peer_avg,
+                          mgr_avg=excluded.mgr_avg, upward_avg=excluded.upward_avg,
+                          suggested_grade=excluded.suggested_grade, final_grade=excluded.final_grade,
+                          summary_text=excluded.summary_text, note=excluded.note,
+                          downgrade_reason=excluded.downgrade_reason,
+                          decided_by=excluded.decided_by, decided_at=CURRENT_TIMESTAMP
+                    ''', (cycle['id'], u, r['self_avg'], r['peer_avg'], r['mgr_avg'], r['upward_avg'],
+                          r['suggested_grade'], g, summary_text,
+                          None if down else (reason or None), reason if down else None,
+                          session['user_id']))
+                    changed += 1
+                db.commit()
+                if changed:
+                    log_audit('update', 'performance', None, f'{s["name"]} 결과 입력 {changed}명')
+                left = sum(1 for r in rows if r['user_id'] not in picked and not r['final_grade'])
+                flash(f'{changed}명 등급을 저장했습니다.' + (f' 아직 {left}명 남았습니다.' if left else ''),
+                      'success')
+                return redirect(url_for('calibration_session_results', sid=sid))
+
+    counts = {g: sum(1 for v in vals.values() if v['grade'] == g) for g in 'SABCD'}
+    return render_template('performance/calibration_results.html',
+                           s=s, cycle=cycle, rows=rows, vals=vals, errors=errors, notice=notice,
+                           locked=locked, gd=gd, target=target, counts=counts,
+                           filled=sum(1 for v in vals.values() if v['grade']),
                            active_page='performance_cycles')
 
 
@@ -16884,6 +17087,36 @@ def generate_calibration_summary(name, self_avg, peer_avg, mgr_avg, upward_avg):
     return ' '.join(parts)
 
 
+def publish_calibration_results(db, cid):
+    """직원에게 공개 = 이의신청 단계 시작 (등급 공개 + 7일 이의기간). (성공 여부, 메시지)"""
+    gd = get_grade_dist()
+    if gd['mode'] == 'forced':
+        groups, _m = grade_dist_groups(db, cid, gd)
+        issues = [f'{x["label"]} ' + ', '.join(x['over'] + x['under'])
+                  for x in groups if x['over'] or x['under']]
+        if issues:
+            return False, '강제 배분 미충족으로 공개 불가 — ' + ' / '.join(issues[:4])
+    appeal_until = (date.today() + timedelta(days=7)).isoformat()
+    db.execute('UPDATE calibration_results SET is_shared=1 WHERE cycle_id=?', (cid,))
+    db.execute("UPDATE performance_cycles SET stage='appeal', appeal_until=? WHERE id=?",
+               (appeal_until, cid))
+    db.commit()
+    shared_rows = db.execute(
+        'SELECT user_id, final_grade FROM calibration_results WHERE cycle_id=? AND is_shared=1', (cid,)
+    ).fetchall()
+    for r in shared_rows:
+        add_notification(
+            r['user_id'], 'info', 'perf',
+            '성과 평가 결과가 공개되었습니다',
+            f'이번 주기 최종 등급: {r["final_grade"]}등급 · 이의신청은 {appeal_until}까지 1회 가능합니다.',
+            link='/performance?tab=result'
+        )
+    count = len(shared_rows)
+    log_audit('update', 'performance', None,
+              f'평가 결과 공개 + 이의신청 기간 시작 (~{appeal_until}, {count}명)')
+    return True, f'{count}명의 평가 결과가 공개되었습니다. 이의신청 기간: {appeal_until}까지.'
+
+
 @app.route('/performance/calibration', methods=['GET', 'POST'])
 @admin_required
 def calibration():
@@ -16977,37 +17210,8 @@ def calibration():
 
         # 직원에게 공개 = 이의신청 단계 시작 (등급 공개 + 7일 이의기간)
         elif action == 'publish':
-            cid = int(request.form.get('cycle_id'))
-            gd = get_grade_dist()
-            if gd['mode'] == 'forced':
-                groups, _m = grade_dist_groups(db, cid, gd)
-                issues = [f'{x["label"]} ' + ', '.join(x['over'] + x['under'])
-                          for x in groups if x['over'] or x['under']]
-                if issues:
-                    flash('강제 배분 미충족으로 공개 불가 — ' + ' / '.join(issues[:4]), 'error')
-                    return redirect(url_for('calibration', cycle=cycle_id))
-            appeal_until = (date.today() + timedelta(days=7)).isoformat()
-            db.execute('UPDATE calibration_results SET is_shared=1 WHERE cycle_id=?', (cid,))
-            db.execute("UPDATE performance_cycles SET stage='appeal', appeal_until=? WHERE id=?",
-                       (appeal_until, cid))
-            count = db.execute(
-                'SELECT COUNT(*) FROM calibration_results WHERE cycle_id=? AND is_shared=1', (cid,)
-            ).fetchone()[0]
-            db.commit()
-            # 인앱 알림 발송
-            shared_rows = db.execute(
-                'SELECT user_id, final_grade FROM calibration_results WHERE cycle_id=? AND is_shared=1', (cid,)
-            ).fetchall()
-            for r in shared_rows:
-                add_notification(
-                    r['user_id'], 'info', 'perf',
-                    '성과 평가 결과가 공개되었습니다',
-                    f'이번 주기 최종 등급: {r["final_grade"]}등급 · 이의신청은 {appeal_until}까지 1회 가능합니다.',
-                    link='/performance?tab=result'
-                )
-            log_audit('update', 'performance', None,
-                      f'평가 결과 공개 + 이의신청 기간 시작 (~{appeal_until}, {count}명)')
-            flash(f'{count}명의 평가 결과가 공개되었습니다. 이의신청 기간: {appeal_until}까지.', 'success')
+            ok_pub, msg = publish_calibration_results(db, int(request.form.get('cycle_id')))
+            flash(msg, 'success' if ok_pub else 'error')
 
         return redirect(url_for('calibration', cycle=cycle_id))
 

@@ -55,7 +55,7 @@
     <div class="cp-noprint" style="display:flex; gap:8px; flex-wrap:wrap;">
       {% if is_admin %}
       <a href="{{ url_for('calibration_setup', cycle_id=s.cycle_id) }}" class="btn btn-ghost btn-sm">회의 목록</a>
-      <a href="{{ url_for('calibration', cycle=s.cycle_id) }}" class="btn btn-ghost btn-sm">등급 확정</a>
+      <a href="{{ url_for('calibration_session_results', sid=s.id) }}" class="btn btn-ghost btn-sm">결과 입력</a>
       {% endif %}
       <a href="{{ url_for('calibration_session', sid=s.id, format='csv') }}" class="btn btn-ghost btn-sm">CSV</a>
       <button type="button" class="btn btn-ghost btn-sm" onclick="window.print()">인쇄</button>

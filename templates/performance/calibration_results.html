@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block title %}회의 결과 입력{% endblock %}
+{% block page_title %}회의 결과 입력{% endblock %}
+
+{% block extra_css %}
+<style>
+.cr-meta { font-size:12px; color:var(--tx-3); }
+.cr-strip { display:grid; grid-template-columns:repeat(auto-fit, minmax(90px, 1fr));
+  border:1px solid var(--line); border-top:none; border-left:none;
+  border-radius:var(--r); margin-bottom:18px; overflow:hidden; }
+.cr-strip > div { padding:10px 14px; border-top:1px solid var(--line); border-left:1px solid var(--line); }
+.cr-strip b { display:block; font-size:18px; font-weight:750; margin-top:3px; }
+.cr-strip b small { font-size:12px; font-weight:600; color:var(--tx-3); margin-left:3px; }
+.cr-strip span { font-size:11.5px; color:var(--tx-3); }
+.cr-note { font-size:12.5px; color:var(--tx-2); padding:10px 16px; border:1px solid var(--line);
+  border-radius:var(--r); margin-bottom:14px; }
+.cr-err { color:var(--late); font-size:11.5px; font-weight:600; }
+.cr-row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:12px 16px; }
+.cr-row input[type=file] { font-size:12.5px; min-width:0; max-width:100%; }
+.cr-num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.cr-g { display:inline-block; min-width:22px; text-align:center; font-weight:750; }
+.cr-grades { display:inline-flex; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+.cr-grades label { position:relative; }
+.cr-grades input { position:absolute; opacity:0; pointer-events:none; }
+.cr-grades span { display:block; width:30px; height:28px; line-height:28px; text-align:center; font-size:12.5px;
+  font-weight:700; color:var(--tx-2); cursor:pointer; border-left:1px solid var(--line); }
+.cr-grades label:first-child span { border-left:none; }
+.cr-grades input:checked + span { background:var(--inv-bg); color:var(--inv-tx); }
+.cr-grades input:focus-visible + span { outline:2px solid var(--tx-2); outline-offset:-2px; }
+.cr-grades input:disabled + span { cursor:default; opacity:.6; }
+.cr-reason { width:100%; min-width:140px; height:30px; font-size:12.5px; }
+.cr-bad td { background:var(--surface-2); }
+.cr-act { position:sticky; bottom:0; z-index:5; display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  padding:12px 16px; border-top:1px solid var(--line); background:var(--surface); }
+.cr-act .cr-meta { margin-right:auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="card" style="margin-bottom:18px;">
+  <div style="padding:18px 20px; display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+    <div style="flex:1; min-width:200px;">
+      <div style="font-size:15px; font-weight:800;">{{ s.name }}</div>
+      <div class="cr-meta" style="margin-top:3px;">{{ s.cycle_name }} · 대상 {{ rows|length }}명 · {{ gd.label }}</div>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="{{ url_for('calibration_setup', cycle_id=s.cycle_id) }}" class="btn btn-ghost btn-sm">회의 목록</a>
+      <a href="{{ url_for('calibration_session', sid=s.id) }}" class="btn btn-ghost btn-sm">사전자료</a>
+    </div>
+  </div>
+</div>
+
+<div class="cr-strip">
+  <div><span>입력</span><b>{{ filled }}<small>/ {{ rows|length }}</small></b></div>
+  {% for g in 'SABCD' %}
+  <div><span>{{ g }} · 기준 {{ target[g] }}</span><b{% if counts[g] > target[g] + 0.5 and g in 'SA' %} class="cr-err"{% endif %}>{{ counts[g] }}명</b></div>
+  {% endfor %}
+</div>
+
+{% if locked %}<div class="cr-note">{{ locked }}</div>{% endif %}
+{% if notice %}<div class="cr-note">{{ notice }}</div>{% endif %}
+{% if errors %}
+<div class="cr-note cr-err">
+  저장하지 않았습니다. {% if errors.get(0) %}{{ errors[0] }}{% else %}표시된 {{ errors|length }}명을 고쳐 주세요.{% endif %}
+</div>
+{% endif %}
+
+{% if not locked %}
+<div class="card" style="margin-bottom:18px;">
+  <form method="post" enctype="multipart/form-data" class="cr-row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="upload">
+    <span style="font-size:12.5px; font-weight:700;">파일로 채우기</span>
+    <a href="{{ url_for('calibration_session', sid=s.id, format='csv') }}" class="btn btn-ghost btn-sm">사전자료 CSV 받기</a>
+    <input type="file" name="file" accept=".csv" required style="flex:1 1 180px;">
+    <button class="btn btn-ghost btn-sm">불러오기</button>
+  </form>
+</div>
+{% endif %}
+
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="action" value="save">
+<div class="card">
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>대상자</th>
+          <th class="cr-num">종합</th>
+          <th>권고</th>
+          <th>확정 등급</th>
+          <th style="min-width:180px;">조정 사유</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        {% set v = vals[r.user_id] %}
+        <tr{% if errors.get(r.user_id) %} class="cr-bad"{% endif %}>
+          <td>
+            <div class="u-name">{{ r.name }}</div>
+            <div class="u-sub">{{ r.dept or '미지정' }}{% if r.missing %} · 미완료 {{ r.missing|join(', ') }}{% endif %}</div>
+          </td>
+          <td class="cr-num">{{ '%.2f'|format(r.overall) if r.overall is not none else '—' }}</td>
+          <td><span class="cr-g">{{ r.suggested_grade or '—' }}</span></td>
+          <td>
+            <div class="cr-grades">
+              {% for g in 'SABCD' %}
+              <label><input type="radio" name="grade_{{ r.user_id }}" value="{{ g }}"{% if v.grade == g %} checked{% endif %}{% if locked %} disabled{% endif %}><span>{{ g }}</span></label>
+              {% endfor %}
+            </div>
+            {% if errors.get(r.user_id) %}<div class="cr-err">{{ errors[r.user_id] }}</div>{% endif %}
+          </td>
+          <td><input class="input cr-reason" name="reason_{{ r.user_id }}" value="{{ v.reason }}" maxlength="200"{% if locked %} disabled{% endif %}></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if not locked %}
+  <div class="cr-act">
+    <span class="cr-meta">권고보다 낮추면 1단계까지, 사유 필수</span>
+    <button class="btn btn-primary btn-sm">저장</button>
+  </div>
+  {% endif %}
+</div>
+</form>
+{% endblock %}
