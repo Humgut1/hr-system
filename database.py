@@ -2256,6 +2256,19 @@ def init_db(db_path: str = None):
         if _have and 'perf_min_months' not in _have:
             c.execute('ALTER TABLE company_config ADD COLUMN perf_min_months INTEGER DEFAULT 3')
 
+        # ── P2 다면평가 배정: 인원 기준·자동/수동 구분·확정 ────────────
+        _cyc = {r[1] for r in c.execute('PRAGMA table_info(performance_cycles)')}
+        if _cyc and 'peer_locked_at' not in _cyc:
+            c.execute('ALTER TABLE performance_cycles ADD COLUMN peer_locked_at TIMESTAMP')
+        _pa = {r[1] for r in c.execute('PRAGMA table_info(peer_assignments)')}
+        if _pa and 'source' not in _pa:
+            c.execute("ALTER TABLE peer_assignments ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'")
+        _have = {r[1] for r in c.execute('PRAGMA table_info(company_config)')}
+        if _have and 'peer_min' not in _have:
+            c.execute('ALTER TABLE company_config ADD COLUMN peer_min INTEGER DEFAULT 3')
+        if _have and 'peer_max' not in _have:
+            c.execute('ALTER TABLE company_config ADD COLUMN peer_max INTEGER DEFAULT 5')
+
         # ── 회의실·온보딩 V1: 건물·층·회의실·예약·온보딩 콘텐츠 (workplace.py) ──
         import workplace
         workplace.ensure_schema(c)

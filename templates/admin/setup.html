@@ -506,6 +506,21 @@
           <div><div class="t">{{ t }}</div><div class="d">{{ d }}</div></div></label>
         {% endfor %}
       </div>
+      <div class="su-sec">다면평가 인원 <span class="aside">한 사람이 받는 동료평가 수</span></div>
+      {% set _pmin = (config.get('peer_min') if config.get('peer_min') is not none else 3)|int %}
+      {% set _pmax = (config.get('peer_max') if config.get('peer_max') is not none else 5)|int %}
+      <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; margin-bottom:8px;">
+        <label style="font-size:12.5px; color:var(--tx-2);">최소
+          <select name="peer_min" class="input" style="height:32px; margin-left:6px;">
+            {% for v in [2,3,4,5] %}<option value="{{ v }}" {{ 'selected' if _pmin == v else '' }}>{{ v }}명</option>{% endfor %}
+          </select>
+        </label>
+        <label style="font-size:12.5px; color:var(--tx-2);">최대
+          <select name="peer_max" class="input" style="height:32px; margin-left:6px;">
+            {% for v in [3,4,5,6,8] %}<option value="{{ v }}" {{ 'selected' if _pmax == v else '' }}>{{ v }}명</option>{% endfor %}
+          </select>
+        </label>
+      </div>
       <div class="su-sec">부가 기능 <span class="aside">기본 끔 · 필요한 것만 켜기</span></div>
       <input type="hidden" name="addon_section" value="1">
       <div class="chks">

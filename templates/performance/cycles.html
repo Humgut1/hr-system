@@ -73,6 +73,11 @@
               <a href="{{ url_for('performance_roster', cycle_id=c.id) }}" class="btn btn-ghost btn-sm">
                 <i class="fas fa-list-check"></i> 평가 명단
               </a>
+              {% if c.include_peer %}
+              <a href="{{ url_for('peer_assignments', cycle=c.id) }}" class="btn btn-ghost btn-sm">
+                <i class="fas fa-comments"></i> 다면평가
+              </a>
+              {% endif %}
               {% if c.status == 'active' %}
                 {% if c.stage != 'closed' %}
                 <form method="post" action="{{ url_for('performance_cycle_stage', cycle_id=c.id) }}"

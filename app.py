@@ -576,6 +576,10 @@ _ADDON_BY_ENDPOINT = {ep: k for k, v in PERF_ADDONS.items() for ep in v[3]}
 # 평가 명단에서 신입을 빼는 기준 (주기 종료일 기준 근속 개월)
 PERF_MIN_MONTHS_CHOICES = [0, 1, 3, 6]
 
+# 다면평가에서 한 사람이 받을 평가자 수 (최소 / 최대)
+PEER_MIN_CHOICES = [2, 3, 4, 5]
+PEER_MAX_CHOICES = [3, 4, 5, 6, 8]
+
 
 def perf_addons(db=None):
     """켜진 부가 기능 {key: bool} — 컬럼이 없던 옛 DB는 끔으로 본다. 요청당 1회 조회."""
@@ -606,6 +610,18 @@ def save_perf_addons(db, f):
     if mm not in PERF_MIN_MONTHS_CHOICES:
         mm = 3
     db.execute('UPDATE company_config SET perf_min_months=? WHERE id=1', (mm,))
+    try:
+        lo = int(f.get('peer_min', 3))
+        hi = int(f.get('peer_max', 5))
+    except (TypeError, ValueError):
+        lo, hi = 3, 5
+    if lo not in PEER_MIN_CHOICES:
+        lo = 3
+    if hi not in PEER_MAX_CHOICES:
+        hi = 5
+    if hi < lo:
+        hi = lo
+    db.execute('UPDATE company_config SET peer_min=?, peer_max=? WHERE id=1', (lo, hi))
     g.pop('perf_addons', None)
 
 
@@ -10781,6 +10797,8 @@ def performance_cycles():
             ).fetchone()[0]
             if n:
                 parts.append(f'목표 미확정 {n}명')
+            if cyc['include_peer'] and not cyc['peer_locked_at']:
+                parts.append('다면평가 배정 미확정')
             if parts:
                 pending_info[cyc['id']] = ' · '.join(parts)
         elif cyc['stage'] == 'review':
@@ -17327,110 +17345,298 @@ def peer_review_write(reviewee_id):
                            active_page='peer')
 
 
+# ── P2 다면평가 배정 ──────────────────────────────────────────
+
+def peer_range(db=None):
+    """한 사람이 받을 동료평가 인원 (최소, 최대). 기본 3~5명."""
+    lo, hi = 3, 5
+    try:
+        row = (db or get_db()).execute(
+            'SELECT peer_min, peer_max FROM company_config WHERE id=1').fetchone()
+        if row:
+            if row['peer_min'] is not None:
+                lo = int(row['peer_min'])
+            if row['peer_max'] is not None:
+                hi = int(row['peer_max'])
+    except Exception:
+        pass
+    return lo, max(lo, hi)
+
+
+def _peer_targets(db, cycle_id):
+    """P1 평가 명단에서 대상인 사람들."""
+    return db.execute(
+        'SELECT cp.user_id, cp.reviewer_id, u.name, u.department_id, u.emp_no, '
+        '       d.name AS dept, p.name AS position '
+        'FROM cycle_participants cp '
+        'JOIN users u ON u.id = cp.user_id '
+        'LEFT JOIN departments d ON d.id = u.department_id '
+        'LEFT JOIN positions   p ON p.id = u.position_id '
+        'WHERE cp.cycle_id=? AND cp.included=1 ORDER BY d.name, u.name', (cycle_id,)).fetchall()
+
+
+def _peer_tier_fn(db):
+    """두 사람이 조직상 얼마나 가까운지 — 0 같은 부서, 1 같은 상위 조직, 클수록 멀다."""
+    parent = {d['id']: d['parent_id']
+              for d in db.execute('SELECT id, parent_id FROM departments')}
+
+    def chain(did):
+        out, cur, seen = [], did, set()
+        while cur and cur not in seen:
+            seen.add(cur)
+            out.append(cur)
+            cur = parent.get(cur)
+        return out
+
+    cache = {}
+
+    def tier(a, b):
+        key = (a, b)
+        if key not in cache:
+            up, v = set(chain(b)), 9
+            for i, node in enumerate(chain(a)):
+                if node in up:
+                    v = i
+                    break
+            cache[key] = v
+        return cache[key]
+    return tier
+
+
+def _peer_state(db, cycle_id):
+    """대상자별 평가자 목록과, 평가자별로 써야 할 건수."""
+    rows = db.execute(
+        'SELECT pa.id, pa.reviewee_id, pa.reviewer_id, pa.source, '
+        '       u.name AS reviewer_name, d.name AS reviewer_dept '
+        'FROM peer_assignments pa '
+        'JOIN users u ON u.id = pa.reviewer_id '
+        'LEFT JOIN departments d ON d.id = u.department_id '
+        'WHERE pa.cycle_id=? ORDER BY u.name', (cycle_id,)).fetchall()
+    by, load = {}, {}
+    for r in rows:
+        by.setdefault(r['reviewee_id'], []).append(r)
+        load[r['reviewer_id']] = load.get(r['reviewer_id'], 0) + 1
+    return by, load
+
+
+def suggest_peer_assignments(db, cycle):
+    """평가자가 모자란 대상자에게 최소 인원까지 채운다.
+    같은 부서 → 같은 상위 조직 → 전사 순으로 고르고, 이미 많이 맡은 사람은 뒤로 민다.
+    본인과 본인의 평가자(매니저)는 빼고, 평가 대상자 안에서만 고른다."""
+    lo, _hi = peer_range(db)
+    targets = _peer_targets(db, cycle['id'])
+    if not targets:
+        return 0
+    info = {t['user_id']: t for t in targets}
+    by, load = _peer_state(db, cycle['id'])
+    have = {uid: {r['reviewer_id'] for r in by.get(uid, [])} for uid in info}
+    tier = _peer_tier_fn(db)
+
+    added = 0
+    for t in sorted(targets, key=lambda x: (len(have[x['user_id']]), x['user_id'])):
+        me   = t['user_id']
+        need = lo - len(have[me])
+        if need <= 0:
+            continue
+        mgr   = t['reviewer_id']
+        cands = [c for c in info if c != me and c != mgr and c not in have[me]]
+        cands.sort(key=lambda c: (tier(t['department_id'], info[c]['department_id']),
+                                  load.get(c, 0), c))
+        for c in cands[:need]:
+            cur = db.execute(
+                'INSERT OR IGNORE INTO peer_assignments '
+                '(cycle_id, reviewee_id, reviewer_id, source) VALUES (?,?,?,?)',
+                (cycle['id'], me, c, 'auto'))
+            if cur.rowcount:
+                have[me].add(c)
+                load[c] = load.get(c, 0) + 1
+                added += 1
+    db.commit()
+    return added
+
+
 @app.route('/performance/peer/assignments', methods=['GET', 'POST'])
 @manager_or_admin
 def peer_assignments():
-    db   = get_db()
-    role = session['user_role']
+    db       = get_db()
+    is_admin = session['user_role'] == 'admin'
+    my_dept  = int(session.get('dept_id') or 0)
 
-    cycles = db.execute(
-        "SELECT * FROM performance_cycles ORDER BY start_date DESC"
-    ).fetchall()
-    active_cycle = next((c for c in cycles if c['status'] == 'active'), None)
-
+    cycles = db.execute('SELECT * FROM performance_cycles ORDER BY start_date DESC').fetchall()
+    active = next((c for c in cycles if c['status'] == 'active'), None)
     try:
-        selected_cycle_id = int(request.args.get('cycle', 0))
+        sel_id = int(request.values.get('cycle') or request.form.get('cycle_id') or 0)
     except (ValueError, TypeError):
-        selected_cycle_id = 0
-    selected_cycle = next(
-        (c for c in cycles if c['id'] == selected_cycle_id), active_cycle
-    )
-    cycle_id = selected_cycle['id'] if selected_cycle else 0
+        sel_id = 0
+    cycle    = next((c for c in cycles if c['id'] == sel_id), active)
+    cycle_id = cycle['id'] if cycle else 0
 
-    error = None
-    if selected_cycle and not selected_cycle['include_peer']:
-        error = '이 주기는 다면평가가 포함되지 않은 주기입니다. 배정할 수 없습니다.'
+    view = request.values.get('view') or 'all'
+    q    = (request.values.get('q') or '').strip()
+    edit_id = request.values.get('edit', type=int)
+
+    def _back(**kw):
+        args = {'cycle': cycle_id or None, 'view': view, 'q': q or None,
+                'edit': edit_id or None}
+        args.update(kw)
+        return redirect(url_for('peer_assignments', **args))
+
+    lo, hi = peer_range(db)
+
     if request.method == 'POST':
-        action = request.form.get('action')
-        if action == 'add':
-            try:
-                reviewee_id = int(request.form.get('reviewee_id', 0))
-                reviewer_id = int(request.form.get('reviewer_id', 0))
-                cid         = int(request.form.get('cycle_id', 0))
-            except (ValueError, TypeError):
-                error = '입력값이 올바르지 않습니다.'
-                reviewee_id = reviewer_id = cid = 0
-            if not error and cid:
-                cyc = db.execute('SELECT include_peer FROM performance_cycles WHERE id=?', (cid,)).fetchone()
-                if not cyc or not cyc['include_peer']:
-                    flash('다면평가가 포함되지 않은 주기에는 배정할 수 없습니다.', 'error')
-                    return redirect(url_for('peer_assignments', cycle=cycle_id))
-            if not error and reviewee_id == reviewer_id:
-                error = '평가자와 피평가자가 동일할 수 없습니다.'
-            if not error and cid and reviewee_id and reviewer_id:
-                existing = db.execute(
-                    'SELECT id FROM peer_assignments WHERE cycle_id=? AND reviewee_id=? AND reviewer_id=?',
-                    (cid, reviewee_id, reviewer_id)
-                ).fetchone()
-                if existing:
-                    error = '이미 등록된 배정입니다.'
-                else:
-                    db.execute(
-                        'INSERT INTO peer_assignments (cycle_id, reviewee_id, reviewer_id) VALUES (?, ?, ?)',
-                        (cid, reviewee_id, reviewer_id)
-                    )
-                    db.commit()
-        elif action == 'delete':
-            try:
-                assign_id = int(request.form.get('assign_id', 0))
-            except (ValueError, TypeError):
-                assign_id = 0
-            if assign_id:
-                db.execute('DELETE FROM peer_assignments WHERE id=?', (assign_id,))
+        action = request.form.get('action', '')
+        if not cycle:
+            flash('평가 주기를 먼저 고르세요.', 'error')
+            return _back()
+        if not cycle['include_peer']:
+            flash('이 주기는 다면평가를 쓰지 않는 주기입니다.', 'error')
+            return _back()
+        locked = bool(cycle['peer_locked_at'])
+
+        if action == 'lock':
+            if not is_admin:
+                abort(403)
+            if locked:
+                db.execute('UPDATE performance_cycles SET peer_locked_at=NULL WHERE id=?', (cycle_id,))
                 db.commit()
-        return redirect(url_for('peer_assignments', cycle=cycle_id))
+                flash('배정 확정을 풀었습니다.', 'success')
+                return _back()
+            targets = _peer_targets(db, cycle_id)
+            if not targets:
+                flash('평가 대상이 없습니다. 평가 명단을 먼저 만들어 주세요.', 'error')
+                return _back()
+            by, _ = _peer_state(db, cycle_id)
+            short = [t for t in targets if len(by.get(t['user_id'], [])) < lo]
+            if short:
+                flash(f'평가자가 {lo}명에 못 미치는 대상 {len(short)}명이 있습니다. 먼저 채워 주세요.', 'error')
+                return _back(view='short', edit=None)
+            db.execute('UPDATE performance_cycles SET peer_locked_at=CURRENT_TIMESTAMP WHERE id=?',
+                       (cycle_id,))
+            db.commit()
+            flash(f'대상 {len(targets)}명의 다면평가 배정을 확정했습니다.', 'success')
+            return _back(edit=None)
 
-    # 배정 목록
-    assignments = []
+        if locked:
+            flash('배정이 확정되어 바꿀 수 없습니다.', 'error')
+            return _back()
+
+        if action == 'suggest':
+            if not is_admin:
+                abort(403)
+            n = suggest_peer_assignments(db, cycle)
+            flash(f'{n}건을 자동으로 배정했습니다.' if n
+                  else '더 채울 곳이 없습니다.', 'success')
+        elif action == 'clear_auto':
+            if not is_admin:
+                abort(403)
+            n = db.execute("DELETE FROM peer_assignments WHERE cycle_id=? AND source='auto'",
+                           (cycle_id,)).rowcount
+            db.commit()
+            flash(f'자동 배정 {n}건을 지웠습니다. 직접 넣은 배정은 그대로입니다.', 'success')
+        elif action == 'add':
+            rv  = request.form.get('reviewee_id', type=int) or 0
+            rr  = request.form.get('reviewer_id', type=int) or 0
+            tgt = db.execute(
+                'SELECT cp.user_id, u.department_id FROM cycle_participants cp '
+                'JOIN users u ON u.id = cp.user_id '
+                'WHERE cp.cycle_id=? AND cp.user_id=? AND cp.included=1', (cycle_id, rv)).fetchone()
+            ok = db.execute(
+                'SELECT 1 FROM cycle_participants WHERE cycle_id=? AND user_id=? AND included=1',
+                (cycle_id, rr)).fetchone()
+            if not tgt:
+                flash('평가 대상이 아닌 사람입니다.', 'error')
+            elif not is_admin and tgt['department_id'] != my_dept:
+                flash('내 부서 직원만 배정할 수 있습니다.', 'error')
+            elif not rr or rr == rv or not ok:
+                flash('평가자를 골라 주세요. 본인과 평가 대상이 아닌 사람은 고를 수 없습니다.', 'error')
+            elif db.execute('SELECT COUNT(*) FROM peer_assignments WHERE cycle_id=? AND reviewee_id=?',
+                            (cycle_id, rv)).fetchone()[0] >= hi:
+                flash(f'한 사람에게 붙일 수 있는 평가자는 {hi}명까지입니다.', 'error')
+            else:
+                cur = db.execute(
+                    'INSERT OR IGNORE INTO peer_assignments '
+                    '(cycle_id, reviewee_id, reviewer_id, source) VALUES (?,?,?,?)',
+                    (cycle_id, rv, rr, 'manual'))
+                db.commit()
+                flash('평가자를 넣었습니다.' if cur.rowcount else '이미 배정된 평가자입니다.',
+                      'success' if cur.rowcount else 'error')
+        elif action == 'remove':
+            aid = request.form.get('assign_id', type=int) or 0
+            row = db.execute(
+                'SELECT pa.id, pa.reviewee_id, pa.reviewer_id, u.department_id '
+                'FROM peer_assignments pa JOIN users u ON u.id = pa.reviewee_id '
+                'WHERE pa.id=? AND pa.cycle_id=?', (aid, cycle_id)).fetchone()
+            written = row and db.execute(
+                "SELECT 1 FROM peer_reviews WHERE cycle_id=? AND reviewee_id=? AND reviewer_id=? "
+                "AND review_type='peer'", (cycle_id, row['reviewee_id'], row['reviewer_id'])).fetchone()
+            if not row:
+                flash('없는 배정입니다.', 'error')
+            elif not is_admin and row['department_id'] != my_dept:
+                flash('내 부서 직원만 배정할 수 있습니다.', 'error')
+            elif written:
+                flash('이미 평가를 쓴 사람은 뺄 수 없습니다.', 'error')
+            else:
+                db.execute('DELETE FROM peer_assignments WHERE id=?', (row['id'],))
+                db.commit()
+                flash('평가자를 뺐습니다.', 'success')
+        else:
+            flash('알 수 없는 작업입니다.', 'error')
+        return _back()
+
+    # ── 화면 ─────────────────────────────────────────────
+    roster_n = db.execute('SELECT COUNT(*) FROM cycle_participants WHERE cycle_id=?',
+                          (cycle_id,)).fetchone()[0] if cycle_id else 0
+    all_targets = _peer_targets(db, cycle_id) if cycle_id else []
+    by, load    = _peer_state(db, cycle_id) if cycle_id else ({}, {})
+    written = set()
     if cycle_id:
-        assignments = db.execute(
-            'SELECT pa.*, '
-            'rv.name AS reviewee_name, rr.name AS reviewer_name '
-            'FROM peer_assignments pa '
-            'JOIN users rv ON pa.reviewee_id = rv.id '
-            'JOIN users rr ON pa.reviewer_id = rr.id '
-            'WHERE pa.cycle_id=? ORDER BY rv.name, rr.name',
-            (cycle_id,)
-        ).fetchall()
+        written = {(r['reviewee_id'], r['reviewer_id']) for r in db.execute(
+            "SELECT reviewee_id, reviewer_id FROM peer_reviews "
+            "WHERE cycle_id=? AND review_type='peer'", (cycle_id,))}
 
-    # 직원 목록 — 부서별 그룹으로 제공
-    mgr_dept = int(session.get('dept_id') or 0)
-    if role == 'manager' and mgr_dept:
-        employees = db.execute(
-            "SELECT u.id, u.name, u.role, d.name dept_name "
-            "FROM users u LEFT JOIN departments d ON u.department_id=d.id "
-            "WHERE u.department_id=? AND u.status='active' ORDER BY u.name",
-            (mgr_dept,)
-        ).fetchall()
-    else:
-        employees = db.execute(
-            "SELECT u.id, u.name, u.role, d.name dept_name "
-            "FROM users u LEFT JOIN departments d ON u.department_id=d.id "
-            "WHERE u.status='active' ORDER BY d.name, u.name"
-        ).fetchall()
+    mine = all_targets if is_admin else [t for t in all_targets if t['department_id'] == my_dept]
+    rows = []
+    for t in mine:
+        revs = by.get(t['user_id'], [])
+        rows.append({'u': t, 'revs': revs, 'n': len(revs),
+                     'state': 'short' if len(revs) < lo else ('over' if len(revs) > hi else 'ok')})
 
-    # 부서 목록 (조직도 기반 선택용)
-    departments = db.execute(
-        "SELECT DISTINCT d.id, d.name "
-        "FROM departments d JOIN users u ON u.department_id=d.id "
-        "WHERE u.status='active' ORDER BY d.name"
-    ).fetchall()
+    summary = {
+        'total':   len(rows),
+        'ok':      sum(1 for r in rows if r['state'] == 'ok'),
+        'short':   sum(1 for r in rows if r['state'] == 'short'),
+        'over':    sum(1 for r in rows if r['state'] == 'over'),
+        'assigns': sum(r['n'] for r in rows),
+        'auto':    sum(1 for r in rows for a in r['revs'] if a['source'] == 'auto'),
+    }
+    shown = [r for r in rows
+             if (view == 'all' or r['state'] == view)
+             and (not q or q in (r['u']['name'] or '') or q in (r['u']['dept'] or ''))]
+
+    # 한 사람 편집 — 후보를 가까운 조직·적게 맡은 순으로 보여준다
+    edit = None
+    if edit_id and cycle and not cycle['peer_locked_at']:
+        cur = next((r for r in rows if r['u']['user_id'] == edit_id), None)
+        if cur:
+            tier  = _peer_tier_fn(db)
+            taken = {a['reviewer_id'] for a in cur['revs']}
+            taken.update({edit_id, cur['u']['reviewer_id']})
+            pool  = [c for c in all_targets if c['user_id'] not in taken]
+            pool.sort(key=lambda c: (tier(cur['u']['department_id'], c['department_id']),
+                                     load.get(c['user_id'], 0), c['name'] or ''))
+            edit = {'row': cur, 'top': pool[:8], 'pool': pool}
+
+    # 많이 맡은 평가자 — 한쪽에 몰렸는지 확인용
+    top_load = sorted(load.items(), key=lambda kv: -kv[1])[:5]
+    names    = {t['user_id']: t['name'] for t in all_targets}
+    top_load = [{'name': names.get(u, ''), 'n': n} for u, n in top_load if n > lo]
 
     return render_template('performance/peer_assignments.html',
-                           cycles=cycles, selected_cycle=selected_cycle,
-                           assignments=assignments, employees=employees,
-                           departments=departments,
-                           cycle_id=cycle_id, error=error,
+                           cycles=cycles, cycle=cycle, cycle_id=cycle_id,
+                           rows=shown, summary=summary, view=view, q=q,
+                           edit=edit, load=load, written=written,
+                           peer_min=lo, peer_max=hi, roster_n=roster_n,
+                           top_load=top_load, is_admin=is_admin,
                            active_page='peer_assignments')
 
 

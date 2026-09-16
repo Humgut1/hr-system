@@ -532,6 +532,23 @@
         </div>
         <div style="font-size:12px; color:var(--tx-3); margin-top:8px;">주기 종료일 기준입니다. 퇴사 예정자·인턴은 항상 제외로 시작하고, <a href="{{ url_for('performance_cycles') }}">평가 주기</a>의 평가 명단에서 직접 넣고 뺄 수 있습니다.</div>
 
+        <div class="section-label" id="perf-peer" style="font-size:11px;font-weight:800;color:var(--text-muted);letter-spacing:.08em;margin:24px 0 12px;">다면평가 인원</div>
+        {% set _pmin = (config.get('peer_min') if config.get('peer_min') is not none else 3)|int %}
+        {% set _pmax = (config.get('peer_max') if config.get('peer_max') is not none else 5)|int %}
+        <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end;">
+          <label style="font-size:12.5px; color:var(--tx-2);">최소
+            <select name="peer_min" class="input" style="height:32px; margin-left:6px;">
+              {% for v in [2,3,4,5] %}<option value="{{ v }}" {{ 'selected' if _pmin == v else '' }}>{{ v }}명</option>{% endfor %}
+            </select>
+          </label>
+          <label style="font-size:12.5px; color:var(--tx-2);">최대
+            <select name="peer_max" class="input" style="height:32px; margin-left:6px;">
+              {% for v in [3,4,5,6,8] %}<option value="{{ v }}" {{ 'selected' if _pmax == v else '' }}>{{ v }}명</option>{% endfor %}
+            </select>
+          </label>
+        </div>
+        <div style="font-size:12px; color:var(--tx-3); margin-top:8px;">한 사람이 동료에게서 받는 평가 수입니다. 자동 배정은 최소 인원까지 채우고, 직접 넣을 때 최대 인원을 넘지 못합니다.</div>
+
         <div class="section-label" id="perf-addons" style="font-size:11px;font-weight:800;color:var(--text-muted);letter-spacing:.08em;margin:24px 0 12px;">성과 부가 기능</div>
         <input type="hidden" name="addon_section" value="1">
         <div style="overflow-x:auto;">

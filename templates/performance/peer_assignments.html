@@ -1,280 +1,273 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 {% block title %}다면평가 배정{% endblock %}
 {% block page_title %}다면평가 배정{% endblock %}
 
 {% block extra_css %}
 <style>
-.dept-section { margin-bottom: 20px; }
-.dept-header {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 14px; background: var(--surface-2);
-  border-radius: 8px 8px 0 0; border: 1px solid var(--border);
-  border-bottom: none; cursor: pointer;
-  font-weight: 800; font-size: 13px;
-}
-.dept-header:hover { background: var(--surface-2); }
-.dept-body {
-  border: 1px solid var(--border); border-radius: 0 0 8px 8px;
-  overflow: hidden;
-}
-.emp-row {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 16px; border-bottom: 1px solid var(--line);
-  transition: background .1s;
-}
-.emp-row:last-child { border-bottom: none; }
-.emp-row:hover { background: var(--surface-2); }
-.emp-avatar {
-  width: 32px; height: 32px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary), var(--primary));
-  color: var(--on-primary); font-size: 12px; font-weight: 800;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.emp-name { font-weight: 700; font-size: 13px; flex: 1; }
-.emp-role-badge {
-  font-size: 10px; font-weight: 700; padding: 2px 8px;
-  border-radius: 20px;
-}
-.reviewer-chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 2; }
-.reviewer-chip {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11px; font-weight: 600;
-  padding: 3px 10px; border-radius: 20px;
-  background: var(--surface-2); color: var(--tx-1);
-  border: 1px solid var(--line);
-}
-.reviewer-chip .rm-btn {
-  background: none; border: none; cursor: pointer;
-  color: var(--tx-3); font-size: 10px; padding: 0; line-height: 1;
-}
-.reviewer-chip .rm-btn:hover { color: var(--late); }
-.add-reviewer-btn {
-  font-size: 11px; font-weight: 700; padding: 3px 10px;
-  border-radius: 20px; border: 1.5px dashed var(--line);
-  background: none; color: var(--tx-3); cursor: pointer;
-  font-family: inherit; transition: all .15s;
-}
-.add-reviewer-btn:hover { border-color: var(--line-strong); color: var(--tx-1); background: var(--surface-2); }
-
-/* 리뷰어 선택 드롭다운 */
-.reviewer-dropdown {
-  position: absolute; z-index: 100;
-  background: var(--surface); border: 1.5px solid var(--line);
-  border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12);
-  min-width: 220px; max-height: 280px; overflow-y: auto;
-  display: none;
-}
-.reviewer-dropdown.open { display: block; }
-.rd-search {
-  padding: 8px 12px; border-bottom: 1px solid var(--line);
-  display: flex; align-items: center; gap: 8px;
-}
-.rd-search input {
-  border: none; outline: none; font-size: 12px; flex: 1;
-  font-family: inherit;
-}
-.rd-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 14px; cursor: pointer; font-size: 12px;
-  transition: background .1s;
-}
-.rd-item:hover { background: var(--surface-2); }
-.rd-item.disabled { opacity: .4; pointer-events: none; }
-.rd-dept { font-size: 10px; color: var(--tx-3); }
+.pa-strip { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));
+  border:1px solid var(--line); border-top:none; border-left:none;
+  border-radius:var(--r); margin-bottom:18px; overflow:hidden; }
+.pa-strip > div { padding:10px 14px; border-top:1px solid var(--line); border-left:1px solid var(--line); }
+.pa-strip b { display:block; font-size:18px; font-weight:750; margin-top:3px; }
+.pa-strip span { font-size:11.5px; color:var(--tx-3); }
+.pa-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:14px; }
+.pa-f { height:28px; padding:0 12px; display:inline-flex; align-items:center; border-radius:20px;
+  border:1px solid var(--line); background:var(--surface); color:var(--tx-2);
+  font-size:12.5px; font-weight:600; text-decoration:none; white-space:nowrap; }
+.pa-f.on { background:var(--inv-bg); color:var(--inv-tx); border-color:var(--inv-bg); }
+.pa-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.pa-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 4px 3px 10px;
+  border:1px solid var(--line); border-radius:20px; background:var(--surface-2);
+  font-size:11.5px; font-weight:600; white-space:nowrap; }
+.pa-chip.man { border-style:dashed; }
+.pa-chip .x { background:none; border:none; cursor:pointer; color:var(--tx-3);
+  font-size:11px; line-height:1; padding:3px 6px; font-family:inherit; }
+.pa-chip .x:hover { color:var(--late); }
+.pa-chip .lock { color:var(--tx-3); font-size:10.5px; padding-right:7px; }
+.pa-none { color:var(--late); font-weight:600; font-size:12.5px; }
+.pa-note { font-size:12.5px; color:var(--tx-2); padding:10px 16px;
+  border:1px solid var(--line); border-radius:var(--r); margin-bottom:14px; }
+.pa-cand { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.pa-cand form { display:inline-flex; }
+.pa-add { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px;
+  border:1px solid var(--line); border-radius:20px; background:var(--surface);
+  color:var(--tx-1); font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
+.pa-add:hover { background:var(--hover); }
+.pa-add small { color:var(--tx-3); font-weight:500; }
+@media (max-width:760px) { .pa-strip > div { padding:9px 12px; } }
 </style>
 {% endblock %}
 
 {% block content %}
 
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
-  <div>
-    <div style="font-size:16px; font-weight:800;">다면평가 배정</div>
-    <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">피평가자를 기준으로 평가자를 선택하세요</div>
+<div class="card" style="margin-bottom:18px;">
+  <div style="padding:18px 20px; display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+    <div style="flex:1; min-width:200px;">
+      <form method="get" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <select name="cycle" class="input" style="height:30px; font-size:13px; max-width:260px;" onchange="this.form.submit()">
+          {% for c in cycles %}
+          <option value="{{ c.id }}" {% if cycle and c.id == cycle.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button class="btn btn-ghost btn-sm">보기</button></noscript>
+      </form>
+      {% if cycle %}
+      <div style="font-size:12px; color:var(--tx-3); margin-top:6px;">
+        {{ cycle.start_date }} ~ {{ cycle.end_date }}
+        {% if cycle.peer_locked_at %}· <span class="badge badge-active">배정 확정</span>
+        {% else %}· <span class="badge badge-pending">배정 미확정</span>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% if cycle %}
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="{{ url_for('performance_roster', cycle_id=cycle.id) }}" class="btn btn-ghost btn-sm">평가 명단</a>
+      {% if is_admin and cycle.include_peer and roster_n and not cycle.peer_locked_at %}
+      <form method="post">
+        <input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+        <input type="hidden" name="view" value="{{ view }}">
+        <button class="btn btn-secondary btn-sm" name="action" value="suggest">자동 배정</button>
+      </form>
+      {% if summary.auto %}
+      <form method="post" onsubmit="return confirm('자동으로 넣은 배정 {{ summary.auto }}건을 지웁니다. 직접 넣은 배정은 남습니다.');">
+        <input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+        <input type="hidden" name="view" value="{{ view }}">
+        <button class="btn btn-ghost btn-sm" name="action" value="clear_auto">자동 배정 지우기</button>
+      </form>
+      {% endif %}
+      {% endif %}
+      {% if is_admin and cycle.include_peer and roster_n %}
+      <form method="post">
+        <input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+        <input type="hidden" name="view" value="{{ view }}">
+        <button class="btn {% if cycle.peer_locked_at %}btn-ghost{% else %}btn-primary{% endif %} btn-sm"
+                name="action" value="lock">
+          {% if cycle.peer_locked_at %}확정 풀기{% else %}배정 확정{% endif %}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
-  {% if cycles %}
-  <select class="input" style="width:220px;" onchange="location.href='?cycle='+this.value">
-    {% for c in cycles %}
-    <option value="{{ c.id }}" {% if selected_cycle and c.id == selected_cycle.id %}selected{% endif %}>
-      {{ c.name }} ({{ '진행중' if c.status == 'active' else '종료' }})
-    </option>
-    {% endfor %}
-  </select>
-  {% endif %}
 </div>
 
-{% if error %}
-<div style="background:var(--red-bg); border:1px solid var(--red-bg); color:var(--red); padding:12px 16px; border-radius:8px; margin-bottom:16px; font-weight:600;">
-  <i class="fas fa-exclamation-circle"></i> {{ error }}
+{% if not cycle %}
+<div class="card" style="padding:40px 20px; text-align:center;">
+  <div style="font-size:14px; font-weight:700;">평가 주기가 없습니다</div>
+  <div style="font-size:12.5px; color:var(--tx-3); margin-top:6px;">평가 주기를 먼저 만들어 주세요.</div>
+  <a href="{{ url_for('performance_cycles') }}" class="btn btn-primary" style="margin-top:14px;">평가 주기로</a>
 </div>
-{% endif %}
 
-{% if not selected_cycle %}
-<div style="background:var(--orange-bg); border:1px solid var(--orange-bg); border-radius:8px; padding:16px 20px; color:var(--orange); font-weight:600;">
-  <i class="fas fa-exclamation-triangle"></i> 평가 주기를 선택해주세요.
+{% elif not cycle.include_peer %}
+<div class="card" style="padding:40px 20px; text-align:center;">
+  <div style="font-size:14px; font-weight:700;">이 주기는 다면평가를 쓰지 않습니다</div>
+  <div style="font-size:12.5px; color:var(--tx-3); margin-top:6px;">
+    동료평가를 받으려면 평가 주기 설정에서 다면평가를 켜 주세요.
+  </div>
+  <a href="{{ url_for('performance_cycles') }}" class="btn btn-secondary" style="margin-top:14px;">평가 주기로</a>
+</div>
+
+{% elif not roster_n %}
+<div class="card" style="padding:40px 20px; text-align:center;">
+  <div style="font-size:14px; font-weight:700;">평가 명단이 아직 없습니다</div>
+  <div style="font-size:12.5px; color:var(--tx-3); margin-top:6px;">
+    누가 평가를 받는지 먼저 정해야 동료 평가자를 붙일 수 있습니다.
+  </div>
+  <a href="{{ url_for('performance_roster', cycle_id=cycle.id) }}" class="btn btn-primary" style="margin-top:14px;">평가 명단 만들기</a>
 </div>
 
 {% else %}
 
-<!-- 배정 현황 요약 -->
-<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px;">
-  <div class="card" style="margin:0; text-align:center;">
-    <div class="card-body" style="padding:14px;">
-      <div style="font-size:22px; font-weight:900; color:var(--primary);">{{ employees|length }}</div>
-      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">전체 직원</div>
-    </div>
-  </div>
-  <div class="card" style="margin:0; text-align:center;">
-    <div class="card-body" style="padding:14px;">
-      <div style="font-size:22px; font-weight:900; color:var(--green);">{{ assignments|map(attribute='reviewee_id')|unique|list|length }}</div>
-      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">배정된 피평가자</div>
-    </div>
-  </div>
-  <div class="card" style="margin:0; text-align:center;">
-    <div class="card-body" style="padding:14px;">
-      <div style="font-size:22px; font-weight:900; color:var(--orange);">{{ assignments|length }}</div>
-      <div style="font-size:11px; color:var(--tx-3); margin-top:3px;">총 배정 건수</div>
-    </div>
-  </div>
+<div class="pa-strip">
+  <div><span>평가 대상</span><b>{{ summary.total }}명</b></div>
+  <div><span>평가자 부족</span><b>{{ summary.short }}명</b></div>
+  <div><span>기준 충족</span><b>{{ summary.ok }}명</b></div>
+  <div><span>배정 건수</span><b>{{ summary.assigns }}건</b></div>
 </div>
 
-<!-- 조직도 기반 배정 UI -->
-{% set ns = namespace(current_dept='') %}
-{% for dept in departments %}
-{% set dept_emps = employees|selectattr('dept_name', 'equalto', dept.name)|list %}
-{% if dept_emps %}
-<div class="dept-section">
-  <div class="dept-header" onclick="toggleDept('dept-{{ dept.id }}')">
-    <i class="fas fa-building" style="color:var(--tx-3); font-size:12px;"></i>
-    {{ dept.name }}
-    <span style="font-size:12px; font-weight:400; color:var(--tx-3);">{{ dept_emps|length }}명</span>
-    <i class="fas fa-chevron-down" style="margin-left:auto; font-size:11px; color:var(--tx-3);" id="arrow-dept-{{ dept.id }}"></i>
+<div class="pa-note">
+  한 사람이 받을 동료평가는 {{ peer_min }}~{{ peer_max }}명입니다.
+  [자동 배정]은 같은 부서 → 같은 상위 조직 → 전사 순으로 {{ peer_min }}명까지 채우고,
+  본인과 본인의 평가자(매니저)는 빼며, 이미 많이 맡은 사람은 뒤로 미룹니다.
+  직접 넣은 배정은 [자동 배정 지우기]로 지워지지 않습니다.
+  {% if top_load %}
+  <div style="margin-top:6px; color:var(--tx-3);">
+    많이 맡은 평가자 — {% for t in top_load %}{{ t.name }} {{ t.n }}건{% if not loop.last %} · {% endif %}{% endfor %}
   </div>
-  <div class="dept-body" id="dept-{{ dept.id }}">
-    {% for emp in dept_emps %}
-    {% set emp_reviewers = assignments|selectattr('reviewee_id', 'equalto', emp.id)|list %}
-    <div class="emp-row">
-      <div class="emp-avatar">{{ emp.name[0] }}</div>
-      <div class="emp-name">
-        {{ emp.name }}
-        <div style="font-size:11px; color:var(--tx-3); font-weight:400;">{{ emp.role }}</div>
-      </div>
+  {% endif %}
+  {% if cycle.peer_locked_at %}
+  <div style="margin-top:6px;">배정이 확정되어 바꿀 수 없습니다. 바꾸려면 위에서 [확정 풀기]를 누릅니다.</div>
+  {% endif %}
+</div>
 
-      <!-- 현재 배정된 평가자들 -->
-      <div class="reviewer-chips" id="chips-{{ emp.id }}">
-        {% for a in emp_reviewers %}
-        <span class="reviewer-chip">
-          {{ a.reviewer_name }}
-          <form method="POST" style="display:inline;" onsubmit="return true;">
-            <input type="hidden" name="action" value="delete">
-            <input type="hidden" name="assign_id" value="{{ a.id }}">
-            <button type="submit" class="rm-btn" title="배정 삭제">✕</button>
-          </form>
-        </span>
+{% if edit %}
+<div class="card" style="margin-bottom:18px;">
+  <div style="padding:16px 20px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+    <div style="flex:1; min-width:180px;">
+      <div class="u-name">{{ edit.row.u.name }}</div>
+      <div class="u-sub">{{ edit.row.u.dept or '미지정' }}{% if edit.row.u.position %} · {{ edit.row.u.position }}{% endif %} · 평가자 {{ edit.row.n }}명</div>
+    </div>
+    <a href="{{ url_for('peer_assignments', cycle=cycle.id, view=view, q=q or None) }}" class="btn btn-ghost btn-sm">닫기</a>
+  </div>
+  <div style="padding:16px 20px;">
+    <div style="font-size:12px; font-weight:700; color:var(--tx-2);">추천 후보</div>
+    <div class="pa-cand">
+      {% for c in edit.top %}
+      <form method="post">
+        <input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+        <input type="hidden" name="view" value="{{ view }}">
+        <input type="hidden" name="q" value="{{ q }}">
+        <input type="hidden" name="edit" value="{{ edit.row.u.user_id }}">
+        <input type="hidden" name="reviewee_id" value="{{ edit.row.u.user_id }}">
+        <input type="hidden" name="reviewer_id" value="{{ c.user_id }}">
+        <button class="pa-add" name="action" value="add">
+          {{ c.name }} <small>{{ c.dept or '미지정' }}{% if load.get(c.user_id) %} · {{ load[c.user_id] }}건{% endif %}</small>
+        </button>
+      </form>
+      {% else %}
+      <div style="font-size:12.5px; color:var(--tx-3);">더 붙일 사람이 없습니다.</div>
+      {% endfor %}
+    </div>
+
+    <form method="post" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">
+      <input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+      <input type="hidden" name="view" value="{{ view }}">
+      <input type="hidden" name="q" value="{{ q }}">
+      <input type="hidden" name="edit" value="{{ edit.row.u.user_id }}">
+      <input type="hidden" name="reviewee_id" value="{{ edit.row.u.user_id }}">
+      <select name="reviewer_id" class="input" style="height:28px; font-size:12.5px; max-width:240px;">
+        <option value="">전체에서 고르기</option>
+        {% for c in edit.pool %}
+        <option value="{{ c.user_id }}">{{ c.name }}{% if c.dept %} · {{ c.dept }}{% endif %}</option>
         {% endfor %}
-
-        <!-- 평가자 추가 버튼 -->
-        <div style="position:relative; display:inline-block;">
-          <button class="add-reviewer-btn"
-                  onclick="toggleDropdown({{ emp.id }}, this)"
-                  type="button">
-            + 평가자 추가
-          </button>
-          <div class="reviewer-dropdown" id="dd-{{ emp.id }}">
-            <div class="rd-search">
-              <i class="fas fa-search" style="color:var(--tx-3); font-size:11px;"></i>
-              <input type="text" placeholder="이름 검색..."
-                     oninput="filterDropdown({{ emp.id }}, this.value)">
-            </div>
-            {% for rv in employees %}
-            {% if rv.id != emp.id %}
-            {% set already = emp_reviewers|selectattr('reviewer_id', 'equalto', rv.id)|list|length > 0 %}
-            <div class="rd-item {{ 'disabled' if already else '' }}"
-                 id="dd-{{ emp.id }}-{{ rv.id }}"
-                 data-name="{{ rv.name }}"
-                 onclick="addAssignment({{ selected_cycle.id }}, {{ emp.id }}, {{ rv.id }})">
-              <div>
-                <div style="font-weight:600;">{{ rv.name }}
-                  {% if already %}<span style="font-size:10px; color:var(--tx-3);">배정됨</span>{% endif %}
-                </div>
-                <div class="rd-dept">{{ rv.dept_name or '' }}</div>
-              </div>
-            </div>
-            {% endif %}
-            {% endfor %}
-          </div>
-        </div>
-      </div>
-    </div>
-    {% endfor %}
+      </select>
+      <button class="btn btn-secondary btn-sm" name="action" value="add">평가자 넣기</button>
+    </form>
   </div>
 </div>
 {% endif %}
-{% endfor %}
 
-<!-- hidden form for add -->
-<form method="POST" id="addForm" style="display:none;">
-  <input type="hidden" name="action" value="add">
-  <input type="hidden" name="cycle_id" id="f_cycle_id">
-  <input type="hidden" name="reviewee_id" id="f_reviewee_id">
-  <input type="hidden" name="reviewer_id" id="f_reviewer_id">
-</form>
+<div class="pa-bar">
+  <a class="pa-f {% if view=='all' %}on{% endif %}"   href="{{ url_for('peer_assignments', cycle=cycle.id, view='all',   q=q or None) }}">전체 {{ summary.total }}</a>
+  <a class="pa-f {% if view=='short' %}on{% endif %}" href="{{ url_for('peer_assignments', cycle=cycle.id, view='short', q=q or None) }}">부족 {{ summary.short }}</a>
+  <a class="pa-f {% if view=='ok' %}on{% endif %}"    href="{{ url_for('peer_assignments', cycle=cycle.id, view='ok',    q=q or None) }}">충족 {{ summary.ok }}</a>
+  {% if summary.over %}
+  <a class="pa-f {% if view=='over' %}on{% endif %}"  href="{{ url_for('peer_assignments', cycle=cycle.id, view='over',  q=q or None) }}">초과 {{ summary.over }}</a>
+  {% endif %}
+  <form method="get" style="display:flex; gap:6px; margin-left:auto;">
+    <input type="hidden" name="cycle" value="{{ cycle.id }}">
+    <input type="hidden" name="view" value="{{ view }}">
+    <input type="search" name="q" value="{{ q }}" placeholder="이름·조직" class="input" style="height:28px; width:160px; font-size:12.5px;">
+    <button class="btn btn-ghost btn-sm">찾기</button>
+  </form>
+</div>
 
+<div class="card">
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>대상자</th>
+          <th>조직</th>
+          <th>동료 평가자</th>
+          <th style="width:70px;">인원</th>
+          {% if not cycle.peer_locked_at %}<th style="width:70px;"></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>
+            <div class="u-name">{{ r.u.name }}</div>
+            <div class="u-sub">{{ r.u.position or '—' }}{% if r.u.emp_no %} · {{ r.u.emp_no }}{% endif %}</div>
+          </td>
+          <td>{{ r.u.dept or '미지정' }}</td>
+          <td>
+            {% if r.revs %}
+            <div class="pa-chips">
+              {% for a in r.revs %}
+              <span class="pa-chip {% if a.source == 'manual' %}man{% endif %}">
+                {{ a.reviewer_name }}
+                {% if cycle.peer_locked_at %}
+                  <span class="lock">{% if (r.u.user_id, a.reviewer_id) in written %}작성됨{% endif %}</span>
+                {% elif (r.u.user_id, a.reviewer_id) in written %}
+                  <span class="lock">작성됨</span>
+                {% else %}
+                <form method="post" style="display:inline;">
+                  <input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+                  <input type="hidden" name="view" value="{{ view }}">
+                  <input type="hidden" name="q" value="{{ q }}">
+                  {% if edit %}<input type="hidden" name="edit" value="{{ edit.row.u.user_id }}">{% endif %}
+                  <input type="hidden" name="assign_id" value="{{ a.id }}">
+                  <button class="x" name="action" value="remove" title="빼기">&times;</button>
+                </form>
+                {% endif %}
+              </span>
+              {% endfor %}
+            </div>
+            {% else %}
+            <span class="pa-none">평가자 없음</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.state == 'short' %}<span class="badge badge-pending">{{ r.n }}명</span>
+            {% elif r.state == 'over' %}<span class="badge badge-inactive">{{ r.n }}명</span>
+            {% else %}<span class="badge badge-active">{{ r.n }}명</span>{% endif %}
+          </td>
+          {% if not cycle.peer_locked_at %}
+          <td>
+            <a href="{{ url_for('peer_assignments', cycle=cycle.id, view=view, q=q or None, edit=r.u.user_id) }}"
+               class="btn btn-ghost btn-sm">고치기</a>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="text-align:center; color:var(--tx-3); padding:30px;">해당하는 사람이 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endif %}
-{% endblock %}
 
-{% block scripts %}
-<script>
-function toggleDept(id) {
-  var body  = document.getElementById(id);
-  var arrow = document.getElementById('arrow-' + id);
-  if (body.style.display === 'none') {
-    body.style.display = '';
-    arrow.style.transform = '';
-  } else {
-    body.style.display = 'none';
-    arrow.style.transform = 'rotate(-90deg)';
-  }
-}
-
-var openDd = null;
-function toggleDropdown(empId, btn) {
-  var dd = document.getElementById('dd-' + empId);
-  if (openDd && openDd !== dd) {
-    openDd.classList.remove('open');
-  }
-  dd.classList.toggle('open');
-  openDd = dd.classList.contains('open') ? dd : null;
-
-  // 버튼 근처에 위치
-  if (dd.classList.contains('open')) {
-    var rect = btn.getBoundingClientRect();
-    dd.style.top = (btn.offsetHeight + 4) + 'px';
-  }
-}
-
-document.addEventListener('click', function(e) {
-  if (openDd && !e.target.closest('.reviewer-dropdown') && !e.target.closest('.add-reviewer-btn')) {
-    openDd.classList.remove('open');
-    openDd = null;
-  }
-});
-
-function filterDropdown(empId, query) {
-  var dd = document.getElementById('dd-' + empId);
-  var items = dd.querySelectorAll('.rd-item');
-  var q = query.toLowerCase();
-  items.forEach(function(item) {
-    var name = item.dataset.name || '';
-    item.style.display = name.toLowerCase().includes(q) ? '' : 'none';
-  });
-}
-
-function addAssignment(cycleId, revieweeId, reviewerId) {
-  document.getElementById('f_cycle_id').value    = cycleId;
-  document.getElementById('f_reviewee_id').value = revieweeId;
-  document.getElementById('f_reviewer_id').value = reviewerId;
-  document.getElementById('addForm').submit();
-}
-</script>
 {% endblock %}
