@@ -2269,6 +2269,19 @@ def init_db(db_path: str = None):
         if _have and 'peer_max' not in _have:
             c.execute('ALTER TABLE company_config ADD COLUMN peer_max INTEGER DEFAULT 5')
 
+        # ── P3 진행 관리: 독촉 기록(같은 사람에게 하루 한 번) ─────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS perf_reminders (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            cycle_id   INTEGER NOT NULL REFERENCES performance_cycles(id),
+            user_id    INTEGER NOT NULL REFERENCES users(id),
+            stage      TEXT NOT NULL,
+            items      TEXT NOT NULL DEFAULT '',
+            sent_by    INTEGER REFERENCES users(id),
+            sent_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_perf_reminders_cycle '
+                  'ON perf_reminders(cycle_id, user_id, sent_at)')
+
         # ── 회의실·온보딩 V1: 건물·층·회의실·예약·온보딩 콘텐츠 (workplace.py) ──
         import workplace
         workplace.ensure_schema(c)

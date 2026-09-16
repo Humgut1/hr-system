@@ -815,6 +815,9 @@
     <span class="team-chip"><b style="color:var(--primary);">{{ team_summary.total }}명</b> 팀원</span>
     <span class="team-chip"><b style="color:var(--primary);">{{ team_summary.avg_progress }}%</b> 평균 진행률</span>
     {% endif %}
+    {% if stage in ('goal', 'review') and selected_cycle %}
+    <a href="{{ url_for('performance_progress', cycle_id=selected_cycle.id) }}" class="btn btn-ghost btn-sm"><i class="fas fa-bars-progress"></i> 진행 현황</a>
+    {% endif %}
   </div>
 
   <div style="display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">

@@ -15,12 +15,14 @@
 .stage-step.done   { color:var(--green); border-color:var(--green); background:var(--green-bg); }
 .stage-step.current{ color:var(--on-primary); background:var(--primary); border-color:var(--primary); }
 .stage-arrow { color:var(--tx-3); font-size:10px; margin:0 4px; }
+.cy-layout { display:grid; grid-template-columns:minmax(0, 1fr) 360px; gap:24px; align-items:start; }
+@media (max-width:900px) { .cy-layout { grid-template-columns:minmax(0, 1fr); } }
 </style>
 {% endblock %}
 
 {% block content %}
 
-<div style="display:grid; grid-template-columns:1fr 360px; gap:24px; align-items:start;">
+<div class="cy-layout">
 
   <!-- 좌: 주기 목록 -->
   <div>
@@ -36,7 +38,7 @@
         {% for c in cycles %}
         {% set cur_idx = cycle_stages.index(c.stage) if c.stage in cycle_stages else 0 %}
         <div style="padding:18px 24px; border-bottom:1px solid var(--border);">
-          <div style="display:flex; align-items:center; gap:16px;">
+          <div style="display:flex; align-items:center; gap:12px 16px; flex-wrap:wrap;">
             <div style="flex-shrink:0;">
               {% if c.status == 'active' %}
               <span class="badge badge-active">진행 중</span>
@@ -69,7 +71,12 @@
               </div>
             </div>
 
-            <div style="display:flex; gap:8px; flex-shrink:0;">
+            <div style="display:flex; gap:8px; flex:0 1 auto; min-width:0; flex-wrap:wrap;">
+              {% if c.status == 'active' %}
+              <a href="{{ url_for('performance_progress', cycle_id=c.id) }}" class="btn btn-ghost btn-sm">
+                <i class="fas fa-bars-progress"></i> 진행 현황
+              </a>
+              {% endif %}
               <a href="{{ url_for('performance_roster', cycle_id=c.id) }}" class="btn btn-ghost btn-sm">
                 <i class="fas fa-list-check"></i> 평가 명단
               </a>

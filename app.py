@@ -11315,6 +11315,278 @@ def performance_roster_lock(cycle_id):
     return redirect(url_for('performance_roster', cycle_id=cycle_id))
 
 
+# ── P3 진행 관리·독촉 ─────────────────────────────────────────
+# 할 일 종류 → (표시 이름, 받는 사람 쪽, 알림 링크)
+PERF_TODO = {
+    'goal_write':  ('목표 작성',   'self',     '/performance?cycle={c}'),
+    'goal_submit': ('목표 제출',   'self',     '/performance?cycle={c}'),
+    'goal_ok':     ('목표 승인',   'reviewer', '/performance?cycle={c}'),
+    'self':        ('자기평가',    'self',     '/performance?cycle={c}'),
+    'mgr':         ('평가자 평가', 'reviewer', '/performance?cycle={c}'),
+    'peer':        ('동료평가',    'peer',     '/performance/peer?cycle={c}'),
+}
+PERF_REMIND_HOURS = 20   # 같은 사람에게 다시 보내기까지 최소 간격
+
+
+def _progress_scope_dept():
+    """매니저는 자기 부서만. 관리자는 None(전체)."""
+    if session.get('user_role') == 'manager':
+        return int(session.get('dept_id') or 0) or -1
+    return None
+
+
+def perf_progress(db, cycle, dept_only=None):
+    """주기 대상자별 진행 상태와 밀린 일.
+    rows: {user_id, name, dept, position, reviewer_id, reviewer_name,
+           goal(상태), goals_n, self_n, mgr_n, peer_done, peer_total, todo:[(kind, 받는사람 id)]}"""
+    cid   = cycle['id']
+    stage = cycle['stage']
+    sql = ('SELECT cp.user_id, cp.reviewer_id, u.name, u.emp_no, u.department_id, '
+           '       d.name AS dept, p.name AS position, r.name AS reviewer_name '
+           'FROM cycle_participants cp JOIN users u ON u.id = cp.user_id '
+           'LEFT JOIN departments d ON d.id = u.department_id '
+           'LEFT JOIN positions   p ON p.id = u.position_id '
+           'LEFT JOIN users       r ON r.id = cp.reviewer_id '
+           'WHERE cp.cycle_id=? AND cp.included=1 ')
+    args = [cid]
+    if dept_only is not None:
+        sql += 'AND u.department_id=? '
+        args.append(dept_only)
+    people = db.execute(sql + 'ORDER BY d.name, u.name', args).fetchall()
+
+    goals = {}
+    for g in db.execute(
+            'SELECT g.user_id, g.approval_status, g.self_score, '
+            '       (SELECT COUNT(*) FROM performance_reviews r WHERE r.goal_id=g.id) AS rv '
+            'FROM performance_goals g WHERE g.cycle_id=?', (cid,)):
+        goals.setdefault(g['user_id'], []).append(g)
+
+    peers = {}
+    for a in db.execute(
+            "SELECT pa.reviewee_id, pa.reviewer_id, u.name AS reviewer_name, "
+            "       EXISTS(SELECT 1 FROM peer_reviews pr WHERE pr.cycle_id=pa.cycle_id "
+            "              AND pr.reviewee_id=pa.reviewee_id AND pr.reviewer_id=pa.reviewer_id "
+            "              AND pr.review_type='peer') AS done "
+            "FROM peer_assignments pa JOIN users u ON u.id = pa.reviewer_id "
+            "WHERE pa.cycle_id=?", (cid,)):
+        peers.setdefault(a['reviewee_id'], []).append(a)
+
+    rows = []
+    for p in people:
+        gs = goals.get(p['user_id'], [])
+        sts = {g['approval_status'] for g in gs}
+        if not gs:
+            goal = 'none'
+        elif sts == {'confirmed'}:
+            goal = 'confirmed'
+        elif 'submitted' in sts and sts <= {'submitted', 'confirmed'}:
+            goal = 'submitted'
+        else:
+            goal = 'draft'
+        conf   = [g for g in gs if g['approval_status'] == 'confirmed']
+        self_n = sum(1 for g in conf if g['self_score'] is not None)
+        mgr_n  = sum(1 for g in conf if g['rv'])
+        ps     = peers.get(p['user_id'], []) if cycle['include_peer'] else []
+        peer_done = sum(1 for a in ps if a['done'])
+
+        todo = []
+        me, rv = p['user_id'], p['reviewer_id']
+        if stage == 'goal':
+            if goal == 'none':
+                todo.append(('goal_write', me))
+            elif goal == 'draft':
+                todo.append(('goal_submit', me))
+            elif goal == 'submitted' and rv:
+                todo.append(('goal_ok', rv))
+        elif stage == 'review':
+            if not conf:
+                todo.append(('goal_write' if goal == 'none' else 'goal_submit', me))
+            else:
+                if self_n < len(conf):
+                    todo.append(('self', me))
+                if mgr_n < len(conf) and rv:
+                    todo.append(('mgr', rv))
+            for a in ps:
+                if not a['done']:
+                    todo.append(('peer', a['reviewer_id']))
+
+        rows.append({
+            'user_id': me, 'name': p['name'], 'emp_no': p['emp_no'],
+            'dept': p['dept'], 'dept_id': p['department_id'], 'position': p['position'],
+            'reviewer_id': rv, 'reviewer_name': p['reviewer_name'],
+            'goal': goal, 'goals_n': len(conf), 'self_n': self_n, 'mgr_n': mgr_n,
+            'peer_done': peer_done, 'peer_total': len(ps),
+            'peer_left': [a['reviewer_name'] for a in ps if not a['done']],
+            'todo': todo,
+        })
+    return rows
+
+
+def _remind_recent(db, cycle_id):
+    """user_id → 마지막 독촉 후 지난 시간(시간 단위)."""
+    return {r['user_id']: r['h'] for r in db.execute(
+        "SELECT user_id, MIN((julianday('now') - julianday(sent_at)) * 24) AS h "
+        "FROM perf_reminders WHERE cycle_id=? GROUP BY user_id", (cycle_id,))}
+
+
+def _stage_deadline(cycle):
+    d = cycle['goal_deadline'] if cycle['stage'] == 'goal' else \
+        cycle['review_deadline'] if cycle['stage'] == 'review' else None
+    if not d:
+        return None, None
+    try:
+        left = (datetime.strptime(str(d)[:10], '%Y-%m-%d').date() - date.today()).days
+    except ValueError:
+        return d, None
+    return d, left
+
+
+@app.route('/performance/cycles/<int:cycle_id>/progress')
+@manager_or_admin
+def performance_progress(cycle_id):
+    db    = get_db()
+    cycle = _roster_cycle(db, cycle_id)
+    view  = request.args.get('view', 'late')
+    q     = (request.args.get('q') or '').strip()
+    dept  = request.args.get('dept', type=int)
+    scope = _progress_scope_dept()
+
+    rows = perf_progress(db, cycle, scope)
+    stage = cycle['stage']
+    active = cycle['status'] == 'active' and stage in ('goal', 'review')
+
+    n = len(rows)
+    summary = {
+        'total': n,
+        'late':  sum(1 for r in rows if r['todo']),
+        'goal':  sum(1 for r in rows if r['goal'] == 'confirmed'),
+        'self':  sum(1 for r in rows if r['goals_n'] and r['self_n'] >= r['goals_n']),
+        'mgr':   sum(1 for r in rows if r['goals_n'] and r['mgr_n'] >= r['goals_n']),
+        'peer_done':  sum(r['peer_done'] for r in rows),
+        'peer_total': sum(r['peer_total'] for r in rows),
+    }
+    summary['done'] = n - summary['late']
+
+    # 부서별 진행 — 밀린 사람이 많은 순
+    depts = {}
+    for r in rows:
+        k = r['dept_id'] or 0
+        d = depts.setdefault(k, {'id': k, 'name': r['dept'] or '미지정', 'total': 0, 'late': 0})
+        d['total'] += 1
+        d['late']  += 1 if r['todo'] else 0
+    dept_list = sorted(depts.values(), key=lambda d: (-d['late'], d['name']))
+
+    # 받는 사람 기준 밀린 일 수 — "누가 몇 건 막고 있나"
+    blockers = {}
+    for r in rows:
+        for kind, who in r['todo']:
+            blockers.setdefault(who, {}).setdefault(kind, 0)
+            blockers[who][kind] += 1
+    names = {}
+    if blockers:
+        ids = list(blockers)
+        names = {u['id']: u['name'] for u in db.execute(
+            'SELECT id, name FROM users WHERE id IN (%s)' % ','.join('?' * len(ids)), ids)}
+    top_blockers = sorted(
+        ({'id': u, 'name': names.get(u, '—'), 'n': sum(k.values()),
+          'kinds': ' · '.join(f'{PERF_TODO[x][0]} {c}' for x, c in k.items())}
+         for u, k in blockers.items() if sum(k.values()) > 1),
+        key=lambda b: (-b['n'], b['name']))[:6]
+
+    def _keep(r):
+        if q and q not in (r['name'] or '') and q not in (r['dept'] or ''):
+            return False
+        if dept is not None and (r['dept_id'] or 0) != dept:
+            return False
+        if view == 'late':
+            return bool(r['todo'])
+        if view == 'done':
+            return not r['todo']
+        return True
+    shown = [r for r in rows if _keep(r)]
+
+    deadline, left = _stage_deadline(cycle)
+    return render_template('performance/progress.html',
+                           cycle=cycle, rows=shown, summary=summary, view=view, q=q,
+                           dept=dept, dept_list=dept_list, top_blockers=top_blockers,
+                           recent=_remind_recent(db, cycle_id), remind_hours=PERF_REMIND_HOURS,
+                           todo_label={k: v[0] for k, v in PERF_TODO.items()},
+                           stage_label=CYCLE_STAGE_LABEL.get(stage, stage), active=active,
+                           deadline=deadline, left=left,
+                           is_admin=session.get('user_role') == 'admin',
+                           active_page='performance_cycles')
+
+
+@app.route('/performance/cycles/<int:cycle_id>/progress/remind', methods=['POST'])
+@manager_or_admin
+def performance_progress_remind(cycle_id):
+    db    = get_db()
+    cycle = _roster_cycle(db, cycle_id)
+    back  = dict(cycle_id=cycle_id, view=request.form.get('view') or 'late',
+                 q=request.form.get('q') or None, dept=request.form.get('dept') or None)
+    if cycle['status'] != 'active' or cycle['stage'] not in ('goal', 'review'):
+        flash('독촉은 목표 수립·평가 진행 단계에서만 보낼 수 있습니다.', 'error')
+        return redirect(url_for('performance_progress', **back))
+
+    rows = perf_progress(db, cycle, _progress_scope_dept())
+    picked = {int(x) for x in request.form.getlist('user_ids') if str(x).isdigit()}
+    if request.form.get('scope') == 'picked':
+        if not picked:
+            flash('독촉할 사람을 선택해 주세요.', 'error')
+            return redirect(url_for('performance_progress', **back))
+        rows = [r for r in rows if r['user_id'] in picked]
+
+    per = {}   # 받는 사람 → {kind: 건수}
+    for r in rows:
+        for kind, who in r['todo']:
+            per.setdefault(who, {}).setdefault(kind, 0)
+            per[who][kind] += 1
+    if not per:
+        flash('보낼 사람이 없습니다. 남은 일이 없거나 볼 수 있는 범위 밖입니다.', 'error')
+        return redirect(url_for('performance_progress', **back))
+
+    recent = _remind_recent(db, cycle_id)
+    active_ids = {u['id'] for u in db.execute(
+        "SELECT id FROM users WHERE status='active' AND id IN (%s)" % ','.join('?' * len(per)),
+        list(per))}
+    deadline, left = _stage_deadline(cycle)
+    tail = ''
+    if deadline:
+        tail = f' 마감 {deadline}' + (f' (D-{left})' if left is not None and left >= 0 else
+                                      ' (마감 지남)' if left is not None else '')
+
+    sent = skipped = 0
+    for who, kinds in per.items():
+        if who not in active_ids:
+            continue
+        if who in recent and recent[who] < PERF_REMIND_HOURS:
+            skipped += 1
+            continue
+        parts = []
+        for kind, c in kinds.items():
+            label = PERF_TODO[kind][0]
+            parts.append(f'{label} {c}명' if PERF_TODO[kind][1] != 'self' else label)
+        first = next(iter(kinds))
+        add_notification(who, 'action', 'perf', f'{cycle["name"]} 할 일이 남았습니다',
+                         '남은 일: ' + ' · '.join(parts) + '.' + tail,
+                         link=PERF_TODO[first][2].format(c=cycle_id))
+        db.execute('INSERT INTO perf_reminders (cycle_id, user_id, stage, items, sent_by) '
+                   'VALUES (?,?,?,?,?)',
+                   (cycle_id, who, cycle['stage'], ','.join(kinds), session['user_id']))
+        sent += 1
+    db.commit()
+    if sent:
+        log_audit('create', 'performance', None,
+                  f'{cycle["name"]} {CYCLE_STAGE_LABEL[cycle["stage"]]} 독촉 {sent}명')
+        msg = f'{sent}명에게 독촉 알림을 보냈습니다.'
+        if skipped:
+            msg += f' 최근 {PERF_REMIND_HOURS}시간 안에 받은 {skipped}명은 건너뛰었습니다.'
+    else:
+        msg = f'모두 최근 {PERF_REMIND_HOURS}시간 안에 독촉을 받아 보내지 않았습니다.'
+    flash(msg, 'success' if sent else 'error')
+    return redirect(url_for('performance_progress', **back))
+
+
 # ── Onboarding Dashboard ────────────────────────────────────
 @app.route('/me/onboarding')
 @login_required
