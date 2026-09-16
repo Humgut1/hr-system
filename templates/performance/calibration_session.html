@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+{% block title %}캘리브레이션 사전자료{% endblock %}
+{% block page_title %}캘리브레이션 사전자료{% endblock %}
+
+{% block extra_css %}
+<style>
+.cp-strip { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));
+  border:1px solid var(--line); border-top:none; border-left:none;
+  border-radius:var(--r); margin-bottom:18px; overflow:hidden; }
+.cp-strip > div { padding:10px 14px; border-top:1px solid var(--line); border-left:1px solid var(--line); }
+.cp-strip b { display:block; font-size:18px; font-weight:750; margin-top:3px; }
+.cp-strip span { font-size:11.5px; color:var(--tx-3); }
+.cp-meta { font-size:12px; color:var(--tx-3); }
+.cp-grid { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:18px; margin-bottom:18px; }
+@media (max-width:900px) { .cp-grid { grid-template-columns:minmax(0, 1fr); } }
+.cp-h { font-size:12.5px; font-weight:750; padding:12px 16px; border-bottom:1px solid var(--line); }
+.cp-dist { width:100%; border-collapse:collapse; font-size:12.5px; }
+.cp-dist th, .cp-dist td { padding:8px 12px; border-bottom:1px solid var(--line); text-align:right; }
+.cp-dist th:first-child, .cp-dist td:first-child { text-align:left; }
+.cp-dist tr:last-child td { border-bottom:none; }
+.cp-over { color:var(--late); font-weight:700; }
+.cp-att { padding:10px 16px; display:flex; flex-wrap:wrap; gap:4px; }
+.cp-chip { font-size:11.5px; padding:2px 8px; border:1px solid var(--line); border-radius:12px; color:var(--tx-2); white-space:nowrap; }
+.cp-chip em { font-style:normal; color:var(--tx-3); margin-left:3px; }
+.cp-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:14px; }
+.cp-f { height:28px; padding:0 12px; display:inline-flex; align-items:center; border-radius:20px;
+  border:1px solid var(--line); background:var(--surface); color:var(--tx-2);
+  font-size:12.5px; font-weight:600; text-decoration:none; white-space:nowrap; }
+.cp-f.on { background:var(--inv-bg); color:var(--inv-tx); border-color:var(--inv-bg); }
+.cp-num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.cp-g { display:inline-block; min-width:22px; text-align:center; font-weight:750; }
+.cp-miss { display:inline-block; font-size:11.5px; padding:1px 7px; border-radius:10px;
+  border:1px solid var(--line); color:var(--late); margin:1px 2px 1px 0; white-space:nowrap; }
+.cp-sub { font-size:11.5px; color:var(--tx-3); }
+@media print {
+  .snav, .topbar, .cp-noprint, .flash { display:none !important; }
+  .tbl-wrap { overflow:visible !important; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="card" style="margin-bottom:18px;">
+  <div style="padding:18px 20px; display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+    <div style="flex:1; min-width:200px;">
+      <div style="font-size:15px; font-weight:800;">{{ s.name }}</div>
+      <div class="cp-meta" style="margin-top:3px;">
+        {{ s.cycle_name }} ·
+        {% if s.meet_date %}{{ s.meet_date }}{% if s.meet_time %} {{ s.meet_time }}{% endif %}{% else %}날짜 미정{% endif %}
+        {% if s.location %} · {{ s.location }}{% endif %}
+        {% if s.facilitator_name %} · 진행 {{ s.facilitator_name }}{% endif %}
+      </div>
+    </div>
+    <div class="cp-noprint" style="display:flex; gap:8px; flex-wrap:wrap;">
+      {% if is_admin %}
+      <a href="{{ url_for('calibration_setup', cycle_id=s.cycle_id) }}" class="btn btn-ghost btn-sm">회의 목록</a>
+      <a href="{{ url_for('calibration', cycle=s.cycle_id) }}" class="btn btn-ghost btn-sm">등급 확정</a>
+      {% endif %}
+      <a href="{{ url_for('calibration_session', sid=s.id, format='csv') }}" class="btn btn-ghost btn-sm">CSV</a>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="window.print()">인쇄</button>
+    </div>
+  </div>
+</div>
+
+<div class="cp-strip">
+  <div><span>대상</span><b>{{ summary.total }}명</b></div>
+  <div><span>평가 완료</span><b>{{ summary.ready }}명</b></div>
+  <div><span>미완료</span><b{% if summary.missing %} class="cp-over"{% endif %}>{{ summary.missing }}명</b></div>
+  <div><span>점수 없음</span><b>{{ summary.noscore }}명</b></div>
+  <div><span>이상 신호</span><b>{{ summary.anomaly }}명</b></div>
+  <div><span>등급 확정</span><b>{{ summary.decided }}명</b></div>
+</div>
+
+<div class="cp-grid">
+  <div class="card">
+    <div class="cp-h">권고 등급 분포 · {{ gd.label }}</div>
+    <table class="cp-dist">
+      <thead><tr><th>등급</th><th>권고</th><th>기준 비율</th><th>기준 인원</th></tr></thead>
+      <tbody>
+        {% for g in 'SABCD' %}
+        <tr>
+          <td><span class="cp-g">{{ g }}</span></td>
+          <td class="{% if dist[g] > target[g] + 0.5 %}cp-over{% endif %}">{{ dist[g] }}명</td>
+          <td>{{ gd.pct[g] }}%</td>
+          <td>{{ target[g] }}명</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <div class="cp-h">참석자 {{ attendees|length }}명</div>
+    <div class="cp-att">
+      {% for a in attendees %}<span class="cp-chip">{{ a.name }}<em>{{ role_label[a.role] }}</em></span>{% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="cp-bar cp-noprint">
+  <a class="cp-f {% if view=='all' %}on{% endif %}" href="{{ url_for('calibration_session', sid=s.id) }}">전체 {{ summary.total }}</a>
+  <a class="cp-f {% if view=='missing' %}on{% endif %}" href="{{ url_for('calibration_session', sid=s.id, view='missing') }}">미완료 {{ summary.missing }}</a>
+  <a class="cp-f {% if view=='anomaly' %}on{% endif %}" href="{{ url_for('calibration_session', sid=s.id, view='anomaly') }}">이상 신호 {{ summary.anomaly }}</a>
+</div>
+
+<div class="card">
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>대상자</th>
+          <th>평가자</th>
+          <th class="cp-num">자기</th>
+          <th class="cp-num">평가자</th>
+          {% if cycle.include_peer %}<th class="cp-num">동료</th>{% endif %}
+          <th class="cp-num">종합</th>
+          <th>권고</th>
+          <th>확정</th>
+          <th>확인할 점</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>
+            <div class="u-name">{{ r.name }}</div>
+            <div class="u-sub">{{ r.dept or '미지정' }}{% if r.position %} · {{ r.position }}{% endif %}</div>
+          </td>
+          <td>{{ r.reviewer_name or '—' }}</td>
+          <td class="cp-num">{{ '%.2f'|format(r.self_avg) if r.self_avg is not none else '—' }}</td>
+          <td class="cp-num">{{ '%.2f'|format(r.mgr_avg) if r.mgr_avg is not none else '—' }}</td>
+          {% if cycle.include_peer %}<td class="cp-num">{{ '%.2f'|format(r.peer_avg) if r.peer_avg is not none else '—' }}</td>{% endif %}
+          <td class="cp-num"><b>{{ '%.2f'|format(r.overall) if r.overall is not none else '—' }}</b></td>
+          <td><span class="cp-g">{{ r.suggested_grade or '—' }}</span></td>
+          <td>{% if r.final_grade %}<span class="badge badge-active">{{ r.final_grade }}</span>{% else %}<span class="cp-sub">—</span>{% endif %}</td>
+          <td>
+            {% for m in r.missing %}<span class="cp-miss">{{ m }}</span>{% endfor %}
+            {% if r.anomaly %}<div class="cp-sub">{{ r.anomaly }}</div>{% endif %}
+            {% if not r.missing and not r.anomaly %}<span class="cp-sub">—</span>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" style="text-align:center; padding:30px; color:var(--tx-3);">해당하는 대상자가 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

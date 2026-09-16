@@ -61,6 +61,9 @@
       {% if is_admin %}
       <a href="{{ url_for('performance_cycles') }}" class="btn btn-ghost btn-sm">주기 목록</a>
       <a href="{{ url_for('performance_roster', cycle_id=cycle.id) }}" class="btn btn-ghost btn-sm">평가 명단</a>
+      {% if cycle.stage in ('review', 'calibration') %}
+      <a href="{{ url_for('calibration_setup', cycle_id=cycle.id) }}" class="btn btn-ghost btn-sm">캘리브레이션 준비</a>
+      {% endif %}
       {% endif %}
       {% if cycle.include_peer %}
       <a href="{{ url_for('peer_assignments', cycle=cycle.id) }}" class="btn btn-ghost btn-sm">다면평가 배정</a>

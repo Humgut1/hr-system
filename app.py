@@ -11587,6 +11587,328 @@ def performance_progress_remind(cycle_id):
     return redirect(url_for('performance_progress', **back))
 
 
+# ── P4 캘리브레이션 회의 세팅·사전자료 ─────────────────────────
+CAL_LEVELS = {0: '부문', 1: '본부', 2: '실'}
+CAL_MIN_GROUP = 5          # 이보다 작은 묶음은 같은 부문의 가장 큰 회의에 합친다
+CAL_ATTENDEE_ROLE = {'facilitator': '진행', 'leader': '조직장', 'reviewer': '평가자', 'manual': '추가'}
+
+
+def _dept_chain_fn(db):
+    """부서 id → 최상위부터 내려오는 조직 id 목록."""
+    parent = {d['id']: d['parent_id'] for d in db.execute('SELECT id, parent_id FROM departments')}
+    cache = {}
+
+    def chain(did):
+        if did not in cache:
+            out, cur, seen = [], did, set()
+            while cur and cur not in seen:
+                seen.add(cur)
+                out.append(cur)
+                cur = parent.get(cur)
+            cache[did] = out[::-1]
+        return cache[did]
+    return chain
+
+
+def build_calibration_sessions(db, cycle, level, uid):
+    """평가 대상자를 조직 단위로 묶어 회의를 만든다. 기존 회의는 지우고 새로 만든다."""
+    cid = cycle['id']
+    chain = _dept_chain_fn(db)
+    names = {d['id']: (d['name'], d['leader_id'])
+             for d in db.execute('SELECT id, name, leader_id FROM departments')}
+    people = db.execute(
+        'SELECT cp.user_id, cp.reviewer_id, u.department_id FROM cycle_participants cp '
+        'JOIN users u ON u.id = cp.user_id WHERE cp.cycle_id=? AND cp.included=1', (cid,)).fetchall()
+
+    groups = {}
+    for p in people:
+        ch = chain(p['department_id']) if p['department_id'] else []
+        key = ch[min(level, len(ch) - 1)] if ch else 0
+        groups.setdefault(key, []).append(p)
+
+    # 작은 묶음 → 같은 최상위 조직 아래 가장 큰 묶음으로
+    for key in sorted(groups, key=lambda k: len(groups[k])):
+        if key == 0 or len(groups[key]) >= CAL_MIN_GROUP or key not in groups:
+            continue
+        root = chain(key)[0]
+        same = [k for k in groups if k != key and k and chain(k)[0] == root]
+        if same:
+            big = max(same, key=lambda k: len(groups[k]))
+            groups[big].extend(groups.pop(key))
+    # 부서 없는 사람 → 가장 큰 회의
+    if 0 in groups and len(groups) > 1:
+        orphans = groups.pop(0)
+        groups[max(groups, key=lambda k: len(groups[k]))].extend(orphans)
+
+    for s in db.execute('SELECT id FROM calibration_sessions WHERE cycle_id=?', (cid,)).fetchall():
+        db.execute('DELETE FROM calibration_session_attendees WHERE session_id=?', (s['id'],))
+    db.execute('DELETE FROM calibration_session_members WHERE cycle_id=?', (cid,))
+    db.execute('DELETE FROM calibration_sessions WHERE cycle_id=?', (cid,))
+
+    member_ids = {p['user_id'] for p in people}
+    made = 0
+    for key in sorted(groups, key=lambda k: (k == 0, names.get(k, ('',))[0])):
+        members = groups[key]
+        name = names[key][0] if key in names else '조직 미지정'
+        sid = db.execute(
+            'INSERT INTO calibration_sessions (cycle_id, name, org_id, facilitator_id, created_by) '
+            'VALUES (?,?,?,?,?)', (cid, f'{name} 캘리브레이션', key or None, uid, uid)).lastrowid
+        for p in members:
+            db.execute('INSERT INTO calibration_session_members (session_id, cycle_id, user_id) '
+                       'VALUES (?,?,?)', (sid, cid, p['user_id']))
+        att = [(uid, 'facilitator')]
+        leader = names.get(key, (None, None))[1]
+        if leader:
+            att.append((leader, 'leader'))
+        for rv in sorted({p['reviewer_id'] for p in members if p['reviewer_id']}):
+            att.append((rv, 'reviewer'))
+        for a_uid, role in att:
+            db.execute('INSERT OR IGNORE INTO calibration_session_attendees (session_id, user_id, role) '
+                       'VALUES (?,?,?)', (sid, a_uid, role))
+        made += 1
+    db.commit()
+    return made, len(member_ids)
+
+
+def _cal_session_or_404(db, sid):
+    s = db.execute('SELECT cs.*, pc.name AS cycle_name, pc.stage, pc.status AS cycle_status, '
+                   '       f.name AS facilitator_name '
+                   'FROM calibration_sessions cs JOIN performance_cycles pc ON pc.id = cs.cycle_id '
+                   'LEFT JOIN users f ON f.id = cs.facilitator_id WHERE cs.id=?', (sid,)).fetchone()
+    if not s:
+        abort(404)
+    return s
+
+
+def _cal_missing(r):
+    """진행 행에서 아직 안 끝난 평가 목록."""
+    out = []
+    if not r['goals_n']:
+        out.append('확정 목표 없음')
+    else:
+        if r['self_n'] < r['goals_n']:
+            out.append('자기평가')
+        if r['mgr_n'] < r['goals_n']:
+            out.append('평가자 평가')
+    if r['peer_total'] and r['peer_done'] < r['peer_total']:
+        out.append(f'동료평가 {r["peer_total"] - r["peer_done"]}건')
+    return out
+
+
+def calibration_packet(db, session_row):
+    """사전자료 — 회의 대상자별 점수·권고 등급·미완료 항목, 권고 분포."""
+    cycle = db.execute('SELECT * FROM performance_cycles WHERE id=?', (session_row['cycle_id'],)).fetchone()
+    ids = {m['user_id'] for m in db.execute(
+        'SELECT user_id FROM calibration_session_members WHERE session_id=?', (session_row['id'],))}
+    prog = {r['user_id']: r for r in perf_progress(db, cycle) if r['user_id'] in ids}
+    saved = {r['user_id']: r for r in db.execute(
+        'SELECT user_id, final_grade FROM calibration_results WHERE cycle_id=?', (cycle['id'],))}
+    rows = []
+    for u in ids:
+        p = prog.get(u)
+        if not p:
+            continue
+        c = _calc_calibration_row(db, u, cycle['id'])
+        rows.append({**c, 'dept': p['dept'], 'position': p['position'], 'emp_no': p['emp_no'],
+                     'reviewer_name': p['reviewer_name'], 'missing': _cal_missing(p),
+                     'final_grade': saved[u]['final_grade'] if u in saved else None})
+    rows.sort(key=lambda r: (r['overall'] is None, -(r['overall'] or 0), r['dept'] or '', r['name']))
+
+    gd = get_grade_dist()
+    n = len(rows)
+    dist = {g: sum(1 for r in rows if r['suggested_grade'] == g) for g in 'SABCD'}
+    target = {g: round(n * gd['pct'][g] / 100, 1) for g in 'SABCD'}
+    summary = {
+        'total': n,
+        'ready': sum(1 for r in rows if not r['missing']),
+        'missing': sum(1 for r in rows if r['missing']),
+        'noscore': sum(1 for r in rows if r['overall'] is None),
+        'anomaly': sum(1 for r in rows if r['anomaly']),
+        'decided': sum(1 for r in rows if r['final_grade']),
+    }
+    return cycle, rows, summary, dist, target, gd
+
+
+def _cal_can_view(db, sid):
+    if session.get('user_role') == 'admin':
+        return True
+    return bool(db.execute('SELECT 1 FROM calibration_session_attendees WHERE session_id=? AND user_id=?',
+                           (sid, session.get('user_id'))).fetchone())
+
+
+@app.route('/performance/cycles/<int:cycle_id>/calibration-setup', methods=['GET', 'POST'])
+@admin_required
+def calibration_setup(cycle_id):
+    db    = get_db()
+    cycle = _roster_cycle(db, cycle_id)
+    uid   = session['user_id']
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        sid = request.form.get('session_id', type=int)
+        srow = db.execute('SELECT * FROM calibration_sessions WHERE id=? AND cycle_id=?',
+                          (sid, cycle_id)).fetchone() if sid else None
+
+        if action == 'build':
+            level = request.form.get('level', type=int)
+            if level not in CAL_LEVELS:
+                level = 1
+            n_in = db.execute('SELECT COUNT(*) FROM cycle_participants WHERE cycle_id=? AND included=1',
+                              (cycle_id,)).fetchone()[0]
+            if not n_in:
+                flash('평가 명단이 없습니다. 명단부터 만들어 주세요.', 'error')
+            else:
+                made, people = build_calibration_sessions(db, cycle, level, uid)
+                log_audit('create', 'performance', None, f'{cycle["name"]} 캘리브레이션 회의 {made}개 구성')
+                flash(f'{CAL_LEVELS[level]} 단위로 회의 {made}개를 만들었습니다. 대상 {people}명.', 'success')
+
+        elif action == 'save' and srow:
+            name = (request.form.get('name') or '').strip()[:60] or srow['name']
+            meet_date = (request.form.get('meet_date') or '').strip() or None
+            meet_time = (request.form.get('meet_time') or '').strip()[:5] or None
+            location  = (request.form.get('location') or '').strip()[:80] or None
+            fac = request.form.get('facilitator_id', type=int) or srow['facilitator_id']
+            if meet_date:
+                try:
+                    datetime.strptime(meet_date, '%Y-%m-%d')
+                except ValueError:
+                    meet_date = None
+            db.execute('UPDATE calibration_sessions SET name=?, meet_date=?, meet_time=?, location=?, '
+                       'facilitator_id=? WHERE id=?', (name, meet_date, meet_time, location, fac, sid))
+            if fac:
+                db.execute("DELETE FROM calibration_session_attendees WHERE session_id=? AND role='facilitator'", (sid,))
+                db.execute("INSERT INTO calibration_session_attendees (session_id, user_id, role) VALUES (?,?,'facilitator') "
+                           "ON CONFLICT(session_id, user_id) DO UPDATE SET role='facilitator'", (sid, fac))
+            db.commit()
+            flash(f'{name} 정보를 저장했습니다.', 'success')
+
+        elif action == 'add_attendee' and srow:
+            au = request.form.get('user_id', type=int)
+            if au and db.execute("SELECT 1 FROM users WHERE id=? AND status='active'", (au,)).fetchone():
+                db.execute("INSERT OR IGNORE INTO calibration_session_attendees (session_id, user_id, role) "
+                           "VALUES (?,?,'manual')", (sid, au))
+                db.commit()
+                flash('참석자를 추가했습니다.', 'success')
+
+        elif action == 'remove_attendee' and srow:
+            au = request.form.get('user_id', type=int)
+            if au == srow['facilitator_id']:
+                flash('진행자는 뺄 수 없습니다. 진행자를 먼저 바꿔 주세요.', 'error')
+            else:
+                db.execute('DELETE FROM calibration_session_attendees WHERE session_id=? AND user_id=?', (sid, au))
+                db.commit()
+                flash('참석자에서 뺐습니다.', 'success')
+
+        elif action == 'move':
+            mu = request.form.get('user_id', type=int)
+            to = request.form.get('to_session', type=int)
+            ok_to = db.execute('SELECT id, name FROM calibration_sessions WHERE id=? AND cycle_id=?',
+                               (to, cycle_id)).fetchone()
+            ok_u = db.execute('SELECT 1 FROM cycle_participants WHERE cycle_id=? AND user_id=? AND included=1',
+                              (cycle_id, mu)).fetchone()
+            if ok_to and ok_u:
+                db.execute('INSERT INTO calibration_session_members (session_id, cycle_id, user_id) VALUES (?,?,?) '
+                           'ON CONFLICT(cycle_id, user_id) DO UPDATE SET session_id=excluded.session_id',
+                           (to, cycle_id, mu))
+                db.commit()
+                flash(f'{ok_to["name"]}(으)로 옮겼습니다.', 'success')
+            else:
+                flash('옮길 사람이나 회의를 찾을 수 없습니다.', 'error')
+
+        elif action == 'notify' and srow:
+            if not srow['meet_date']:
+                flash('회의 날짜를 먼저 저장해 주세요.', 'error')
+            else:
+                att = db.execute("SELECT a.user_id FROM calibration_session_attendees a JOIN users u ON u.id=a.user_id "
+                                 "WHERE a.session_id=? AND u.status='active'", (sid,)).fetchall()
+                when = srow['meet_date'] + (f' {srow["meet_time"]}' if srow['meet_time'] else '')
+                n_mem = db.execute('SELECT COUNT(*) FROM calibration_session_members WHERE session_id=?',
+                                   (sid,)).fetchone()[0]
+                for a in att:
+                    add_notification(a['user_id'], 'info', 'perf', f'캘리브레이션 회의 안내 · {srow["name"]}',
+                                     f'{when}' + (f' · {srow["location"]}' if srow['location'] else '') +
+                                     f' · 대상 {n_mem}명. 회의 전에 사전자료를 확인해 주세요.',
+                                     link=url_for('calibration_session', sid=sid))
+                db.execute('UPDATE calibration_sessions SET notified_at=CURRENT_TIMESTAMP WHERE id=?', (sid,))
+                db.commit()
+                log_audit('create', 'performance', None, f'{srow["name"]} 참석자 안내 {len(att)}명')
+                flash(f'참석자 {len(att)}명에게 회의 안내를 보냈습니다.', 'success')
+        return redirect(url_for('calibration_setup', cycle_id=cycle_id))
+
+    sessions = db.execute(
+        'SELECT cs.*, f.name AS facilitator_name, '
+        '       (SELECT COUNT(*) FROM calibration_session_members m WHERE m.session_id=cs.id) AS n '
+        'FROM calibration_sessions cs LEFT JOIN users f ON f.id = cs.facilitator_id '
+        'WHERE cs.cycle_id=? ORDER BY cs.meet_date IS NULL, cs.meet_date, cs.meet_time, cs.name',
+        (cycle_id,)).fetchall()
+    rows = perf_progress(db, cycle)
+    by_user = {r['user_id']: r for r in rows}
+    member_map = {m['user_id']: m['session_id'] for m in db.execute(
+        'SELECT user_id, session_id FROM calibration_session_members WHERE cycle_id=?', (cycle_id,))}
+    stats = {s['id']: {'missing': 0} for s in sessions}
+    for u, s_id in member_map.items():
+        if u in by_user and _cal_missing(by_user[u]) and s_id in stats:
+            stats[s_id]['missing'] += 1
+    attendees = {}
+    for a in db.execute(
+            'SELECT a.session_id, a.user_id, a.role, u.name FROM calibration_session_attendees a '
+            'JOIN users u ON u.id = a.user_id JOIN calibration_sessions cs ON cs.id = a.session_id '
+            "WHERE cs.cycle_id=? ORDER BY CASE a.role WHEN 'facilitator' THEN 0 WHEN 'leader' THEN 1 "
+            "WHEN 'reviewer' THEN 2 ELSE 3 END, u.name", (cycle_id,)):
+        attendees.setdefault(a['session_id'], []).append(a)
+    unassigned = [r for r in rows if r['user_id'] not in member_map]
+    people = db.execute("SELECT u.id, u.name, d.name AS dept FROM users u "
+                        "LEFT JOIN departments d ON d.id = u.department_id "
+                        "WHERE u.status='active' AND u.role != 'guest' ORDER BY u.name").fetchall()
+    return render_template('performance/calibration_setup.html',
+                           cycle=cycle, sessions=sessions, stats=stats, attendees=attendees,
+                           unassigned=unassigned, roster_n=len(rows), people=people,
+                           members=sorted(rows, key=lambda r: r['name']), member_map=member_map,
+                           levels=CAL_LEVELS, role_label=CAL_ATTENDEE_ROLE,
+                           missing_total=sum(1 for r in rows if _cal_missing(r)),
+                           active_page='performance_cycles')
+
+
+@app.route('/performance/calibration/sessions/<int:sid>')
+@login_required
+def calibration_session(sid):
+    db = get_db()
+    s  = _cal_session_or_404(db, sid)
+    if not _cal_can_view(db, sid):
+        abort(403)
+    cycle, rows, summary, dist, target, gd = calibration_packet(db, s)
+    view = request.args.get('view', 'all')
+    shown = [r for r in rows if view != 'missing' or r['missing']]
+    shown = [r for r in shown if view != 'anomaly' or r['anomaly']]
+
+    if request.args.get('format') == 'csv':
+        import csv, io
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(['이름', '사번', '조직', '직급', '평가자', '자기평가', '평가자 평가', '동료평가',
+                    '종합', '권고 등급', '확정 등급', '미완료', '이상 신호'])
+        for r in rows:
+            w.writerow([r['name'], r['emp_no'] or '', r['dept'] or '', r['position'] or '',
+                        r['reviewer_name'] or '', r['self_avg'] or '', r['mgr_avg'] or '',
+                        r['peer_avg'] or '', r['overall'] or '', r['suggested_grade'] or '',
+                        r['final_grade'] or '', ' · '.join(r['missing']), r['anomaly'] or ''])
+        log_audit('download', 'performance', None, f'{s["name"]} 사전자료 CSV ({len(rows)}명)')
+        return Response('﻿' + buf.getvalue(), mimetype='text/csv; charset=utf-8',
+                        headers={'Content-Disposition':
+                                 f"attachment; filename*=UTF-8''calibration_{sid}.csv"})
+
+    attendees = db.execute(
+        'SELECT a.role, u.name, d.name AS dept FROM calibration_session_attendees a '
+        'JOIN users u ON u.id = a.user_id LEFT JOIN departments d ON d.id = u.department_id '
+        "WHERE a.session_id=? ORDER BY CASE a.role WHEN 'facilitator' THEN 0 WHEN 'leader' THEN 1 "
+        "WHEN 'reviewer' THEN 2 ELSE 3 END, u.name", (sid,)).fetchall()
+    return render_template('performance/calibration_session.html',
+                           s=s, cycle=cycle, rows=shown, summary=summary, dist=dist, target=target,
+                           gd=gd, view=view, attendees=attendees, role_label=CAL_ATTENDEE_ROLE,
+                           is_admin=session.get('user_role') == 'admin',
+                           active_page='performance_cycles')
+
+
 # ── Onboarding Dashboard ────────────────────────────────────
 @app.route('/me/onboarding')
 @login_required

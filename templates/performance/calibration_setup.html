@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% block title %}캘리브레이션 준비{% endblock %}
+{% block page_title %}캘리브레이션 준비{% endblock %}
+
+{% block extra_css %}
+<style>
+.cs-strip { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));
+  border:1px solid var(--line); border-top:none; border-left:none;
+  border-radius:var(--r); margin-bottom:18px; overflow:hidden; }
+.cs-strip > div { padding:10px 14px; border-top:1px solid var(--line); border-left:1px solid var(--line); }
+.cs-strip b { display:block; font-size:18px; font-weight:750; margin-top:3px; }
+.cs-strip span { font-size:11.5px; color:var(--tx-3); }
+.cs-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap:14px; margin-bottom:18px; }
+.cs-card { display:flex; flex-direction:column; min-width:0; }
+.cs-top { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:14px 16px; border-bottom:1px solid var(--line); }
+.cs-name { font-size:14px; font-weight:750; flex:1; min-width:160px; }
+.cs-meta { font-size:12px; color:var(--tx-3); }
+.cs-form { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:8px 10px; padding:12px 16px; }
+.cs-form label { font-size:11.5px; color:var(--tx-3); display:flex; flex-direction:column; gap:3px; min-width:0; }
+.cs-form .full { grid-column:1 / -1; }
+.cs-form .input, .cs-form select { width:100%; min-width:0; height:32px; font-size:12.5px; }
+.cs-att { padding:0 16px 12px; display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.cs-chip { display:inline-flex; align-items:center; gap:4px; font-size:11.5px; padding:2px 4px 2px 8px;
+  border:1px solid var(--line); border-radius:12px; color:var(--tx-2); white-space:nowrap; }
+.cs-chip em { font-style:normal; color:var(--tx-3); }
+.cs-chip button { border:none; background:none; color:var(--tx-3); cursor:pointer; font-size:13px; padding:0 3px; line-height:1; }
+.cs-foot { margin-top:auto; display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px 16px; border-top:1px solid var(--line); }
+.cs-foot .cs-meta { margin-right:auto; }
+.cs-h { font-size:12.5px; font-weight:750; padding:12px 16px; border-bottom:1px solid var(--line); }
+.cs-row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:12px 16px; }
+.cs-row select, .cs-row .input { height:32px; font-size:12.5px; min-width:0; max-width:100%; }
+.cs-late { color:var(--late); font-weight:600; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="card" style="margin-bottom:18px;">
+  <div style="padding:18px 20px; display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+    <div style="flex:1; min-width:200px;">
+      <div style="font-size:15px; font-weight:800;">{{ cycle.name }}</div>
+      <div class="cs-meta" style="margin-top:3px;">캘리브레이션 회의 · 평가 대상 {{ roster_n }}명</div>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="{{ url_for('performance_cycles') }}" class="btn btn-ghost btn-sm">주기 목록</a>
+      <a href="{{ url_for('performance_progress', cycle_id=cycle.id, view='late') }}" class="btn btn-ghost btn-sm">진행 현황</a>
+      <a href="{{ url_for('calibration', cycle=cycle.id) }}" class="btn btn-ghost btn-sm">등급 확정</a>
+    </div>
+  </div>
+</div>
+
+{% if not roster_n %}
+<div class="card" style="padding:40px 20px; text-align:center;">
+  <div style="font-size:14px; font-weight:700;">평가 대상이 없습니다</div>
+  <div style="font-size:12.5px; color:var(--tx-3); margin-top:6px;">평가 명단을 먼저 만들어야 회의를 구성할 수 있습니다.</div>
+  <a href="{{ url_for('performance_roster', cycle_id=cycle.id) }}" class="btn btn-primary" style="margin-top:14px;">평가 명단으로</a>
+</div>
+{% else %}
+
+<div class="cs-strip">
+  <div><span>회의</span><b>{{ sessions|length }}개</b></div>
+  <div><span>배정된 대상</span><b>{{ roster_n - unassigned|length }}명</b></div>
+  <div><span>회의 미배정</span><b{% if unassigned %} class="cs-late"{% endif %}>{{ unassigned|length }}명</b></div>
+  <div><span>평가 미완료</span><b>{{ missing_total }}명</b></div>
+  <div><span>날짜 미정</span><b>{{ sessions|rejectattr('meet_date')|list|length }}개</b></div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <form method="post" class="cs-row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="build">
+    <span style="font-size:12.5px; font-weight:700; margin-right:4px;">회의 자동 구성</span>
+    <select name="level" class="input">
+      {% for k, v in levels.items() %}<option value="{{ k }}"{% if k == 1 %} selected{% endif %}>{{ v }} 단위</option>{% endfor %}
+    </select>
+    <span class="cs-meta" style="flex:1; min-width:160px;">5명 미만 조직은 같은 부문의 큰 회의에 합칩니다</span>
+    <button class="btn btn-primary btn-sm"
+      {% if sessions %}onclick="return confirm('지금 회의 {{ sessions|length }}개와 날짜·참석자 설정을 지우고 새로 만듭니다.')"{% endif %}>
+      {% if sessions %}다시 구성{% else %}회의 만들기{% endif %}</button>
+  </form>
+</div>
+
+{% if sessions %}
+<div class="cs-list">
+  {% for s in sessions %}
+  <div class="card cs-card">
+    <div class="cs-top">
+      <div class="cs-name">{{ s.name }}</div>
+      <span class="cs-meta">대상 {{ s.n }}명</span>
+      {% if stats[s.id].missing %}<span class="badge badge-pending">미완료 {{ stats[s.id].missing }}명</span>
+      {% else %}<span class="badge badge-active">평가 완료</span>{% endif %}
+    </div>
+    <form method="post" class="cs-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="save">
+      <input type="hidden" name="session_id" value="{{ s.id }}">
+      <label class="full">회의 이름<input class="input" name="name" value="{{ s.name }}" maxlength="60"></label>
+      <label>날짜<input class="input" type="date" name="meet_date" value="{{ s.meet_date or '' }}"></label>
+      <label>시간<input class="input" type="time" name="meet_time" value="{{ s.meet_time or '' }}" step="1800"></label>
+      <label>장소<input class="input" name="location" value="{{ s.location or '' }}" maxlength="80" placeholder="회의실·화상 링크"></label>
+      <label>진행자
+        <select name="facilitator_id" class="input">
+          {% for p in people %}<option value="{{ p.id }}"{% if p.id == s.facilitator_id %} selected{% endif %}>{{ p.name }}{% if p.dept %} · {{ p.dept }}{% endif %}</option>{% endfor %}
+        </select>
+      </label>
+      <div class="full" style="display:flex; justify-content:flex-end;"><button class="btn btn-ghost btn-sm">저장</button></div>
+    </form>
+    <div class="cs-att">
+      <span class="cs-meta" style="margin-right:4px;">참석자 {{ attendees.get(s.id, [])|length }}명</span>
+      {% for a in attendees.get(s.id, []) %}
+      <form method="post" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="remove_attendee">
+        <input type="hidden" name="session_id" value="{{ s.id }}">
+        <input type="hidden" name="user_id" value="{{ a.user_id }}">
+        <span class="cs-chip">{{ a.name }} <em>{{ role_label[a.role] }}</em>{% if a.role != 'facilitator' %}<button title="빼기">&times;</button>{% endif %}</span>
+      </form>
+      {% endfor %}
+    </div>
+    <form method="post" class="cs-att">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="add_attendee">
+      <input type="hidden" name="session_id" value="{{ s.id }}">
+      <select name="user_id" class="input" style="flex:1; min-width:0; height:30px; font-size:12px;">
+        <option value="">참석자 추가</option>
+        {% for p in people %}<option value="{{ p.id }}">{{ p.name }}{% if p.dept %} · {{ p.dept }}{% endif %}</option>{% endfor %}
+      </select>
+      <button class="btn btn-ghost btn-sm">추가</button>
+    </form>
+    <div class="cs-foot">
+      <span class="cs-meta">
+        {% if s.meet_date %}{{ s.meet_date }}{% if s.meet_time %} {{ s.meet_time }}{% endif %}{% else %}<span class="cs-late">날짜 미정</span>{% endif %}
+        {% if s.notified_at %} · 안내 {{ s.notified_at[:16] }}{% endif %}
+      </span>
+      <a href="{{ url_for('calibration_session', sid=s.id) }}" class="btn btn-ghost btn-sm">사전자료</a>
+      <form method="post" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="notify">
+        <input type="hidden" name="session_id" value="{{ s.id }}">
+        <button class="btn btn-ghost btn-sm"{% if not s.meet_date %} disabled title="날짜를 먼저 저장하세요"{% endif %}
+          onclick="return confirm('참석자 {{ attendees.get(s.id, [])|length }}명에게 회의 안내를 보냅니다.')">{% if s.notified_at %}다시 안내{% else %}참석자 안내{% endif %}</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="cs-h">대상자 회의 옮기기{% if unassigned %} · <span class="cs-late">미배정 {{ unassigned|length }}명</span>{% endif %}</div>
+  <form method="post" class="cs-row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="move">
+    <select name="user_id" class="input" style="flex:1 1 200px;" required>
+      <option value="">대상자</option>
+      {% if unassigned %}<optgroup label="미배정">{% for r in unassigned %}<option value="{{ r.user_id }}">{{ r.name }} · {{ r.dept or '미지정' }}</option>{% endfor %}</optgroup>{% endif %}
+      <optgroup label="배정됨">
+      {% for r in members if r.user_id in member_map %}<option value="{{ r.user_id }}">{{ r.name }} · {{ r.dept or '미지정' }}</option>{% endfor %}
+      </optgroup>
+    </select>
+    <select name="to_session" class="input" style="flex:1 1 200px;" required>
+      {% for s in sessions %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-ghost btn-sm">옮기기</button>
+  </form>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

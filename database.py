@@ -2282,6 +2282,37 @@ def init_db(db_path: str = None):
         c.execute('CREATE INDEX IF NOT EXISTS idx_perf_reminders_cycle '
                   'ON perf_reminders(cycle_id, user_id, sent_at)')
 
+        # ── P4 캘리브레이션 회의 세팅: 회의·대상자·참석자 ───────────────
+        c.execute('''CREATE TABLE IF NOT EXISTS calibration_sessions (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            cycle_id       INTEGER NOT NULL REFERENCES performance_cycles(id),
+            name           TEXT NOT NULL,
+            org_id         INTEGER REFERENCES departments(id),
+            meet_date      DATE,
+            meet_time      TEXT,
+            location       TEXT,
+            facilitator_id INTEGER REFERENCES users(id),
+            notified_at    TIMESTAMP,
+            created_by     INTEGER REFERENCES users(id),
+            created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS calibration_session_members (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES calibration_sessions(id),
+            cycle_id   INTEGER NOT NULL REFERENCES performance_cycles(id),
+            user_id    INTEGER NOT NULL REFERENCES users(id),
+            UNIQUE(cycle_id, user_id)
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS calibration_session_attendees (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES calibration_sessions(id),
+            user_id    INTEGER NOT NULL REFERENCES users(id),
+            role       TEXT NOT NULL DEFAULT 'reviewer',
+            UNIQUE(session_id, user_id)
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_cal_members_session '
+                  'ON calibration_session_members(session_id)')
+
         # ── 회의실·온보딩 V1: 건물·층·회의실·예약·온보딩 콘텐츠 (workplace.py) ──
         import workplace
         workplace.ensure_schema(c)
