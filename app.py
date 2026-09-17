@@ -416,6 +416,14 @@ def csrf_protect():
     saved = session.get('csrf_token', '')
     if not saved or not sent or not hmac.compare_digest(saved, sent):
         app.logger.warning(f'CSRF 검증 실패 — {request.method} {request.path} (endpoint={request.endpoint})')
+        # 로그인 화면은 오래 열어두거나 뒤로 가서 다시 누르는 일이 잦다.
+        # 그때 '접근 권한이 없습니다'(403) 를 보여줄 이유가 없다 — 이미 들어와 있으면
+        # 대시보드로, 아니면 새 표를 받은 로그인 화면으로 돌려보낸다. POST 는 처리하지 않는다.
+        if request.endpoint == 'login':
+            if 'user_id' in session and not session.get('demo_mode'):
+                return redirect(url_for('dashboard'))
+            flash('로그인 화면이 오래돼 다시 입력해야 합니다.', 'info')
+            return redirect(url_for('login'))
         abort(403, description='CSRF 토큰이 유효하지 않습니다. 페이지를 새로고침한 뒤 다시 시도해주세요.')
 
 
