@@ -13600,6 +13600,229 @@ def requisition_reassign(req_id):
     return redirect(url_for('requisition_detail', req_id=req_id))
 
 
+# ── 자리판 ──────────────────────────────────────────────────────────
+# 조직도 위에 '자리'를 올린다. 새 테이블은 없다 — 모두 있는 데서 계산한다.
+#   자리 수   = 정원 대장(상위 조직엔 하위 합계가 들어 있으므로 '자기 몫'만 뗀다)
+#   찬 자리   = 그 조직 재직자
+#   빈 자리   = 자리 카드(공고 전·채용 진행) + 결재 중 요청서 + 아직 요청 없는 칸
+# 빈 날짜를 아는 자리만 날수를 센다. 모르는 날짜를 지어내지 않는다.
+SEAT_LATE_DAYS = 90
+SEAT_TAG = {
+    'pending':  ('결재 중', 'wait'),
+    'approved': ('공고 전', 'idle'),
+    'open':     ('채용 진행', 'wait'),
+    'reserved': ('입사 예정', 'done'),
+    'none':     ('요청 없음', 'idle'),
+}
+
+
+def seat_board_data(db, today=None):
+    from datetime import date as _d
+    today = today or _d.today()
+    fy = today.year
+
+    def _day(v):
+        try:
+            return _d.fromisoformat(str(v)[:10]) if v else None
+        except ValueError:
+            return None
+
+    deps = [dict(r) for r in db.execute(
+        'SELECT d.id, d.name, d.parent_id, d.dept_type, d.leader_id, u.name AS leader_name '
+        'FROM departments d LEFT JOIN users u ON d.leader_id=u.id ORDER BY d.id').fetchall()]
+    by_id = {d['id']: d for d in deps}
+    kids = {}
+    for d in deps:
+        kids.setdefault(d['parent_id'] if d['parent_id'] in by_id else None, []).append(d['id'])
+    target = {r[0]: r[1] for r in db.execute(
+        'SELECT department_id, target_count FROM department_headcount WHERE fiscal_year=?', (fy,)).fetchall()}
+
+    leaving = {}
+    for r in db.execute(
+            "SELECT user_id, COALESCE(final_termination_date, requested_termination_date) AS d "
+            "FROM termination_requests WHERE status IN ('submitted','under_review','approved','in_progress')"
+            ).fetchall():
+        if _day(r['d']) and _day(r['d']) >= today:
+            leaving[r['user_id']] = r['d']
+
+    seats = {d['id']: [] for d in deps}
+    seats[None] = []
+    people = db.execute(
+        "SELECT u.id, u.name, u.department_id, u.termination_date, u.hire_date, "
+        "p.name AS pos_name, COALESCE(p.level, 0) AS lv FROM users u "
+        "LEFT JOIN positions p ON u.position_id=p.id WHERE u.status='active' "
+        "ORDER BY lv DESC, u.name").fetchall()
+    for u in people:
+        did = u['department_id'] if u['department_id'] in by_id else None
+        out = leaving.get(u['id'])
+        if not out and _day(u['termination_date']) and _day(u['termination_date']) >= today:
+            out = u['termination_date']
+        leader = did is not None and by_id[did]['leader_id'] == u['id']
+        seats[did].append({'kind': 'person', 'uid': u['id'], 'name': u['name'],
+                           'sub': u['pos_name'] or '', 'leader': leader,
+                           'leaving': str(out)[:10] if out else None})
+    for did in seats:
+        seats[did].sort(key=lambda s: not s['leader'])
+
+    person_at = {s['uid']: s for row in seats.values() for s in row}
+
+    def _empty(did, state, since, bf_uid=None, **kw):
+        # 아직 나가지 않은 사람의 후임이면 새 칸을 만들지 않고 그 사람 칸에 붙인다
+        if bf_uid in person_at:
+            person_at[bf_uid]['successor'] = SEAT_TAG[state][0]
+            person_at[bf_uid]['req_id'] = kw.get('req_id')
+            return
+        days = (today - since).days if since and since <= today else None
+        seat = {'kind': 'empty', 'state': state, 'tag': SEAT_TAG[state][0], 'tone': SEAT_TAG[state][1],
+                'since': since.isoformat() if since else None, 'days': days,
+                'late': days is not None and days > SEAT_LATE_DAYS}
+        seat.update(kw)
+        seats[did if did in by_id else None].append(seat)
+
+    for o in db.execute(
+            "SELECT o.id, o.code, o.title, o.department_id, o.status, o.hire_type, o.requisition_id, "
+            "o.created_at, o.backfill_user_id, p.name AS pos_name, bu.name AS backfill_name, "
+            "bu.termination_date AS bf_out, "
+            "ih.name AS reserved_name, ih.start_date AS reserved_start "
+            "FROM job_openings o LEFT JOIN positions p ON o.position_id=p.id "
+            "LEFT JOIN users bu ON o.backfill_user_id=bu.id "
+            "LEFT JOIN incoming_hires ih ON ih.opening_id=o.id AND ih.status='waiting' "
+            "WHERE o.status IN ('approved','open') ORDER BY o.created_at, o.seq").fetchall():
+        since = _day(o['created_at'])
+        if o['hire_type'] == 'backfill' and _day(o['bf_out']) and _day(o['bf_out']) < (since or today):
+            since = _day(o['bf_out'])
+        state = 'reserved' if o['reserved_name'] else o['status']
+        _empty(o['department_id'], state, since, bf_uid=o['backfill_user_id'], code=o['code'], title=o['title'],
+               sub=o['pos_name'] or '', req_id=o['requisition_id'], backfill=o['backfill_name'],
+               reserved=o['reserved_name'], start=o['reserved_start'])
+
+    for r in db.execute(
+            "SELECT r.id, r.title, r.department_id, r.headcount, r.hire_type, r.created_at, r.backfill_user_id, "
+            "bu.name AS backfill_name, bu.termination_date AS bf_out, "
+            "(SELECT SUM(headcount) FROM requisition_lines l WHERE l.requisition_id=r.id) AS line_hc "
+            "FROM job_requisitions r LEFT JOIN users bu ON r.backfill_user_id=bu.id "
+            "WHERE r.status IN ('pending_dept','pending_hr') "
+            "AND NOT EXISTS (SELECT 1 FROM job_openings o WHERE o.requisition_id=r.id) "
+            "ORDER BY r.created_at").fetchall():
+        since = _day(r['created_at'])
+        if r['hire_type'] == 'backfill' and _day(r['bf_out']) and _day(r['bf_out']) < (since or today):
+            since = _day(r['bf_out'])
+        for _i in range(max(1, int(r['line_hc'] or r['headcount'] or 1))):
+            _empty(r['department_id'], 'pending', since, bf_uid=r['backfill_user_id'], title=r['title'], sub='',
+                   req_id=r['id'], backfill=r['backfill_name'])
+
+    # 정원에서 '자기 몫' — 하위 조직 정원을 뺀 나머지
+    own = {}
+    for d in deps:
+        if d['id'] in target:
+            below = sum(target.get(k, 0) for k in kids.get(d['id'], []))
+            own[d['id']] = max(0, target[d['id']] - below)
+
+    # 요청 없는 빈 칸의 날짜 — 그 조직에서 최근에 나간 사람 순서대로 맞춘다.
+    # 이미 후임 요청·카드가 있는 퇴사자는 뺀다. 나간 사람이 모자라면 날짜 없음.
+    covered = {r[0] for r in db.execute(
+        'SELECT backfill_user_id FROM job_openings WHERE backfill_user_id IS NOT NULL '
+        'UNION SELECT backfill_user_id FROM job_requisitions WHERE backfill_user_id IS NOT NULL').fetchall()}
+    leavers = {}
+    for u in db.execute(
+            "SELECT id, name, department_id, termination_date FROM users "
+            "WHERE status='resigned' AND termination_date IS NOT NULL "
+            "ORDER BY termination_date DESC").fetchall():
+        if u['id'] not in covered and _day(u['termination_date']) and _day(u['termination_date']) <= today:
+            leavers.setdefault(u['department_id'], []).append(u)
+
+    nodes = []
+
+    def _walk(pid, depth):
+        tot = {'seats': 0, 'filled': 0, 'empty': 0, 'late': 0, 'over': 0}
+        for did in kids.get(pid, []):
+            d = by_id[did]
+            row = seats[did]
+            filled = sum(1 for s in row if s['kind'] == 'person')
+            pipeline = len(row) - filled
+            gap = (own[did] - filled - pipeline) if did in own else 0
+            gone = leavers.get(did, [])
+            for i in range(max(0, gap)):
+                lv = gone[i] if i < len(gone) else None
+                _empty(did, 'none', _day(lv['termination_date']) if lv else None,
+                       backfill=lv['name'] if lv else None)
+            node = {'id': did, 'name': d['name'], 'type': d['dept_type'], 'leader': d['leader_name'],
+                    'depth': depth, 'target': own.get(did), 'seats': seats[did],
+                    'over': max(0, -gap) if did in own else 0}
+            nodes.append(node)
+            sub = _walk(did, depth + 1)
+            mine = {'seats': len(seats[did]), 'filled': filled,
+                    'empty': len(seats[did]) - filled,
+                    'late': sum(1 for s in seats[did] if s.get('late')), 'over': node['over']}
+            node['own'] = mine
+            node['all'] = {k: mine[k] + sub[k] for k in mine}
+            for k in tot:
+                tot[k] += node['all'][k]
+        return tot
+
+    total = _walk(None, 0)
+    if seats[None]:
+        row = seats[None]
+        filled = sum(1 for s in row if s['kind'] == 'person')
+        mine = {'seats': len(row), 'filled': filled, 'empty': len(row) - filled,
+                'late': sum(1 for s in row if s.get('late')), 'over': 0}
+        nodes.append({'id': 0, 'name': '부서 미지정', 'type': None, 'leader': None, 'depth': 0,
+                      'target': None, 'seats': row, 'over': 0, 'own': mine, 'all': mine})
+        for k in total:
+            total[k] += mine[k]
+    return {'nodes': nodes, 'total': total, 'kids': kids, 'parent': {d['id']: d['parent_id'] for d in deps}}
+
+
+@app.route('/seats')
+@login_required
+def seat_board():
+    role = session.get('user_role')
+    if role not in ('admin', 'manager', 'recruiter'):
+        abort(403)
+    db = get_db()
+    data = seat_board_data(db)
+    nodes, kids = data['nodes'], data['kids']
+
+    def _subtree(root):
+        out, stack = set(), [root]
+        while stack:
+            cur = stack.pop()
+            if cur in out:
+                continue
+            out.add(cur)
+            stack.extend(kids.get(cur, []))
+        return out
+
+    scope = None
+    if role == 'manager':
+        scope = _subtree(session.get('dept_id') or -1)
+    dept_f = request.args.get('dept', type=int)
+    if dept_f:
+        sub = _subtree(dept_f)
+        scope = sub if scope is None else (scope & sub)
+    view = request.args.get('view', 'all')
+    if view not in ('all', 'empty', 'late'):
+        view = 'all'
+
+    shown = [n for n in nodes if scope is None or n['id'] in scope]
+    if scope is not None:
+        roots = [n for n in shown if data['parent'].get(n['id']) not in scope]
+        total = {k: sum(n['all'][k] for n in roots) for k in data['total']}
+        base = min((n['depth'] for n in shown), default=0)
+    else:
+        total, base = data['total'], 0
+    if view == 'empty':
+        shown = [n for n in shown if n['all']['empty']]
+    elif view == 'late':
+        shown = [n for n in shown if n['all']['late']]
+
+    dept_opts = [n for n in nodes if n['id'] and (role != 'manager' or n['id'] in _subtree(session.get('dept_id') or -1))]
+    return render_template('hiring/seat_board.html',
+        nodes=shown, total=total, base=base, view=view, dept_f=dept_f, dept_opts=dept_opts,
+        dept_type_label=DEPT_TYPE_LABEL, late_days=SEAT_LATE_DAYS,
+        can_request=True, active_page='seats')
+
+
 # ── 자리 대장 ────────────────────────────────────────────────────────
 @app.route('/openings')
 @login_required

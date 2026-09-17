@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% block title %}자리판{% endblock %}
+{% block page_title %}자리판{% endblock %}
+
+{% block extra_css %}
+<style>
+.sb-head { display:flex; flex-wrap:wrap; gap:6px 18px; align-items:baseline; padding:16px 20px; }
+.sb-head .n { font-size:13px; color:var(--tx-3); white-space:nowrap; }
+.sb-head .n b { font-size:18px; font-weight:750; color:var(--tx-1); margin-left:4px; }
+.sb-head .n.late b { color:var(--late); }
+.sb-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:14px 0; }
+.sb-f { height:28px; padding:0 12px; display:inline-flex; align-items:center; border-radius:20px;
+  border:1px solid var(--line); background:var(--surface); color:var(--tx-2);
+  font-size:12.5px; font-weight:600; text-decoration:none; white-space:nowrap; }
+.sb-f.on { background:var(--inv-bg); color:var(--inv-tx); border-color:var(--inv-bg); }
+.sb-bar select { height:28px; font-size:12.5px; max-width:100%; min-width:0; }
+.sb-legend { display:flex; flex-wrap:wrap; gap:6px 14px; margin-left:auto; font-size:11.5px; color:var(--tx-3); }
+.sb-legend i { display:inline-block; width:18px; height:12px; border-radius:3px; vertical-align:-2px; margin-right:5px;
+  border:1px solid var(--line-strong); }
+.sb-legend i.e { border:1.5px dashed var(--line-strong); }
+.sb-legend i.l { border:1.5px dashed var(--late); }
+
+.sb-org { margin-left:calc(min(var(--d), 3) * 18px); border-left:1px solid var(--line); padding:0 0 14px 14px; }
+.sb-org.top { border-left:none; padding-left:0; margin-top:6px; }
+.sb-oh { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; padding:6px 0 8px; }
+.sb-oh .nm { font-size:14px; font-weight:750; }
+.sb-org:not(.top) .sb-oh .nm { font-size:13px; }
+.sb-oh .ty, .sb-oh .ld { font-size:11.5px; color:var(--tx-3); }
+.sb-oh .ct { font-size:12px; color:var(--tx-2); margin-left:auto; white-space:nowrap; }
+.sb-oh .ct .late { color:var(--late); font-weight:650; }
+.sb-oh .ct .over { color:var(--wait); font-weight:650; }
+
+.sb-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(118px, 1fr)); gap:6px; }
+.sb-s { display:flex; flex-direction:column; justify-content:center; gap:2px; min-height:52px; min-width:0;
+  padding:6px 9px; border:1px solid var(--line); border-radius:6px; background:var(--surface);
+  color:inherit; text-decoration:none; }
+.sb-s:hover { border-color:var(--line-strong); background:var(--hover); }
+.sb-s .a { font-size:12.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sb-s .b { font-size:11px; color:var(--tx-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sb-s .ldr { font-size:10.5px; font-weight:600; color:var(--tx-3); margin-left:4px; }
+.sb-s.e { border:1.5px dashed var(--line-strong); background:transparent; }
+.sb-s.e .a { color:var(--tx-3); font-weight:600; }
+.sb-s.late { border-color:var(--late); }
+.sb-s.late .d { color:var(--late); font-weight:650; }
+.sb-t { display:inline-flex; align-items:center; gap:4px; font-size:11px; color:var(--tx-2); white-space:nowrap; }
+.sb-t::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--idle); flex:none; }
+.sb-t.wait::before { background:var(--wait); }
+.sb-t.done::before { background:var(--done); }
+.sb-t.late::before { background:var(--late); }
+.sb-row { display:flex; gap:6px; align-items:center; min-width:0; overflow:hidden; }
+.sb-s .d { font-size:11px; color:var(--tx-3); white-space:nowrap; }
+.sb-more { grid-column:1 / -1; font-size:11.5px; color:var(--tx-3); padding:2px 0; }
+.sb-empty { padding:40px 20px; text-align:center; font-size:13px; color:var(--tx-3); }
+@media (max-width:600px) {
+  .sb-org { margin-left:calc(min(var(--d), 3) * 8px); padding-left:9px; }
+  .sb-grid { grid-template-columns:repeat(auto-fill, minmax(104px, 1fr)); }
+  .sb-legend { margin-left:0; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="sb-head">
+    <span class="n">자리<b>{{ total.seats }}</b></span>
+    <span class="n">재직<b>{{ total.filled }}</b></span>
+    <span class="n">빈 자리<b>{{ total.empty }}</b></span>
+    <span class="n{% if total.late %} late{% endif %}">{{ late_days }}일 넘게 빔<b>{{ total.late }}</b></span>
+    {% if total.over %}<span class="n">정원 초과<b>{{ total.over }}</b></span>{% endif %}
+  </div>
+</div>
+
+<form class="sb-bar" method="get">
+  <a class="sb-f{% if view == 'all' %} on{% endif %}" href="{{ url_for('seat_board', dept=dept_f) }}">전체</a>
+  <a class="sb-f{% if view == 'empty' %} on{% endif %}" href="{{ url_for('seat_board', view='empty', dept=dept_f) }}">빈 자리</a>
+  <a class="sb-f{% if view == 'late' %} on{% endif %}" href="{{ url_for('seat_board', view='late', dept=dept_f) }}">{{ late_days }}일 넘음</a>
+  <input type="hidden" name="view" value="{{ view }}">
+  <select name="dept" class="select" onchange="this.form.submit()" aria-label="조직">
+    <option value="">조직 전체</option>
+    {% for o in dept_opts %}
+    <option value="{{ o.id }}" {% if dept_f == o.id %}selected{% endif %}>{{ '  ' * o.depth }}{{ o.name }}</option>
+    {% endfor %}
+  </select>
+  <div class="sb-legend">
+    <span><i></i>재직</span><span><i class="e"></i>빈 자리</span><span><i class="l"></i>{{ late_days }}일 넘게 빔</span>
+  </div>
+</form>
+
+{% if not nodes %}
+<div class="card sb-empty">{% if view == 'late' %}{{ late_days }}일 넘게 빈 자리 없음{% elif view == 'empty' %}빈 자리 없음{% else %}조직 없음{% endif %}</div>
+{% endif %}
+
+{% for n in nodes %}
+{% set d = n.depth - base %}
+<section class="sb-org{% if d == 0 %} top{% endif %}" style="--d:{{ d }}" id="org-{{ n.id }}">
+  <div class="sb-oh">
+    <span class="nm">{{ n.name }}</span>
+    {% if n.type %}<span class="ty">{{ dept_type_label.get(n.type, '') }}</span>{% endif %}
+    {% if n.leader %}<span class="ld">조직장 {{ n.leader }}</span>{% endif %}
+    <span class="ct">
+      {% if n.own.seats != n.all.seats %}하위 포함 {% endif %}자리 {{ n.all.seats }} · 빈 {{ n.all.empty }}
+      {% if n.all.late %} · <span class="late">{{ late_days }}일+ {{ n.all.late }}</span>{% endif %}
+      {% if n.over %} · <span class="over">정원 초과 {{ n.over }}</span>{% endif %}
+    </span>
+  </div>
+  {% set ns = namespace(hidden=0) %}
+  <div class="sb-grid">
+    {% for s in n.seats %}
+      {% if s.kind == 'person' %}
+        {% if view != 'all' %}{% set ns.hidden = ns.hidden + 1 %}{% else %}
+        <a class="sb-s" href="{{ url_for('employee_detail', emp_id=s.uid) }}">
+          <span class="a">{{ s.name }}{% if s.leader %}<span class="ldr">조직장</span>{% endif %}</span>
+          {% if s.leaving %}
+          <span class="sb-row"><span class="sb-t wait">퇴사 예정 {{ s.leaving[5:].replace('-', '/') }}</span></span>
+          {% elif s.successor %}
+          <span class="sb-row"><span class="sb-t wait">후임 {{ s.successor }}</span></span>
+          {% else %}
+          <span class="b">{{ s.sub or '—' }}</span>
+          {% endif %}
+        </a>
+        {% endif %}
+      {% elif view != 'late' or s.late %}
+        <a class="sb-s e{% if s.late %} late{% endif %}"
+           href="{% if s.req_id %}{{ url_for('requisition_detail', req_id=s.req_id) }}{% else %}{{ url_for('requisition_new') }}{% endif %}"
+           title="{% if s.code %}{{ s.code }} · {% endif %}{{ s.title or '빈 자리' }}{% if s.backfill %} · {{ s.backfill }} {{ '퇴사' if s.state == 'none' else '후임' }}{% endif %}{% if s.since %} · {{ s.since }}부터{% endif %}">
+          <span class="a">{% if s.state == 'reserved' %}{{ s.reserved }}{% else %}{{ s.title or '빈 자리' }}{% endif %}</span>
+          <span class="sb-row">
+            <span class="sb-t {{ 'late' if s.late else s.tone }}">{% if s.state == 'reserved' and s.start %}입사 {{ s.start[5:].replace('-', '/') }}{% else %}{{ s.tag }}{% endif %}</span>
+            {% if s.days is not none %}<span class="d">{{ s.days }}일</span>{% endif %}
+          </span>
+        </a>
+      {% else %}{% set ns.hidden = ns.hidden + 1 %}
+      {% endif %}
+    {% endfor %}
+    {% if ns.hidden %}<div class="sb-more">재직 등 {{ ns.hidden }}자리 숨김</div>{% endif %}
+    {% if not n.seats %}<div class="sb-more">이 조직에 직접 속한 자리 없음</div>{% endif %}
+  </div>
+</section>
+{% endfor %}
+{% endblock %}

@@ -43,6 +43,7 @@
   {'key':'people', 'label':'인사', 'gi':'fa-users', 'items':[
     {'l':'직원 관리', 'u':url_for('employees'), 'p':['employees','termination_requests'], 's':MGR, 'i':'fa-users'},
     {'l':'조직도', 'u':url_for('org_chart'), 'p':['org'], 's':True, 'i':'fa-sitemap'},
+    {'l':'자리판', 'u':url_for('seat_board'), 'p':['seats'], 's':R in ('admin','manager','recruiter'), 'i':'fa-chair'},
     {'l':'근로계약', 'u':url_for('contracts_list'), 'p':['contracts'], 's':True, 'i':'fa-file-contract'},
     {'l':'온보딩', 'u':url_for('me_onboarding'), 'p':['me_onboarding','onboarding'], 's':'onboarding' in PF, 'i':'fa-list-check'},
     {'l':'승계 계획', 'u':url_for('succession'), 'p':['succession'], 's':MGR and 'succession' in PF and addon.succession, 'i':'fa-chess-king'},
