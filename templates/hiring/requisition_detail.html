@@ -115,7 +115,7 @@
     </div>
     <div class="card-body" style="padding:6px 20px 14px;">
       {% set guide = [
-        ('포지션 생성', '최종 승인과 동시에 인원 수만큼 포지션(자리) 카드가 만들어집니다.', '자동', None),
+        ('포지션 생성', '최종 승인과 동시에 요청 헤드카운트만큼 포지션 카드가 만들어집니다.', '자동', None),
         ('Hire로 공고 보내기', '포지션 화면에서 이 요청서의 카드를 골라 "Hire로 보내기"를 누르면 Hire에 공고가 생깁니다.', '인사·채용 담당', url_for('opening_board')),
         ('서류·면접·오퍼', 'Hire에서 지원자를 받고 1차(' ~ (chain.hm_name or '부서장') ~ ') · 2차(' ~ (chain.senior_name or '차상위 조직장') ~ (', ' ~ req.collab_leader_name if req.collab_leader_name and req.collab_leader_name != chain.senior_name else '') ~ ') 면접 후 오퍼를 보냅니다.', '채용 담당 · 면접관', None),
         ('입사 예정자 예약', '지원자가 오퍼를 수락하면 포지션이 그 사람 이름으로 예약되고, 입사 예정자 목록에 올라갑니다.', '자동', None),

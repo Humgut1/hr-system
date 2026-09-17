@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}자리판{% endblock %}
-{% block page_title %}자리판{% endblock %}
+{% block title %}헤드카운트{% endblock %}
+{% block page_title %}헤드카운트{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -62,9 +62,9 @@
 {% block content %}
 <div class="card">
   <div class="sb-head">
-    <span class="n">자리<b>{{ total.seats }}</b></span>
+    <span class="n">헤드카운트<b>{{ total.seats }}</b></span>
     <span class="n">재직<b>{{ total.filled }}</b></span>
-    <span class="n">빈 자리<b>{{ total.empty }}</b></span>
+    <span class="n">빈 포지션<b>{{ total.empty }}</b></span>
     <span class="n{% if total.late %} late{% endif %}">{{ late_days }}일 넘게 빔<b>{{ total.late }}</b></span>
     {% if total.over %}<span class="n">정원 초과<b>{{ total.over }}</b></span>{% endif %}
   </div>
@@ -72,7 +72,7 @@
 
 <form class="sb-bar" method="get">
   <a class="sb-f{% if view == 'all' %} on{% endif %}" href="{{ url_for('seat_board', dept=dept_f) }}">전체</a>
-  <a class="sb-f{% if view == 'empty' %} on{% endif %}" href="{{ url_for('seat_board', view='empty', dept=dept_f) }}">빈 자리</a>
+  <a class="sb-f{% if view == 'empty' %} on{% endif %}" href="{{ url_for('seat_board', view='empty', dept=dept_f) }}">빈 포지션</a>
   <a class="sb-f{% if view == 'late' %} on{% endif %}" href="{{ url_for('seat_board', view='late', dept=dept_f) }}">{{ late_days }}일 넘음</a>
   <input type="hidden" name="view" value="{{ view }}">
   <select name="dept" class="select" onchange="this.form.submit()" aria-label="조직">
@@ -82,12 +82,12 @@
     {% endfor %}
   </select>
   <div class="sb-legend">
-    <span><i></i>재직</span><span><i class="e"></i>빈 자리</span><span><i class="l"></i>{{ late_days }}일 넘게 빔</span>
+    <span><i></i>재직</span><span><i class="e"></i>빈 포지션</span><span><i class="l"></i>{{ late_days }}일 넘게 빔</span>
   </div>
 </form>
 
 {% if not nodes %}
-<div class="card sb-empty">{% if view == 'late' %}{{ late_days }}일 넘게 빈 자리 없음{% elif view == 'empty' %}빈 자리 없음{% else %}조직 없음{% endif %}</div>
+<div class="card sb-empty">{% if view == 'late' %}{{ late_days }}일 넘게 빈 포지션 없음{% elif view == 'empty' %}빈 포지션 없음{% else %}조직 없음{% endif %}</div>
 {% endif %}
 
 {% for n in nodes %}
@@ -98,7 +98,7 @@
     {% if n.type %}<span class="ty">{{ dept_type_label.get(n.type, '') }}</span>{% endif %}
     {% if n.leader %}<span class="ld">조직장 {{ n.leader }}</span>{% endif %}
     <span class="ct">
-      {% if n.own.seats != n.all.seats %}하위 포함 {% endif %}자리 {{ n.all.seats }} · 빈 {{ n.all.empty }}
+      {% if n.own.seats != n.all.seats %}하위 포함 {% endif %}HC {{ n.all.seats }} · 빈 {{ n.all.empty }}
       {% if n.all.late %} · <span class="late">{{ late_days }}일+ {{ n.all.late }}</span>{% endif %}
       {% if n.over %} · <span class="over">정원 초과 {{ n.over }}</span>{% endif %}
     </span>
@@ -122,8 +122,8 @@
       {% elif view != 'late' or s.late %}
         <a class="sb-s e{% if s.late %} late{% endif %}"
            href="{% if s.req_id %}{{ url_for('requisition_detail', req_id=s.req_id) }}{% else %}{{ url_for('requisition_new') }}{% endif %}"
-           title="{% if s.code %}{{ s.code }} · {% endif %}{{ s.title or '빈 자리' }}{% if s.backfill %} · {{ s.backfill }} {{ '퇴사' if s.state == 'none' else '후임' }}{% endif %}{% if s.since %} · {{ s.since }}부터{% endif %}">
-          <span class="a">{% if s.state == 'reserved' %}{{ s.reserved }}{% else %}{{ s.title or '빈 자리' }}{% endif %}</span>
+           title="{% if s.code %}{{ s.code }} · {% endif %}{{ s.title or '빈 포지션' }}{% if s.backfill %} · {{ s.backfill }} {{ '퇴사' if s.state == 'none' else '후임' }}{% endif %}{% if s.since %} · {{ s.since }}부터{% endif %}">
+          <span class="a">{% if s.state == 'reserved' %}{{ s.reserved }}{% else %}{{ s.title or '빈 포지션' }}{% endif %}</span>
           <span class="sb-row">
             <span class="sb-t {{ 'late' if s.late else s.tone }}">{% if s.state == 'reserved' and s.start %}입사 {{ s.start[5:].replace('-', '/') }}{% else %}{{ s.tag }}{% endif %}</span>
             {% if s.days is not none %}<span class="d">{{ s.days }}일</span>{% endif %}
@@ -132,8 +132,8 @@
       {% else %}{% set ns.hidden = ns.hidden + 1 %}
       {% endif %}
     {% endfor %}
-    {% if ns.hidden %}<div class="sb-more">재직 등 {{ ns.hidden }}자리 숨김</div>{% endif %}
-    {% if not n.seats %}<div class="sb-more">이 조직에 직접 속한 자리 없음</div>{% endif %}
+    {% if ns.hidden %}<div class="sb-more">재직 등 {{ ns.hidden }}개 숨김</div>{% endif %}
+    {% if not n.seats %}<div class="sb-more">이 조직에 직접 속한 포지션 없음</div>{% endif %}
   </div>
 </section>
 {% endfor %}
