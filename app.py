@@ -343,7 +343,7 @@ def get_leave_balance(db, user_id, year=None, include_pending=False):
 
 # 외부 서비스가 직접 호출하는 엔드포인트 (자체 서명 검증으로 보호됨)
 CSRF_EXEMPT_ENDPOINTS = {'billing_webhook', 'slack_command', 'slack_interactive', 'hires_webhook',
-                         'workplace_rooms_book_api', 'workplace_rooms_cancel_api'}
+                         'workplace_rooms_book_api', 'workplace_rooms_cancel_api', 'sso_hire_verify'}
 
 
 def _get_csrf_token():
@@ -843,6 +843,7 @@ def login():
             _db.close()
 
             if user and check_password_hash(user['password_hash'], password):
+                sso_next = session.get('sso_next') or ''
                 session.clear()
                 session['tenant_id']  = tenant_id
                 session['user_id']    = user['id']
@@ -869,6 +870,8 @@ def login():
                         session.pop('subscription_expired', None)
 
                 log_audit('login', 'auth', user['id'], f'로그인 성공 ({email})')
+                if sso_next.startswith('/sso/hire?'):
+                    return redirect(sso_next)
                 return redirect(url_for('dashboard'))
             log_audit('login_failed', 'auth', None, f'로그인 실패 ({email})')
             error = '이메일 또는 비밀번호가 올바르지 않습니다.'
@@ -4274,6 +4277,82 @@ def workplace_rooms_cancel_api():
     finally:
         conn.close()
     return {'ok': True, 'cancelled': n}
+
+
+# ── Hire 로그인 넘겨주기 (H2) ─────────────────────────────────
+#  Hire 에는 계정이 따로 없다. TalentCore 에 로그인한 사람이 누구인지를
+#  2분짜리 서명 표에 담아 Hire 로 보내고, Hire 는 그 표를 서버끼리 다시 물어
+#  (X-API-Token) 사람 정보를 받는다. 비밀번호는 Hire 로 넘어가지 않는다.
+#  표를 받을 주소는 관리자가 /settings/hire 에 넣은 Hire 주소 하나뿐이다 —
+#  아무 주소로나 표를 보내 주면 그 자체가 계정 탈취 통로가 된다.
+SSO_HIRE_MAX_AGE = 120
+
+
+def _sso_serializer():
+    from itsdangerous import URLSafeTimedSerializer
+    return URLSafeTimedSerializer(app.secret_key, salt='hire-sso')
+
+
+@app.route('/sso/hire')
+def sso_hire():
+    state = (request.args.get('state') or '').strip()
+    import re
+    if not re.fullmatch(r'[A-Za-z0-9_-]{16,128}', state):
+        return 'Hire 로그인 요청이 올바르지 않습니다. Hire 로그인 화면에서 다시 눌러주세요.', 400
+    if 'user_id' not in session or session.get('demo_mode'):
+        if session.get('demo_mode'):
+            session.clear()
+        session['sso_next'] = request.full_path
+        flash('TalentCore 계정으로 로그인하면 Hire 로 돌아갑니다.', 'info')
+        return redirect(url_for('login'))
+    if session.get('user_role') == 'guest':
+        return 'Hire 에 들어갈 수 없는 계정입니다.', 403
+    hire_url = _hire_config()['url']
+    if not hire_url:
+        return 'Hire 주소가 설정돼 있지 않습니다. 관리자에게 설정 > Hire 연동을 요청하세요.', 409
+    t = _sso_serializer().dumps({'t': session.get('tenant_id', 1), 'u': session['user_id'], 's': state})
+    log_audit('login', 'auth', session['user_id'], 'Hire 로그인 표 발급 (SSO)')
+    return redirect(hire_url + '/api/auth/core?t=' + t)
+
+
+@app.route('/api/sso/verify', methods=['POST'])
+def sso_hire_verify():
+    """Hire 가 받은 표를 확인한다. 표 발급 테넌트와 토큰 테넌트가 같아야 한다."""
+    from itsdangerous import BadSignature, SignatureExpired
+    tenant = get_tenant_by_api_token(request.headers.get('X-API-Token', ''))
+    if not tenant:
+        return {'ok': False, 'error': 'invalid token'}, 401
+    body = request.get_json(silent=True) or {}
+    try:
+        data = _sso_serializer().loads(str(body.get('t') or ''), max_age=SSO_HIRE_MAX_AGE)
+    except SignatureExpired:
+        return {'ok': False, 'error': 'expired'}, 400
+    except BadSignature:
+        return {'ok': False, 'error': 'bad ticket'}, 400
+    if int(data.get('t') or 0) != int(tenant['id']):
+        return {'ok': False, 'error': 'tenant mismatch'}, 403
+
+    conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
+    conn.row_factory = sqlite3.Row
+    try:
+        u = conn.execute(
+            'SELECT u.id, u.emp_no, u.name, u.email, u.role, u.status, d.name AS dept, p.name AS position '
+            'FROM users u LEFT JOIN departments d ON d.id = u.department_id '
+            'LEFT JOIN positions p ON p.id = u.position_id WHERE u.id = ?',
+            (data.get('u'),)).fetchone()
+    finally:
+        conn.close()
+    if not u or (u['status'] or 'active') != 'active' or u['role'] == 'guest':
+        return {'ok': False, 'error': 'inactive user'}, 403
+    return {'ok': True, 'state': data.get('s'), 'user': {
+        'id': 'core:%s:%s' % (tenant['id'], u['id']),
+        'emp_no': u['emp_no'] or '',
+        'name': u['name'] or '',
+        'email': (u['email'] or '').strip().lower() or None,
+        'dept': u['dept'] or '',
+        'title': u['position'] or '',
+        'role': u['role'] or 'employee',
+    }}
 
 
 @app.route('/api/directory', methods=['GET'])
