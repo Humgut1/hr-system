@@ -14616,6 +14616,108 @@ def offer_approval_cancel_api():
             db.close()
 
 
+# ── 오퍼레터 문안 ─────────────────────────────────
+# 오퍼레터의 뼈대(처우·입사일·회신 기한)는 Hire 가 그린다. 회사마다 달라지는
+# 말 — 인사말·복리후생·서명자 — 만 여기서 정한다. 회사 정보는 TalentCore 것이고,
+# 같은 문장이 계약서·안내문에도 쓰이기 때문이다.
+OFFER_LETTER_DEFAULTS = {
+    'offer_letter_greeting': u'함께 일하게 되어 기쁩니다. 아래와 같이 입사 조건을 안내드립니다.',
+    'offer_letter_benefits': u'',            # 한 줄에 하나
+    'offer_letter_signer': u'',              # 비우면 Hire 가 채용 담당자 이름으로 적는다
+    'offer_letter_signer_title': u'',
+    'offer_letter_reply_days': u'7',
+    'offer_letter_vest_years': u'4',
+    'offer_letter_vest_cliff': u'12',
+    'offer_letter_equity_note': u'스톡옵션은 비상장 주식을 살 수 있는 권리이며, 미래 가치는 보장되지 않습니다.',
+}
+
+
+def _offer_letter_settings(db):
+    """저장된 문안 + 기본값. 없는 값은 기본값으로 채운다."""
+    rows = db.execute(
+        "SELECT key, value FROM company_settings WHERE key LIKE 'offer_letter_%'").fetchall()
+    cfg = dict(OFFER_LETTER_DEFAULTS)
+    for r in rows:
+        if r['key'] in cfg and (r['value'] or '').strip():
+            cfg[r['key']] = r['value']
+    return cfg
+
+
+def _offer_letter_int(cfg, key, lo, hi, dflt):
+    try:
+        n = int(str(cfg.get(key) or '').strip())
+    except (TypeError, ValueError):
+        return dflt
+    return max(lo, min(hi, n))
+
+
+@app.route('/settings/offer-letter', methods=['GET', 'POST'])
+@admin_required
+def offer_letter_settings():
+    """오퍼레터에 들어갈 회사 말 — 관리자가 한 번 정해두면 모든 오퍼에 같이 나간다."""
+    db = get_db()
+    if request.method == 'POST':
+        f = request.form
+        vals = {
+            'offer_letter_greeting': f.get('greeting', '').strip()[:600],
+            'offer_letter_benefits': f.get('benefits', '').strip()[:2000],
+            'offer_letter_signer': f.get('signer', '').strip()[:60],
+            'offer_letter_signer_title': f.get('signer_title', '').strip()[:60],
+            'offer_letter_reply_days': str(max(1, min(30, int(f.get('reply_days') or 7)))
+                                           if (f.get('reply_days') or '7').isdigit() else 7),
+            'offer_letter_vest_years': str(max(1, min(10, int(f.get('vest_years') or 4)))
+                                           if (f.get('vest_years') or '4').isdigit() else 4),
+            'offer_letter_vest_cliff': str(max(0, min(36, int(f.get('vest_cliff') or 12)))
+                                           if (f.get('vest_cliff') or '12').isdigit() else 12),
+            'offer_letter_equity_note': f.get('equity_note', '').strip()[:400],
+        }
+        for k, v in vals.items():
+            db.execute('INSERT INTO company_settings (key,value) VALUES (?,?) '
+                       'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (k, v))
+        db.commit()
+        flash('오퍼레터 문안을 저장했습니다.', 'success')
+        return redirect(url_for('offer_letter_settings'))
+
+    cfg = _offer_letter_settings(db)
+    return render_template('hiring/offer_letter.html',
+                           cfg=cfg, company=get_company_info(),
+                           hire=_hire_config(), active_page='offerletter')
+
+
+@app.route('/api/offers/letter', methods=['GET'])
+def offer_letter_api():
+    """Hire 가 오퍼레터를 그릴 때 읽어가는 회사 문안. 인증: X-API-Token"""
+    db, own = _offer_api_db()
+    if db is None:
+        return {'ok': False, 'error': 'invalid token'}, 401
+    try:
+        cfg = _offer_letter_settings(db)
+        co = db.execute("SELECT key, value FROM company_settings WHERE key IN ('name','ceo','address')").fetchall()
+        info = {r['key']: (r['value'] or '').strip() for r in co}
+        benefits = [x.strip() for x in (cfg['offer_letter_benefits'] or '').splitlines() if x.strip()]
+        return {
+            'ok': True,
+            'company': {
+                'name': info.get('name') or _COMPANY_DEFAULTS.get('name', ''),
+                'ceo': info.get('ceo', ''),
+                'address': info.get('address', ''),
+            },
+            'greeting': cfg['offer_letter_greeting'],
+            'benefits': benefits,
+            'signer': cfg['offer_letter_signer'],
+            'signer_title': cfg['offer_letter_signer_title'],
+            'reply_days': _offer_letter_int(cfg, 'offer_letter_reply_days', 1, 30, 7),
+            'equity': {
+                'vest_years': _offer_letter_int(cfg, 'offer_letter_vest_years', 1, 10, 4),
+                'cliff_months': _offer_letter_int(cfg, 'offer_letter_vest_cliff', 0, 36, 12),
+                'note': cfg['offer_letter_equity_note'],
+            },
+        }, 200
+    finally:
+        if own:
+            db.close()
+
+
 # ── 결재선 서식 관리 ─────────────────────────────────────────────────
 @app.route('/settings/requisition-flow', methods=['GET', 'POST'])
 @admin_required
