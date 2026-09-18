@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}오퍼 결재{% endblock %}
+{% block page_title %}오퍼 결재{% endblock %}
+
+{% block content %}
+{# 공고에 적힌 연봉 밴드 상한을 넘긴 오퍼만 여기로 온다. Hire 에서 올라온다. #}
+
+<div class="info-banner" style="margin-bottom:16px;">
+  <i class="fas fa-circle-info"></i>
+  공고 연봉 밴드 상한을 넘긴 오퍼만 올라옵니다.
+  {% if my_turn %}지금 <strong>{{ my_turn }}건</strong>이 내 차례입니다.{% else %}지금 내 차례인 건은 없습니다.{% endif %}
+</div>
+
+{% if offers %}
+<div class="card" style="padding:0;">
+  <div class="tbl-x" style="overflow-x:auto;">
+  <table class="data-table" style="margin:0; min-width:720px;">
+    <thead>
+      <tr>
+        <th>후보자</th>
+        <th>공고</th>
+        <th>부서</th>
+        <th style="text-align:right;">연봉</th>
+        <th style="text-align:right;">밴드 상한</th>
+        <th>상태</th>
+        <th>지금 차례</th>
+        <th>올라온 날</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for o in offers %}
+    {% set r = o.r %}
+    {% set sc = {
+      'pending':   ('var(--orange-bg)','var(--wait)'),
+      'approved':  ('var(--green-bg)','var(--done)'),
+      'rejected':  ('var(--red-bg)','var(--late)'),
+      'cancelled': ('var(--surface-2)','var(--tx-3)'),
+    }.get(r.status, ('var(--surface-2)','var(--tx-2)')) %}
+    <tr style="cursor:pointer;" onclick="location.href='{{ url_for('offer_approval_detail', oid=r.id) }}'">
+      <td><strong>{{ r.cand_name }}</strong>{% if o.turn %}
+        <span style="font-size:11px; margin-left:6px; padding:2px 7px; border-radius:99px;
+                     background:var(--orange-bg); color:var(--wait); font-weight:700;">내 차례</span>{% endif %}</td>
+      <td style="font-size:12px; color:var(--tx-2);">{{ r.position_title or '-' }}{% if r.level %} · {{ r.level }}{% endif %}</td>
+      <td style="font-size:12px; color:var(--tx-2);">{{ r.department_name or '-' }}</td>
+      <td style="text-align:right; font-weight:700;">{{ '{:,}'.format(r.base) }}만원</td>
+      <td style="text-align:right; font-size:12px; color:var(--tx-3);">{{ '{:,}'.format(r.band_hi) }}만원</td>
+      <td>
+        <span style="font-size:11px; padding:3px 8px; border-radius:99px;
+                     background:{{ sc[0] }}; color:{{ sc[1] }}; font-weight:600;">
+          {{ status_labels.get(r.status, r.status) }}
+        </span>
+      </td>
+      <td style="font-size:12px; color:var(--tx-2);">
+        {% if r.status == 'pending' %}{{ r.cur_label or '-' }}{% if r.cur_name %} · {{ r.cur_name }}{% endif %}
+        {% else %}-{% endif %}
+      </td>
+      <td style="font-size:12px; color:var(--tx-3);">{{ r.created_at[:10] if r.created_at else '' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body" style="padding:40px 20px; text-align:center; color:var(--tx-3); font-size:13px;">
+    올라온 오퍼 결재가 없습니다.
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

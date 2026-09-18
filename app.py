@@ -343,7 +343,8 @@ def get_leave_balance(db, user_id, year=None, include_pending=False):
 
 # 외부 서비스가 직접 호출하는 엔드포인트 (자체 서명 검증으로 보호됨)
 CSRF_EXEMPT_ENDPOINTS = {'billing_webhook', 'slack_command', 'slack_interactive', 'hires_webhook',
-                         'workplace_rooms_book_api', 'workplace_rooms_cancel_api', 'sso_hire_verify'}
+                         'workplace_rooms_book_api', 'workplace_rooms_cancel_api', 'sso_hire_verify',
+                         'offer_approval_create_api', 'offer_approval_cancel_api'}
 
 
 def _get_csrf_token():
@@ -6614,7 +6615,7 @@ APPROVAL_KINDS = [
     ('leave', '휴가', 'LV'), ('overtime', '연장근로', 'OT'), ('goal', '목표 승인', 'GL'),
     ('appeal', '이의신청', 'AP'), ('requisition', '채용 요청', 'REQ'), ('certificate', '증명서', 'CT'),
     ('personnel', '인사발령', 'PA'), ('termination', '퇴직', 'TR'), ('payroll', '급여 확정', 'PY'),
-    ('hire', '입사 처리', 'HR'),
+    ('hire', '입사 처리', 'HR'), ('offer', '오퍼 승인', 'OF'),
 ]
 
 
@@ -6757,6 +6758,37 @@ def collect_approval_rows(db, uid, role, dept_id):
             f"{r['title']} {r['headcount']}명 · {REQUISITION_HIRE_TYPE_LABEL.get(r['hire_type'] or 'new_planned', '')}",
             r['requester_name'], r['created_at'], r['due_at'],
             url_for('requisition_detail', req_id=r['id']),
+            f"{r['step_no']}단계 {r['step_label'] or ''}".strip())
+
+    # 오퍼 밴드 초과 — Hire 에서 올라온 것. 요청서와 같은 결재선을 탄다.
+    off_sql = (
+        'SELECT o.id, o.cand_name, o.position_title, o.department_name, o.requester_name, '
+        '       o.base, o.band_hi, o.created_at, a.step_no, a.label AS step_label, a.due_at '
+        'FROM offer_approvals o '
+        'JOIN offer_approval_steps a ON a.offer_id=o.id '
+        "     AND a.status='waiting' "
+        "     AND a.step_no = (SELECT MIN(step_no) FROM offer_approval_steps "
+        "                      WHERE offer_id=o.id AND status='waiting') "
+        "WHERE o.status='pending' ")
+    try:
+        if is_admin:
+            rs = db.execute(off_sql).fetchall()
+        else:
+            me = session['user_id']
+            rs = db.execute(off_sql + 'AND (a.assignee_id=? OR a.delegate_id=?)', (me, me)).fetchall()
+            rs = [r for r in rs if me in _step_approver_ids(
+                db, db.execute('SELECT * FROM offer_approvals WHERE id=?', (r['id'],)).fetchone(),
+                db.execute('SELECT * FROM offer_approval_steps WHERE offer_id=? AND step_no=?',
+                           (r['id'], r['step_no'])).fetchone())]
+    except sqlite3.OperationalError:
+        rs = []
+    for r in rs:
+        over = (r['base'] or 0) - (r['band_hi'] or 0)
+        add('offer', f"OF-{r['id']}", r['cand_name'],
+            f"{r['position_title'] or '직무 미기재'} · {r['base']:,}만원"
+            + (f" (밴드 상한 +{over:,}만원)" if over > 0 else ''),
+            r['requester_name'], r['created_at'], r['due_at'],
+            url_for('offer_approval_detail', oid=r['id']),
             f"{r['step_no']}단계 {r['step_label'] or ''}".strip())
 
     if is_admin:
@@ -12755,6 +12787,13 @@ REQUISITION_HIRE_TYPE_HINT = {
     'new_planned':   '당해 인력계획 반영 증원',
     'new_unplanned': '인력계획 외 증원 · 인건비 증가',
 }
+# 결재선 설정 화면이 다루는 종류 — 요청서 3종 + 오퍼 1종.
+# 요청서 작성 폼은 REQUISITION_HIRE_TYPE_LABEL 만 보므로 오퍼가 섞이지 않는다.
+FLOW_KIND_LABEL = dict(REQUISITION_HIRE_TYPE_LABEL, offer_band='오퍼 밴드 초과')
+FLOW_KIND_HINT = dict(
+    REQUISITION_HIRE_TYPE_HINT,
+    offer_band='Hire 에서 올라온 오퍼가 공고 연봉 밴드 상한을 넘을 때',
+)
 FLOW_ROLE_LABEL = {
     'dept_head':     '조직장',
     'upper_head':    '차상위 조직장',
@@ -12879,6 +12918,9 @@ DEFAULT_FLOW = {
                       (3, 'exec',          'chro', '인사 승인 (CHRO)', 2),
                       (4, 'exec',          'cfo',  '예산 승인 (CFO)',  3),
                       (5, 'exec',          'ceo',  '최종 승인 (CEO)',  3)],
+    # 밴드를 넘긴 오퍼 — 하이어링 매니저는 Hire 에서 이미 봤으므로 인사·대표만 본다
+    'offer_band':    [(1, 'exec',          'chro', '인사 승인 (CHRO)', 2),
+                      (2, 'exec',          'ceo',  '최종 승인 (CEO)',  2)],
 }
 
 # 결재를 못 하는 날로 보는 휴가 — 재택·외출·반차는 결재 가능으로 본다
@@ -14195,6 +14237,385 @@ def opening_push():
     return redirect(back)
 
 
+# ══════════════════════════════════════════════════════════════════════
+#  오퍼 밴드 초과 결재 — Hire 에서 올라온다
+#  공고에 적힌 연봉 밴드 상한을 넘는 오퍼는 회사가 한 번 더 본다.
+#  결재선을 푸는 기계(_plan_flow)는 요청서와 같은 것을 쓰고, 표만 따로 둔다.
+#  Hire 는 결재 건 번호만 들고 있다가 화면을 그릴 때마다 상태를 물어본다.
+# ══════════════════════════════════════════════════════════════════════
+OFFER_APPROVAL_STATUS_LABEL = {
+    'pending': '결재 중', 'approved': '승인', 'rejected': '반려', 'cancelled': '취소',
+}
+
+
+def _offer_notify(db, uid, title, content, link=None):
+    """add_notification 과 같은 일 — 다만 연결을 넘겨 받는다(API 는 세션이 없다)."""
+    if not uid:
+        return
+    db.execute(
+        'INSERT INTO notifications (user_id, type, category, title, content, link) '
+        'VALUES (?,?,?,?,?,?)', (uid, 'info', 'action', title, content, link))
+
+
+def _build_offer_flow(db, off):
+    """오퍼 한 건에 결재 단계를 깔아 준다(이미 있으면 그대로). 결재자는 이 순간 고정된다."""
+    if db.execute('SELECT 1 FROM offer_approval_steps WHERE offer_id=? LIMIT 1',
+                  (off['id'],)).fetchone():
+        return
+    cum = 0
+    for st in _plan_flow(db, off['department_id'], off['requester_id'], 'offer_band'):
+        if st['skipped']:
+            continue
+        cum += st['sla_days']
+        db.execute(
+            'INSERT INTO offer_approval_steps '
+            '(offer_id, step_no, role_kind, exec_key, label, due_at, assignee_id, delegate_id, route_note) '
+            'VALUES (?,?,?,?,?,?,?,?,?)',
+            (off['id'], st['step_no'], st['role_kind'], st['exec_key'], st['label'],
+             (datetime.now() + timedelta(days=cum)).strftime('%Y-%m-%d %H:%M:%S'),
+             st['assignee_id'], st['delegate_id'], st['note'] or None))
+    db.commit()
+
+
+def _offer_steps(db, oid):
+    return db.execute(
+        'SELECT a.*, u.name AS approver_name, s.name AS assignee_name, g.name AS delegate_name, '
+        '       sp.name AS assignee_pos, sd.name AS assignee_dept '
+        'FROM offer_approval_steps a '
+        'LEFT JOIN users u ON a.approver_id=u.id '
+        'LEFT JOIN users s ON a.assignee_id=s.id '
+        'LEFT JOIN positions sp ON s.position_id=sp.id '
+        'LEFT JOIN departments sd ON s.department_id=sd.id '
+        'LEFT JOIN users g ON a.delegate_id=g.id '
+        'WHERE a.offer_id=? ORDER BY a.step_no', (oid,)).fetchall()
+
+
+def _offer_current_step(db, oid):
+    return db.execute(
+        "SELECT * FROM offer_approval_steps WHERE offer_id=? AND status='waiting' "
+        "ORDER BY step_no LIMIT 1", (oid,)).fetchone()
+
+
+def _can_act_on_offer_step(db, off, step, uid, role):
+    if step is None or off['status'] != 'pending':
+        return False
+    if role == 'admin':
+        return True
+    return uid in _step_approver_ids(db, off, dict(step))
+
+
+def _is_offer_approver(db, oid, uid):
+    """결재선에 이름이 올라간 사람 — 부서가 달라도 이 건을 볼 수 있어야 한다."""
+    return bool(db.execute(
+        'SELECT 1 FROM offer_approval_steps WHERE offer_id=? AND (assignee_id=? OR delegate_id=?) LIMIT 1',
+        (oid, uid, uid)).fetchone())
+
+
+def _notify_offer_step(db, off, step):
+    """지금 차례인 사람에게만 알린다."""
+    for aid in _step_approver_ids(db, off, dict(step)):
+        _offer_notify(db, aid, '오퍼 결재',
+                      u'%s 님 오퍼(%s)가 %s 단계에서 결재를 기다립니다.'
+                      % (off['cand_name'], off['position_title'] or '직무 미기재',
+                         step['label'] or FLOW_ROLE_LABEL.get(step['role_kind'], '')),
+                      link=url_for('offer_approval_detail', oid=off['id']))
+    db.commit()
+
+
+def _offer_state(db, off):
+    """Hire 가 물어볼 때 내려줄 요약 — 상태·단계·지금 차례인 사람."""
+    steps = _offer_steps(db, off['id'])
+    cur   = _offer_current_step(db, off['id']) if off['status'] == 'pending' else None
+    rej   = next((s for s in steps if s['status'] == 'rejected'), None)
+    return {
+        'ok': True, 'id': off['id'], 'ref': off['ext_ref'], 'status': off['status'],
+        'status_label': OFFER_APPROVAL_STATUS_LABEL.get(off['status'], off['status']),
+        'base': off['base'], 'sign': off['sign'],
+        'band_hi': off['band_hi'], 'decided_at': off['decided_at'],
+        'reject_reason': (rej['comment'] if rej else None),
+        'reject_by': (rej['approver_name'] if rej else None),
+        'current': ({'step_no': cur['step_no'], 'label': cur['label'],
+                     'name': _person_brief(db, cur['assignee_id'])['name'],
+                     'due_at': cur['due_at']} if cur else None),
+        'steps': [{'step_no': s['step_no'], 'label': s['label'], 'status': s['status'],
+                   'name': s['assignee_name'], 'pos': s['assignee_pos'],
+                   'acted_at': s['acted_at'], 'comment': s['comment'],
+                   'by': s['approver_name']} for s in steps],
+    }
+
+
+def _offer_latest(db, ref):
+    return db.execute(
+        'SELECT * FROM offer_approvals WHERE ext_ref=? ORDER BY id DESC LIMIT 1', (ref,)).fetchone()
+
+
+# ── 오퍼 결재함 (화면) ───────────────────────────────────────────────
+@app.route('/offers/approvals')
+@login_required
+def offer_approvals():
+    """밴드를 넘긴 오퍼만 여기로 온다. 채용 담당·관리자는 전부, 나머지는 자기 결재 건만."""
+    db   = get_db()
+    uid  = session['user_id']
+    role = session.get('user_role')
+    rows = db.execute(
+        'SELECT o.*, '
+        " (SELECT s.label FROM offer_approval_steps s "
+        "   WHERE s.offer_id=o.id AND s.status='waiting' ORDER BY s.step_no LIMIT 1) AS cur_label, "
+        " (SELECT s.assignee_id FROM offer_approval_steps s "
+        "   WHERE s.offer_id=o.id AND s.status='waiting' ORDER BY s.step_no LIMIT 1) AS cur_assignee, "
+        " (SELECT u.name FROM offer_approval_steps s LEFT JOIN users u ON u.id=s.assignee_id "
+        "   WHERE s.offer_id=o.id AND s.status='waiting' ORDER BY s.step_no LIMIT 1) AS cur_name "
+        'FROM offer_approvals o ORDER BY o.created_at DESC LIMIT 300').fetchall()
+
+    wide = role in ('admin', 'recruiter')
+    offers, mine = [], 0
+    for r in rows:
+        if not wide and not _is_offer_approver(db, r['id'], uid):
+            continue
+        turn = r['status'] == 'pending' and (role == 'admin' or r['cur_assignee'] == uid)
+        offers.append({'r': r, 'turn': turn})
+        if turn:
+            mine += 1
+    return render_template('hiring/offer_approvals.html',
+        offers=offers, my_turn=mine,
+        status_labels=OFFER_APPROVAL_STATUS_LABEL,
+        active_page='offerappr')
+
+
+@app.route('/offers/approvals/<int:oid>')
+@login_required
+def offer_approval_detail(oid):
+    db   = get_db()
+    uid  = session['user_id']
+    role = session.get('user_role')
+    off  = db.execute('SELECT * FROM offer_approvals WHERE id=?', (oid,)).fetchone()
+    if not off:
+        abort(404)
+    if role not in ('admin', 'recruiter') and not _is_offer_approver(db, oid, uid):
+        abort(403)
+    steps = _offer_steps(db, oid)
+    cur   = _offer_current_step(db, oid) if off['status'] == 'pending' else None
+    return render_template('hiring/offer_approval_detail.html',
+        off=off, steps=steps, cur_step=cur,
+        can_act=_can_act_on_offer_step(db, off, cur, uid, role),
+        status_labels=OFFER_APPROVAL_STATUS_LABEL,
+        role_labels=FLOW_ROLE_LABEL,
+        acted_labels=ACTED_AS_LABEL,
+        active_page='offerappr')
+
+
+@app.route('/offers/approvals/<int:oid>/act', methods=['POST'])
+@login_required
+def offer_approval_act(oid):
+    """지금 차례인 한 단계를 처리한다. 요청서 결재와 같은 규칙."""
+    db   = get_db()
+    uid  = session['user_id']
+    role = session.get('user_role')
+    off  = db.execute('SELECT * FROM offer_approvals WHERE id=?', (oid,)).fetchone()
+    if not off or off['status'] != 'pending':
+        flash('처리할 수 없는 결재입니다.', 'error')
+        return redirect(url_for('offer_approvals'))
+
+    step = _offer_current_step(db, oid)
+    if not _can_act_on_offer_step(db, off, step, uid, role):
+        flash('이 단계의 결재자가 아닙니다.', 'error')
+        return redirect(url_for('offer_approval_detail', oid=oid))
+
+    action  = request.form.get('action', 'approve')
+    comment = request.form.get('comment', '').strip()
+    if not step['assignee_id'] or uid == step['assignee_id']:
+        acted_as = 'self'
+    elif uid in _step_approver_ids(db, off, dict(step)):
+        acted_as = 'delegate'
+    else:
+        acted_as = 'admin'
+
+    if action != 'approve':
+        if not comment:
+            flash('반려 사유를 적어 주세요.', 'error')
+            return redirect(url_for('offer_approval_detail', oid=oid))
+        db.execute(
+            "UPDATE offer_approval_steps SET status='rejected', approver_id=?, comment=?, acted_as=?, "
+            "acted_at=CURRENT_TIMESTAMP WHERE id=?", (uid, comment, acted_as, step['id']))
+        db.execute("UPDATE offer_approvals SET status='rejected', decided_at=CURRENT_TIMESTAMP "
+                   "WHERE id=?", (oid,))
+        _offer_notify(db, off['requester_id'], '오퍼 반려',
+                      u'%s 님 오퍼가 %s 단계에서 반려되었습니다. 사유: %s'
+                      % (off['cand_name'], step['label'] or '', comment),
+                      link=url_for('offer_approval_detail', oid=oid))
+        db.commit()
+        flash('반려했습니다. Hire 오퍼 화면에 사유가 그대로 보입니다.', 'success')
+        return redirect(url_for('offer_approval_detail', oid=oid))
+
+    db.execute(
+        "UPDATE offer_approval_steps SET status='approved', approver_id=?, comment=?, acted_as=?, "
+        "acted_at=CURRENT_TIMESTAMP WHERE id=?", (uid, comment, acted_as, step['id']))
+    db.commit()
+
+    nxt = _offer_current_step(db, oid)
+    if nxt:
+        _notify_offer_step(db, off, nxt)
+        flash(u'승인했습니다. 다음은 %s 단계입니다.' % (nxt['label'] or ''), 'success')
+        return redirect(url_for('offer_approval_detail', oid=oid))
+
+    db.execute("UPDATE offer_approvals SET status='approved', decided_at=CURRENT_TIMESTAMP WHERE id=?",
+               (oid,))
+    _offer_notify(db, off['requester_id'], '오퍼 최종 승인',
+                  u'%s 님 오퍼가 최종 승인되었습니다. Hire 에서 발송할 수 있습니다.' % off['cand_name'],
+                  link=url_for('offer_approval_detail', oid=oid))
+    db.commit()
+    flash('최종 승인했습니다. Hire 에서 오퍼를 보낼 수 있습니다.', 'success')
+    return redirect(url_for('offer_approval_detail', oid=oid))
+
+
+# ── 오퍼 결재 API (Hire 전용) ────────────────────────────────────────
+def _offer_api_db():
+    """토큰을 확인하고 그 회사의 DB 연결을 연다. (연결, 내가 닫아야 하나) 를 돌려준다."""
+    tenant = get_tenant_by_api_token(request.headers.get('X-API-Token', ''))
+    if not tenant:
+        return None, False
+    if tenant['id'] == session.get('tenant_id', 1):
+        return get_db(), False
+    conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
+    conn.row_factory = sqlite3.Row
+    conn.execute('PRAGMA foreign_keys = ON')
+    return conn, True
+
+
+@app.route('/api/offers/approval', methods=['POST'])
+def offer_approval_create_api():
+    """Hire 가 밴드를 넘긴 오퍼를 결재로 올린다.
+
+    인증: X-API-Token (/api/hires · /api/openings 와 같은 열쇠)
+    JSON {ref, cand_name, position_title, opening_code, department_name, level,
+          base, sign, band_lo, band_hi, start_date, requester_core_id, requester_name, note}
+    금액은 만원 단위(Hire 화면과 같은 단위)로 받는다.
+    같은 ref 로 이미 결재 중인 건이 있으면 새로 만들지 않고 그것을 돌려준다.
+    """
+    db, own = _offer_api_db()
+    if db is None:
+        return {'ok': False, 'error': 'invalid token'}, 401
+    try:
+        j    = request.get_json(silent=True) or {}
+        ref  = str(j.get('ref') or '').strip()[:120]
+        name = str(j.get('cand_name') or '').strip()[:60]
+        if not ref or not name:
+            return {'ok': False, 'error': 'ref · cand_name 이 필요합니다'}, 400
+
+        def num(k):
+            try:
+                return max(0, int(j.get(k) or 0))
+            except (TypeError, ValueError):
+                return 0
+
+        prev = _offer_latest(db, ref)
+        # 결재 중이면 그 건을, 이미 승인된 건과 금액이 같으면 그 승인을 돌려준다.
+        # (금액을 고쳐 다시 올리면 새 결재를 태운다)
+        if prev and (prev['status'] == 'pending'
+                     or (prev['status'] == 'approved'
+                         and (prev['base'] or 0) == num('base')
+                         and (prev['sign'] or 0) == num('sign'))):
+            return _offer_state(db, prev), 200
+
+        # 부서 — 공고 번호로 역추적하고, 없으면 부서 이름으로 맞춰 본다
+        dept_id, dept_name = None, str(j.get('department_name') or '').strip()[:60]
+        code = str(j.get('opening_code') or '').strip()[:40]
+        if code:
+            r = db.execute('SELECT department_id FROM job_openings WHERE code=? ORDER BY id DESC LIMIT 1',
+                           (code,)).fetchone()
+            if r:
+                dept_id = r['department_id']
+        if not dept_id and dept_name:
+            r = db.execute('SELECT id FROM departments WHERE name=? LIMIT 1', (dept_name,)).fetchone()
+            if r:
+                dept_id = r['id']
+        if dept_id and not dept_name:
+            r = db.execute('SELECT name FROM departments WHERE id=?', (dept_id,)).fetchone()
+            dept_name = r['name'] if r else ''
+
+        req_id = None
+        try:
+            cand = int(j.get('requester_core_id') or 0)
+        except (TypeError, ValueError):
+            cand = 0
+        if cand:
+            r = db.execute("SELECT id FROM users WHERE id=? AND status='active'", (cand,)).fetchone()
+            req_id = r['id'] if r else None
+
+        cur = db.execute(
+            'INSERT INTO offer_approvals '
+            '(ext_ref, cand_name, position_title, department_id, department_name, opening_code, '
+            ' level, base, sign, band_lo, band_hi, start_date, requester_id, requester_name, note) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            (ref, name, str(j.get('position_title') or '').strip()[:120] or None,
+             dept_id, dept_name or None, code or None,
+             str(j.get('level') or '').strip()[:20] or None,
+             num('base'), num('sign'), num('band_lo'), num('band_hi'),
+             str(j.get('start_date') or '').strip()[:10] or None,
+             req_id, str(j.get('requester_name') or '').strip()[:40] or None,
+             str(j.get('note') or '').strip()[:500] or None))
+        db.commit()
+        off = db.execute('SELECT * FROM offer_approvals WHERE id=?', (cur.lastrowid,)).fetchone()
+        _build_offer_flow(db, off)
+        step = _offer_current_step(db, off['id'])
+        if step:
+            _notify_offer_step(db, off, step)
+        else:
+            # 결재자를 한 명도 못 찾았다 — 사람이 없는데 승인된 척하면 안 된다
+            db.execute("UPDATE offer_approvals SET status='cancelled', decided_at=CURRENT_TIMESTAMP "
+                       "WHERE id=?", (off['id'],))
+            db.commit()
+            return {'ok': False,
+                    'error': '결재자를 찾지 못했습니다 — TalentCore 결재선 설정을 확인해 주세요'}, 409
+        return _offer_state(db, off), 201
+    finally:
+        if own:
+            db.close()
+
+
+@app.route('/api/offers/approval', methods=['GET'])
+def offer_approval_state_api():
+    """이 후보자 오퍼가 지금 어디까지 왔나. ?ref=<Hire 후보자 id>"""
+    db, own = _offer_api_db()
+    if db is None:
+        return {'ok': False, 'error': 'invalid token'}, 401
+    try:
+        ref = (request.args.get('ref') or '').strip()[:120]
+        if not ref:
+            return {'ok': False, 'error': 'ref 가 필요합니다'}, 400
+        off = _offer_latest(db, ref)
+        if not off:
+            return {'ok': True, 'status': 'none'}, 200
+        return _offer_state(db, off), 200
+    finally:
+        if own:
+            db.close()
+
+
+@app.route('/api/offers/approval/cancel', methods=['POST'])
+def offer_approval_cancel_api():
+    """Hire 에서 오퍼를 초안으로 되돌렸다 — 결재함에서 내린다. JSON {ref}"""
+    db, own = _offer_api_db()
+    if db is None:
+        return {'ok': False, 'error': 'invalid token'}, 401
+    try:
+        ref = str((request.get_json(silent=True) or {}).get('ref') or '').strip()[:120]
+        if not ref:
+            return {'ok': False, 'error': 'ref 가 필요합니다'}, 400
+        off = _offer_latest(db, ref)
+        if not off:
+            return {'ok': True, 'status': 'none'}, 200
+        if off['status'] == 'pending':
+            db.execute("UPDATE offer_approvals SET status='cancelled', decided_at=CURRENT_TIMESTAMP "
+                       "WHERE id=?", (off['id'],))
+            db.commit()
+            off = db.execute('SELECT * FROM offer_approvals WHERE id=?', (off['id'],)).fetchone()
+        return _offer_state(db, off), 200
+    finally:
+        if own:
+            db.close()
+
+
 # ── 결재선 서식 관리 ─────────────────────────────────────────────────
 @app.route('/settings/requisition-flow', methods=['GET', 'POST'])
 @admin_required
@@ -14211,7 +14632,7 @@ def requisition_flow_settings():
                 dg = None
             db.execute('UPDATE approval_roles SET user_id=?, delegate_id=? WHERE key=?', (u, dg, key))
         db.execute('DELETE FROM requisition_flow_steps')
-        for ht in REQUISITION_HIRE_TYPE_LABEL:
+        for ht in FLOW_KIND_LABEL:
             step_no = 0
             for i in range(1, 7):
                 kind = f.get('%s_kind_%d' % (ht, i), '')
@@ -14234,7 +14655,7 @@ def requisition_flow_settings():
         flash('결재선 저장 완료 · 진행 중인 요청서는 기존 결재선 유지', 'success')
         return redirect(url_for('requisition_flow_settings'))
 
-    flows = {ht: _flow_template(db, ht) for ht in REQUISITION_HIRE_TYPE_LABEL}
+    flows = {ht: _flow_template(db, ht) for ht in FLOW_KIND_LABEL}
     people = db.execute(
         "SELECT u.id, u.name, p.name AS pos_name, d.name AS dept_name FROM users u "
         "LEFT JOIN positions p ON u.position_id=p.id "
@@ -14244,8 +14665,8 @@ def requisition_flow_settings():
     return render_template('hiring/requisition_flow.html',
         flows=flows, people=people,
         exec_roles=roles,
-        hire_type_labels=REQUISITION_HIRE_TYPE_LABEL,
-        hire_type_hints=REQUISITION_HIRE_TYPE_HINT,
+        hire_type_labels=FLOW_KIND_LABEL,
+        hire_type_hints=FLOW_KIND_HINT,
         role_labels=FLOW_ROLE_LABEL,
         role_hints=FLOW_ROLE_HINT,
         active_page='reqflow'

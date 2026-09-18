@@ -38,6 +38,7 @@
   {'key':'hiring', 'label':'채용', 'gi':'fa-user-plus', 'items':[
     {'l':'채용 요청', 'u':url_for('requisition_list'), 'p':['requisition'], 's':R in ('admin','manager','recruiter'), 'i':'fa-file-signature'},
     {'l':'충원 현황', 'u':url_for('opening_board'), 'p':['opening'], 's':R in ('admin','manager','recruiter'), 'i':'fa-id-badge'},
+    {'l':'오퍼 결재', 'u':url_for('offer_approvals'), 'p':['offerappr'], 's':R in ('admin','manager','recruiter'), 'i':'fa-stamp'},
     {'l':'입사 예정자', 'u':url_for('hires_list'), 'p':['hires'], 's':R in ('admin','recruiter'), 'i':'fa-door-open'},
   ]},
   {'key':'people', 'label':'인사', 'gi':'fa-users', 'items':[

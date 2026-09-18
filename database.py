@@ -1343,6 +1343,52 @@ def init_db(db_path: str = None):
         c.execute('CREATE INDEX IF NOT EXISTS idx_reqappr_req ON requisition_approvals(requisition_id)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_reqappr_open ON requisition_approvals(status, approver_id)')
 
+        # 오퍼 밴드 초과 결재 — Hire 에서 올라온다. 요청서 결재와 같은 모양이라
+        # 결재선 계획·대결·본인회피 규칙(_plan_flow)을 그대로 쓴다.
+        c.execute('''CREATE TABLE IF NOT EXISTS offer_approvals (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            ext_ref         TEXT NOT NULL,
+            cand_name       TEXT NOT NULL,
+            position_title  TEXT,
+            department_id   INTEGER REFERENCES departments(id),
+            department_name TEXT,
+            opening_code    TEXT,
+            level           TEXT,
+            base            INTEGER NOT NULL DEFAULT 0,
+            sign            INTEGER NOT NULL DEFAULT 0,
+            band_lo         INTEGER NOT NULL DEFAULT 0,
+            band_hi         INTEGER NOT NULL DEFAULT 0,
+            start_date      TEXT,
+            requester_id    INTEGER REFERENCES users(id),
+            requester_name  TEXT,
+            note            TEXT,
+            status          TEXT NOT NULL DEFAULT 'pending'
+                            CHECK(status IN ('pending','approved','rejected','cancelled')),
+            decided_at      TIMESTAMP,
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS offer_approval_steps (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            offer_id    INTEGER NOT NULL REFERENCES offer_approvals(id) ON DELETE CASCADE,
+            step_no     INTEGER NOT NULL,
+            role_kind   TEXT NOT NULL DEFAULT 'hr',
+            exec_key    TEXT,
+            label       TEXT,
+            assignee_id INTEGER REFERENCES users(id),
+            delegate_id INTEGER REFERENCES users(id),
+            approver_id INTEGER REFERENCES users(id),
+            acted_as    TEXT,
+            route_note  TEXT,
+            status      TEXT NOT NULL DEFAULT 'waiting'
+                        CHECK(status IN ('waiting','approved','rejected')),
+            comment     TEXT,
+            due_at      TIMESTAMP,
+            acted_at    TIMESTAMP,
+            UNIQUE(offer_id, step_no)
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_offappr_open ON offer_approval_steps(status, assignee_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_offappr_ref ON offer_approvals(ext_ref, id)')
+
         # 자리 카드 — 승인된 요청서 1건이 headcount 만큼의 카드로 쪼개진다.
         # 사람이 나가도 카드는 남는다. Hire(ATS)로 넘어가는 단위가 바로 이 카드다.
         c.execute('''CREATE TABLE IF NOT EXISTS job_openings (

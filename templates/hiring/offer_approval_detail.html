@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+{% block title %}오퍼 결재 · {{ off.cand_name }}{% endblock %}
+{% block page_title %}오퍼 결재{% endblock %}
+
+{% block content %}
+<div style="max-width:860px;">
+
+  <a href="{{ url_for('offer_approvals') }}" class="btn btn-ghost btn-sm" style="margin-bottom:14px;">
+    <i class="fas fa-arrow-left"></i> 목록
+  </a>
+
+  <!-- 무엇을 결재하는가 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head">
+      <span class="card-title">{{ off.cand_name }}
+        <span style="font-size:12px; font-weight:400; color:var(--tx-3); margin-left:8px;">
+          {{ off.position_title or '직무 미기재' }}{% if off.level %} · {{ off.level }}{% endif %}
+        </span>
+      </span>
+      {% set sc = {
+        'pending':   ('var(--orange-bg)','var(--wait)'),
+        'approved':  ('var(--green-bg)','var(--done)'),
+        'rejected':  ('var(--red-bg)','var(--late)'),
+        'cancelled': ('var(--surface-2)','var(--tx-3)'),
+      }.get(off.status, ('var(--surface-2)','var(--tx-2)')) %}
+      <span style="font-size:11px; padding:3px 9px; border-radius:99px;
+                   background:{{ sc[0] }}; color:{{ sc[1] }}; font-weight:700;">
+        {{ status_labels.get(off.status, off.status) }}
+      </span>
+    </div>
+    <div class="card-body" style="padding:16px 20px;">
+      <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+        <span style="font-size:24px; font-weight:800;">{{ '{:,}'.format(off.base) }}<span style="font-size:13px; font-weight:500; color:var(--tx-3);">만원</span></span>
+        <span style="font-size:12px; color:var(--tx-3);">기본 연봉</span>
+        {% if off.sign %}<span style="font-size:12px; color:var(--tx-2);">· 사이닝 {{ '{:,}'.format(off.sign) }}만원</span>{% endif %}
+        {% if off.band_hi and off.base > off.band_hi %}
+        <span style="font-size:11.5px; font-weight:700; padding:3px 8px; border-radius:99px;
+                     background:var(--orange-bg); color:var(--wait);">
+          밴드 상한 +{{ '{:,}'.format(off.base - off.band_hi) }}만원
+        </span>
+        {% endif %}
+      </div>
+      <table class="data-table" style="margin:0;">
+        <tbody>
+          <tr><th style="width:130px;">공고 밴드</th>
+              <td>{{ '{:,}'.format(off.band_lo) }} ~ {{ '{:,}'.format(off.band_hi) }}만원</td></tr>
+          <tr><th>부서</th><td>{{ off.department_name or '-' }}</td></tr>
+          <tr><th>포지션 번호</th>
+              <td style="font-family:monospace; font-size:12px;">{{ off.opening_code or '-' }}</td></tr>
+          <tr><th>입사 예정일</th><td>{{ off.start_date or '미정' }}</td></tr>
+          <tr><th>올린 사람</th>
+              <td>{{ off.requester_name or '-' }} <span style="color:var(--tx-3); font-size:12px;">· Hire</span></td></tr>
+          {% if off.note %}
+          <tr><th>사유</th><td style="white-space:pre-wrap;">{{ off.note }}</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 결재 진행 -->
+  {% if steps %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head">
+      <span class="card-title">결재 진행</span>
+      <span style="font-size:11.5px; color:var(--tx-3);">오퍼 밴드 초과 · {{ steps|length }}단계</span>
+    </div>
+    <div class="card-body" style="padding:16px 20px;">
+      {% for st in steps %}
+      <div style="display:flex; gap:12px; align-items:flex-start; padding:10px 0;
+                  {% if not loop.last %}border-bottom:1px solid var(--border);{% endif %}">
+        <div style="width:28px; height:28px; border-radius:50%; flex:none;
+                    display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800;
+                    background:{% if st.status == 'approved' %}var(--primary){% elif st.status == 'rejected' %}var(--red-bg){% elif cur_step and st.id == cur_step.id %}var(--orange-bg){% else %}var(--bg-3){% endif %};
+                    color:{% if st.status == 'approved' %}var(--surface){% elif st.status == 'rejected' %}var(--red){% elif cur_step and st.id == cur_step.id %}var(--orange){% else %}var(--tx-3){% endif %};">
+          {% if st.status == 'approved' %}<i class="fas fa-check"></i>
+          {% elif st.status == 'rejected' %}<i class="fas fa-times"></i>
+          {% else %}{{ st.step_no }}{% endif %}
+        </div>
+        <div style="flex:1; min-width:0;">
+          <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;">
+            <span style="font-size:12px; color:var(--tx-2); min-width:110px;">{{ st.label or role_labels.get(st.role_kind, '') }}</span>
+            {% if st.assignee_name %}
+            <span style="font-size:13px; font-weight:600; color:var(--tx-1);">{{ st.assignee_name }}</span>
+            <span style="font-size:11.5px; color:var(--tx-3);">{{ ((st.assignee_pos or '').replace(' — ', ' '), st.assignee_dept) | select | join(' · ') }}</span>
+            {% endif %}
+          </div>
+          {% if st.route_note %}
+          <div style="font-size:11px; color:var(--wait); margin-top:2px;">{{ st.route_note }}</div>
+          {% endif %}
+          <div style="font-size:11.5px; color:var(--tx-3); margin-top:3px;">
+            {% set how = acted_labels.get(st.acted_as or 'self', '') %}
+            {% if st.status == 'approved' %}
+              {{ st.approver_name or '—' }} 승인{% if how %} ({{ how }}){% endif %} · {{ st.acted_at[:16] if st.acted_at else '' }}
+            {% elif st.status == 'rejected' %}
+              {{ st.approver_name or '—' }} 반려{% if how %} ({{ how }}){% endif %} · {{ st.acted_at[:16] if st.acted_at else '' }}
+            {% elif cur_step and st.id == cur_step.id %}
+              대기 중{% if st.due_at %} · {{ st.due_at[:10] }}까지{% endif %}
+              {% if st.delegate_name %} · 부재 시 대결 {{ st.delegate_name }}{% endif %}
+            {% else %}
+              앞 단계 완료 후 시작{% if st.delegate_name %} · 부재 시 대결 {{ st.delegate_name }}{% endif %}
+            {% endif %}
+          </div>
+          {% if st.comment %}
+          <div style="margin-top:6px; font-size:12px; color:var(--tx-2); background:var(--bg);
+                      padding:7px 10px; border-radius:6px; white-space:pre-wrap;">{{ st.comment }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 지금 차례인 결재 -->
+  {% if cur_step and can_act %}
+  <div class="card" style="margin-bottom:16px; border:2px solid var(--orange);">
+    <div class="card-head" style="background:var(--orange-bg);">
+      <span class="card-title">
+        <i class="fas fa-user-check" style="margin-right:6px; color:var(--orange);"></i>
+        {{ cur_step.step_no }}단계 — {{ cur_step.label or role_labels.get(cur_step.role_kind, '') }} 결재 대기
+      </span>
+    </div>
+    <div class="card-body">
+      <p style="font-size:13px; color:var(--tx-2); margin-bottom:12px;">
+        {% if steps and cur_step.step_no == steps|length %}
+        최종 단계 — 승인하면 Hire 에서 이 오퍼를 후보자에게 보낼 수 있습니다.
+        {% else %}
+        잔여 결재 {{ steps|length - cur_step.step_no }}단계
+        {% endif %}
+      </p>
+      <form method="POST" action="{{ url_for('offer_approval_act', oid=off.id) }}" style="margin:0;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="approve">
+        <textarea name="comment" class="form-control" rows="2" style="resize:none; margin-bottom:10px;"
+                  placeholder="의견 (선택)"></textarea>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="submit" class="btn btn-primary"
+                  onclick="return confirm('이 단계를 승인합니다.');">
+            <i class="fas fa-check"></i> 승인
+          </button>
+          <button type="button" class="btn btn-danger"
+                  onclick="document.getElementById('reject-modal').style.display='flex'">
+            <i class="fas fa-times"></i> 반려
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% elif cur_step %}
+  <div class="info-banner" style="margin-bottom:16px;">
+    <i class="fas fa-hourglass-half"></i>
+    지금은 <strong>{{ cur_step.label or role_labels.get(cur_step.role_kind, '') }}</strong> 결재 대기입니다.
+    {% if cur_step.due_at %} {{ cur_step.due_at[:10] }}까지 처리를 기다립니다.{% endif %}
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- 반려 모달 -->
+<div id="reject-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:var(--bg-1); border-radius:12px; padding:24px; width:400px; max-width:90vw;">
+    <h3 style="margin:0 0 12px; font-size:16px;">오퍼 반려</h3>
+    <p style="font-size:12px; color:var(--tx-3); margin:0 0 12px;">
+      여기 적는 사유가 Hire 오퍼 화면에 그대로 보입니다.
+    </p>
+    <form method="POST" action="{{ url_for('offer_approval_act', oid=off.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="reject">
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label">반려 사유 <span style="color:var(--red);">*</span></label>
+        <textarea name="comment" class="form-control" rows="3" required
+                  style="resize:none;" placeholder="예: 밴드 상한 대비 과다 — 입사 6개월 후 재검토"></textarea>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button type="button" class="btn btn-ghost"
+                onclick="document.getElementById('reject-modal').style.display='none'">취소</button>
+        <button type="submit" class="btn btn-danger">반려</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

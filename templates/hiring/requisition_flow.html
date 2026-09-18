@@ -106,7 +106,7 @@
     </table>
   </div>
 
-  <div class="rf-sec">충원 구분별 단계 <small>결원 충원은 인건비 증가 없음 · 계획/예산 외 증원은 인건비 증가 · 최대 6단계</small></div>
+  <div class="rf-sec">종류별 단계 <small>결원 충원은 인건비 증가 없음 · 계획/예산 외 증원은 인건비 증가 · 오퍼는 Hire 에서 올라온다 · 최대 6단계</small></div>
 
   {% for ht, label in hire_type_labels.items() %}
   {% set steps = flows.get(ht, []) %}
