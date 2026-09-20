@@ -4446,6 +4446,83 @@ def directory_api():
     }
 
 
+@app.route('/api/training/snapshot', methods=['GET'])
+def training_snapshot_api():
+    """연습(교육) 검사용 스냅숏 — Grow 교육 모드가 "배우는 사람이 진짜 화면에서
+    무엇을 했는가"를 확인할 때 쓰는 문.
+
+    읽기 전용이다. 쓰기는 두지 않는다 — 검사기가 데이터를 고치기 시작하면
+    배운 게 아니라 채점이 결과를 만들어 버린다.
+
+    인증: X-API-Token (/api/directory · /api/openings 와 같은 열쇠)
+    질의: ?since=YYYY-MM-DD HH:MM:SS (그 시각 이후 만들어진 요청서만) · ?limit=N
+    """
+    tenant = get_tenant_by_api_token(request.headers.get('X-API-Token', ''))
+    if not tenant:
+        return {'ok': False, 'error': 'invalid token'}, 401
+
+    since = (request.args.get('since') or '').strip()
+    try:
+        limit = max(1, min(int(request.args.get('limit') or 30), 100))
+    except ValueError:
+        limit = 30
+
+    conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
+    conn.row_factory = sqlite3.Row
+    try:
+        args, where = [], ''
+        if since:
+            where = 'WHERE r.created_at >= ? '
+            args.append(since)
+        reqs = conn.execute(
+            'SELECT r.id, r.title, r.status, r.hire_type, r.headcount, r.department_id, '
+            '       r.requester_id, r.target_start_date, r.salary_min, r.salary_max, '
+            '       r.backfill_user_id, r.collab_leader_id, r.created_at, r.updated_at, '
+            '       d.name AS dept, u.name AS requester, bu.name AS backfill_name '
+            'FROM job_requisitions r '
+            'LEFT JOIN departments d ON d.id = r.department_id '
+            'LEFT JOIN users u  ON u.id  = r.requester_id '
+            'LEFT JOIN users bu ON bu.id = r.backfill_user_id '
+            + where +
+            'ORDER BY r.id DESC LIMIT ?', args + [limit]).fetchall()
+
+        ids   = [r['id'] for r in reqs]
+        marks = ','.join('?' * len(ids))
+        lines = apprs = opens = []
+        if ids:
+            lines = conn.execute(
+                'SELECT requisition_id, seq, headcount, position_id, salary_min, salary_max '
+                'FROM requisition_lines WHERE requisition_id IN (%s) ORDER BY seq' % marks,
+                ids).fetchall()
+            apprs = conn.execute(
+                'SELECT requisition_id, step_no, label, role_kind, status, approver_id, acted_at '
+                'FROM requisition_approvals WHERE requisition_id IN (%s) ORDER BY requisition_id, step_no' % marks,
+                ids).fetchall()
+            opens = conn.execute(
+                'SELECT o.id, o.requisition_id, o.seq, o.code, o.title, o.status, '
+                '       o.external_ref, o.created_at, d.name AS dept '
+                'FROM job_openings o LEFT JOIN departments d ON d.id = o.department_id '
+                'WHERE o.requisition_id IN (%s) ORDER BY o.id' % marks, ids).fetchall()
+        hires = conn.execute(
+            'SELECT id, name, start_date, department_name, position_name, status, '
+            '       opening_id, req_ref, created_at '
+            'FROM incoming_hires ORDER BY id DESC LIMIT ?', (limit,)).fetchall()
+    finally:
+        conn.close()
+
+    def rows_of(rows, rid):
+        return [dict(x) for x in rows if x['requisition_id'] == rid]
+
+    return {
+        'ok': True,
+        'as_of': datetime.now().isoformat(timespec='seconds'),
+        'requisitions': [dict(r, lines=rows_of(lines, r['id']),
+                              approvals=rows_of(apprs, r['id']),
+                              openings=rows_of(opens, r['id'])) for r in reqs],
+        'incoming_hires': [dict(h) for h in hires],
+    }
+
+
 @app.route('/employees/<int:emp_id>/edit', methods=['GET', 'POST'])
 @admin_required
 def employee_edit(emp_id):
