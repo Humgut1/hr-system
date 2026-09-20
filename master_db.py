@@ -387,30 +387,41 @@ def update_billing_log(toss_order_id: str, payment_key: str, status: str,
 
 
 # ── 구독 상태 컬럼 마이그레이션 ─────────────────────────────────
+def _add_column(conn, table, col, definition):
+    """칼럼 추가 (멱등 + 동시 실행 안전).
+
+    앱이 뜰 때 워커 여러 개가 동시에 이 함수를 지난다. 'PRAGMA 로 확인 →
+    ALTER' 사이에 다른 워커가 먼저 넣으면 duplicate column 으로 죽는다
+    (실제로 운영에서 워커 하나가 부팅에 실패했다). 이미 있으면 그냥 넘어간다.
+    """
+    cols = [row[1] for row in conn.execute(f'PRAGMA table_info({table})')]
+    if col in cols:
+        return
+    try:
+        conn.execute(f'ALTER TABLE {table} ADD COLUMN {col} {definition}')
+    except sqlite3.OperationalError as exc:
+        if 'duplicate column' not in str(exc).lower():
+            raise
+
+
 def migrate_subscriptions():
     """grace_until 등 신규 컬럼 추가 (멱등)"""
     conn = get_master_db()
-    existing = [row[1] for row in conn.execute('PRAGMA table_info(subscriptions)')]
     for col, definition in [
         ('grace_until',          'DATE'),
         ('payment_retry_count',  'INTEGER NOT NULL DEFAULT 0'),
         ('last_payment_attempt', 'TIMESTAMP'),
     ]:
-        if col not in existing:
-            conn.execute(f'ALTER TABLE subscriptions ADD COLUMN {col} {definition}')
+        _add_column(conn, 'subscriptions', col, definition)
     # tenants.plan (Phase B-7 요금제 3계층)
-    t_cols = [row[1] for row in conn.execute('PRAGMA table_info(tenants)')]
-    if 'plan' not in t_cols:
-        conn.execute("ALTER TABLE tenants ADD COLUMN plan TEXT NOT NULL DEFAULT 'growth'")
-        # 데모 테넌트(1)도 growth — 채용 ATS·Enterprise 기능은 데모에서 숨김 (2026-07-15 승헌씨 지시)
-        # 필요 시 SaaS 슈퍼어드민(/saas)에서 요금제 변경으로 다시 열 수 있음
+    # 데모 테넌트(1)도 growth — 채용 ATS·Enterprise 기능은 데모에서 숨김 (2026-07-15 승헌씨 지시)
+    # 필요 시 SaaS 슈퍼어드민(/saas)에서 요금제 변경으로 다시 열 수 있음
+    _add_column(conn, 'tenants', 'plan', "TEXT NOT NULL DEFAULT 'growth'")
     # tenants.api_token (Phase C-11 — 입사 예정자 웹훅 수신 인증)
-    if 'api_token' not in t_cols:
-        conn.execute('ALTER TABLE tenants ADD COLUMN api_token TEXT')
+    _add_column(conn, 'tenants', 'api_token', 'TEXT')
     # tenants.is_training (Grow 교육 모드 — 연습 회사 표시)
     # 연습 전용 기능(비밀번호 없는 입장·처음으로 되돌리기)은 이 값이 1인 테넌트에만 열린다.
-    if 'is_training' not in t_cols:
-        conn.execute('ALTER TABLE tenants ADD COLUMN is_training INTEGER NOT NULL DEFAULT 0')
+    _add_column(conn, 'tenants', 'is_training', 'INTEGER NOT NULL DEFAULT 0')
     conn.execute('''
         CREATE TABLE IF NOT EXISTS training_tickets (
             token      TEXT PRIMARY KEY,
