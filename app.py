@@ -37,6 +37,7 @@ from master_db import (
     seed_default_superadmin, get_superadmin_by_username,
     list_tenants_with_state, set_tenant_status,
     get_or_create_api_token, regenerate_api_token, get_tenant_by_api_token,
+    issue_training_ticket, use_training_ticket, TRAINING_TICKET_SECONDS,
 )
 
 app = Flask(__name__)
@@ -344,7 +345,8 @@ def get_leave_balance(db, user_id, year=None, include_pending=False):
 # 외부 서비스가 직접 호출하는 엔드포인트 (자체 서명 검증으로 보호됨)
 CSRF_EXEMPT_ENDPOINTS = {'billing_webhook', 'slack_command', 'slack_interactive', 'hires_webhook',
                          'workplace_rooms_book_api', 'workplace_rooms_cancel_api', 'sso_hire_verify',
-                         'offer_approval_create_api', 'offer_approval_cancel_api'}
+                         'offer_approval_create_api', 'offer_approval_cancel_api',
+                         'training_ticket_api', 'training_reset_api'}
 
 
 def _get_csrf_token():
@@ -4521,6 +4523,91 @@ def training_snapshot_api():
                               openings=rows_of(opens, r['id'])) for r in reqs],
         'incoming_hires': [dict(h) for h in hires],
     }
+
+
+# ── 연습(교육) 회사 — Grow 교육 모드 ─────────────────────────
+# 연습 테넌트(is_training=1)에만 열린다. 실제 회사 데이터는 다른 DB 파일에 있고
+# 이 아래 어떤 길로도 닿지 않는다.
+
+def _training_tenant_or_error():
+    """X-API-Token 으로 연습 테넌트를 찾는다. (tenant, 오류응답) 중 하나를 채워 준다."""
+    tenant = get_tenant_by_api_token(request.headers.get('X-API-Token', ''))
+    if not tenant:
+        return None, ({'ok': False, 'error': 'invalid token'}, 401)
+    try:
+        is_training = bool(tenant['is_training'])
+    except (IndexError, KeyError):
+        is_training = False
+    if not is_training:
+        return None, ({'ok': False, 'error': 'not a training tenant'}, 403)
+    return tenant, None
+
+
+@app.route('/api/training/ticket', methods=['POST'])
+def training_ticket_api():
+    """연습 회사 입장표 발급 — 2분짜리 일회용. Grow 서버만 부른다(토큰 필요).
+
+    비밀번호 없는 입장을 이렇게 만든 이유: 링크에 긴 비밀값을 박아 두면
+    그 링크가 곧 열쇠가 된다. 한 번 쓰면 죽는 표는 새어 나가도 쓸 수 없다.
+    """
+    tenant, err = _training_tenant_or_error()
+    if err:
+        return err
+    ticket = issue_training_ticket(tenant['id'])
+    base = request.url_root.rstrip('/')
+    return {'ok': True, 'ticket': ticket,
+            'url': f'{base}/training/enter?t={ticket}',
+            'seconds': TRAINING_TICKET_SECONDS}
+
+
+@app.route('/api/training/reset', methods=['POST'])
+def training_reset_api():
+    """연습 회사를 처음 상태로 되돌린다 — 연습 테넌트 DB만 지우고 다시 만든다."""
+    tenant, err = _training_tenant_or_error()
+    if err:
+        return err
+    if tenant['id'] == 1:
+        return {'ok': False, 'error': 'refused'}, 403
+    try:
+        from training_company import reset_training_company
+        reset_training_company(tenant['id'])
+    except Exception as exc:                      # 파일이 열려 있으면 지울 수 없다
+        app.logger.warning('training reset failed: %s', exc)
+        return {'ok': False, 'error': 'reset failed'}, 500
+    return {'ok': True, 'tenant_id': tenant['id']}
+
+
+@app.route('/training/enter')
+def training_enter():
+    """입장표를 들고 오면 연습 회사 담당자로 로그인시킨다(비밀번호 없음)."""
+    tenant = use_training_ticket(request.args.get('t', ''))
+    if not tenant:
+        flash('연습 회사 입장표가 만료되었습니다. Grow에서 다시 들어와 주세요.', 'error')
+        return redirect(url_for('login'))
+
+    from training_company import training_admin
+    user = training_admin(get_tenant_db_path(tenant['id']))
+    if not user:
+        flash('연습 회사가 아직 준비되지 않았습니다.', 'error')
+        return redirect(url_for('login'))
+
+    session.clear()
+    session['tenant_id']     = tenant['id']
+    session['user_id']       = user['id']
+    session['user_name']     = user['name']
+    session['user_role']     = user['role']
+    session['user_email']    = user['email']
+    session['dept_name']     = user['dept_name'] or ''
+    session['pos_name']      = user['pos_name']  or ''
+    session['dept_id']       = user['department_id'] or 0
+    session['onboarded']     = 1
+    session['training_mode'] = True
+    session['show_tour']     = False
+
+    nxt = request.args.get('next', '')
+    if not nxt.startswith('/') or nxt.startswith('//'):
+        nxt = url_for('dashboard')
+    return redirect(nxt)
 
 
 @app.route('/employees/<int:emp_id>/edit', methods=['GET', 'POST'])

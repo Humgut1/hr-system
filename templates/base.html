@@ -132,7 +132,16 @@
 
   <!-- ══ 본문 ══════════════════════════════════════ -->
   <div class="main-wrapper">
-    {% if session.demo_mode or R == 'guest' %}
+    {% if session.training_mode %}
+    <div class="mode-strip">
+      <span class="dot"></span>
+      <b>연습 회사</b>
+      <span>여기서 한 일은 실제 회사 데이터에 영향을 주지 않습니다</span>
+      <span class="sp">
+        <span>{{ session.user_name }}{% if session.dept_name %} · {{ session.dept_name }}{% endif %}</span>
+      </span>
+    </div>
+    {% elif session.demo_mode or R == 'guest' %}
     <div class="mode-strip">
       <span class="dot"></span>
       <b>{% if session.demo_mode %}체험 모드{% else %}게스트 모드{% endif %}</b>

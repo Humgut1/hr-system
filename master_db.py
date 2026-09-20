@@ -407,8 +407,80 @@ def migrate_subscriptions():
     # tenants.api_token (Phase C-11 — 입사 예정자 웹훅 수신 인증)
     if 'api_token' not in t_cols:
         conn.execute('ALTER TABLE tenants ADD COLUMN api_token TEXT')
+    # tenants.is_training (Grow 교육 모드 — 연습 회사 표시)
+    # 연습 전용 기능(비밀번호 없는 입장·처음으로 되돌리기)은 이 값이 1인 테넌트에만 열린다.
+    if 'is_training' not in t_cols:
+        conn.execute('ALTER TABLE tenants ADD COLUMN is_training INTEGER NOT NULL DEFAULT 0')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS training_tickets (
+            token      TEXT PRIMARY KEY,
+            tenant_id  INTEGER NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            used_at    TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
     conn.commit()
     conn.close()
+
+
+# ── 연습(교육) 회사 ──────────────────────────────────────────
+TRAINING_TICKET_SECONDS = 120   # 입장표 유효 시간
+
+
+def get_training_tenant():
+    """연습 테넌트 1건 (없으면 None)."""
+    conn = get_master_db()
+    row = conn.execute(
+        'SELECT * FROM tenants WHERE is_training=1 ORDER BY id LIMIT 1').fetchone()
+    conn.close()
+    return row
+
+
+def mark_training_tenant(tenant_id: int):
+    """이 테넌트를 연습 회사로 표시 + 체험 만료로 잠기지 않게 한다."""
+    far = (date.today() + timedelta(days=3650)).isoformat()
+    conn = get_master_db()
+    conn.execute("UPDATE tenants SET is_training=1, status='trial', plan='enterprise', "
+                 'trial_ends_at=? WHERE id=?', (far, tenant_id))
+    taken = conn.execute("SELECT id FROM tenants WHERE slug='training' AND id<>?",
+                         (tenant_id,)).fetchone()
+    if not taken:
+        conn.execute("UPDATE tenants SET slug='training' WHERE id=?", (tenant_id,))
+    conn.execute("UPDATE subscriptions SET status='trialing', current_period_end=? "
+                 'WHERE tenant_id=?', (far, tenant_id))
+    conn.commit()
+    conn.close()
+
+
+def issue_training_ticket(tenant_id: int) -> str:
+    """연습 회사 입장표 발급 — 한 번만, 2분만 쓸 수 있다."""
+    import secrets
+    from datetime import datetime
+    token = secrets.token_urlsafe(24)
+    exp = (datetime.utcnow() + timedelta(seconds=TRAINING_TICKET_SECONDS)).strftime('%Y-%m-%d %H:%M:%S')
+    conn = get_master_db()
+    conn.execute("DELETE FROM training_tickets WHERE expires_at < datetime('now','-1 day')")
+    conn.execute('INSERT INTO training_tickets (token, tenant_id, expires_at) VALUES (?,?,?)',
+                 (token, tenant_id, exp))
+    conn.commit()
+    conn.close()
+    return token
+
+
+def use_training_ticket(token: str):
+    """입장표를 쓴다 — 한 번 쓰면 다시 못 쓴다. 성공하면 tenant row 반환."""
+    if not token:
+        return None
+    conn = get_master_db()
+    row = conn.execute(
+        "SELECT t.* FROM training_tickets k JOIN tenants t ON t.id=k.tenant_id "
+        "WHERE k.token=? AND k.used_at IS NULL AND k.expires_at >= datetime('now') "
+        'AND t.is_training=1', (token,)).fetchone()
+    if row:
+        conn.execute("UPDATE training_tickets SET used_at=datetime('now') WHERE token=?", (token,))
+        conn.commit()
+    conn.close()
+    return row
 
 
 def get_or_create_api_token(tenant_id):
