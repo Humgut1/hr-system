@@ -158,6 +158,7 @@
           <td>
             {{ h.position_name or '—' }}
             {% if h.job_title %}<div style="font-size:11px; color:var(--tx-3);">{{ h.job_title }}</div>{% endif %}
+            {% if h.jp_name %}<div style="font-size:11px; color:var(--tx-3);">세부 직무 · {{ h.jp_name }}</div>{% endif %}
             {% if h.opening_code %}
             <div style="font-size:11px; color:var(--tx-3); font-family:monospace; margin-top:2px;">
               {{ h.opening_code }}{% if h.opening_level %} · {{ h.opening_pos or 'L' ~ h.opening_level }}{% endif %}
@@ -277,6 +278,15 @@
           <input type="text" name="salary" class="input" placeholder="52,000,000">
         </div>
       </div>
+      {% if jps %}
+      <div class="field">
+        <label class="form-label">세부 직무 <span style="font-weight:400; color:var(--tx-3);">(직무 교육 과정 기준)</span></label>
+        <select name="job_profile_id" class="input">
+          <option value="">없음</option>
+          {% for jp in jps %}<option value="{{ jp.id }}">{{ jp.family_name or '' }} · {{ jp.name }}</option>{% endfor %}
+        </select>
+      </div>
+      {% endif %}
       <div class="field">
         <label class="form-label">메모</label>
         <input type="text" name="memo" class="input" placeholder="예: 그리팅 합격자, 오퍼 수락 완료">

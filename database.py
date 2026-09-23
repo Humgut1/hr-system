@@ -2363,6 +2363,10 @@ def init_db(db_path: str = None):
         import workplace
         workplace.ensure_schema(c)
 
+        # ── Grow 직무 교육: 세부 직무·교육 기록 (learning.py) ──
+        import learning
+        learning.ensure_schema(c)
+
         conn.commit()
     finally:
         conn.close()

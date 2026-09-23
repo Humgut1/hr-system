@@ -344,7 +344,7 @@ def get_leave_balance(db, user_id, year=None, include_pending=False):
 
 # 외부 서비스가 직접 호출하는 엔드포인트 (자체 서명 검증으로 보호됨)
 CSRF_EXEMPT_ENDPOINTS = {'billing_webhook', 'slack_command', 'slack_interactive', 'hires_webhook',
-                         'workplace_rooms_book_api', 'workplace_rooms_cancel_api', 'sso_hire_verify',
+                         'workplace_rooms_book_api', 'workplace_rooms_cancel_api', 'sso_hire_verify', 'learning_progress_api',
                          'offer_approval_create_api', 'offer_approval_cancel_api',
                          'training_ticket_api', 'training_reset_api'}
 
@@ -881,7 +881,7 @@ def login():
                         session.pop('subscription_expired', None)
 
                 log_audit('login', 'auth', user['id'], f'로그인 성공 ({email})')
-                if sso_next.startswith('/sso/hire?'):
+                if sso_next.startswith(('/sso/hire?', '/sso/grow?')):
                     return redirect(sso_next)
                 return redirect(url_for('dashboard'))
             log_audit('login_failed', 'auth', None, f'로그인 실패 ({email})')
@@ -2374,6 +2374,7 @@ def employee_detail(emp_id):
     }
 
     return render_template('employees/detail.html',
+                           learn=__import__('learning').summary(db, emp_id),
                            emp=emp, payslips=payslips, leaves=leaves,
                            goals=goals, cycle=cycle,
                            annual_leave=annual_leave, used_leave=used_leave,
@@ -3070,6 +3071,7 @@ def employee_new():
     depts   = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
     poses   = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
     jfs     = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
+    jps     = __import__('learning').all_profiles(db)
     managers = db.execute(
         "SELECT id, name FROM users WHERE role IN ('admin','manager') AND status='active' ORDER BY name"
     ).fetchall()
@@ -3106,6 +3108,9 @@ def employee_new():
             )
             new_id = cur.lastrowid
             db.execute("UPDATE users SET emp_no = 'TC-' || printf('%05d', id) WHERE id=?", (new_id,))
+            # 세부 직무 — Grow 직무 교육 과정이 이 값으로 정해진다
+            db.execute('UPDATE users SET job_profile_id=? WHERE id=?',
+                       (request.form.get('job_profile_id', type=int), new_id))
             # 지원자→직원 전환: applicant에 hired_employee_id 연결
             from_applicant_id = request.form.get('from_applicant', type=int)
             if from_applicant_id:
@@ -3240,9 +3245,15 @@ def employee_new():
                 'hire_date':     h['start_date'] or '',
                 'from_hire':     from_hire_id,
             }
+            # 입사 예정자에 적힌 세부 직무를 그대로 넘긴다(직군도 같이)
+            jp_id = h['job_profile_id'] if 'job_profile_id' in h.keys() else None
+            jp = next((x for x in jps if x['id'] == jp_id), None)
+            if jp:
+                prefill['job_profile_id'] = jp['id']
+                prefill['job_family_id'] = jp['job_family_id']
 
     return render_template('employees/form.html',
-                           mode='new', depts=depts, poses=poses, jfs=jfs,
+                           mode='new', depts=depts, poses=poses, jfs=jfs, jps=jps,
                            managers=managers, error=error, emp=None,
                            prefill=prefill,
                            active_page='employees')
@@ -3804,9 +3815,13 @@ def hires_list():
 
     upcoming = workplace.upcoming_start_days(db, today) if status_filter == 'waiting' else []
 
+    import learning
+    jp_names = {p['id']: p['name'] for p in learning.all_profiles(db)}
+    for d in hires:
+        d['jp_name'] = jp_names.get(d.get('job_profile_id'))
     return render_template('hires/list.html',
                            hires=hires, counts=counts, status_filter=status_filter,
-                           source_label=HIRE_SOURCE_LABEL,
+                           source_label=HIRE_SOURCE_LABEL, jps=learning.all_profiles(db),
                            api_token=api_token, upcoming=upcoming,
                            active_page='hires')
 
@@ -3823,6 +3838,7 @@ def hires_new():
     pos   = request.form.get('position_name', '').strip() or None
     job   = request.form.get('job_title', '').strip() or None
     memo  = request.form.get('memo', '').strip() or None
+    jp_id = request.form.get('job_profile_id', type=int)
     try:
         salary = int(request.form.get('salary', '').replace(',', '') or 0) or None
     except ValueError:
@@ -3838,8 +3854,10 @@ def hires_new():
     else:
         db.execute(
             'INSERT INTO incoming_hires (name, email, phone, start_date, department_name, '
-            "position_name, job_title, salary, memo, source) VALUES (?,?,?,?,?,?,?,?,?,'manual')",
-            (name, email, phone, start, dept, pos, job, salary, memo)
+            "position_name, job_title, salary, memo, source, job_profile_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?,'manual',?)",
+            (name, email, phone, start, dept, pos, job, salary, memo,
+             jp_id or __import__('learning').match_profile(db, job))
         )
         db.commit()
         flash(f'입사 예정자 {name}님이 등록되었습니다.', 'success')
@@ -4028,6 +4046,11 @@ def hires_webhook():
              str(payload.get('req_ref') or '').strip() or None,
              str(payload.get('candidate_ref') or '').strip() or None)
         )
+        # 직무 글자가 세부 직무와 같으면 붙여 둔다 — 직원 전환 때 그대로 넘어가 Grow 과정이 정해진다
+        import learning
+        _jp = learning.match_profile(conn, payload.get('job_title'))
+        if _jp:
+            conn.execute('UPDATE incoming_hires SET job_profile_id=? WHERE id=last_insert_rowid()', (_jp,))
         # 관리자에게 인앱 알림
         admins = conn.execute("SELECT id FROM users WHERE role='admin' AND status='active'").fetchall()
         for a in admins:
@@ -4299,9 +4322,10 @@ def workplace_rooms_cancel_api():
 SSO_HIRE_MAX_AGE = 120
 
 
-def _sso_serializer():
+def _sso_serializer(target='hire'):
+    # 표를 받는 앱마다 소금을 다르게 둔다 — Hire 표를 Grow 에 들고 가도 안 풀린다.
     from itsdangerous import URLSafeTimedSerializer
-    return URLSafeTimedSerializer(app.secret_key, salt='hire-sso')
+    return URLSafeTimedSerializer(app.secret_key, salt='grow-sso' if target == 'grow' else 'hire-sso')
 
 
 @app.route('/sso/hire')
@@ -4326,6 +4350,31 @@ def sso_hire():
     return redirect(hire_url + '/api/auth/core?t=' + t)
 
 
+@app.route('/sso/grow')
+def sso_grow():
+    """Grow(직무 교육) 로그인 — Hire 와 같은 방식. 받는 주소는 설정 > Hire 연동의 Grow 주소 하나뿐."""
+    import learning
+    import re
+    state = (request.args.get('state') or '').strip()
+    if not re.fullmatch(r'[A-Za-z0-9_-]{16,128}', state):
+        return 'Grow 로그인 요청이 올바르지 않습니다. Grow 로그인 화면에서 다시 눌러주세요.', 400
+    if 'user_id' not in session or session.get('demo_mode') or session.get('training_mode'):
+        # 연습 회사·데모로 들어가 있던 창이면 본인 계정으로 다시 로그인해야 한다
+        if session.get('demo_mode') or session.get('training_mode'):
+            session.clear()
+        session['sso_next'] = request.full_path
+        flash('TalentCore 계정으로 로그인하면 Grow 로 돌아갑니다.', 'info')
+        return redirect(url_for('login'))
+    if session.get('user_role') == 'guest':
+        return 'Grow 에 들어갈 수 없는 계정입니다.', 403
+    grow_url = learning.grow_url(get_db())
+    if not grow_url:
+        return 'Grow 주소가 설정돼 있지 않습니다. 관리자에게 설정 > Hire 연동의 Grow 주소를 요청하세요.', 409
+    t = _sso_serializer('grow').dumps({'t': session.get('tenant_id', 1), 'u': session['user_id'], 's': state})
+    log_audit('login', 'auth', session['user_id'], 'Grow 로그인 표 발급 (SSO)')
+    return redirect(grow_url + '/api/auth/core?t=' + t)
+
+
 @app.route('/api/sso/verify', methods=['POST'])
 def sso_hire_verify():
     """Hire 가 받은 표를 확인한다. 표 발급 테넌트와 토큰 테넌트가 같아야 한다."""
@@ -4334,8 +4383,9 @@ def sso_hire_verify():
     if not tenant:
         return {'ok': False, 'error': 'invalid token'}, 401
     body = request.get_json(silent=True) or {}
+    target = 'grow' if body.get('app') == 'grow' else 'hire'
     try:
-        data = _sso_serializer().loads(str(body.get('t') or ''), max_age=SSO_HIRE_MAX_AGE)
+        data = _sso_serializer(target).loads(str(body.get('t') or ''), max_age=SSO_HIRE_MAX_AGE)
     except SignatureExpired:
         return {'ok': False, 'error': 'expired'}, 400
     except BadSignature:
@@ -4351,11 +4401,15 @@ def sso_hire_verify():
             'FROM users u LEFT JOIN departments d ON d.id = u.department_id '
             'LEFT JOIN positions p ON p.id = u.position_id WHERE u.id = ?',
             (data.get('u'),)).fetchone()
+        extra = None
+        if target == 'grow' and u:
+            import learning
+            extra = learning.person(conn, u['id'])
     finally:
         conn.close()
     if not u or (u['status'] or 'active') != 'active' or u['role'] == 'guest':
         return {'ok': False, 'error': 'inactive user'}, 403
-    return {'ok': True, 'state': data.get('s'), 'user': {
+    user = {
         'id': 'core:%s:%s' % (tenant['id'], u['id']),
         'emp_no': u['emp_no'] or '',
         'name': u['name'] or '',
@@ -4363,7 +4417,81 @@ def sso_hire_verify():
         'dept': u['dept'] or '',
         'title': u['position'] or '',
         'role': u['role'] or 'employee',
-    }}
+    }
+    if extra:
+        user.update({k: extra[k] for k in ('level', 'hire_date', 'job_family', 'job_profile')})
+    return {'ok': True, 'state': data.get('s'), 'user': user}
+
+
+# ── Grow 직무 교육 기록 (learning.py) ─────────────────────────
+#  Grow 에는 계정·기록 표가 없다. 사람 정보는 매번 여기서 읽고, 진행은 여기에 적는다.
+def _learning_user(tenant, raw):
+    """'core:T:U' → U. 토큰 테넌트와 다른 테넌트 사람이면 None."""
+    parts = str(raw or '').split(':')
+    if len(parts) != 3 or parts[0] != 'core' or not parts[1].isdigit() or not parts[2].isdigit():
+        return None
+    if int(parts[1]) != int(tenant['id']):
+        return None
+    return int(parts[2])
+
+
+@app.route('/api/learning/person', methods=['GET'])
+def learning_person_api():
+    """Grow 가 화면을 열 때마다 부른다 — 부서·직급·세부 직무가 바뀌면 바로 따라간다."""
+    import learning
+    tenant = get_tenant_by_api_token(request.headers.get('X-API-Token', ''))
+    if not tenant:
+        return {'ok': False, 'error': 'invalid token'}, 401
+    uid = _learning_user(tenant, request.args.get('user'))
+    if not uid:
+        return {'ok': False, 'error': 'bad user'}, 400
+    conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
+    conn.row_factory = sqlite3.Row
+    try:
+        p = learning.person(conn, uid)
+        recs = learning.records(conn, uid) if p else []
+    finally:
+        conn.close()
+    if not p or not p['active'] or p['role'] == 'guest':
+        return {'ok': False, 'error': 'inactive user'}, 403
+    return {'ok': True, 'person': p, 'records': recs}
+
+
+@app.route('/api/learning/progress', methods=['POST'])
+def learning_progress_api():
+    """Grow 가 미션을 끝낼 때마다 적는다. 과정을 다 끝내면 수료로 남고 본인에게 알림."""
+    import learning
+    import re
+    tenant = get_tenant_by_api_token(request.headers.get('X-API-Token', ''))
+    if not tenant:
+        return {'ok': False, 'error': 'invalid token'}, 401
+    body = request.get_json(silent=True) or {}
+    uid = _learning_user(tenant, body.get('user'))
+    course_id = str(body.get('course_id') or '').strip()
+    if not uid or not re.fullmatch(r'[a-z0-9-]{1,60}', course_id):
+        return {'ok': False, 'error': 'bad request'}, 400
+    conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
+    conn.row_factory = sqlite3.Row
+    try:
+        p = learning.person(conn, uid)
+        if not p or not p['active']:
+            return {'ok': False, 'error': 'inactive user'}, 403
+        try:
+            rec, newly = learning.save_progress(
+                conn, uid, course_id, str(body.get('course_title') or course_id),
+                (str(body.get('profile') or '') or None), body.get('done'), body.get('total'),
+                body.get('state'))
+        except (TypeError, ValueError):
+            return {'ok': False, 'error': 'bad progress'}, 400
+        if newly:
+            conn.execute(
+                'INSERT INTO notifications (user_id, type, category, title, content, link) '
+                "VALUES (?, 'info', 'learning', ?, ?, '/profile')",
+                (uid, '직무 교육 수료', rec['course_title'] + ' 수료 · 프로필에 배지 표시'))
+        conn.commit()
+    finally:
+        conn.close()
+    return {'ok': True, 'record': rec, 'completed_now': newly}
 
 
 @app.route('/api/directory', methods=['GET'])
@@ -4620,6 +4748,7 @@ def employee_edit(emp_id):
     depts    = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
     poses    = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
     jfs      = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
+    jps      = __import__('learning').all_profiles(db)
     managers = db.execute(
         "SELECT id, name FROM users WHERE role IN ('admin','manager') AND status='active' AND id!=? ORDER BY name",
         (emp_id,)
@@ -4670,6 +4799,8 @@ def employee_edit(emp_id):
                      hire_date, birth_date, employment_type, work_type, manager_id,
                      termination_date, term_reason, emp_id)
                 )
+            db.execute('UPDATE users SET job_profile_id=? WHERE id=?',
+                       (request.form.get('job_profile_id', type=int), emp_id))
             db.commit()
             # ── master.db 이메일 변경 동기화 ─────────────────────
             tid = session.get('tenant_id', 1)
@@ -4681,7 +4812,7 @@ def employee_edit(emp_id):
             return redirect(url_for('employee_detail', emp_id=emp_id))
 
     return render_template('employees/form.html',
-                           mode='edit', depts=depts, poses=poses, jfs=jfs,
+                           mode='edit', depts=depts, poses=poses, jfs=jfs, jps=jps,
                            managers=managers, error=error, emp=emp,
                            active_page='employees')
 
@@ -12469,7 +12600,8 @@ def me_onboarding():
         late=sum(1 for t in tasks if t['late']),
         buddy=buddy, manager=plan['who']['manager'] if plan else None,
         jira_epic_key=me['jira_epic_key'] if me else None,
-        hire_date=me['hire_date'] if me else None, preview=preview, active_page='me_onboarding')
+        hire_date=me['hire_date'] if me else None, preview=preview,
+        learn=__import__('learning').summary(db, uid), active_page='me_onboarding')
 
 
 @app.route('/me/onboarding/<task_key>/done', methods=['POST'])
@@ -12773,6 +12905,7 @@ def profile():
                 msg = '비밀번호가 변경되었습니다.'
 
     return render_template('profile.html', user=user, error=error, msg=msg,
+                           learn=__import__('learning').summary(db, uid),
                            active_page='profile')
 
 
@@ -14236,9 +14369,26 @@ def hire_settings():
     ignited = db.execute(
         "SELECT COUNT(*) c FROM job_openings WHERE status='filled' AND hired_user_id IS NOT NULL"
     ).fetchone()['c']
+    import learning
     return render_template('hiring/hire_settings.html',
         cfg=cfg, linked=linked, auto_contract=auto_contract, ignited=ignited,
+        grow_url=learning.grow_url(db),
         active_page='hiresettings')
+
+
+@app.route('/settings/grow', methods=['POST'])
+@admin_required
+def grow_settings():
+    """Grow(직무 교육) 주소 — 로그인 표를 이 주소로만 보낸다."""
+    db = get_db()
+    url = request.form.get('grow_url', '').strip().rstrip('/')
+    if url and not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+    db.execute("INSERT INTO company_settings (key,value) VALUES ('grow_url',?) "
+               'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (url,))
+    db.commit()
+    flash('Grow 주소 저장 완료' if url else 'Grow 주소 삭제', 'success')
+    return redirect(url_for('hire_settings'))
 
 
 @app.route('/openings/push', methods=['POST'])

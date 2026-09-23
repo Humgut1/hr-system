@@ -1,0 +1,38 @@
+{#- 직무 교육(Grow) 한 칸 — 세부 직무 · 과정 진행 · 수료 배지.
+    learn = learning.summary(db, uid). self_view 면 Grow 로 가는 버튼을 보여 준다. -#}
+{% macro learning_box(learn, self_view=False) %}
+<style>
+.lr-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12.5px; padding:7px 0; border-top:1px solid var(--line, var(--border)); }
+.lr-row:first-of-type { border-top:0; }
+.lr-row .n { color:var(--tx-1); font-weight:600; min-width:0; flex:1 1 160px; }
+.lr-row .m { color:var(--tx-3); font-size:11.5px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.lr-badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px; background:var(--green-bg); color:var(--green); white-space:nowrap; }
+.lr-st { font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; border:1px solid var(--line-strong, var(--border)); color:var(--tx-2); white-space:nowrap; }
+.lr-prof { font-size:12.5px; color:var(--tx-2); margin-bottom:6px; }
+.lr-prof b { color:var(--tx-1); }
+.lr-empty { font-size:12.5px; color:var(--tx-3); }
+.lr-go { display:inline-block; margin-top:8px; font-size:12px; }
+</style>
+{% if learn.profile %}
+<div class="lr-prof">세부 직무 <b>{{ learn.profile.name }}</b>{% if learn.profile.summary %} · {{ learn.profile.summary }}{% endif %}</div>
+{% endif %}
+{% for r in learn.records %}
+<div class="lr-row">
+  <span class="n">{{ r.course_title }}</span>
+  {% if r.completed_at %}
+  <span class="lr-badge"><i class="fas fa-award" aria-hidden="true"></i> 수료</span>
+  <span class="m">{{ r.completed_at[:10]|replace('-', '.') }}</span>
+  {% else %}
+  <span class="lr-st">진행 중</span>
+  <span class="m">미션 {{ r.done }}/{{ r.total }}</span>
+  {% endif %}
+</div>
+{% else %}
+<div class="lr-empty">{% if learn.profile %}{{ learn.profile.name }} 과정 · 시작 전{% else %}배정된 직무 교육 없음{% endif %}</div>
+{% endfor %}
+{% if self_view and learn.profile and learn.grow_url %}
+<a class="btn btn-ghost btn-sm lr-go" href="{{ learn.grow_url }}/train" target="_blank" rel="noopener">
+  {% if learn.badges|length == learn.records|length and learn.records %}교육 다시 보기{% elif learn.records %}교육 이어 하기{% else %}교육 시작{% endif %}
+</a>
+{% endif %}
+{% endmacro %}

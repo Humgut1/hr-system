@@ -178,6 +178,8 @@ def seed_training_company(db_path: str):
 
     db = sqlite3.connect(db_path)
     db.execute("DELETE FROM users WHERE role='guest'")   # 기본 시드가 되살린 손님 계정
+    # 세부 직무 — 채용팀장은 리크루터 과정(Grow)
+    db.execute("UPDATE users SET job_profile_id=(SELECT id FROM job_profiles WHERE code='TA_REC') WHERE id=2")
     db.commit()
     db.close()
 

@@ -116,6 +116,14 @@
     </div>
   </div>
 
+  {% if learn and (learn.profile or learn.records) %}
+  {% from '_learning.html' import learning_box %}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head"><span class="card-title">직무 교육</span></div>
+    <div class="card-body">{{ learning_box(learn, self_view=True) }}</div>
+  </div>
+  {% endif %}
+
   <!-- 비밀번호 변경 -->
   <div class="card">
     <div class="card-head"><span class="card-title">비밀번호 변경</span></div>

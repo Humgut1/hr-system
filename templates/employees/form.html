@@ -137,12 +137,24 @@
                   {% set ns.cur_group = jf.group_name %}
                 {% endif %}
                 <option value="{{ jf.id }}"
-                  {% if emp and emp.job_family_id == jf.id %}selected{% endif %}>
+                  {% if (emp and emp.job_family_id == jf.id) or (not emp and pf.get('job_family_id') == jf.id) %}selected{% endif %}>
                   {{ jf.name }}
                 </option>
               {% endfor %}
               {% if ns.cur_group %}</optgroup>{% endif %}
             </select>
+            {% if jps %}
+            <select name="job_profile_id" class="input" style="margin-top:6px;" aria-label="세부 직무">
+              <option value="">세부 직무 없음</option>
+              {% for jp in jps %}
+              <option value="{{ jp.id }}"
+                {% if (emp and emp.job_profile_id == jp.id) or (not emp and pf.get('job_profile_id') == jp.id) %}selected{% endif %}>
+                {{ jp.family_name or '' }} · {{ jp.name }}
+              </option>
+              {% endfor %}
+            </select>
+            <div style="font-size:11px; color:var(--tx-3); margin-top:4px;">세부 직무 = Grow 직무 교육 과정 기준</div>
+            {% endif %}
           </div>
           <div class="field">
             <label class="form-label">직속 상관</label>

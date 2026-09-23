@@ -226,6 +226,13 @@
 </div>
 
 <aside>
+  {% if learn and (learn.profile or learn.records) %}
+  {% from '_learning.html' import learning_box %}
+  <section class="ob-block">
+    <h2 class="ob-sec">직무 교육 <small>Grow · 연습 회사에서 진짜 화면으로</small></h2>
+    {{ learning_box(learn, self_view=not preview) }}
+  </section>
+  {% endif %}
   <section class="ob-block">
     <h2 class="ob-sec">함께할 사람</h2>
     <div class="ob-person">
