@@ -204,13 +204,38 @@ def reset_training_company(expect_tenant_id: int = None) -> int:
     if tenant_id == 1:
         raise RuntimeError('연습 테넌트가 데모 테넌트(1)일 수 없습니다.')
     path = get_tenant_db_path(tenant_id)
+    keep = _connection_settings(path)
     if os.path.exists(path):
         os.remove(path)
     for suffix in ('-wal', '-shm'):
         if os.path.exists(path + suffix):
             os.remove(path + suffix)
     seed_training_company(path)
+    if keep:
+        db = sqlite3.connect(path)
+        db.executemany('INSERT INTO company_settings (key, value) VALUES (?,?) '
+                       'ON CONFLICT(key) DO UPDATE SET value=excluded.value', keep)
+        db.commit()
+        db.close()
     return tenant_id
+
+
+# 연습 데이터가 아니라 '연습 Hire 로 가는 길'이다 — 되돌려도 남겨야 한다.
+# 이걸 지우면 되돌리기 한 번에 공고 보내기·Hire 로그인이 끊긴다.
+KEEP_SETTINGS = ('hire_url', 'hire_token')
+
+
+def _connection_settings(path: str):
+    if not os.path.exists(path):
+        return []
+    db = sqlite3.connect(path)
+    try:
+        return db.execute('SELECT key, value FROM company_settings WHERE key IN (%s)'
+                          % ','.join('?' * len(KEEP_SETTINGS)), KEEP_SETTINGS).fetchall()
+    except sqlite3.Error:
+        return []
+    finally:
+        db.close()
 
 
 def training_admin(db_path: str):
