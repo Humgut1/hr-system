@@ -4586,6 +4586,7 @@ def training_snapshot_api():
 
     인증: X-API-Token (/api/directory · /api/openings 와 같은 열쇠)
     질의: ?since=YYYY-MM-DD HH:MM:SS (그 시각 이후 만들어진 요청서만) · ?limit=N
+          ?learner=core:T:U (연습 회사 — 그 사람의 연습 계정이 올린 요청서만)
     """
     tenant = get_tenant_by_api_token(request.headers.get('X-API-Token', ''))
     if not tenant:
@@ -4597,13 +4598,27 @@ def training_snapshot_api():
     except ValueError:
         limit = 30
 
+    learner = (request.args.get('learner') or '').strip()
+    seat_id = None
+    if learner:
+        from training_company import learner_seat
+        seat = learner_seat(get_tenant_db_path(tenant['id']), learner, create=False)
+        if not seat:   # 아직 연습 회사에 들어온 적이 없다 — 채점할 것도 없다
+            return {'ok': True, 'as_of': datetime.now().isoformat(timespec='seconds'),
+                    'requisitions': [], 'incoming_hires': [], 'seat': None}
+        seat_id = seat['id']
+
     conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
     conn.row_factory = sqlite3.Row
     try:
-        args, where = [], ''
+        args, conds = [], []
         if since:
-            where = 'WHERE r.created_at >= ? '
+            conds.append('r.created_at >= ?')
             args.append(since)
+        if seat_id:
+            conds.append('r.requester_id = ?')
+            args.append(seat_id)
+        where = ('WHERE ' + ' AND '.join(conds) + ' ') if conds else ''
         reqs = conn.execute(
             'SELECT r.id, r.title, r.status, r.hire_type, r.headcount, r.department_id, '
             '       r.requester_id, r.target_start_date, r.salary_min, r.salary_max, '
@@ -4633,10 +4648,14 @@ def training_snapshot_api():
                 '       o.external_ref, o.created_at, d.name AS dept '
                 'FROM job_openings o LEFT JOIN departments d ON d.id = o.department_id '
                 'WHERE o.requisition_id IN (%s) ORDER BY o.id' % marks, ids).fetchall()
-        hires = conn.execute(
-            'SELECT id, name, start_date, department_name, position_name, status, '
-            '       opening_id, req_ref, created_at '
-            'FROM incoming_hires ORDER BY id DESC LIMIT ?', (limit,)).fetchall()
+        h_sql = ('SELECT id, name, start_date, department_name, position_name, status, '
+                 '       opening_id, req_ref, created_at FROM incoming_hires ')
+        if seat_id:
+            open_ids = [o['id'] for o in opens]
+            hires = conn.execute(h_sql + 'WHERE opening_id IN (%s) ORDER BY id DESC'
+                                 % ','.join('?' * len(open_ids)), open_ids).fetchall() if open_ids else []
+        else:
+            hires = conn.execute(h_sql + 'ORDER BY id DESC LIMIT ?', (limit,)).fetchall()
     finally:
         conn.close()
 
@@ -4650,6 +4669,7 @@ def training_snapshot_api():
                               approvals=rows_of(apprs, r['id']),
                               openings=rows_of(opens, r['id'])) for r in reqs],
         'incoming_hires': [dict(h) for h in hires],
+        'seat': seat_id,
     }
 
 
@@ -4681,21 +4701,40 @@ def training_ticket_api():
     tenant, err = _training_tenant_or_error()
     if err:
         return err
-    ticket = issue_training_ticket(tenant['id'])
+    body = request.get_json(silent=True) or {}
+    seat_id = None
+    if body.get('learner'):
+        # 개인 연습 자리 — 배우는 사람마다 연습 회사 인사팀에 자기 계정
+        from training_company import learner_seat
+        seat = learner_seat(get_tenant_db_path(tenant['id']), str(body['learner']), str(body.get('name') or ''))
+        if not seat:
+            return {'ok': False, 'error': 'bad learner'}, 400
+        seat_id = seat['id']
+    ticket = issue_training_ticket(tenant['id'], seat_id)
     base = request.url_root.rstrip('/')
     return {'ok': True, 'ticket': ticket,
             'url': f'{base}/training/enter?t={ticket}',
-            'seconds': TRAINING_TICKET_SECONDS}
+            'seconds': TRAINING_TICKET_SECONDS, 'seat': seat_id}
 
 
 @app.route('/api/training/reset', methods=['POST'])
 def training_reset_api():
-    """연습 회사를 처음 상태로 되돌린다 — 연습 테넌트 DB만 지우고 다시 만든다."""
+    """연습 회사를 처음 상태로 되돌린다 — 연습 테넌트 DB만 지우고 다시 만든다.
+
+    body {learner: 'core:T:U'} 면 그 사람이 한 일만 지운다(다른 사람 연습은 그대로).
+    """
     tenant, err = _training_tenant_or_error()
     if err:
         return err
     if tenant['id'] == 1:
         return {'ok': False, 'error': 'refused'}, 403
+    body = request.get_json(silent=True) or {}
+    if body.get('learner'):
+        from training_company import reset_learner, learner_email
+        if not learner_email(str(body['learner'])):
+            return {'ok': False, 'error': 'bad learner'}, 400
+        done = reset_learner(get_tenant_db_path(tenant['id']), str(body['learner']))
+        return {'ok': True, 'tenant_id': tenant['id'], 'scope': 'learner', **done}
     try:
         from training_company import reset_training_company
         reset_training_company(tenant['id'])
@@ -4713,8 +4752,17 @@ def training_enter():
         flash('연습 회사 입장표가 만료되었습니다. Grow에서 다시 들어와 주세요.', 'error')
         return redirect(url_for('login'))
 
-    from training_company import training_admin
-    user = training_admin(get_tenant_db_path(tenant['id']))
+    from training_company import training_admin, _USER_ROW
+    path = get_tenant_db_path(tenant['id'])
+    user = None
+    if tenant['ticket_user_id']:
+        conn = sqlite3.connect(path)
+        conn.row_factory = sqlite3.Row
+        user = conn.execute(_USER_ROW + "WHERE u.id=? AND u.status='active'",
+                            (tenant['ticket_user_id'],)).fetchone()
+        conn.close()
+    else:
+        user = training_admin(path)
     if not user:
         flash('연습 회사가 아직 준비되지 않았습니다.', 'error')
         return redirect(url_for('login'))
@@ -4733,9 +4781,16 @@ def training_enter():
     session['show_tour']     = False
 
     nxt = request.args.get('next', '')
-    if not nxt.startswith('/') or nxt.startswith('//'):
-        nxt = url_for('dashboard')
-    return redirect(nxt)
+    if nxt.startswith('/') and not nxt.startswith('//'):
+        return redirect(nxt)
+    # 연습 Hire 로 곧장 — 이 연습 회사에 연결된 Hire 로그인 입구만 허용(바깥 주소로 튕기지 않게)
+    conn = sqlite3.connect(path)
+    row = conn.execute("SELECT value FROM company_settings WHERE key='hire_url'").fetchone()
+    conn.close()
+    hire = (row[0] if row else '').rstrip('/')
+    if hire and nxt.startswith(hire + '/api/auth/core/start'):
+        return redirect(nxt)
+    return redirect(url_for('dashboard'))
 
 
 @app.route('/employees/<int:emp_id>/edit', methods=['GET', 'POST'])
@@ -14490,6 +14545,10 @@ def opening_push():
         'openings':     [{'id': r['id'], 'code': r['code']} for r in rows],
         'team':         first['dept_name'] or '',
         'hiring_manager': (panel['hm'] or {}).get('name', ''),
+        # 담당 리크루터 = 보낸 사람. 연습 Hire 는 이 메일로 배우는 사람 본인을 담당자로 세운다.
+        'recruiter':    session.get('user_name', ''),
+        'recruiter_email': (db.execute('SELECT email FROM users WHERE id=?',
+                            (session.get('user_id'),)).fetchone() or [''])[0] or '',
         'panel':        panel,
     }
 

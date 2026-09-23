@@ -14,6 +14,7 @@ Grow 교육 모드가 쓰는 별도 테넌트를 만들고, 언제든 처음 상
 """
 
 import os
+import re
 import sqlite3
 import sys
 from datetime import date, timedelta
@@ -47,12 +48,12 @@ DEPARTMENTS = [
 
 # 헤드카운트 대장 — 상위 조직 정원에는 하위 합계가 들어 있다(Core 규칙).
 #   경영지원실 5 = 인사팀 2 + 재무팀 2 + 실 자기 몫 1(대표)
-#   개발실 8 = 백엔드팀 5 + 프론트엔드팀 3
+#   개발실 9 = 백엔드팀 5 + 프론트엔드팀 3 + 실 자기 몫 1(실장)
 #   사업실 4 = 영업팀 2 + 고객성공팀 2
-HEADCOUNT = {1: 5, 2: 8, 3: 4, 4: 2, 5: 2, 6: 5, 7: 3, 8: 2, 9: 2}
+HEADCOUNT = {1: 5, 2: 9, 3: 4, 4: 2, 5: 2, 6: 5, 7: 3, 8: 2, 9: 2}
 
 # 조직장
-LEADERS = {1: 1, 4: 2, 5: 4, 6: 6, 7: 11, 8: 14, 9: 16}
+LEADERS = {1: 1, 2: 18, 4: 2, 5: 4, 6: 6, 7: 11, 8: 14, 9: 16}
 
 # ── 직급 ────────────────────────────────────────────────────
 POSITIONS = [
@@ -82,18 +83,19 @@ PEOPLE = [
     (3,  ADMIN_NAME, 'hana', 4, 3, 8,    'admin',       2, '2025-03-03'),
     (4,  '오세영', 'seyoung', 5, 6, 7,   'manager',     1, '2020-09-01'),
     (5,  '윤도현', 'dohyun', 5, 3, 7,    'employee',    4, '2023-04-03'),
-    (6,  '박지민', 'jimin',  6, 6, 1,    'manager',     1, '2019-11-01'),
+    (6,  '박지민', 'jimin',  6, 6, 1,    'manager',    18, '2019-11-01'),
     (7,  '강태오', 'taeo',   6, 4, 1,    'employee',    6, '2021-07-01'),
     (8,  '서지안', 'jian',   6, 3, 1,    'employee',    6, '2023-01-02'),
     (9,  '류하준', 'hajun',  6, 2, 1,    'employee',    6, '2025-01-02'),
     (10, '임세라', 'sera',   6, 4, 1,    'employee',    6, '2021-03-02'),   # 퇴사자
-    (11, '최윤',   'yun',    7, 6, 2,    'manager',     1, '2020-02-03'),
+    (11, '최윤',   'yun',    7, 6, 2,    'manager',    18, '2020-02-03'),
     (12, '노아름', 'areum',  7, 3, 2,    'employee',   11, '2022-08-01'),
     (13, '배준영', 'junyng', 7, 2, 2,    'employee',   11, '2024-09-02'),
     (14, '김세진', 'sejin',  8, 6, 5,    'manager',     1, '2020-04-01'),
     (15, '문가온', 'gaon',   8, 3, 5,    'employee',   14, '2023-06-01'),
     (16, '홍유진', 'yujin',  9, 6, 6,    'manager',     1, '2021-02-01'),
     (17, '장태희', 'taehee', 9, 3, 6,    'employee',   16, '2024-03-04'),
+    (18, '윤재혁', 'jaehyuk', 2, 8, 1,   'manager',     1, '2019-05-02'),   # 개발실장 — 2차 면접관
 ]
 
 LEAVER_ID     = 10          # 임세라 — 미션 1의 결원 충원 대상
@@ -240,17 +242,106 @@ def _connection_settings(path: str):
         db.close()
 
 
+_USER_ROW = ('SELECT u.*, d.name AS dept_name, p.name AS pos_name FROM users u '
+             'LEFT JOIN departments d ON u.department_id=d.id '
+             'LEFT JOIN positions   p ON u.position_id  =p.id ')
+
+
 def training_admin(db_path: str):
     """연습 회사의 관리자(학습자가 될 사람) 한 줄."""
     db = sqlite3.connect(db_path)
     db.row_factory = sqlite3.Row
-    row = db.execute(
-        'SELECT u.*, d.name AS dept_name, p.name AS pos_name FROM users u '
-        'LEFT JOIN departments d ON u.department_id=d.id '
-        'LEFT JOIN positions   p ON u.position_id  =p.id '
-        "WHERE u.role='admin' AND u.status='active' ORDER BY u.id LIMIT 1").fetchone()
+    row = db.execute(_USER_ROW + "WHERE u.role='admin' AND u.status='active' ORDER BY u.id LIMIT 1").fetchone()
     db.close()
     return row
+
+
+# ── 개인 연습 자리 ────────────────────────────────────────────
+# 배우는 사람마다 연습 회사 인사팀에 자기 계정이 하나씩 생긴다.
+# 여럿이 같은 연습 회사에서 배워도 내가 올린 요청서만 채점되고,
+# [처음으로]는 내 것만 지운다. 실제 회사 계정(core:T:U)과는 이메일로 이어진다.
+LEARNER_DEPT = 4           # 인사팀
+LEARNER_MANAGER = 2        # 정수민(채용팀장)
+_LEARNER_RE = re.compile(r'^core:(\d{1,6}):(\d{1,9})$')
+
+
+def learner_email(learner_id: str):
+    m = _LEARNER_RE.match(learner_id or '')
+    if not m:
+        return None
+    return f'learner.{m.group(1)}.{m.group(2)}@saebom.example'
+
+
+def learner_seat(db_path: str, learner_id: str, name: str = None, create: bool = True):
+    """배우는 사람의 연습 계정 한 줄. 없으면 만든다(create=False 면 None)."""
+    email = learner_email(learner_id)
+    if not email:
+        return None
+    given = (name or '').strip()[:40]
+    name = given or '연습 담당자'
+    db = sqlite3.connect(db_path)
+    db.row_factory = sqlite3.Row
+    try:
+        row = db.execute(_USER_ROW + 'WHERE u.email=?', (email,)).fetchone()
+        if row and given and row['name'] != given and create:
+            db.execute('UPDATE users SET name=? WHERE id=?', (given, row['id']))
+            db.commit()
+            row = db.execute(_USER_ROW + 'WHERE u.email=?', (email,)).fetchone()
+        if row or not create:
+            return row
+        m = _LEARNER_RE.match(learner_id)
+        db.execute(
+            'INSERT INTO users (email, password_hash, name, role, department_id, position_id, '
+            ' job_family_id, hire_date, status, emp_no, manager_id, employment_type, onboarded, '
+            ' features_enabled, tour_completed) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            (email, _unusable_password(), name, 'admin', LEARNER_DEPT, 3, 9,
+             date.today().isoformat(), 'active', f'SB-L{m.group(1)}-{m.group(2)}',
+             LEARNER_MANAGER, 'full_time', 1, FEATURES, 1))
+        db.commit()
+        return db.execute(_USER_ROW + 'WHERE u.email=?', (email,)).fetchone()
+    finally:
+        db.close()
+
+
+def reset_learner(db_path: str, learner_id: str) -> dict:
+    """이 사람이 연습 회사에서 한 일만 지운다 — 요청서·결재·포지션·오퍼 결재·입사 예정자.
+
+    반환: 지운 요청서 수 + Hire 로 넘어간 공고 번호(external_ref) — Hire 쪽도 같이 지우라고.
+    """
+    seat = learner_seat(db_path, learner_id, create=False)
+    if not seat:
+        return {'requisitions': 0, 'hire_refs': []}
+    db = sqlite3.connect(db_path)
+    try:
+        req_ids = [r[0] for r in db.execute(
+            'SELECT id FROM job_requisitions WHERE requester_id=?', (seat['id'],))]
+        refs, n = [], len(req_ids)
+        if req_ids:
+            rq = ','.join('?' * len(req_ids))
+            opens = db.execute(f'SELECT id, code, external_ref FROM job_openings WHERE requisition_id IN ({rq})',
+                               req_ids).fetchall()
+            refs = sorted({o[2] for o in opens if o[2]})
+            open_ids = [o[0] for o in opens]
+            codes = [o[1] for o in opens if o[1]]
+            if open_ids:
+                db.execute('DELETE FROM incoming_hires WHERE opening_id IN (%s)' % ','.join('?' * len(open_ids)),
+                           open_ids)
+            if codes:
+                cq = ','.join('?' * len(codes))
+                db.execute(f'DELETE FROM offer_approval_steps WHERE offer_id IN '
+                           f'(SELECT id FROM offer_approvals WHERE opening_code IN ({cq}))', codes)
+                db.execute(f'DELETE FROM offer_approvals WHERE opening_code IN ({cq})', codes)
+            db.execute(f'UPDATE job_postings SET requisition_id=NULL WHERE requisition_id IN ({rq})', req_ids)
+            for t in ('job_openings', 'requisition_lines', 'requisition_approvals'):
+                db.execute(f'DELETE FROM {t} WHERE requisition_id IN ({rq})', req_ids)
+            db.execute(f'DELETE FROM job_requisitions WHERE id IN ({rq})', req_ids)
+            for rid in req_ids:
+                db.execute('DELETE FROM notifications WHERE link LIKE ?', (f'%/requisitions/{rid}',))
+        db.execute('DELETE FROM notifications WHERE user_id=?', (seat['id'],))
+        db.commit()
+        return {'requisitions': n, 'hire_refs': refs}
+    finally:
+        db.close()
 
 
 def _status():

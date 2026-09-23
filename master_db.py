@@ -430,6 +430,8 @@ def migrate_subscriptions():
             used_at    TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
+    # 개인 연습 자리 — 표를 받은 사람의 연습 계정(없으면 예전처럼 연습 관리자)
+    _add_column(conn, 'training_tickets', 'user_id', 'INTEGER')
     conn.commit()
     conn.close()
 
@@ -463,28 +465,28 @@ def mark_training_tenant(tenant_id: int):
     conn.close()
 
 
-def issue_training_ticket(tenant_id: int) -> str:
-    """연습 회사 입장표 발급 — 한 번만, 2분만 쓸 수 있다."""
+def issue_training_ticket(tenant_id: int, user_id: int = None) -> str:
+    """연습 회사 입장표 발급 — 한 번만, 2분만 쓸 수 있다. user_id = 들어갈 연습 계정."""
     import secrets
     from datetime import datetime
     token = secrets.token_urlsafe(24)
     exp = (datetime.utcnow() + timedelta(seconds=TRAINING_TICKET_SECONDS)).strftime('%Y-%m-%d %H:%M:%S')
     conn = get_master_db()
     conn.execute("DELETE FROM training_tickets WHERE expires_at < datetime('now','-1 day')")
-    conn.execute('INSERT INTO training_tickets (token, tenant_id, expires_at) VALUES (?,?,?)',
-                 (token, tenant_id, exp))
+    conn.execute('INSERT INTO training_tickets (token, tenant_id, expires_at, user_id) VALUES (?,?,?,?)',
+                 (token, tenant_id, exp, user_id))
     conn.commit()
     conn.close()
     return token
 
 
 def use_training_ticket(token: str):
-    """입장표를 쓴다 — 한 번 쓰면 다시 못 쓴다. 성공하면 tenant row 반환."""
+    """입장표를 쓴다 — 한 번 쓰면 다시 못 쓴다. 성공하면 tenant row(+ticket_user_id) 반환."""
     if not token:
         return None
     conn = get_master_db()
     row = conn.execute(
-        "SELECT t.* FROM training_tickets k JOIN tenants t ON t.id=k.tenant_id "
+        "SELECT t.*, k.user_id AS ticket_user_id FROM training_tickets k JOIN tenants t ON t.id=k.tenant_id "
         "WHERE k.token=? AND k.used_at IS NULL AND k.expires_at >= datetime('now') "
         'AND t.is_training=1', (token,)).fetchone()
     if row:
