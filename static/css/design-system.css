@@ -156,11 +156,9 @@ img { max-width: 100%; }
   display: flex; flex-direction: column;
 }
 .snav-brand { display: flex; align-items: center; gap: 9px; height: var(--gnb-h); padding: 0 18px; flex-shrink: 0; }
-.gnb-mark {
-  width: 24px; height: 24px; border-radius: 6px; background: var(--inv-bg); color: var(--inv-tx);
-  display: grid; place-items: center; font: 700 10.5px/1 var(--mono); letter-spacing: -.02em;
-}
-.gnb-name { font-weight: 700; font-size: 14.5px; letter-spacing: -.02em; color: var(--tx-1); }
+/* 로고 '자리 친구'(templates/_brand.html) — 색은 글자색을 따라 다크·라이트 한 벌 */
+.gnb-mark { width: 24px; height: 24px; flex: none; color: var(--tx-1); }
+.gnb-name { font-family: 'Unbounded', var(--font); font-weight: 700; font-size: 14px; letter-spacing: -.03em; color: var(--tx-1); }
 .snav-menu { flex: 1; overflow-y: auto; padding: 6px 10px 12px; display: flex; flex-direction: column; gap: 1px; scrollbar-width: thin; }
 .snav-foot { border-top: 1px solid var(--line); padding: 8px 10px 10px; }
 

@@ -1,0 +1,6 @@
+{#- TalentCore 로고 '자리 친구' — 말랑한 칸 넷 중 하나가 눈 달린 동그라미(새 동료).
+    제품마다 사람 칸만 옮긴다: Core 왼쪽 위 · Hire 오른쪽 위 · Screen 왼쪽 아래 · Grow 오른쪽 아래.
+    모양 원본은 hr-ats/app/components/BrandMark.tsx(markPaths). 색은 글자색을 따른다. -#}
+{% macro mark(cls='') -%}
+<svg class="{{ cls }}" viewBox="0 0 512 512" aria-hidden="true"><path fill="currentColor" d="M330 84H366A62 62 0 0 1 428 146V182A62 62 0 0 1 366 244H330A62 62 0 0 1 268 182V146A62 62 0 0 1 330 84ZM146 268H182A62 62 0 0 1 244 330V366A62 62 0 0 1 182 428H146A62 62 0 0 1 84 366V330A62 62 0 0 1 146 268ZM330 268H366A62 62 0 0 1 428 330V366A62 62 0 0 1 366 428H330A62 62 0 0 1 268 366V330A62 62 0 0 1 330 268Z"/><path fill="currentColor" fill-rule="evenodd" d="M84 164A80 80 0 1 0 244 164A80 80 0 1 0 84 164ZM141.6 168A10.4 10.4 0 1 0 162.4 168A10.4 10.4 0 1 0 141.6 168ZM189.6 168A10.4 10.4 0 1 0 210.4 168A10.4 10.4 0 1 0 189.6 168Z"/></svg>
+{%- endmacro %}

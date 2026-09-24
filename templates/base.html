@@ -9,6 +9,7 @@
 
   <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700&display=swap">
 
   {% block head %}{% endblock %}
   {% block extra_css %}{% endblock %}
@@ -114,7 +115,7 @@
   <!-- ══ 좌측 메뉴 ══════════════════════════════════ -->
   <aside class="snav" id="appNav">
     <a class="snav-brand" href="{{ url_for('dashboard') }}">
-      <span class="gnb-mark">TC</span><span class="gnb-name">TalentCore</span>
+      {% import "_brand.html" as brand %}{{ brand.mark("gnb-mark") }}<span class="gnb-name">talentcore</span>
     </a>
     <nav class="snav-menu">
       {% for g in MENU %}{% set vis = g['items']|selectattr('s')|list %}{% if vis %}

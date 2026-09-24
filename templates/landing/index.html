@@ -11,6 +11,7 @@
   <meta name="twitter:card" content="summary">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700&display=swap">
   <style>
     * { box-sizing: border-box; }
     html.tc-html { scroll-behavior: smooth; }
@@ -48,8 +49,8 @@
   <header style="position: sticky; top: 0; z-index: 50; backdrop-filter: blur(14px); background: rgba(11,14,28,0.8); border-bottom: 1px solid rgba(255,255,255,0.07);">
     <div class="wrap" style="height: 72px; display: flex; align-items: center; justify-content: space-between;">
       <div style="display: flex; align-items: center; gap: 10px;">
-        <div style="width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, #4f46e5, #7c3aed); display: flex; align-items: center; justify-content: center;"><div style="width: 12px; height: 12px; border-radius: 3px; background: #fff;"></div></div>
-        <span style="font-size: 19px; font-weight: 800; letter-spacing: -0.02em;">TalentCore</span>
+        {% import "_brand.html" as brand %}<span style="display: flex; width: 28px; height: 28px; color: #fff;">{{ brand.mark() }}</span>
+        <span style="font-size: 18px; font-family: 'Unbounded', Pretendard, sans-serif; font-weight: 700; letter-spacing: -0.03em;">talentcore</span>
       </div>
       <nav style="display: flex; align-items: center; gap: 28px;">
         <span class="nav-links" style="display: flex; gap: 28px;">
@@ -178,17 +179,17 @@
       </div>
       <div class="how-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
         <div class="how-card">
-          <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg,#4f46e5,#7c3aed); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; margin-bottom: 18px;">1</div>
+          <div style="width: 40px; height: 40px; border-radius: 12px; background: #fff; color: #0b0e1c; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; margin-bottom: 18px;">1</div>
           <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px;">직원 명단을 올리면</div>
           <div style="font-size: 14.5px; line-height: 1.65; color: #6b7085;">CSV 한 번이면 직원 등록 끝. 인사·근태·급여·성과가 같은 데이터 위에서 돌아가요.</div>
         </div>
         <div class="how-card">
-          <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg,#4f46e5,#7c3aed); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; margin-bottom: 18px;">2</div>
+          <div style="width: 40px; height: 40px; border-radius: 12px; background: #fff; color: #0b0e1c; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; margin-bottom: 18px;">2</div>
           <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px;">Claude를 연결하면</div>
           <div style="font-size: 14.5px; line-height: 1.65; color: #6b7085;">Claude Desktop에 TalentCore MCP를 연결하면, 각자 권한 범위 안의 실시간 데이터로 답해요.</div>
         </div>
         <div class="how-card">
-          <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg,#4f46e5,#7c3aed); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; margin-bottom: 18px;">3</div>
+          <div style="width: 40px; height: 40px; border-radius: 12px; background: #fff; color: #0b0e1c; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; margin-bottom: 18px;">3</div>
           <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px;">물어보면 끝</div>
           <div style="font-size: 14.5px; line-height: 1.65; color: #6b7085;">연차 잔액, 팀 근태, 결재 대기, 급여명세까지. 물어보는 대로 바로요.</div>
         </div>
@@ -281,8 +282,8 @@
   <footer style="border-top: 1px solid rgba(255,255,255,0.07); padding: 38px 40px;">
     <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
       <div style="display: flex; align-items: center; gap: 9px;">
-        <div style="width: 24px; height: 24px; border-radius: 7px; background: linear-gradient(135deg,#4f46e5,#7c3aed);"></div>
-        <span style="font-size: 15px; font-weight: 800;">TalentCore</span>
+        <span style="display: flex; width: 22px; height: 22px; color: #fff;">{{ brand.mark() }}</span>
+        <span style="font-size: 14px; font-family: 'Unbounded', Pretendard, sans-serif; font-weight: 700; letter-spacing: -0.03em;">talentcore</span>
       </div>
       <div style="display: flex; gap: 24px; font-size: 13px; color: #8b90a8; font-weight: 600; flex-wrap: wrap;">
         <a href="#ai">AI 연동</a>

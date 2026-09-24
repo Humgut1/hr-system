@@ -7,6 +7,7 @@
 <title>로그인 — TalentCore</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700&display=swap">
 <style>
 body { background: var(--bg); }
 .sp-page { min-height: 100vh; display: flex; }
@@ -19,11 +20,8 @@ body { background: var(--bg); }
   padding: 48px 52px;
 }
 .sp-brand { display: flex; align-items: center; gap: 11px; position: relative; }
-.sp-brand .mk {
-  width: 34px; height: 34px; border-radius: 7px; background: var(--primary); color: var(--on-primary);
-  display: grid; place-items: center; font-weight: 800; font-size: 17px; letter-spacing: -.04em;
-}
-.sp-brand .nm { font-size: 18px; font-weight: 750; letter-spacing: -.02em; color: var(--tx-1); }
+.sp-brand .mk { width: 34px; height: 34px; flex: none; color: var(--tx-1); }
+.sp-brand .nm { font-family: 'Unbounded', system-ui, sans-serif; font-size: 18px; font-weight: 700; letter-spacing: -.03em; color: var(--tx-1); }
 
 .sp-mid { position: relative; max-width: 440px; }
 .sp-eyebrow {
@@ -118,8 +116,8 @@ body { background: var(--bg); }
   <!-- Left brand panel -->
   <aside class="sp-left">
     <div class="sp-brand">
-      <div class="mk">T</div>
-      <div class="nm">TalentCore</div>
+      {% import "_brand.html" as brand %}{{ brand.mark("mk") }}
+      <div class="nm">talentcore</div>
     </div>
 
     <div class="sp-mid">
