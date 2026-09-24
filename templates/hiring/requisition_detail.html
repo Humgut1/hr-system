@@ -77,9 +77,9 @@
           <div style="font-size:11.5px; color:var(--tx-3); margin-top:3px;">
             {% set how = acted_as_labels.get(st.acted_as or 'self', '') %}
             {% if st.status == 'approved' %}
-              {{ st.approver_name or '—' }} 승인{% if how %} ({{ how }}){% endif %} · {{ st.acted_at[:16] if st.acted_at else '' }}
+              {{ st.approver_name or '—' }} 승인{% if how %} ({{ how }}){% endif %} · {{ st.acted_at|kst }}
             {% elif st.status == 'rejected' %}
-              {{ st.approver_name or '—' }} 반려{% if how %} ({{ how }}){% endif %} · {{ st.acted_at[:16] if st.acted_at else '' }}
+              {{ st.approver_name or '—' }} 반려{% if how %} ({{ how }}){% endif %} · {{ st.acted_at|kst }}
             {% elif cur_step and st.id == cur_step.id %}
               대기 중{% if st.due_at %} · {{ st.due_at[:10] }}까지{% endif %}
               {% if st.delegate_name %} · 부재 시 대결 {{ st.delegate_name }}{% if cur_away %} <b style="color:var(--wait);">(결재자 부재 — 대결 가능)</b>{% endif %}{% endif %}

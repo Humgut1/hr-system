@@ -11,6 +11,13 @@ import urllib.error
 from datetime import datetime, date, timedelta
 from functools import wraps
 
+# 한국 회사용 서비스 — 운영 서버(Oracle)는 UTC 라 date.today()·datetime.now() 가
+# 오전 9시 전엔 어제 날짜, 출근 시각은 9시간 이르게 나왔다. 개발 PC(한국 시간)와 같게 맞춘다.
+# SQLite 의 CURRENT_TIMESTAMP 는 이것과 무관하게 늘 UTC → 화면에선 |kst 필터로 바꿔 보여 준다.
+os.environ['TZ'] = os.environ.get('HR_TZ') or 'Asia/Seoul'
+if hasattr(time, 'tzset'):
+    time.tzset()
+
 from flask import (Flask, abort, flash, g, redirect, render_template,
                    request, session, url_for, jsonify, Response)
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -3768,6 +3775,18 @@ def _start_date_choices(current=None, n=26):
 
 
 app.jinja_env.globals['start_date_choices'] = _start_date_choices
+
+
+@app.template_filter('kst')
+def _kst_filter(v, n=16):
+    """DB 가 CURRENT_TIMESTAMP(UTC)로 찍은 'YYYY-MM-DD HH:MM:SS' 를 한국 시각으로. 모르는 모양은 그대로."""
+    if not v:
+        return ''
+    try:
+        t = datetime.strptime(str(v)[:19].replace('T', ' '), '%Y-%m-%d %H:%M:%S') + timedelta(hours=9)
+    except ValueError:
+        return str(v)[:n]
+    return t.strftime('%Y-%m-%d %H:%M:%S')[:n]
 app.jinja_env.globals['start_weekdays_label'] = lambda: workplace.weekdays_label(workplace.settings(get_db())['weekdays'])
 
 
@@ -13774,7 +13793,9 @@ def requisition_new():
         "FROM users u "
         "LEFT JOIN departments d ON u.department_id=d.id "
         "LEFT JOIN positions   p ON u.position_id  =p.id "
-        "WHERE u.status='active' ORDER BY d.name, u.name"
+        # 연습 회사의 개인 연습 자리(learner.T.U@saebom.example)는 사람이 아니라 교육용 계정
+        "WHERE u.status='active' AND COALESCE(u.email,'') NOT LIKE 'learner.%@saebom.example' "
+        "ORDER BY d.name, u.name"
     ).fetchall()
 
     if request.method == 'POST':
