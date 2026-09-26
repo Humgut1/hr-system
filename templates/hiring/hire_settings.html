@@ -138,6 +138,27 @@
 </div>
 
 <div class="hs-block">
+  <div class="hs-head">
+    <span class="hs-name">Screen AI 1차 면접</span>
+    {% if screen_url %}<span class="hs-st on">연결됨</span>{% else %}<span class="hs-st off">미설정</span>{% endif %}
+  </div>
+  <form method="POST" action="{{ url_for('screen_settings') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="hs-field">
+      <div class="hs-cap">Screen 주소</div>
+      <input class="hs-in" type="text" name="screen_url" value="{{ screen_url or '' }}"
+             placeholder="https://screen.example.com">
+      <div class="hs-hint">
+        채용 담당자가 TalentCore 계정으로 Screen 에 로그인 · 비우면 연결 해제
+      </div>
+    </div>
+    <div class="hs-actions">
+      <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save"></i> 저장</button>
+    </div>
+  </form>
+</div>
+
+<div class="hs-block">
   <div class="hs-head"><span class="hs-name">처리 흐름</span></div>
   <ol class="hs-steps">
     <li>채용 요청 <b>최종 승인</b> — 요청 인원수만큼 포지션 생성</li>

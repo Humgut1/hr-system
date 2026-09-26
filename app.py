@@ -888,7 +888,7 @@ def login():
                         session.pop('subscription_expired', None)
 
                 log_audit('login', 'auth', user['id'], f'로그인 성공 ({email})')
-                if sso_next.startswith(('/sso/hire?', '/sso/grow?')):
+                if sso_next.startswith(('/sso/hire?', '/sso/grow?', '/sso/screen?')):
                     return redirect(sso_next)
                 return redirect(url_for('dashboard'))
             log_audit('login_failed', 'auth', None, f'로그인 실패 ({email})')
@@ -4344,7 +4344,8 @@ SSO_HIRE_MAX_AGE = 120
 def _sso_serializer(target='hire'):
     # 표를 받는 앱마다 소금을 다르게 둔다 — Hire 표를 Grow 에 들고 가도 안 풀린다.
     from itsdangerous import URLSafeTimedSerializer
-    return URLSafeTimedSerializer(app.secret_key, salt='grow-sso' if target == 'grow' else 'hire-sso')
+    salt = {'grow': 'grow-sso', 'screen': 'screen-sso'}.get(target, 'hire-sso')
+    return URLSafeTimedSerializer(app.secret_key, salt=salt)
 
 
 @app.route('/sso/hire')
@@ -4394,6 +4395,34 @@ def sso_grow():
     return redirect(grow_url + '/api/auth/core?t=' + t)
 
 
+def _screen_url(db):
+    r = db.execute("SELECT value FROM company_settings WHERE key='screen_url'").fetchone()
+    return (r['value'] if r else '') or ''
+
+
+@app.route('/sso/screen')
+def sso_screen():
+    """Screen(AI 1차 면접) 담당자 로그인 — Grow 와 같은 방식. 받는 주소는 설정 > Hire 연동의 Screen 주소 하나뿐."""
+    import re
+    state = (request.args.get('state') or '').strip()
+    if not re.fullmatch(r'[A-Za-z0-9_-]{16,128}', state):
+        return 'Screen 로그인 요청이 올바르지 않습니다. Screen 로그인 화면에서 다시 눌러주세요.', 400
+    if 'user_id' not in session or session.get('demo_mode') or session.get('training_mode'):
+        if session.get('demo_mode') or session.get('training_mode'):
+            session.clear()
+        session['sso_next'] = request.full_path
+        flash('TalentCore 계정으로 로그인하면 Screen 으로 돌아갑니다.', 'info')
+        return redirect(url_for('login'))
+    if session.get('user_role') == 'guest':
+        return 'Screen 에 들어갈 수 없는 계정입니다.', 403
+    screen_url = _screen_url(get_db())
+    if not screen_url:
+        return 'Screen 주소가 설정돼 있지 않습니다. 관리자에게 설정 > Hire 연동의 Screen 주소를 요청하세요.', 409
+    t = _sso_serializer('screen').dumps({'t': session.get('tenant_id', 1), 'u': session['user_id'], 's': state})
+    log_audit('login', 'auth', session['user_id'], 'Screen 로그인 표 발급 (SSO)')
+    return redirect(screen_url + '/api/auth/core?t=' + t)
+
+
 @app.route('/api/sso/verify', methods=['POST'])
 def sso_hire_verify():
     """Hire 가 받은 표를 확인한다. 표 발급 테넌트와 토큰 테넌트가 같아야 한다."""
@@ -4402,7 +4431,7 @@ def sso_hire_verify():
     if not tenant:
         return {'ok': False, 'error': 'invalid token'}, 401
     body = request.get_json(silent=True) or {}
-    target = 'grow' if body.get('app') == 'grow' else 'hire'
+    target = body.get('app') if body.get('app') in ('grow', 'screen') else 'hire'
     try:
         data = _sso_serializer(target).loads(str(body.get('t') or ''), max_age=SSO_HIRE_MAX_AGE)
     except SignatureExpired:
@@ -14448,7 +14477,7 @@ def hire_settings():
     import learning
     return render_template('hiring/hire_settings.html',
         cfg=cfg, linked=linked, auto_contract=auto_contract, ignited=ignited,
-        grow_url=learning.grow_url(db),
+        grow_url=learning.grow_url(db), screen_url=_screen_url(db),
         active_page='hiresettings')
 
 
@@ -14464,6 +14493,21 @@ def grow_settings():
                'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (url,))
     db.commit()
     flash('Grow 주소 저장 완료' if url else 'Grow 주소 삭제', 'success')
+    return redirect(url_for('hire_settings'))
+
+
+@app.route('/settings/screen', methods=['POST'])
+@admin_required
+def screen_settings():
+    """Screen(AI 1차 면접) 주소 — 로그인 표를 이 주소로만 보낸다."""
+    db = get_db()
+    url = request.form.get('screen_url', '').strip().rstrip('/')
+    if url and not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+    db.execute("INSERT INTO company_settings (key,value) VALUES ('screen_url',?) "
+               'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (url,))
+    db.commit()
+    flash('Screen 주소 저장 완료' if url else 'Screen 주소 삭제', 'success')
     return redirect(url_for('hire_settings'))
 
 
