@@ -60,7 +60,7 @@
   --header-h: 52px;
   --sidebar-w: 0px;
   --font: 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, 'Pretendard', monospace; /* 한글은 고정폭 글꼴에 없다 — Pretendard 로 받아야 굴림체로 안 떨어진다 */
   --ease-out: cubic-bezier(.2,.7,.2,1);
 
   /* ---- 레거시 별칭 (기존 화면 호환) ---- */

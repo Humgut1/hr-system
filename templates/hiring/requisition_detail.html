@@ -309,7 +309,7 @@
         <tbody>
         {% for o in openings %}
         <tr>
-          <td style="font-family:monospace; font-size:12px;">{{ o.code }}</td>
+          <td style="font-family:var(--mono); font-size:12px;">{{ o.code }}</td>
           <td style="font-size:12px;">{% if o.pos_level %}{{ o.pos_name or 'L' ~ o.pos_level }}{% else %}-{% endif %}</td>
           <td style="font-size:12px;">
             {{ opening_labels.get(o.status, o.status) }}

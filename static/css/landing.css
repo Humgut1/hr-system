@@ -297,7 +297,7 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .story-art { margin-top: auto; padding-top: 32px; }
 
 /* Story 1 — CSV import mock */
-.csv-mock { background: var(--surface-container-low); border-radius: var(--radius-md); padding: 20px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--on-surface-variant); }
+.csv-mock { background: var(--surface-container-low); border-radius: var(--radius-md); padding: 20px; font-family: 'JetBrains Mono', 'Pretendard', monospace; font-size: 12px; color: var(--on-surface-variant); }
 .csv-mock .csv-head { display: flex; gap: 4px; margin-bottom: 12px; }
 .csv-mock .csv-head span { width: 10px; height: 10px; border-radius: 50%; background: var(--surface-container-high); }
 .csv-mock .csv-head span:first-child { background: #ff6b6b; opacity: .7; }

@@ -692,7 +692,7 @@
                   <span style="font-size:11px;color:var(--tx-4);margin-left:auto;">{{ log.created_at[:16] }}</span>
                 </div>
                 {% if log.meta and log.meta != '{}' %}
-                <div style="font-size:12px;color:var(--tx-3);font-family:monospace;background:var(--bg-2);padding:4px 8px;border-radius:4px;word-break:break-all;">{{ log.meta }}</div>
+                <div style="font-size:12px;color:var(--tx-3);font-family:var(--mono);background:var(--bg-2);padding:4px 8px;border-radius:4px;word-break:break-all;">{{ log.meta }}</div>
                 {% endif %}
               </div>
             </div>
@@ -734,7 +734,7 @@
         </label>
         <div id="dq-email-body-wrap" style="display:none;">
           <div style="font-size:11px;color:var(--tx-3);margin-bottom:6px;">이메일 본문 (수정 가능)</div>
-          <textarea name="email_body" id="dq-email-body" class="input" rows="8" style="font-size:12px;font-family:monospace;"></textarea>
+          <textarea name="email_body" id="dq-email-body" class="input" rows="8" style="font-size:12px;font-family:var(--mono);"></textarea>
         </div>
       </div>
 
@@ -791,7 +791,7 @@
       </div>
       <div class="field">
         <label class="form-label" style="font-size:12px;">본문</label>
-        <textarea name="body" id="email-body" class="input" rows="10" style="font-size:12px;font-family:monospace;" placeholder="이메일 내용을 입력하세요..."></textarea>
+        <textarea name="body" id="email-body" class="input" rows="10" style="font-size:12px;font-family:var(--mono);" placeholder="이메일 내용을 입력하세요..."></textarea>
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button type="button" onclick="document.getElementById('email-modal').style.display='none'" class="btn btn-ghost btn-sm">취소</button>

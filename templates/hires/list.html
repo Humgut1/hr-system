@@ -160,11 +160,11 @@
             {% if h.job_title %}<div style="font-size:11px; color:var(--tx-3);">{{ h.job_title }}</div>{% endif %}
             {% if h.jp_name %}<div style="font-size:11px; color:var(--tx-3);">세부 직무 · {{ h.jp_name }}</div>{% endif %}
             {% if h.opening_code %}
-            <div style="font-size:11px; color:var(--tx-3); font-family:monospace; margin-top:2px;">
+            <div style="font-size:11px; color:var(--tx-3); font-family:var(--mono); margin-top:2px;">
               {{ h.opening_code }}{% if h.opening_level %} · {{ h.opening_pos or 'L' ~ h.opening_level }}{% endif %}
             </div>
             {% elif h.req_ref %}
-            <div style="font-size:11px; color:var(--tx-3); font-family:monospace; margin-top:2px;">{{ h.req_ref }}</div>
+            <div style="font-size:11px; color:var(--tx-3); font-family:var(--mono); margin-top:2px;">{{ h.req_ref }}</div>
             {% else %}
             <div style="font-size:11px; color:var(--orange, var(--wait)); margin-top:2px;">포지션 미지정</div>
             {% endif %}
@@ -211,7 +211,7 @@
     <div style="font-size:12px; color:var(--tx-3); line-height:1.7; margin-bottom:10px;">
       사용 중인 ATS에서 합격자 확정 시 아래 주소로 POST 요청을 보내면 입사 예정자로 자동 등록됩니다.
     </div>
-    <div style="background:var(--bg); border-radius:8px; padding:12px 14px; font-family:monospace; font-size:12px; overflow-x:auto;">
+    <div style="background:var(--bg); border-radius:8px; padding:12px 14px; font-family:var(--mono); font-size:12px; overflow-x:auto;">
       POST {{ request.url_root }}api/hires<br>
       X-API-Token: <span id="token-value" style="user-select:all;">{{ api_token }}</span><br>
       Content-Type: application/json<br><br>

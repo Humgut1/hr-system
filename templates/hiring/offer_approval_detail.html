@@ -46,7 +46,7 @@
               <td>{{ '{:,}'.format(off.band_lo) }} ~ {{ '{:,}'.format(off.band_hi) }}만원</td></tr>
           <tr><th>부서</th><td>{{ off.department_name or '-' }}</td></tr>
           <tr><th>포지션 번호</th>
-              <td style="font-family:monospace; font-size:12px;">{{ off.opening_code or '-' }}</td></tr>
+              <td style="font-family:var(--mono); font-size:12px;">{{ off.opening_code or '-' }}</td></tr>
           <tr><th>입사 예정일</th><td>{{ off.start_date or '미정' }}</td></tr>
           <tr><th>올린 사람</th>
               <td>{{ off.requester_name or '-' }} <span style="color:var(--tx-3); font-size:12px;">· Hire</span></td></tr>
