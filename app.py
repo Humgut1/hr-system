@@ -888,7 +888,7 @@ def login():
                         session.pop('subscription_expired', None)
 
                 log_audit('login', 'auth', user['id'], f'로그인 성공 ({email})')
-                if sso_next.startswith(('/sso/hire?', '/sso/grow?', '/sso/screen?')):
+                if sso_next.startswith(('/sso/hire?', '/sso/grow?', '/sso/screen?', '/sso/minutes?')):
                     return redirect(sso_next)
                 return redirect(url_for('dashboard'))
             log_audit('login_failed', 'auth', None, f'로그인 실패 ({email})')
@@ -4344,7 +4344,7 @@ SSO_HIRE_MAX_AGE = 120
 def _sso_serializer(target='hire'):
     # 표를 받는 앱마다 소금을 다르게 둔다 — Hire 표를 Grow 에 들고 가도 안 풀린다.
     from itsdangerous import URLSafeTimedSerializer
-    salt = {'grow': 'grow-sso', 'screen': 'screen-sso'}.get(target, 'hire-sso')
+    salt = {'grow': 'grow-sso', 'screen': 'screen-sso', 'minutes': 'minutes-sso'}.get(target, 'hire-sso')
     return URLSafeTimedSerializer(app.secret_key, salt=salt)
 
 
@@ -4423,6 +4423,34 @@ def sso_screen():
     return redirect(screen_url + '/api/auth/core?t=' + t)
 
 
+def _minutes_url(db):
+    r = db.execute("SELECT value FROM company_settings WHERE key='minutes_url'").fetchone()
+    return (r['value'] if r else '') or ''
+
+
+@app.route('/sso/minutes')
+def sso_minutes():
+    """Minutes(회의 기록) 로그인 — 전 직원. 받는 주소는 설정 > Hire 연동의 Minutes 주소 하나뿐."""
+    import re
+    state = (request.args.get('state') or '').strip()
+    if not re.fullmatch(r'[A-Za-z0-9_-]{16,128}', state):
+        return 'Minutes 로그인 요청이 올바르지 않습니다. Minutes 로그인 화면에서 다시 눌러주세요.', 400
+    if 'user_id' not in session or session.get('demo_mode') or session.get('training_mode'):
+        if session.get('demo_mode') or session.get('training_mode'):
+            session.clear()
+        session['sso_next'] = request.full_path
+        flash('TalentCore 계정으로 로그인하면 Minutes 로 돌아갑니다.', 'info')
+        return redirect(url_for('login'))
+    if session.get('user_role') == 'guest':
+        return 'Minutes 에 들어갈 수 없는 계정입니다.', 403
+    minutes_url = _minutes_url(get_db())
+    if not minutes_url:
+        return 'Minutes 주소가 설정돼 있지 않습니다. 관리자에게 설정 > Hire 연동의 Minutes 주소를 요청하세요.', 409
+    t = _sso_serializer('minutes').dumps({'t': session.get('tenant_id', 1), 'u': session['user_id'], 's': state})
+    log_audit('login', 'auth', session['user_id'], 'Minutes 로그인 표 발급 (SSO)')
+    return redirect(minutes_url + '/api/auth/core?t=' + t)
+
+
 @app.route('/api/sso/verify', methods=['POST'])
 def sso_hire_verify():
     """Hire 가 받은 표를 확인한다. 표 발급 테넌트와 토큰 테넌트가 같아야 한다."""
@@ -4431,7 +4459,7 @@ def sso_hire_verify():
     if not tenant:
         return {'ok': False, 'error': 'invalid token'}, 401
     body = request.get_json(silent=True) or {}
-    target = body.get('app') if body.get('app') in ('grow', 'screen') else 'hire'
+    target = body.get('app') if body.get('app') in ('grow', 'screen', 'minutes') else 'hire'
     try:
         data = _sso_serializer(target).loads(str(body.get('t') or ''), max_age=SSO_HIRE_MAX_AGE)
     except SignatureExpired:
@@ -14477,7 +14505,7 @@ def hire_settings():
     import learning
     return render_template('hiring/hire_settings.html',
         cfg=cfg, linked=linked, auto_contract=auto_contract, ignited=ignited,
-        grow_url=learning.grow_url(db), screen_url=_screen_url(db),
+        grow_url=learning.grow_url(db), screen_url=_screen_url(db), minutes_url=_minutes_url(db),
         active_page='hiresettings')
 
 
@@ -14508,6 +14536,21 @@ def screen_settings():
                'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (url,))
     db.commit()
     flash('Screen 주소 저장 완료' if url else 'Screen 주소 삭제', 'success')
+    return redirect(url_for('hire_settings'))
+
+
+@app.route('/settings/minutes', methods=['POST'])
+@admin_required
+def minutes_settings():
+    """Minutes(회의 기록) 주소 — 로그인 표를 이 주소로만 보낸다."""
+    db = get_db()
+    url = request.form.get('minutes_url', '').strip().rstrip('/')
+    if url and not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+    db.execute("INSERT INTO company_settings (key,value) VALUES ('minutes_url',?) "
+               'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (url,))
+    db.commit()
+    flash('Minutes 주소 저장 완료' if url else 'Minutes 주소 삭제', 'success')
     return redirect(url_for('hire_settings'))
 
 
