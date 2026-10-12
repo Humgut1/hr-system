@@ -108,7 +108,7 @@
     </div>
     <div class="kpi-sub">{{ today_year }}년 {{ today_month }}월 생성 현황</div>
   </div>
-  {% if 'comp_advanced' in plan_features %}
+  {% if 'comp_advanced' in features %}
   <div class="kpi-card">
     <div class="kpi-label">진행 중 보상 검토</div>
     <div class="kpi-val" style="color:{% if active_acr %}var(--primary){% else %}var(--tx-3){% endif %};">
@@ -142,10 +142,10 @@
 <!-- ── 탭 네비 ── -->
 <div class="cp-tabs">
   <button class="cp-tab {% if active_tab == 'ops' %}active{% endif %}" onclick="switchCpTab('ops',this)" data-tour-page="comp-ops">급여 운영</button>
-  {% if 'comp_advanced' in plan_features %}
+  {% if 'comp_advanced' in features %}
   <button class="cp-tab {% if active_tab == 'structure' %}active{% endif %}" onclick="switchCpTab('structure',this)" data-tour-page="comp-structure">급여 구조</button>
   {% endif %}
-  {% if 'performance' in plan_features %}
+  {% if 'performance' in features %}
   <button class="cp-tab {% if active_tab == 'acr' %}active{% endif %}" onclick="switchCpTab('acr',this)" data-tour-page="comp-acr">보상 검토</button>
   {% endif %}
   <a class="cp-tab" href="{{ url_for('comp_analysis') }}" data-tour-page="comp-analysis">보상 분석</a>
@@ -373,7 +373,7 @@
             <th>기본급</th>
             <th>식대</th>
             <th>교통비</th>
-            {% if 'comp_advanced' in plan_features %}<th>Compa-Ratio</th>{% endif %}
+            {% if 'comp_advanced' in features %}<th>Compa-Ratio</th>{% endif %}
             <th>액션</th>
           </tr>
         </thead>
@@ -393,7 +393,7 @@
             <td style="font-variant-numeric:tabular-nums;">{{ '{:,}'.format(emp.base_salary) }}원</td>
             <td style="color:var(--tx-3); font-variant-numeric:tabular-nums;">{{ '{:,}'.format(emp.meal_allowance) }}원</td>
             <td style="color:var(--tx-3); font-variant-numeric:tabular-nums;">{{ '{:,}'.format(emp.transport_allowance) }}원</td>
-            {% if 'comp_advanced' in plan_features %}
+            {% if 'comp_advanced' in features %}
             <td>
               {% if emp.compa_ratio %}
               {% set cr = emp.compa_ratio %}
@@ -421,7 +421,7 @@
 </div>
 
 
-{% if 'comp_advanced' in plan_features %}
+{% if 'comp_advanced' in features %}
 <!-- ════════════════════════════════
      TAB 2: 급여 구조
 ════════════════════════════════ -->
@@ -518,7 +518,7 @@
 <!-- ════════════════════════════════
      TAB 3: 보상 검토 (성과 플랜 이상 — 등급 연동 인상·성과상여)
 ════════════════════════════════ -->
-{% if 'performance' in plan_features %}
+{% if 'performance' in features %}
 <div id="cp-acr" class="cp-pane" {% if active_tab != 'acr' %}style="display:none"{% endif %}>
 
   <div class="sec-head"><h2>보상 검토 주기</h2><span class="cnt">{{ cycles | length }}</span>

@@ -29,7 +29,7 @@ EMPLOYEE_EMAIL = os.environ.get('SWEEP_EMPLOYEE_EMAIL', 'emp002@company.com')  #
 DEFAULT_PW     = os.environ.get('SWEEP_DEFAULT_PW', 'changeme!')
 
 SKIP_PREFIX = ('/static', '/logout', '/demo', '/tour', '/slack',
-               '/billing/webhook', '/api/', '/export')
+               '/api/', '/export')
 
 
 def _sample_ids():
@@ -42,8 +42,6 @@ def _sample_ids():
 
     ids = {
         'emp_id':         one("SELECT id FROM users WHERE role='employee' AND status='active' LIMIT 1"),
-        'applicant_id':   one('SELECT id FROM applicants LIMIT 1'),
-        'posting_id':     one('SELECT id FROM job_postings LIMIT 1'),
         'cycle_id':       one('SELECT id FROM performance_cycles ORDER BY id DESC LIMIT 1'),
         'goal_id':        one('SELECT id FROM performance_goals LIMIT 1'),
         'contract_id':    one('SELECT id FROM contracts LIMIT 1'),
@@ -55,7 +53,6 @@ def _sample_ids():
     # url 파라미터 이름 → 샘플 값
     return {
         'emp_id': ids['emp_id'], 'user_id': ids['emp_id'], 'uid': ids['emp_id'],
-        'applicant_id': ids['applicant_id'], 'posting_id': ids['posting_id'],
         'cycle_id': ids['cycle_id'], 'goal_id': ids['goal_id'],
         'contract_id': ids['contract_id'],
         'requisition_id': ids['req_id'], 'req_id': ids['req_id'],

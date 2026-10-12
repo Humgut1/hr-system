@@ -51,11 +51,6 @@ table.sa-table { width: 100%; border-collapse: collapse; }
       <div class="sa-item"><div class="k">관리자 이메일</div><div class="v">{{ tenant.admin_email }}</div></div>
       <div class="sa-item"><div class="k">슬러그</div><div class="v">{{ tenant.slug }}</div></div>
       <div class="sa-item"><div class="k">가입일</div><div class="v">{{ tenant.created_at[:10] if tenant.created_at else '-' }}</div></div>
-      <div class="sa-item"><div class="k">구독 상태</div><div class="v">{{ tenant.sub_status or '-' }}</div></div>
-      <div class="sa-item"><div class="k">피크 인원</div><div class="v">{{ tenant.peak_headcount or 0 }}명</div></div>
-      <div class="sa-item"><div class="k">체험 종료일</div><div class="v">{{ tenant.trial_ends_at or '-' }}</div></div>
-      <div class="sa-item"><div class="k">현재 청구 기간</div><div class="v">{{ tenant.current_period_start or '-' }} ~ {{ tenant.current_period_end or '-' }}</div></div>
-      <div class="sa-item"><div class="k">토스 빌링키 등록</div><div class="v">{{ '등록됨' if tenant.toss_billing_key else '미등록' }}</div></div>
       <div class="sa-item"><div class="k">현재 활성 인원</div><div class="v">{{ headcount }}명</div></div>
     </div>
   </div>
@@ -64,24 +59,11 @@ table.sa-table { width: 100%; border-collapse: collapse; }
     <h2>테넌트 상태 변경</h2>
     <form class="sa-status-form" method="POST" action="{{ url_for('saas_tenant_status', tenant_id=tenant.id) }}">
       <select class="sa-select" name="status">
-        <option value="trial" {{ 'selected' if tenant.status=='trial' }}>trial</option>
         <option value="active" {{ 'selected' if tenant.status=='active' }}>active</option>
         <option value="suspended" {{ 'selected' if tenant.status=='suspended' }}>suspended</option>
         <option value="cancelled" {{ 'selected' if tenant.status=='cancelled' }}>cancelled</option>
       </select>
       <button class="sa-btn" type="submit">변경 적용</button>
-    </form>
-  </div>
-
-  <div class="sa-panel">
-    <h2>요금제 (현재: {{ plan_labels.get(tenant_plan, tenant_plan) }} — ₩{{ '{:,}'.format(plan_prices.get(tenant_plan, 0)) }}/인/월)</h2>
-    <form class="sa-status-form" method="POST" action="{{ url_for('saas_tenant_plan', tenant_id=tenant.id) }}">
-      <select class="sa-select" name="plan">
-        {% for key, price in plan_prices.items() %}
-        <option value="{{ key }}" {{ 'selected' if tenant_plan == key }}>{{ plan_labels[key] }} — ₩{{ '{:,}'.format(price) }}/인/월</option>
-        {% endfor %}
-      </select>
-      <button class="sa-btn" type="submit">요금제 변경</button>
     </form>
   </div>
 
@@ -99,19 +81,6 @@ table.sa-table { width: 100%; border-collapse: collapse; }
     </table>
   </div>
 
-  <div class="sa-panel">
-    <h2>결제 내역 (최근 24건)</h2>
-    <table class="sa-table">
-      <thead><tr><th>일시</th><th>금액</th><th>인원</th><th>상태</th></tr></thead>
-      <tbody>
-        {% for b in billing_logs %}
-        <tr><td>{{ b.created_at }}</td><td>₩{{ '{:,}'.format(b.amount) }}</td><td>{{ b.headcount }}명</td><td>{{ b.status }}</td></tr>
-        {% else %}
-        <tr><td colspan="4" style="text-align:center; color:var(--tx-3); padding:20px;">결제 내역이 없습니다.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
 </div>
 </body>
 </html>

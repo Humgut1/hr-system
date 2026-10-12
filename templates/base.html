@@ -21,10 +21,9 @@
   ══ 메뉴 정의 ════════════════════════════════════════
   좌측 메뉴: 7개 대메뉴 + 설정(하단). 마우스를 올리면 하위 메뉴가 아래로 펼쳐진다. 각 항목: l=이름 u=주소 p=해당 화면(active_page) s=노출 조건 i=아이콘
   하위 항목이 하나도 안 보이는 대메뉴는 통째로 숨긴다.
-  구 내장 ATS(legacy_ats_nav)는 2026-09-04(T6) 은퇴 — 메뉴에 두지 않는다.
 #}
 {% set R = session.user_role %}
-{% set PF = plan_features or [] %}
+{% set PF = features or [] %}
 {% set ADM = R == 'admin' %}
 {% set MGR = R in ('admin', 'manager') %}
 {% set TAB = request.args.get('tab', 'home') %}

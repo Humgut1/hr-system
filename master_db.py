@@ -2,10 +2,11 @@
 master_db.py — SaaS 멀티테넌시 마스터 DB 관리
 
 master.db 역할:
-  - tenants: 가입 회사 목록, 상태(trial/active/suspended)
-  - subscriptions: 플랜, peak headcount, 토스 billing key
-  - billing_logs: 결제 기록
+  - tenants: 가입 회사 목록, 상태(active/suspended)
   - tenant_users: 이메일 → tenant_id 매핑 (로그인 라우팅용)
+
+결제·요금제(subscriptions / billing_logs / 요금제 3계층)는 2026-10 무료·오픈소스
+전환으로 삭제했다. tenants.trial_ends_at·plan 칼럼은 옛 DB 호환용으로만 남는다.
 
 테넌트 DB 규칙:
   - 테넌트 1 (데모): hr_system.db (기존 파일 유지)
@@ -19,25 +20,6 @@ from datetime import date, timedelta
 
 _db_dir = os.environ.get('DB_DIR', '')
 MASTER_DB = os.path.join(_db_dir, 'master.db') if _db_dir else 'master.db'
-
-PRICE_PER_SEAT = 1000   # 원/인/월 (레거시 — 요금제 미지정 테넌트 폴백)
-TRIAL_DAYS     = 14
-
-# ── 요금제 3계층 (Phase B-7, saas_plan.md §2) ────────────────
-PLAN_PRICES = {
-    'core':       2500,   # 인사·근태·급여·증명서·전자결재·문서함·입사 예정자
-    'growth':     4500,   # + 성과·온보딩·복지포인트·다면평가
-    'enterprise': 7000,   # + 채용 ATS·9박스·승계·Merit Matrix·ACR·Talent Card·데이터 마법사
-}
-PLAN_LABELS = {
-    'core': 'Core', 'growth': 'Growth', 'enterprise': 'Enterprise',
-}
-DEFAULT_PLAN = 'growth'   # 신규 가입(트라이얼) 기본 — 체험 기간엔 Growth 기능까지 개방
-
-
-def get_plan_price(plan):
-    return PLAN_PRICES.get(plan, PRICE_PER_SEAT)
-
 
 # ── 경로 헬퍼 ────────────────────────────────────────────────
 def get_tenant_db_path(tenant_id: int) -> str:
@@ -76,34 +58,6 @@ def init_master_db():
             status          TEXT NOT NULL DEFAULT 'trial'
                                 CHECK(status IN ('trial','active','suspended','cancelled')),
             trial_ends_at   DATE NOT NULL,
-            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS subscriptions (
-            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-            tenant_id             INTEGER NOT NULL UNIQUE REFERENCES tenants(id),
-            status                TEXT NOT NULL DEFAULT 'trialing'
-                                      CHECK(status IN ('trialing','active','past_due','cancelled')),
-            peak_headcount        INTEGER NOT NULL DEFAULT 0,
-            current_period_start  DATE,
-            current_period_end    DATE,
-            toss_billing_key      TEXT,
-            grace_until           DATE,
-            payment_retry_count   INTEGER NOT NULL DEFAULT 0,
-            last_payment_attempt  TIMESTAMP,
-            updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS billing_logs (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            tenant_id       INTEGER NOT NULL REFERENCES tenants(id),
-            amount          INTEGER NOT NULL,
-            headcount       INTEGER NOT NULL,
-            status          TEXT NOT NULL DEFAULT 'pending'
-                                CHECK(status IN ('pending','paid','failed')),
-            payment_key     TEXT,
-            toss_order_id   TEXT UNIQUE,
-            fail_reason     TEXT,
             created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -147,15 +101,12 @@ def get_superadmin_by_username(username: str):
 
 
 def list_tenants_with_state():
-    """전체 테넌트 목록 + 구독/헤드카운트 요약 (SaaS 관리 페이지용)"""
+    """전체 테넌트 목록 (SaaS 관리 페이지용)"""
     conn = get_master_db()
     rows = conn.execute(
         '''SELECT t.id, t.slug, t.company_name, t.admin_email, t.status AS tenant_status,
-                  t.trial_ends_at, t.created_at,
-                  s.status AS sub_status, s.peak_headcount,
-                  s.current_period_start, s.current_period_end, s.toss_billing_key
+                  t.created_at
            FROM tenants t
-           LEFT JOIN subscriptions s ON s.tenant_id = t.id
            ORDER BY t.created_at DESC'''
     ).fetchall()
     conn.close()
@@ -185,9 +136,7 @@ def slugify(text: str) -> str:
 
 def create_tenant(company_name: str, admin_email: str) -> int:
     """
-    새 테넌트 생성 (14일 트라이얼).
-    slug 충돌 시 숫자 접미사 추가.
-    tenant_id 반환.
+    새 테넌트 생성. slug 충돌 시 숫자 접미사 추가. tenant_id 반환.
     """
     conn = get_master_db()
     base_slug = slugify(company_name)
@@ -199,21 +148,14 @@ def create_tenant(company_name: str, admin_email: str) -> int:
         slug = f'{base_slug}-{suffix}'
         suffix += 1
 
-    trial_ends = (date.today() + timedelta(days=TRIAL_DAYS)).isoformat()
     c = conn.cursor()
+    # trial_ends_at 은 옛 스키마의 NOT NULL 칼럼이라 가입일을 채워 둔다 (의미 없음)
     c.execute(
-        'INSERT INTO tenants (slug, company_name, admin_email, trial_ends_at) VALUES (?,?,?,?)',
-        (slug, company_name, admin_email, trial_ends)
+        "INSERT INTO tenants (slug, company_name, admin_email, status, trial_ends_at) "
+        "VALUES (?,?,?,'active',?)",
+        (slug, company_name, admin_email, date.today().isoformat())
     )
     tenant_id = c.lastrowid
-    c.execute(
-        '''INSERT INTO subscriptions
-           (tenant_id, status, current_period_start, current_period_end)
-           VALUES (?,?,?,?)''',
-        (tenant_id, 'trialing',
-         date.today().isoformat(),
-         (date.today() + timedelta(days=TRIAL_DAYS)).isoformat())
-    )
     conn.commit()
     conn.close()
     return tenant_id
@@ -224,12 +166,9 @@ def get_tenant_by_email(email: str):
     """이메일로 테넌트 조회 (로그인 라우팅용)"""
     conn = get_master_db()
     row = conn.execute(
-        '''SELECT t.id, t.slug, t.company_name, t.status, t.trial_ends_at,
-                  s.status AS sub_status, s.peak_headcount,
-                  s.toss_billing_key, s.current_period_end
+        '''SELECT t.id, t.slug, t.company_name, t.status
            FROM tenant_users tu
            JOIN tenants t ON t.id = tu.tenant_id
-           LEFT JOIN subscriptions s ON s.tenant_id = t.id
            WHERE tu.email = ?''',
         (email,)
     ).fetchone()
@@ -238,14 +177,10 @@ def get_tenant_by_email(email: str):
 
 
 def get_tenant(tenant_id: int):
-    """tenant_id로 테넌트 + 구독 정보 조회"""
+    """tenant_id로 테넌트 조회"""
     conn = get_master_db()
     row = conn.execute(
-        '''SELECT t.*, s.status AS sub_status, s.peak_headcount,
-                  s.toss_billing_key, s.current_period_start, s.current_period_end
-           FROM tenants t
-           LEFT JOIN subscriptions s ON s.tenant_id = t.id
-           WHERE t.id = ?''',
+        'SELECT * FROM tenants WHERE id = ?',
         (tenant_id,)
     ).fetchone()
     conn.close()
@@ -286,107 +221,7 @@ def remove_tenant_user(email: str, tenant_id: int):
     conn.close()
 
 
-# ── Peak Headcount ───────────────────────────────────────────
-def update_peak_headcount(tenant_id: int, current_count: int):
-    """
-    현재 활성 직원 수가 이번 달 최고 기록보다 많으면 갱신.
-    직원 추가 후 호출.
-    """
-    conn = get_master_db()
-    sub = conn.execute(
-        'SELECT peak_headcount FROM subscriptions WHERE tenant_id=?', (tenant_id,)
-    ).fetchone()
-    if sub and current_count > (sub['peak_headcount'] or 0):
-        conn.execute(
-            '''UPDATE subscriptions
-               SET peak_headcount=?, updated_at=CURRENT_TIMESTAMP
-               WHERE tenant_id=?''',
-            (current_count, tenant_id)
-        )
-        conn.commit()
-    conn.close()
-
-
-def reset_peak_headcount(tenant_id: int, current_count: int):
-    """
-    월말 결제 완료 후 peak_headcount를 현재 직원 수로 리셋.
-    새 달의 시작점 설정.
-    """
-    conn = get_master_db()
-    today = date.today()
-    next_month_start = (today.replace(day=1) + timedelta(days=32)).replace(day=1)
-    conn.execute(
-        '''UPDATE subscriptions
-           SET peak_headcount=?,
-               current_period_start=?,
-               current_period_end=?,
-               updated_at=CURRENT_TIMESTAMP
-           WHERE tenant_id=?''',
-        (current_count,
-         today.isoformat(),
-         next_month_start.isoformat(),
-         tenant_id)
-    )
-    conn.commit()
-    conn.close()
-
-
-# ── Toss Billing Key ─────────────────────────────────────────
-def save_billing_key(tenant_id: int, billing_key: str):
-    """토스 billing key 저장 + 구독 상태 active로 변경"""
-    conn = get_master_db()
-    today = date.today()
-    next_month = (today.replace(day=1) + timedelta(days=32)).replace(day=1)
-    conn.execute(
-        '''UPDATE subscriptions
-           SET toss_billing_key=?, status='active',
-               current_period_start=?, current_period_end=?,
-               updated_at=CURRENT_TIMESTAMP
-           WHERE tenant_id=?''',
-        (billing_key, today.isoformat(), next_month.isoformat(), tenant_id)
-    )
-    conn.execute(
-        "UPDATE tenants SET status='active' WHERE id=?",
-        (tenant_id,)
-    )
-    conn.commit()
-    conn.close()
-
-
-# ── 결제 로그 ────────────────────────────────────────────────
-def log_billing(tenant_id: int, amount: int, headcount: int,
-                toss_order_id: str, payment_key: str = None,
-                status: str = 'pending') -> int:
-    """결제 로그 생성, log_id 반환"""
-    conn = get_master_db()
-    c = conn.cursor()
-    c.execute(
-        '''INSERT INTO billing_logs
-           (tenant_id, amount, headcount, toss_order_id, payment_key, status)
-           VALUES (?,?,?,?,?,?)''',
-        (tenant_id, amount, headcount, toss_order_id, payment_key, status)
-    )
-    log_id = c.lastrowid
-    conn.commit()
-    conn.close()
-    return log_id
-
-
-def update_billing_log(toss_order_id: str, payment_key: str, status: str,
-                       fail_reason: str = None):
-    """토스 webhook 수신 후 결제 로그 상태 갱신"""
-    conn = get_master_db()
-    conn.execute(
-        '''UPDATE billing_logs
-           SET payment_key=?, status=?, fail_reason=?
-           WHERE toss_order_id=?''',
-        (payment_key, status, fail_reason, toss_order_id)
-    )
-    conn.commit()
-    conn.close()
-
-
-# ── 구독 상태 컬럼 마이그레이션 ─────────────────────────────────
+# ── master.db 칼럼 마이그레이션 ─────────────────────────────────
 def _add_column(conn, table, col, definition):
     """칼럼 추가 (멱등 + 동시 실행 안전).
 
@@ -404,19 +239,13 @@ def _add_column(conn, table, col, definition):
             raise
 
 
-def migrate_subscriptions():
-    """grace_until 등 신규 컬럼 추가 (멱등)"""
+def migrate_master_db():
+    """master.db 칼럼·표 보장 (멱등)"""
     conn = get_master_db()
-    for col, definition in [
-        ('grace_until',          'DATE'),
-        ('payment_retry_count',  'INTEGER NOT NULL DEFAULT 0'),
-        ('last_payment_attempt', 'TIMESTAMP'),
-    ]:
-        _add_column(conn, 'subscriptions', col, definition)
-    # tenants.plan (Phase B-7 요금제 3계층)
-    # 데모 테넌트(1)도 growth — 채용 ATS·Enterprise 기능은 데모에서 숨김 (2026-07-15 승헌씨 지시)
-    # 필요 시 SaaS 슈퍼어드민(/saas)에서 요금제 변경으로 다시 열 수 있음
-    _add_column(conn, 'tenants', 'plan', "TEXT NOT NULL DEFAULT 'growth'")
+    # 결제·요금제 삭제 (2026-10 무료·오픈소스 전환) — 옛 표를 치우고 체험 상태를 정상으로
+    conn.execute('DROP TABLE IF EXISTS subscriptions')
+    conn.execute('DROP TABLE IF EXISTS billing_logs')
+    conn.execute("UPDATE tenants SET status='active' WHERE status='trial'")
     # tenants.api_token (Phase C-11 — 입사 예정자 웹훅 수신 인증)
     _add_column(conn, 'tenants', 'api_token', 'TEXT')
     # tenants.is_training (Grow 교육 모드 — 연습 회사 표시)
@@ -450,17 +279,13 @@ def get_training_tenant():
 
 
 def mark_training_tenant(tenant_id: int):
-    """이 테넌트를 연습 회사로 표시 + 체험 만료로 잠기지 않게 한다."""
-    far = (date.today() + timedelta(days=3650)).isoformat()
+    """이 테넌트를 연습 회사로 표시."""
     conn = get_master_db()
-    conn.execute("UPDATE tenants SET is_training=1, status='trial', plan='enterprise', "
-                 'trial_ends_at=? WHERE id=?', (far, tenant_id))
+    conn.execute("UPDATE tenants SET is_training=1, status='active' WHERE id=?", (tenant_id,))
     taken = conn.execute("SELECT id FROM tenants WHERE slug='training' AND id<>?",
                          (tenant_id,)).fetchone()
     if not taken:
         conn.execute("UPDATE tenants SET slug='training' WHERE id=?", (tenant_id,))
-    conn.execute("UPDATE subscriptions SET status='trialing', current_period_end=? "
-                 'WHERE tenant_id=?', (far, tenant_id))
     conn.commit()
     conn.close()
 
@@ -533,147 +358,3 @@ def get_tenant_by_api_token(token):
                        (token,)).fetchone()
     conn.close()
     return row
-
-
-def get_tenant_plan(tenant_id):
-    """테넌트 요금제 조회 (없으면 기본 plan)."""
-    conn = get_master_db()
-    try:
-        row = conn.execute('SELECT plan FROM tenants WHERE id=?', (tenant_id,)).fetchone()
-    except sqlite3.OperationalError:   # plan 컬럼 미마이그레이션
-        row = None
-    conn.close()
-    return (row['plan'] if row and row['plan'] else DEFAULT_PLAN)
-
-
-def set_tenant_plan(tenant_id, plan):
-    if plan not in PLAN_PRICES:
-        raise ValueError(f'unknown plan: {plan}')
-    conn = get_master_db()
-    conn.execute('UPDATE tenants SET plan=? WHERE id=?', (plan, tenant_id))
-    conn.commit()
-    conn.close()
-
-
-# ── 구독 상태 계산 ────────────────────────────────────────────
-GRACE_DAYS = 7
-WARNING_DAYS = 7   # trial 종료 N일 전부터 배너 표시
-
-
-def compute_sub_state(tenant_id: int) -> dict:
-    """
-    테넌트 구독 상태를 계산해서 반환.
-
-    state 값:
-      trial_active    — 체험 중 (경고 없음)
-      trial_warning   — 체험 D-7 이하 (주황 배너)
-      grace           — 체험 만료 or 결제 실패, 유예 기간 중 (빨간 배너, 조회 전용)
-      locked          — 유예 만료 (완전 차단)
-      active          — 정상 구독
-      payment_failed  — 결제 실패, 유예 기간 중
-
-    can_write: POST/PUT/DELETE 허용 여부
-    locked:    앱 접근 완전 차단 여부
-    days_left: 체험 또는 유예 잔여일 (배너용)
-    """
-    today = date.today()
-    conn = get_master_db()
-    row = conn.execute(
-        '''SELECT t.status AS tenant_status, t.trial_ends_at,
-                  s.status AS sub_status, s.toss_billing_key,
-                  s.grace_until, s.payment_retry_count
-           FROM tenants t
-           LEFT JOIN subscriptions s ON s.tenant_id = t.id
-           WHERE t.id = ?''',
-        (tenant_id,)
-    ).fetchone()
-    conn.close()
-
-    if not row:
-        return {'state': 'active', 'can_write': True, 'locked': False, 'days_left': 0}
-
-    sub_status  = row['sub_status'] or 'trialing'
-    trial_ends  = row['trial_ends_at']
-    grace_until = row['grace_until']
-    has_card    = bool(row['toss_billing_key'])
-
-    # ── 1. 정상 유료 구독 ─────────────────────────────────────
-    if sub_status == 'active' and has_card:
-        return {'state': 'active', 'can_write': True, 'locked': False, 'days_left': 0}
-
-    # ── 2. 트라이얼 중 ────────────────────────────────────────
-    if sub_status == 'trialing':
-        if not trial_ends:
-            return {'state': 'trial_active', 'can_write': True, 'locked': False, 'days_left': 14}
-        delta = (date.fromisoformat(trial_ends) - today).days
-        if delta > WARNING_DAYS:
-            return {'state': 'trial_active', 'can_write': True, 'locked': False, 'days_left': delta}
-        if delta >= 0:
-            return {'state': 'trial_warning', 'can_write': True, 'locked': False, 'days_left': delta}
-        # 트라이얼 만료 → 유예 시작
-        if not grace_until:
-            _start_grace(tenant_id, today)
-            grace_until = (today + timedelta(days=GRACE_DAYS)).isoformat()
-        grace_delta = (date.fromisoformat(grace_until) - today).days
-        if grace_delta >= 0:
-            return {'state': 'grace', 'can_write': False, 'locked': False, 'days_left': grace_delta}
-        return {'state': 'locked', 'can_write': False, 'locked': True, 'days_left': 0}
-
-    # ── 3. 결제 실패 ──────────────────────────────────────────
-    if sub_status == 'past_due':
-        if not grace_until:
-            _start_grace(tenant_id, today)
-            grace_until = (today + timedelta(days=GRACE_DAYS)).isoformat()
-        grace_delta = (date.fromisoformat(grace_until) - today).days
-        if grace_delta >= 0:
-            return {'state': 'payment_failed', 'can_write': False, 'locked': False, 'days_left': grace_delta}
-        return {'state': 'locked', 'can_write': False, 'locked': True, 'days_left': 0}
-
-    # ── 4. 취소/기타 ─────────────────────────────────────────
-    if sub_status == 'cancelled':
-        return {'state': 'locked', 'can_write': False, 'locked': True, 'days_left': 0}
-
-    return {'state': 'active', 'can_write': True, 'locked': False, 'days_left': 0}
-
-
-def _start_grace(tenant_id: int, today: date):
-    """유예 기간 시작 — grace_until 설정 + subscriptions 상태 갱신"""
-    conn = get_master_db()
-    grace_until = (today + timedelta(days=GRACE_DAYS)).isoformat()
-    conn.execute(
-        '''UPDATE subscriptions
-           SET grace_until=?, updated_at=CURRENT_TIMESTAMP
-           WHERE tenant_id=?''',
-        (grace_until, tenant_id)
-    )
-    conn.commit()
-    conn.close()
-
-
-def start_grace_period(tenant_id: int):
-    """외부에서 유예 기간 강제 시작 (결제 실패 webhook 수신 시 호출)"""
-    conn = get_master_db()
-    today = date.today()
-    grace_until = (today + timedelta(days=GRACE_DAYS)).isoformat()
-    conn.execute(
-        '''UPDATE subscriptions
-           SET status='past_due', grace_until=?, updated_at=CURRENT_TIMESTAMP
-           WHERE tenant_id=?''',
-        (grace_until, tenant_id)
-    )
-    conn.execute("UPDATE tenants SET status='suspended' WHERE id=?", (tenant_id,))
-    conn.commit()
-    conn.close()
-
-
-def lock_tenant(tenant_id: int):
-    """유예 만료 후 테넌트 완전 잠금"""
-    conn = get_master_db()
-    conn.execute(
-        '''UPDATE subscriptions SET status='cancelled', updated_at=CURRENT_TIMESTAMP
-           WHERE tenant_id=?''',
-        (tenant_id,)
-    )
-    conn.execute("UPDATE tenants SET status='suspended' WHERE id=?", (tenant_id,))
-    conn.commit()
-    conn.close()

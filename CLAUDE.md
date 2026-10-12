@@ -2,17 +2,61 @@
 
 ## ⚡ 세션 시작 시 필독 (컨텍스트 리셋 후 재시작할 때)
 
-새 세션이 시작됐다면 아래 순서로 파일을 읽고 시작할 것:
+새 세션이 시작됐다면 **이 파일(CLAUDE.md)** 의 "★ 정비 로드맵"부터 확인하고 시작할 것.
+(기획 문서 `saas_plan.md`·`talentcore_plan.html`·`performance_plan.html` 등 루트의 `*_plan.*` 11개는
+2026-10-12 승헌씨 지시로 삭제됨 — 필요하면 git 이력에서 꺼내 볼 것. 코드 주석의 `saas_plan.md §N` 같은 표기는 그 이력을 가리킨다.)
 
-1. **이 파일 (CLAUDE.md)** — 전체 규칙 + 완료 이력 + 로드맵 확인
-2. **`C:\Users\lg\hr-system\saas_plan.md`** — ★ 국내 HR SaaS 재포지셔닝 플랜 (2026-07-13 확정) — **v1.0까지 모든 작업의 기준 문서, 반드시 읽을 것**
-3. **`C:\Users\lg\hr-system\talentcore_plan.html`** — 6개 모듈 전체 기획안 (Workday 기반, 참고용)
-4. **`C:\Users\lg\hr-system\performance_plan.html`** — 성과관리 모듈 상세 기획안 (참고용 — 재개편안은 saas_plan.md §4가 우선)
+### ★ 정비 로드맵 (2026-10-12 수립, 승헌씨 지시 — 위에서부터 한 번에 하나씩)
 
-### 현재 진행 상태 (마지막 업데이트: 2026-07-21)
+> 근거: 2026-10-12 저장소 전수 분석(기능 현황·잘된 점·미흡한 점·시장성). 각 단계는 작업 규칙 6번(계획 → 승인) 그대로 따른다.
+
+- ✅ **M0. 죽은 코드·문서 정리 (2026-10-12 완료)** — 아래 "2026-10-12 정리" 항목 참고
+- [ ] **M1. 문서 정비**
+  - CLAUDE.md 슬림화 — v0.x~v1.6 완료 이력을 `CHANGELOG.md`로 옮기고, 이 파일엔 규칙·현재 상태·로드맵만 남긴다 (세션마다 컨텍스트 낭비 줄이기)
+  - 2026-09 작업(아래 요약) 이력 정리해서 CHANGELOG에 편입
+  - README 갱신 — 채용 ATS 소개 → Hire 연동으로, Hire·Grow·Screen·Minutes 생태계·Copilot·회의실/자리판 소개, 결제 없음 명시
+  - 버전 태그 재개 — v1.6.3 이후 태그 없음. 다음 릴리즈부터 다시 `vX.Y.Z` + 릴리즈 노트
+- [ ] **M2. 보안 보강**
+  - 로그인 시도 제한(계정·IP별 N회 실패 시 잠금/지연) — 현재 무제한
+  - 세션 쿠키 설정 명시: `SESSION_COOKIE_SECURE`·`HTTPONLY`·`SAMESITE`
+  - 테넌트 `suspended` 상태 실제 차단 — 지금은 슈퍼어드민이 정지해도 표시만 되고 로그인이 막히지 않음(웹훅 API 토큰만 막힘). 결제 삭제로 구독 잠금도 없어졌으니 정지 상태를 로그인에서 걸러야 함
+- [ ] **M3. SQLite 운영 안정화** — `PRAGMA journal_mode=WAL` + `busy_timeout`(get_db·master_db·training 연결), gunicorn 워커 2개 동시 쓰기 `database is locked` 예방
+- [ ] **M4. 계산 회귀 테스트** — pytest 도입: 4대보험·간이세액표(data/withholding_2026.json)·연차 발생/잔액·퇴직금·연장/야간/휴일 수당·최저임금. 법령 예제 기반 기대값. + `tests/sweep.py`와 함께 GitHub Actions로 push마다 실행
+- [ ] **M5. 의존성·정적 자산 정리**
+  - Chart.js(jsdelivr CDN, 분석 화면) → `static/`에 내려받아 로컬 참조 (작업 규칙 2번 "외부 CDN 금지"와 정합)
+  - requirements.txt: `itsdangerous` 명시(SSO가 직접 씀), `mcp>=1.0.0` 버전 고정
+  - pyflakes 경고 정리 — 안 쓰는 import ~30건, 안 쓰는 상수/함수(ANALYTICS_AREAS·ATTENDANCE_STATUS_COLOR·BLOCK_TYPES·WORK_TYPES·LEAVE_DAYS·_cert_user·_week_monday·perf_exclude_label)
+  - 로그인 화면이 flash 메시지를 안 그림 → 가입 완료 안내("가입 완료! 로그인해 주세요.")가 안 보임
+- [ ] **M6. app.py 분리** — 2.1만 줄 단일 파일을 Flask Blueprint로 모듈별 분리(인사/근태/급여·보상/성과/채용 요청서·오퍼 결재/설정/SaaS/API·SSO). 동작 변경 없이 이동만, 단계별로 스윕 통과 확인
+- [ ] **M7. 정리 후보 결정·처리** — 아래 "정리 후보" 목록을 승헌씨가 남김/삭제 결정 → 삭제분 처리. 남은 ATS DB 표 처리도 여기서 같이 결정
+- [ ] **M8. 기능 추가 (우선순위 순, 각각 별도 기획 후 진행)**
+  1. MCP 쓰기 도구(사람 확인 후 실행형) — 휴가 신청, 결재 승인/반려
+  2. 4대보험 취득·상실 신고 서식 + 원천세 신고용 엑셀 내보내기
+  3. 법정 문서 전자 교부·열람 기록 (연차촉진·근로계약·급여명세 수신 확인)
+  4. '연결된 앱' 허브 — Hire·Grow·Screen·Minutes 한 화면 + 설정 메뉴 "Hire 연동" 명칭을 "연결된 앱"으로
+
+### 🧹 정리 후보 (2026-10-12 리스트업 — 남길지 지울지 승헌씨 결정 대기, M7)
+
+| 후보 | 지금 상태 | 범위(코드 위치) | 비고 |
+|---|---|---|---|
+| **승계 계획** | 기본 숨김(`BASE_FEATURES`에 없음) + 성과 부가 기능 스위치 기본 꺼짐 | `/performance/succession`, `/export/succession`, `succession_plans` 표, 템플릿 performance/succession.html | 보상 검토의 '핵심 인재' 배지가 이 표를 읽음 — 지우면 같이 정리 |
+| **Talent Card** (+ Flight Risk·Talent 평가 4종) | 기본 숨김(`talent_advanced`) | `/performance/talent-card/<id>`, `.../talent-flags`, 템플릿 talent_card.html, calibration_results의 retention_risk·loss_impact·achievable_level | 직원 상세·성과 화면의 진입 링크도 같이 |
+| **9박스 잠재력(Potential)** | 기본 숨김(`talent_advanced`) — 캘리브레이션의 잠재력 칼럼·배너 | calibration.html의 `'talent_advanced' in features` 블록, calibration_results.potential_score·box_position | 드래그앤드롭 9박스 화면은 원래 구현 안 됨 |
+| **급여 구조(밴드·Merit Matrix·ACR·Compa-Ratio)** | 기본 숨김(`comp_advanced`) | `/admin/salary-bands`(+`-legacy`), `/payroll/acr/*` 8개, 보상 허브의 급여 구조 탭·Compa 칼럼, merit_matrix·compensation_review_* 표 | 오퍼 밴드 초과 결재(Hire)·연봉 밴드 API(`/api/salary-band`)는 밴드 표를 씀 → 표는 남겨야 할 수 있음 |
+| **HR 데이터 마법사** | 기본 숨김(`data_wizard`) | `/report/builder`·`/report/preview`·`/report/export`, analytics의 마법사 탭(JS 대량), REPORT_SOURCES | 분석 화면 크기의 상당 부분 |
+| **1:1 면담 / 피드백 / 목표 정렬** | 성과 부가 기능 스위치 기본 꺼짐(설정에서 켤 수 있음) | PERF_ADDONS, C2 블록(`/one-on-ones`, `/feedback*`, `/goal-alignment` 등) | 2026-09-14 만든 것 — 켜서 쓸 계획이면 유지 |
+| **Copilot** | 회사 설정 스위치 기본 꺼짐, `ANTHROPIC_API_KEY` 없으면 규칙 기반 | copilot.py, `/payroll/acr/<id>/copilot/<emp>` 등 | 차별점(AI 네이티브) 축이라 유지 쪽이 자연스러움 |
+| **Confluence 연동** | `.env`에 CONFLUENCE_BASE_URL 없으면 꺼짐 | integrations/confluence.py(118줄), dispatcher 온보딩 훅, 연동 설정 화면 | Slack·Jira와 달리 실사용 시나리오 약함 |
+| **남은 ATS DB 표** | 코드는 삭제, 표·데이터는 남음 | applicants·applicant_logs·applicant_documents·job_postings·offers·interview_*·recruit_activity_logs·recruit_emails (database.py 스키마) + `static/uploads/applicant_docs/` | job_postings는 채용 요청서 상세(연결된 공고 카드)·training_company가 아직 참조. offers는 앱에서 더 안 씀(Hire 오퍼 결재는 `offer_approvals` 표) |
 
 - **완료된 마지막 버전:** `v1.6.2` (v1.0.0은 Phase B 완결 마일스톤 태그)
-- **배포 완료:** v1.6.2까지 Oracle Cloud VM 배포 완료 (2026-07-21)
+- **배포 완료:** v1.6.2까지 Oracle Cloud VM 배포 완료 (2026-07-21). 2026-09 작업·2026-10-12 정리는 VM 반영 여부 미확인 — 다음 배포 때 `deploy/update.sh`
+- **2026-10-12 정리 (M0) — ATS·결제 코드 삭제 + 기획 문서 삭제 (승헌씨 지시)** — 약 6,000줄 삭제, 스윕 132×3 통과(이전 149라우트), 새 DB 시드·연습 회사 리셋·가입→로그인·슈퍼어드민 화면·삭제 URL 404 확인
+  - ①**구 내장 ATS 삭제**: `@retired_ats`로 잠가 둔 `/recruit/*` 28개 라우트 + ATS 상수(STAGES·면접/오퍼 라벨·EMAIL_TEMPLATES·log_recruit) + `templates/recruit/` 8개 + `errors/retired_ats.html` + 직원 등록의 `from_applicant` 프리필 + `/export/applicants`(구 지원자 내보내기) + run.py 면접 리마인드 스케줄 + migrate_db 공고·지원자 시드. 채용 요청서·헤드카운트·입사 예정자·오퍼 결재(Hire 연동)는 그대로. 옛 `/recruit/*` 주소는 이제 410 안내 대신 404. DB 표는 남김(정리 후보)
+  - ②**결제·요금제 삭제**: `/billing/*` 6개 라우트·토스 키(소스에 박혀 있던 테스트 키 포함)·웹훅·`BILLING_ENABLED`, 슈퍼어드민 요금제 변경, 로그인 시 구독 만료 체크, peak headcount, `templates/billing/`. master_db: 요금제 상수·구독 상태 계산·결제 로그 함수 삭제, `migrate_subscriptions()` → `migrate_master_db()`로 이름 변경 — **기동 시 master.db의 `subscriptions`·`billing_logs` 표를 DROP하고 `status='trial'` 테넌트를 `active`로 바꿈**. 신규 가입은 체험 없이 바로 active. 가입 화면 "14일 무료 체험" 문구 → "무료". 약관의 "요금제별 제공 기능" 문장 삭제
+  - ③**요금제 게이팅 → 고정 기능 목록**: `PLAN_FEATURES`/`inject_plan` → `BASE_FEATURES`(성과·온보딩·복지포인트·다면평가) + `inject_features`, 템플릿 변수 `plan_features` → `features`. 노출은 이전과 동일(데모=growth였던 그대로). 연습 회사(training_mode)만 예전 enterprise처럼 숨김 기능까지 연다
+  - ④**기획 문서 11개 삭제**: saas_plan.md, improvement_plan.md, launch_plan.md/.html, performance_redesign_plan.md/.html, compensation_redesign_plan.html, talentcore_plan.html, performance_plan.html, calibration_plan.html, peer_review_cases.html
+- **2026-09 작업 요약 (CLAUDE.md 미기록분, 커밋 접두어 `Core:` — 버전 태그 없음)**: 채용을 외부 앱 **Hire**로 분리(내장 ATS 410 잠금 → 2026-10-12 삭제) · 채용 요청서 결재선 v2(C레벨·대결·본인결재 회피) · 헤드카운트/자리판(조직도 위 재직·빈 자리) · 오퍼 밴드 초과 결재(Hire 오퍼 → TalentCore 결재선) + 오퍼레터 문안 API · **SSO 4종**(Hire·Grow 직무교육·Screen AI 1차 면접·Minutes 회의록, itsdangerous 서명 표 120초) · 회의실·건물·입사일 규칙(workplace.py, Hire 면접실 API) · 온보딩 가이드 개편 · 교육용 **연습 회사** 테넌트(training_company.py, 비밀번호 없는 입장표) · Grow 직무교육 기록(learning.py) · 성과 P1~P5(평가 명단·자동 배정·진행 독촉·캘리브레이션 회의) · C1~C5(보상 검토 한 흐름·1:1/피드백/체크인·평가 양식·보상 분석·Copilot) · 급여 공제 2026 기준(간이세액표·요율) · UI 개편(상단 7메뉴·라이트/다크·초기 설정 9단계) · 서버 시계 KST · 새 로고
 - **v1.6.2 — 유료화 표면 제거 (무료·오픈소스 전환, 승헌씨 지시)**: "표면만 제거" 선택 — 사용자에게 보이는 유료화 콘텐츠만 삭제하고 내부 코드(요금제 게이팅·/billing 라우트·master_db 구독테이블)는 유지. ①랜딩: 요금제 3계층 섹션+무료 파트너 배너+nav '요금제' 링크 제거 ②README: 요금제 표+BILLING_ENABLED env 예시 제거 ③약관: 제7조 '무료 제공'으로 단순화·제10조 유료 책임한도 삭제 ④방침: 결제 수집항목·전자상거래 보존기간·토스페이먼츠 위탁 삭제. 결제/구독 링크는 원래 사이드바·대시보드에 없었음(billing 페이지는 URL로만 접근, SaaS는 슈퍼어드민 전용) → 데모 노출 변화 없음. 스윕 116×3 통과, 랜딩 로컬 렌더 확인(콘솔 에러 0)
 - **README 제품화 (v1.6.1~v1.6.2 사이, 2026-07-21)**: 실제 데모 화면 스크린샷 8종(docs/screenshots) + 크로스페이드·한글자막 데모 GIF(docs/talentcore-demo.gif, 3MB) 추가, MCP 연동·근로기준법 섹션 신설, 팩트 갱신(데모 URL→https, 시드 147명), MIT LICENSE 파일 신설. 스크린샷/GIF는 Playwright+Pillow로 라이브 사이트 캡처(생성 스크립트는 scratchpad, 레포 미포함)
 - **v1.6.1 — 랜딩 CTA 문구 수정 (승헌씨 컨펌 완료)**: v1.6.0 랜딩 개편안 검토 결과, CTA 헤드라인 "첫 질문은 공짜입니다" → "우리 회사에 맞는 프로그램인지, 사용해보고 결정하세요"로 수정(승헌씨 피드백, 부담 없이 먼저 써보라는 톤으로 조정). 나머지 v1.6.0 내용은 그대로 컨펌됨
@@ -32,7 +76,7 @@
     - ✅ **②슈퍼어드민 비번 변경 완료 (2026-07-21)**: VM에서 `venv/bin/python3 deploy/change_superadmin_pw.py hunie0709` 실행, 무작위 16자 비번 발급·승헌씨 보관 완료 (기본값 1234 폐기)
     - ✅ **③방침·약관 검토 완료 (2026-07-21) — 결정: 현행 유지, 수정 불필요**: 검토 결과 (a) 과금 안 함 → 전자상거래법상 사업자정보·통신판매업 신고·결제 조항은 전부 무의미(무해하므로 존치) (b) 실사용자 개인정보 유입 없음(데모=가짜 시드만) → 개인정보보호법상 Claude/Oracle 국외이전 고지도 실질 불요. 수탁처리 구조·급여 참고용 고지는 이미 정합. **오픈소스 공개 예정 — 실데이터 없음이 전제. 방침은 운영 인스턴스 기준이며 self-host 시 각자 작성 원칙**
     - **← 남은 것 (선택, 실사용 원할 때만): ④SMTP 계정 준비(.env) ⑤디자인 파트너 섭외. 실데이터 안 받는 포트폴리오/데모 운영이면 불요 → 출시 게이트 실질 완료**
-- **다음 작업: `saas_plan.md` §6 실행 순서를 따를 것 (Phase A부터 순서대로)**
+- **다음 작업: 위 "★ 정비 로드맵" M1부터.** (아래는 옛 saas_plan.md §6 실행 순서 — 전부 완료된 이력)
   1. ~~Phase A-1: 웹훅 서명 검증~~ ✅ v0.96.0 완료
   2. ~~Phase A-2: CSRF 토큰 전면 적용~~ ✅ v0.97.0 완료
   3. ~~Phase A-3: 감사 로그~~ ✅ v0.98.0 완료
@@ -115,14 +159,9 @@
 - 보상 투명성: 글로벌 트렌드는 사전 공개 방향 (Meta=2x/1.15x, Airbnb RSU 배수 공개)
 - 캘리브레이션 현재 UI → 9박스 드래그앤드롭으로 전면 교체 예정
 
-### 참고 리서치 문서 (프로젝트 루트에 있음)
+### 참고 리서치 문서
 
-| 파일 | 내용 |
-|---|---|
-| `talentcore_plan.html` | Workday 기반 6개 모듈 전체 기획 (P0/P1/P2, DB 스키마, UI 설계) |
-| `performance_plan.html` | 성과관리 모듈 심층 기획 (9박스 목업, 구현 순서, 의존성) |
-| `peer_review_cases.html` | 글로벌·국내 10개 기업 피어리뷰 사례 연구 |
-| `calibration_plan.html` | 캘리브레이션 흐름 설계 문서 |
+루트의 기획·리서치 문서(`*_plan.*`, `peer_review_cases.html`)는 2026-10-12 삭제됨. 필요하면 `git log --all -- saas_plan.md` 등으로 이력에서 꺼낼 것.
 
 ---
 

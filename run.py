@@ -67,54 +67,6 @@ def load_dotenv(path='.env'):
 #  Slack 예약 알림 작업
 # ─────────────────────────────────────────────────────────────
 
-def job_interview_reminder():
-    """매일 오전 9시 — 오늘 면접 배정된 인터뷰어에게 DM"""
-    try:
-        import sqlite3
-        from datetime import date
-        from integrations.slack import send_dm, IS_DEMO
-        if IS_DEMO:
-            return
-
-        db_path = os.path.join(os.path.dirname(__file__), 'hr_system.db')
-        if not os.path.exists(db_path):
-            return
-
-        con = sqlite3.connect(db_path)
-        con.row_factory = sqlite3.Row
-        today = date.today().isoformat()
-
-        rows = con.execute(
-            """SELECT DISTINCT u.email, u.name,
-                      a.name AS applicant_name,
-                      jp.title AS job_title,
-                      ir.scheduled_at
-               FROM interview_interviewers ii
-               JOIN interview_rounds ir ON ii.round_id = ir.id
-               JOIN applicants a ON ir.applicant_id = a.id
-               JOIN job_postings jp ON a.posting_id = jp.id
-               JOIN users u ON ii.user_id = u.id
-               WHERE date(ir.scheduled_at) = ?
-                 AND ir.status = 'scheduled'""",
-            (today,)
-        ).fetchall()
-        con.close()
-
-        for row in rows:
-            time_str = row['scheduled_at'][11:16] if row['scheduled_at'] else '시간 미정'
-            send_dm(
-                row['email'],
-                f"[TalentCore] 📅 오늘 면접 일정 알림\n\n"
-                f"• 지원자: {row['applicant_name']}\n"
-                f"• 포지션: {row['job_title']}\n"
-                f"• 시간: {time_str}\n\n"
-                f"피드백 작성을 잊지 마세요!"
-            )
-        print(f"[scheduler] interview_reminder 완료 — {len(rows)}건")
-    except Exception as e:
-        print(f"[scheduler] interview_reminder 오류: {e}")
-
-
 def job_payroll_reminder():
     """매월 25일 오전 9시 — 전 직원에게 급여일 알림 DM"""
     try:
@@ -194,10 +146,6 @@ def start_scheduler():
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
         scheduler = BackgroundScheduler(timezone='Asia/Seoul')
-
-        # 매일 09:00 — 오늘 면접 리마인드
-        scheduler.add_job(job_interview_reminder, 'cron', hour=9, minute=0,
-                          id='interview_reminder')
 
         # 매월 25일 09:00 — 급여일 알림
         scheduler.add_job(job_payroll_reminder, 'cron', day=25, hour=9, minute=0,

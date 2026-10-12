@@ -96,7 +96,7 @@
 
   <div class="signup-logo">
     {% import "_brand.html" as brand %}<a href="{{ url_for('landing') }}">{{ brand.mark("mk") }}talentcore</a>
-    <p>{{ trial_days }}일 무료 체험을 시작하세요</p>
+    <p>무료 · 오픈소스 HR 플랫폼을 시작하세요</p>
   </div>
 
   <div class="signup-card">
@@ -149,12 +149,11 @@
         </label>
       </div>
 
-      <button type="submit" class="btn-submit">{{ trial_days }}일 무료로 시작하기</button>
+      <button type="submit" class="btn-submit">무료로 시작하기</button>
     </form>
 
     <div class="trial-badge">
-      체험 기간 {{ trial_days }}일 동안 모든 기능 무제한 사용<br>
-      체험 종료 후에도 요금제 선택 전까지 비용이 청구되지 않습니다
+      모든 기능을 무료로 사용할 수 있습니다
     </div>
 
     <p class="login-link">

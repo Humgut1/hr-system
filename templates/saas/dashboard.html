@@ -12,7 +12,7 @@ body { background: var(--bg); }
 .sa-brand .mk { width: 30px; height: 30px; border-radius: 8px; background: var(--tx-1); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 14px; }
 .sa-brand .nm { font-size: 15px; font-weight: 700; color: var(--tx-1); }
 .sa-main { max-width: 1180px; margin: 0 auto; padding: 28px; }
-.sa-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+.sa-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
 .sa-kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px 18px; }
 .sa-kpi .v { font-size: 24px; font-weight: 800; color: var(--tx-1); }
 .sa-kpi .k { font-size: 12.5px; color: var(--tx-3); margin-top: 3px; }
@@ -53,36 +53,32 @@ a.sa-row-link { color: inherit; text-decoration: none; display: block; }
 
   <div class="sa-kpis">
     <div class="sa-kpi"><div class="v">{{ tenants|length }}</div><div class="k">전체 가입 회사</div></div>
-    <div class="sa-kpi"><div class="v">{{ tenants|selectattr('sub_status','equalto','trialing')|list|length }}</div><div class="k">체험 중</div></div>
-    <div class="sa-kpi"><div class="v">{{ tenants|selectattr('sub_status','equalto','active')|list|length }}</div><div class="k">유료 구독 중</div></div>
+    <div class="sa-kpi"><div class="v">{{ tenants|selectattr('tenant_status','equalto','active')|list|length }}</div><div class="k">운영 중</div></div>
     <div class="sa-kpi"><div class="v">{{ tenants|selectattr('tenant_status','equalto','suspended')|list|length }}</div><div class="k">정지됨</div></div>
   </div>
 
   <table class="sa-table">
     <thead>
       <tr>
-        <th>회사명</th><th>관리자 이메일</th><th>상태</th><th>구독</th><th>피크 인원</th><th>체험 종료일</th><th>가입일</th>
+        <th>회사명</th><th>관리자 이메일</th><th>상태</th><th>가입일</th>
       </tr>
     </thead>
     <tbody>
       {% for t in tenants %}
       <tr>
-        <td colspan="7" style="padding:0;">
+        <td colspan="4" style="padding:0;">
           <a class="sa-row-link" href="{{ url_for('saas_tenant_detail', tenant_id=t.id) }}">
-            <div style="display:grid; grid-template-columns: 2fr 2fr 1fr 1fr 1fr 1fr 1fr; align-items:center; padding:12px 16px;">
+            <div style="display:grid; grid-template-columns: 2fr 2fr 1fr 1fr; align-items:center; padding:12px 16px;">
               <div style="font-weight:650;">{{ t.company_name }}</div>
               <div style="color:var(--tx-3);">{{ t.admin_email }}</div>
               <div><span class="sa-badge b-{{ t.tenant_status }}">{{ t.tenant_status }}</span></div>
-              <div>{{ t.sub_status or '-' }}</div>
-              <div>{{ t.peak_headcount or 0 }}명</div>
-              <div>{{ t.trial_ends_at or '-' }}</div>
               <div>{{ t.created_at[:10] if t.created_at else '-' }}</div>
             </div>
           </a>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7" style="text-align:center; color:var(--tx-3); padding:32px;">가입된 회사가 없습니다.</td></tr>
+      <tr><td colspan="4" style="text-align:center; color:var(--tx-3); padding:32px;">가입된 회사가 없습니다.</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -14,7 +14,7 @@
   <button class="ana-tab-btn" onclick="switchAnaTab('attend', this)">근태</button>
   <button class="ana-tab-btn" onclick="switchAnaTab('pay', this)">보상</button>
   <button class="ana-tab-btn" onclick="switchAnaTab('exit', this)">퇴직</button>
-  {% if 'data_wizard' in plan_features %}
+  {% if 'data_wizard' in features %}
   <button class="ana-tab-btn" onclick="switchAnaTab('report', this)">리포트</button>
   {% endif %}
 </div>
@@ -717,7 +717,7 @@
 </div>
 
 <!-- HR 데이터 마법사 탭 -->
-{% if 'data_wizard' in plan_features %}
+{% if 'data_wizard' in features %}
 <div id="ana-panel-report" class="ana-panel">
 
   <!-- 빠른 시작 -->
@@ -803,17 +803,6 @@
             <select name="cycle_id" class="input" style="font-size:12px;padding:4px 7px;">{% for c in cycles %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}{% if not cycles %}<option value="">주기 없음</option>{% endif %}</select>
             <button type="submit" class="btn btn-primary btn-sm" {% if not cycles %}disabled{% endif %}><i class="fas fa-download"></i></button>
           </form>
-        </div>
-      </div>
-
-      <div class="card" style="margin:0;">
-        <div class="card-body" style="display:flex;align-items:center;gap:12px;padding:12px 14px;">
-          <div style="width:36px;height:36px;border-radius:8px;background:var(--green-bg);color:var(--green);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;"><i class="fas fa-user-tie"></i></div>
-          <div style="flex:1;">
-            <div style="font-weight:700;font-size:13px;">지원자 현황</div>
-            <div style="font-size:11px;color:var(--tx-3);">공고별 지원자 및 전형 단계</div>
-          </div>
-          <a href="{{ url_for('export_applicants') }}" target="_blank" class="btn btn-primary btn-sm" style="flex-shrink:0;"><i class="fas fa-download"></i></a>
         </div>
       </div>
 

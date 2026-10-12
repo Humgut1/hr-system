@@ -33,10 +33,6 @@
       {% set pf = prefill if prefill is defined and prefill else {} %}
       <form method="POST"
             action="{{ url_for('employee_new') if mode == 'new' else url_for('employee_edit', emp_id=emp.id) }}">
-
-        {% if pf.get('from_applicant') %}
-        <input type="hidden" name="from_applicant" value="{{ pf.get('from_applicant') }}">
-        {% endif %}
         {% if pf.get('from_hire') %}
         <input type="hidden" name="from_hire" value="{{ pf.get('from_hire') }}">
         <div style="background:var(--info-bg); border-radius:var(--r); padding:10px 14px; margin-bottom:16px;

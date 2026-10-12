@@ -25,7 +25,7 @@ from database import init_db
 from master_db import (
     create_tenant, get_master_db, get_tenant_db_path, get_training_tenant,
     mark_training_tenant, get_or_create_api_token, register_tenant_user,
-    migrate_subscriptions,
+    migrate_master_db,
 )
 
 COMPANY_NAME = '(주)새봄테크'
@@ -188,7 +188,7 @@ def seed_training_company(db_path: str):
 
 def ensure_training_tenant() -> int:
     """연습 테넌트를 찾거나 만든다. tenant_id 반환."""
-    migrate_subscriptions()          # is_training 칸·입장표 표 보장
+    migrate_master_db()          # is_training 칸·입장표 표 보장
     row = get_training_tenant()
     if row:
         tenant_id = row['id']
