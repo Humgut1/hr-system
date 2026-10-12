@@ -35,6 +35,7 @@ from master_db import (
     get_tenant_by_email, get_tenant, create_tenant,
     register_tenant_user, update_tenant_user_email, remove_tenant_user,
     seed_default_superadmin, get_superadmin_by_username,
+    login_retry_after, record_login_failure, clear_login_failures,
     list_tenants_with_state, set_tenant_status,
     get_or_create_api_token, regenerate_api_token, get_tenant_by_api_token,
     issue_training_ticket, use_training_ticket, TRAINING_TICKET_SECONDS,
@@ -50,6 +51,25 @@ if app.secret_key == 'dev-only-change-in-prod':
     _logging.getLogger(__name__).warning(
         '경고: 세션 시크릿이 개발용 기본값입니다. 운영 환경에서는 HR_SECRET_KEY 환경변수를 반드시 설정하세요.')
 app.config['TEMPLATES_AUTO_RELOAD'] = True
+
+# ── 세션 쿠키 (M2) ──────────────────────────────────────────
+# HttpOnly: JS 로 못 읽게. SameSite=Lax: 다른 사이트에서 보낸 POST 에 쿠키가 안 실린다(CSRF 토큰과 이중 방어).
+# Secure: HTTPS 에서만 전송 — 운영(HR_SECRET_KEY 가 설정된 환경)에서 기본으로 켠다.
+#   로컬 http 개발·테스트에서는 꺼 둬야 로그인이 유지된다. SESSION_COOKIE_SECURE=0/1 로 직접 지정 가능.
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get(
+    'SESSION_COOKIE_SECURE', '1' if os.environ.get('HR_SECRET_KEY') else '0') == '1'
+
+
+def client_ip():
+    """요청한 사람의 IP. nginx 뒤(gunicorn 127.0.0.1 바인드)에선 nginx 가 덮어쓰는 X-Real-IP 를 믿는다.
+    X-Forwarded-For 첫 값은 클라이언트가 마음대로 넣을 수 있어 쓰지 않는다."""
+    return (request.headers.get('X-Real-IP') or request.remote_addr or '').strip()
+
+
+def _login_wait_message(sec):
+    return f'로그인 시도가 너무 많습니다. {max(1, (sec + 59) // 60)}분 뒤 다시 시도해 주세요.'
 
 # ── 업로드 공통 (직원 문서함) ─────────────────────────────────
 ALLOWED_EXTS     = {'pdf', 'doc', 'docx', 'hwp', 'pptx', 'png', 'jpg', 'jpeg'}
@@ -389,6 +409,34 @@ def audit_exports():
 # ── 미래발령 자동 적용 (서버 기동 후 첫 요청 시 1회 실행) ──────────
 _scheduled_check_done = False
 
+TENANT_STATUS_RECHECK_SEC = 300
+
+
+@app.before_request
+def tenant_suspension_guard():
+    """정지된 회사의 로그인 세션을 끊는다 (M2).
+
+    로그인할 때 한 번 막는 것으로는 이미 열려 있는 세션이 남는다. 5분에 한 번만
+    master.db 를 다시 본다 — 매 요청마다 보지 않게 세션에 확인 시각을 적어 둔다.
+    데모 세션·연습 회사·슈퍼어드민 화면은 건드리지 않는다.
+    """
+    if 'user_id' not in session or session.get('demo_mode') or session.get('training_mode'):
+        return
+    import time
+    now = time.time()
+    if now - session.get('tenant_checked_at', 0) < TENANT_STATUS_RECHECK_SEC:
+        return
+    try:
+        t = get_tenant(session.get('tenant_id', 1))
+    except Exception:
+        return
+    if t and t['status'] in ('suspended', 'cancelled'):
+        session.clear()
+        flash('이용이 정지된 회사입니다. 운영자에게 문의해 주세요.', 'error')
+        return redirect(url_for('login'))
+    session['tenant_checked_at'] = now
+
+
 @app.before_request
 def apply_scheduled_once():
     global _scheduled_check_done
@@ -476,8 +524,7 @@ def log_audit(action, category, target_user_id=None, detail=''):
             'INSERT INTO audit_logs (actor_id, actor_name, actor_role, action, category, target_user_id, detail, ip) '
             'VALUES (?,?,?,?,?,?,?,?)',
             (session.get('user_id'), session.get('user_name'), session.get('user_role'),
-             action, category, target_user_id, detail,
-             request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip())
+             action, category, target_user_id, detail, client_ip())
         )
         db.commit()
     except Exception as e:
@@ -752,8 +799,13 @@ def login():
     if request.method == 'POST':
         email    = request.form.get('email', '').strip()
         password = request.form.get('password', '')
+        acct_key = 'user:' + email.lower()
+        wait = login_retry_after(acct_key, client_ip()) if email else 0
         if not email or not password:
             error = '이메일과 비밀번호를 입력해주세요.'
+        elif wait:
+            error = _login_wait_message(wait)
+            log_audit('login_failed', 'auth', None, f'로그인 차단 — 시도 횟수 초과 ({email})')
         else:
             # ── master.db에서 테넌트 조회 ────────────────────────
             tenant_row = get_tenant_by_email(email)
@@ -777,7 +829,14 @@ def login():
             ).fetchone()
             _db.close()
 
-            if user and check_password_hash(user['password_hash'], password):
+            ok = bool(user) and check_password_hash(user['password_hash'], password)
+            if ok and tenant_row and tenant_row['status'] in ('suspended', 'cancelled'):
+                # 비밀번호가 맞을 때만 알린다 — 아무 이메일로나 회사 정지 여부를 캐볼 수 없게
+                clear_login_failures(acct_key)
+                log_audit('login_failed', 'auth', user['id'], f'로그인 차단 — 정지된 회사 ({email})')
+                error = '이용이 정지된 회사입니다. 운영자에게 문의해 주세요.'
+            elif ok:
+                clear_login_failures(acct_key)
                 sso_next = session.get('sso_next') or ''
                 session.clear()
                 session['tenant_id']  = tenant_id
@@ -795,8 +854,10 @@ def login():
                 if sso_next.startswith(('/sso/hire?', '/sso/grow?', '/sso/screen?', '/sso/minutes?')):
                     return redirect(sso_next)
                 return redirect(url_for('dashboard'))
-            log_audit('login_failed', 'auth', None, f'로그인 실패 ({email})')
-            error = '이메일 또는 비밀번호가 올바르지 않습니다.'
+            else:
+                record_login_failure(acct_key, client_ip())
+                log_audit('login_failed', 'auth', None, f'로그인 실패 ({email})')
+                error = '이메일 또는 비밀번호가 올바르지 않습니다.'
     return render_template('login.html', error=error)
 
 @app.route('/logout', methods=['GET', 'POST'])
@@ -865,13 +926,20 @@ def saas_login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
-        admin = get_superadmin_by_username(username)
-        if admin and check_password_hash(admin['password_hash'], password):
+        acct_key = 'sa:' + username.lower()
+        wait = login_retry_after(acct_key, client_ip())
+        admin = None if wait else get_superadmin_by_username(username)
+        if wait:
+            error = _login_wait_message(wait)
+        elif admin and check_password_hash(admin['password_hash'], password):
+            clear_login_failures(acct_key)
             session.clear()
             session['superadmin_id'] = admin['id']
             session['superadmin_name'] = admin['username']
             return redirect(url_for('saas_dashboard'))
-        error = '아이디 또는 비밀번호가 올바르지 않습니다.'
+        else:
+            record_login_failure(acct_key, client_ip())
+            error = '아이디 또는 비밀번호가 올바르지 않습니다.'
     return render_template('saas/login.html', error=error)
 
 
@@ -19906,7 +19974,7 @@ def contract_sign(cid):
     if c['status'] != 'pending':
         flash('이미 처리된 계약서입니다.', 'error')
         return redirect(url_for('contract_view', cid=cid))
-    sign_ip = request.remote_addr
+    sign_ip = client_ip()
     db.execute(
         "UPDATE contracts SET status='signed', signed_at=datetime('now'), sign_ip=? WHERE id=?",
         (sign_ip, cid)

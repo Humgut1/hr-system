@@ -178,6 +178,7 @@ python run.py          # → http://localhost:5000
 
 ```env
 # 세션 시크릿 (운영 필수)
+# 설정하면 세션 쿠키가 HTTPS 전용(Secure)이 됩니다. http로 띄우면서 쓰려면 SESSION_COOKIE_SECURE=0
 HR_SECRET_KEY=...
 
 # Slack

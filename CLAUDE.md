@@ -16,7 +16,7 @@
   - 2026-09 작업(아래 요약) 이력 정리해서 CHANGELOG에 편입
   - README 갱신 — 채용 ATS 소개 → Hire 연동으로, Hire·Grow·Screen·Minutes 생태계·Copilot·회의실/자리판 소개, 결제 없음 명시
   - 버전 태그 재개 — v1.6.3 이후 태그 없음. 다음 릴리즈부터 다시 `vX.Y.Z` + 릴리즈 노트
-- [ ] **M2. 보안 보강**
+- ✅ **M2. 보안 보강 (2026-10-12 완료, v1.7.1)** — 로그인 시도 제한(계정 5회·IP 20회/15분, 슈퍼어드민 포함), 쿠키 HttpOnly·SameSite=Lax·Secure(운영), 정지 회사 로그인 차단 + 열린 세션 5분 내 끊기, 클라이언트 IP를 X-Real-IP로(감사 로그·전자서명 IP), 로그인 화면 flash 표시
   - 로그인 시도 제한(계정·IP별 N회 실패 시 잠금/지연) — 현재 무제한
   - 세션 쿠키 설정 명시: `SESSION_COOKIE_SECURE`·`HTTPONLY`·`SAMESITE`
   - 테넌트 `suspended` 상태 실제 차단 — 지금은 슈퍼어드민이 정지해도 표시만 되고 로그인이 막히지 않음(웹훅 API 토큰만 막힘). 결제 삭제로 구독 잠금도 없어졌으니 정지 상태를 로그인에서 걸러야 함
@@ -26,7 +26,7 @@
   - Chart.js(jsdelivr CDN, 분석 화면) → `static/`에 내려받아 로컬 참조 (작업 규칙 2번 "외부 CDN 금지"와 정합)
   - requirements.txt: `itsdangerous` 명시(SSO가 직접 씀), `mcp>=1.0.0` 버전 고정
   - pyflakes 경고 정리 — 안 쓰는 import ~30건, 안 쓰는 상수/함수(ANALYTICS_AREAS·ATTENDANCE_STATUS_COLOR·BLOCK_TYPES·WORK_TYPES·LEAVE_DAYS·_cert_user·_week_monday·perf_exclude_label)
-  - 로그인 화면이 flash 메시지를 안 그림 → 가입 완료 안내("가입 완료! 로그인해 주세요.")가 안 보임
+  - ~~로그인 화면이 flash 메시지를 안 그림~~ → M2에서 같이 고침
 - [ ] **M6. app.py 분리** — 2.1만 줄 단일 파일을 Flask Blueprint로 모듈별 분리(인사/근태/급여·보상/성과/채용 요청서·오퍼 결재/설정/SaaS/API·SSO). 동작 변경 없이 이동만, 단계별로 스윕 통과 확인
 - [ ] **M7. 정리 후보 결정·처리** — 아래 "정리 후보" 목록을 승헌씨가 남김/삭제 결정 → 삭제분 처리. 남은 ATS DB 표 처리도 여기서 같이 결정
 - [ ] **M8. 기능 추가 (우선순위 순, 각각 별도 기획 후 진행)**

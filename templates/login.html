@@ -100,6 +100,9 @@ body { background: var(--bg); }
   font-size: 13px; font-weight: 600; margin-bottom: 18px;
 }
 .lc-error svg { width: 15px; height: 15px; flex-shrink: 0; }
+.lc-flash { padding: 11px 13px; border-radius: 9px; font-size: 13px; font-weight: 600; margin-bottom: 18px; background: var(--info-bg); color: var(--info); }
+.lc-flash.success { background: var(--green-bg); color: var(--green); }
+.lc-flash.error, .lc-flash.danger { background: var(--red-bg); color: var(--red); }
 
 .sp-foot { text-align: center; margin-top: 26px; font-size: 13px; color: var(--tx-3); }
 .sp-foot a { font-weight: 650; color: var(--primary); }
@@ -161,6 +164,10 @@ body { background: var(--bg); }
     <form class="sp-form" method="POST" action="{{ url_for('login') }}">
       <h1 class="sp-title">로그인</h1>
       <p class="sp-sub">TalentCore 계정으로 계속하세요</p>
+
+      {% for cat, msg in get_flashed_messages(with_categories=true) %}
+      <div class="lc-flash {{ cat }}">{{ msg }}</div>
+      {% endfor %}
 
       {% if error %}
       <div class="lc-error">

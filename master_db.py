@@ -261,6 +261,64 @@ def migrate_master_db():
         )''')
     # 개인 연습 자리 — 표를 받은 사람의 연습 계정(없으면 예전처럼 연습 관리자)
     _add_column(conn, 'training_tickets', 'user_id', 'INTEGER')
+    # 로그인 실패 기록 (M2 — 무차별 대입 방지). 테넌트를 가리지 않으므로 master.db 에 둔다.
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS login_failures (
+            scope TEXT NOT NULL,     -- 'account' | 'ip'
+            key   TEXT NOT NULL,     -- 'user:<email>' / 'sa:<username>' / IP
+            ts    REAL NOT NULL
+        )''')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_login_failures ON login_failures(scope, key, ts)')
+    conn.commit()
+    conn.close()
+
+
+# ── 로그인 시도 제한 (M2) ─────────────────────────────────────
+# 같은 계정 5회 또는 같은 IP 20회를 15분 안에 틀리면, 가장 오래된 실패가 15분을 넘길 때까지 막는다.
+# 막힌 동안은 비밀번호를 확인하지도 않는다(그동안의 시도는 맞혀도 소용없다).
+LOGIN_WINDOW_SEC      = 15 * 60
+LOGIN_MAX_PER_ACCOUNT = 5
+LOGIN_MAX_PER_IP      = 20
+
+
+def login_retry_after(account_key: str, ip: str, now: float = None) -> int:
+    """막혀 있으면 다시 시도할 수 있을 때까지 남은 초, 아니면 0."""
+    import time
+    now = now or time.time()
+    since = now - LOGIN_WINDOW_SEC
+    conn = get_master_db()
+    wait = 0
+    for scope, key, limit in (('account', account_key, LOGIN_MAX_PER_ACCOUNT),
+                              ('ip', ip, LOGIN_MAX_PER_IP)):
+        if not key:
+            continue
+        rows = conn.execute(
+            'SELECT ts FROM login_failures WHERE scope=? AND key=? AND ts>? ORDER BY ts DESC LIMIT ?',
+            (scope, key, since, limit)).fetchall()
+        if len(rows) >= limit:
+            # 최근 limit 번째 실패가 창 밖으로 나가면 다시 열린다
+            wait = max(wait, int(rows[-1]['ts'] + LOGIN_WINDOW_SEC - now) + 1)
+    conn.close()
+    return wait
+
+
+def record_login_failure(account_key: str, ip: str, now: float = None):
+    import time
+    now = now or time.time()
+    conn = get_master_db()
+    conn.execute('DELETE FROM login_failures WHERE ts<?', (now - LOGIN_WINDOW_SEC,))
+    if account_key:
+        conn.execute('INSERT INTO login_failures (scope, key, ts) VALUES (?,?,?)', ('account', account_key, now))
+    if ip:
+        conn.execute('INSERT INTO login_failures (scope, key, ts) VALUES (?,?,?)', ('ip', ip, now))
+    conn.commit()
+    conn.close()
+
+
+def clear_login_failures(account_key: str):
+    """로그인 성공 시 그 계정의 실패 기록만 지운다 (IP 기록은 남긴다)."""
+    conn = get_master_db()
+    conn.execute("DELETE FROM login_failures WHERE scope='account' AND key=?", (account_key,))
     conn.commit()
     conn.close()
 
