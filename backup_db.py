@@ -10,7 +10,7 @@
     python backup_db.py --list              # 백업 목록 확인
     python backup_db.py --restore 20260713_030000 hr_system.db
                                             # 특정 백업에서 특정 DB 복원
-                                            # (복원 전 현재 파일을 .pre-restore로 자동 보존)
+                                            # (서버를 멈춘 뒤 실행 — 현재 상태를 .pre-restore로 자동 보존)
 
 운영(Oracle Cloud VM) 등록: bash deploy/setup_backup.sh  → 매일 03:00 cron
 로컬 개발: run.py의 APScheduler가 매일 03:00 자동 실행
@@ -103,6 +103,12 @@ def list_backups():
 
 
 def restore(stamp, db_name):
+    """백업 파일로 DB 를 되돌린다. **서버(gunicorn)를 먼저 멈추고** 실행할 것.
+
+    WAL 모드(M3) 주의: 본 파일 옆의 -wal/-shm 에는 아직 본 파일에 합쳐지지 않은 변경이 있다.
+      - 현재 상태 보존(.pre-restore)은 파일 복사가 아니라 백업 API 로 떠서 -wal 내용까지 담는다.
+      - 복원 전에 옛 -wal/-shm 을 지운다. 남겨 두면 다음 열 때 옛 변경이 복원본 위에 덮여 DB 가 깨진다.
+    """
     src = os.path.join(BACKUP_DIR, stamp, db_name)
     if not os.path.exists(src):
         print(f'[restore] 백업 파일이 없습니다: {src}')
@@ -110,11 +116,22 @@ def restore(stamp, db_name):
     dest = os.path.join(BASE_DIR, db_name)
     if os.path.exists(dest):
         keep = dest + '.pre-restore'
-        shutil.copy2(dest, keep)
-        print(f'[restore] 현재 파일 보존: {keep}')
+        if os.path.exists(keep):
+            os.remove(keep)
+        cur = sqlite3.connect(dest)
+        out = sqlite3.connect(keep)
+        try:
+            cur.backup(out)
+        finally:
+            out.close()
+            cur.close()
+        print(f'[restore] 현재 상태 보존: {keep}')
+    for side in (dest + '-wal', dest + '-shm'):
+        if os.path.exists(side):
+            os.remove(side)
     shutil.copy2(src, dest)
     print(f'[restore] 복원 완료: {stamp}/{db_name} → {dest}')
-    print('[restore] ⚠ 서버를 재시작해야 반영됩니다.')
+    print('[restore] 이제 서버를 다시 시작하세요.')
 
 
 if __name__ == '__main__':

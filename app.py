@@ -33,6 +33,7 @@ from payroll_utils import (calc_payslip, calc_annual_leave, compute_leave_balanc
 from master_db import (
     init_master_db, migrate_master_db, get_tenant_db_path,
     get_tenant_by_email, get_tenant, create_tenant,
+    enable_wal, all_db_paths, DB_TIMEOUT_SEC,
     register_tenant_user, update_tenant_user_email, remove_tenant_user,
     seed_default_superadmin, get_superadmin_by_username,
     login_retry_after, record_login_failure, clear_login_failures,
@@ -98,6 +99,8 @@ init_master_db()        # master.db
 migrate_master_db()     # master.db 칼럼·표 보장
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
 init_db()               # hr_system.db (테넌트 1 기본 스키마)
+for _p in all_db_paths():   # 기존 테넌트 DB까지 WAL 로 (M3, 멱등)
+    enable_wal(_p)
 
 # 체크인=체크아웃 동일 시각 오염 데이터 정리 (check_in == check_out → 분=0)
 def _fix_checkin_data():
@@ -302,8 +305,9 @@ def get_db():
     if db is None:
         tenant_id = session.get('tenant_id', 1)  # 기본값 1 = 데모 테넌트
         db_path = get_tenant_db_path(tenant_id)
-        db = g._database = sqlite3.connect(db_path)
+        db = g._database = sqlite3.connect(db_path, timeout=DB_TIMEOUT_SEC)
         db.row_factory = sqlite3.Row
+        db.execute('PRAGMA synchronous = NORMAL')   # WAL 에서 안전한 권장값 (M3)
         db.execute('PRAGMA foreign_keys = ON')
     return db
 

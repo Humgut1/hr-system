@@ -5,6 +5,16 @@
 
 ---
 
+## v1.7.2 — 2026-10-12 · SQLite 운영 안정화 (정비 로드맵 M3)
+
+- **WAL 모드** — 읽기가 쓰기를 막지 않게(gunicorn 워커 2개). `master_db.enable_wal()`/`all_db_paths()`: 앱 기동 시 master.db·hr_system.db·tenant_*.db 전부 WAL로(파일에 남는 설정, 멱등). 새 테넌트는 `init_db()`에서 WAL로 시작
+- **busy timeout 15초** — `get_db()`·`get_master_db()`·`init_db()` 연결(파이썬 기본 5초). `get_db()`는 `synchronous=NORMAL`(WAL 권장값)
+- **백업 복원 WAL 대응** — `backup_db.py --restore`: 현재 상태 보존을 파일 복사 대신 백업 API로(아직 합쳐지지 않은 -wal 변경까지 담김), 복원 전에 옛 `-wal`/`-shm` 삭제(남기면 옛 변경이 복원본에 덮여 DB가 깨짐). **복원은 서버를 멈춘 뒤 실행**
+- `.gitignore`에 `*.db-wal`, `*.db-shm`
+- 검증: 전 DB journal_mode=wal 확인, 백업→변경→복원 왕복(복원본=백업 시점, .pre-restore=최신, integrity ok), 쓰기 4프로세스×300건+읽기 동시 실행 잠금 에러 0, 스윕 132×3 통과
+
+---
+
 ## v1.7.1 — 2026-10-12 · 보안 보강 (정비 로드맵 M2)
 
 - **로그인 시도 제한** — master.db `login_failures` 표. 같은 계정 5회 또는 같은 IP 20회를 15분 안에 틀리면 가장 오래된 실패가 15분을 넘길 때까지 차단(차단 중엔 비밀번호를 확인하지 않음). 성공 시 그 계정 기록만 지움. 슈퍼어드민(`/saas/login`)도 같은 규칙. 차단 시 감사 로그

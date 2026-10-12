@@ -50,8 +50,9 @@ _GUEST_PW = os.environ.get('HR_GUEST_PASSWORD', 'guest1234!')
 
 def init_db(db_path: str = None):
     """DB 스키마 초기화. db_path 지정 시 해당 경로에 생성 (신규 테넌트용)."""
-    conn = sqlite3.connect(db_path or DATABASE)
+    conn = sqlite3.connect(db_path or DATABASE, timeout=15)
     try:
+        conn.execute('PRAGMA journal_mode=WAL')   # M3 — 파일에 남는 설정, 이미 WAL 이면 그대로
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
 

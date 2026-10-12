@@ -20,7 +20,7 @@
   - 로그인 시도 제한(계정·IP별 N회 실패 시 잠금/지연) — 현재 무제한
   - 세션 쿠키 설정 명시: `SESSION_COOKIE_SECURE`·`HTTPONLY`·`SAMESITE`
   - 테넌트 `suspended` 상태 실제 차단 — 지금은 슈퍼어드민이 정지해도 표시만 되고 로그인이 막히지 않음(웹훅 API 토큰만 막힘). 결제 삭제로 구독 잠금도 없어졌으니 정지 상태를 로그인에서 걸러야 함
-- [ ] **M3. SQLite 운영 안정화** — `PRAGMA journal_mode=WAL` + `busy_timeout`(get_db·master_db·training 연결), gunicorn 워커 2개 동시 쓰기 `database is locked` 예방
+- ✅ **M3. SQLite 운영 안정화 (2026-10-12 완료, v1.7.2)** — 전 DB WAL(기동 시 기존 테넌트까지), 연결 timeout 15초, synchronous=NORMAL, 백업 복원을 WAL 안전하게(-wal/-shm 정리 + 백업 API로 .pre-restore). **복원은 서버를 멈춘 뒤에**
 - [ ] **M4. 계산 회귀 테스트** — pytest 도입: 4대보험·간이세액표(data/withholding_2026.json)·연차 발생/잔액·퇴직금·연장/야간/휴일 수당·최저임금. 법령 예제 기반 기대값. + `tests/sweep.py`와 함께 GitHub Actions로 push마다 실행
 - [ ] **M5. 의존성·정적 자산 정리**
   - Chart.js(jsdelivr CDN, 분석 화면) → `static/`에 내려받아 로컬 참조 (작업 규칙 2번 "외부 CDN 금지"와 정합)

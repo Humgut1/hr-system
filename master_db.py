@@ -38,8 +38,35 @@ def get_tenant_db_path(tenant_id: int) -> str:
 
 
 # ── 마스터 DB 연결 ────────────────────────────────────────────
+# ── SQLite 운영 설정 (M3) ─────────────────────────────────────
+# WAL: 읽기가 쓰기를 막지 않는다(gunicorn 워커 2개 동시 접근). 파일에 남는 설정이라 한 번 켜면 유지된다.
+# busy timeout: 다른 워커가 쓰는 중이면 기다린다(파이썬 기본 5초 → 15초).
+DB_TIMEOUT_SEC = 15
+
+
+def enable_wal(path: str) -> str:
+    """DB 파일을 WAL 모드로. 이미 WAL 이면 그대로. 실패해도(다른 연결이 잡고 있음 등) 앱은 계속 뜬다."""
+    try:
+        conn = sqlite3.connect(path, timeout=DB_TIMEOUT_SEC)
+        try:
+            return conn.execute('PRAGMA journal_mode=WAL').fetchone()[0]
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return ''
+
+
+def all_db_paths():
+    """master.db + 테넌트 DB 전부 (있는 것만)."""
+    import glob
+    base = _db_dir or '.'
+    paths = [MASTER_DB, os.path.join(base, 'hr_system.db') if _db_dir else 'hr_system.db']
+    paths += sorted(glob.glob(os.path.join(base, 'tenant_*.db')))
+    return [p for p in paths if os.path.exists(p)]
+
+
 def get_master_db():
-    conn = sqlite3.connect(MASTER_DB)
+    conn = sqlite3.connect(MASTER_DB, timeout=DB_TIMEOUT_SEC)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
     return conn
@@ -47,6 +74,7 @@ def get_master_db():
 
 def init_master_db():
     """마스터 DB 테이블 초기화 (멱등)"""
+    enable_wal(MASTER_DB)
     conn = get_master_db()
     c = conn.cursor()
     c.executescript('''

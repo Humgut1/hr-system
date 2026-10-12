@@ -1,5 +1,7 @@
 # DB 파일 (민감 데이터)
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 
 # Python
