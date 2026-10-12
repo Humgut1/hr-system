@@ -3,7 +3,6 @@ HR 이벤트 → 외부 서비스 디스패처
 모든 연동 호출은 여기서 시작됩니다.
 """
 import sqlite3
-import os
 import json
 from datetime import datetime
 

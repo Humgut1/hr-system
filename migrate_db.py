@@ -13,7 +13,7 @@
 import sqlite3
 import random
 import os
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta
 from werkzeug.security import generate_password_hash
 from database import init_db
 from payroll_utils import calc_payslip
@@ -454,7 +454,6 @@ def _seed_checkins_annual():
     - 직원별 성향(타입) 랜덤 배정 → 현실감 있는 패턴
     - 이미 존재하는 날짜는 INSERT OR IGNORE로 스킵 (idempotent)
     """
-    import json as _json
 
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row

@@ -20,13 +20,12 @@ if hasattr(time, 'tzset'):
 from flask import (Flask, abort, flash, g, redirect, render_template,
                    request, session, url_for, jsonify, Response)
 from werkzeug.security import check_password_hash, generate_password_hash
-from payroll_utils import (calc_payslip, calc_annual_leave, compute_leave_balance, fmt_krw,
-                           calc_severance, check_min_wage, MIN_WAGE_MONTHLY,
+from payroll_utils import (calc_payslip, compute_leave_balance, fmt_krw,
+                           calc_severance, check_min_wage,
                            calc_day_hours, calc_extra_pay,
-                           get_week_bounds, calc_weekly_hours,
+                           calc_weekly_hours,
                            WEEKLY_TOTAL_MAX, WEEKLY_WARNING,
-                           BENEFIT_CATALOG, BENEFIT_CATEGORY_LABELS, PAYMENT_TYPE_LABELS,
-                           calc_prorated_salary, calc_unused_leave_pay,
+                           BENEFIT_CATALOG, PAYMENT_TYPE_LABELS,
                            calc_separation_settlement, calc_insurance,
                            calc_simple_withholding, calc_personal_deductions,
                            calc_bonus_withholding, WITHHOLDING_RATES)
@@ -34,7 +33,7 @@ from master_db import (
     init_master_db, migrate_master_db, get_tenant_db_path,
     get_tenant_by_email, get_tenant, create_tenant,
     enable_wal, all_db_paths, DB_TIMEOUT_SEC,
-    register_tenant_user, update_tenant_user_email, remove_tenant_user,
+    register_tenant_user, update_tenant_user_email,
     seed_default_superadmin, get_superadmin_by_username,
     login_retry_after, record_login_failure, clear_login_failures,
     list_tenants_with_state, set_tenant_status,
@@ -495,7 +494,6 @@ def _do_apply_action(db, pa):
             db.execute('UPDATE employee_salary SET base_salary=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?', (new_sal, emp_id))
         else:
             db.execute('INSERT INTO employee_salary (user_id, base_salary) VALUES (?,?)', (emp_id, new_sal))
-
 
 
 def validate_password(pw):
@@ -2541,15 +2539,6 @@ ATTENDANCE_STATUS_LABEL = {
     'holiday':     '공휴일',
     'remote':      '재택',
 }
-ATTENDANCE_STATUS_COLOR = {
-    'present':     '#059669',
-    'late':        '#d97706',
-    'early_leave': '#f59e0b',
-    'absent':      '#dc2626',
-    'on_leave':    '#6366f1',
-    'holiday':     '#0891b2',
-    'remote':      '#7c3aed',
-}
 
 
 # ── HR 커스텀 리포트 빌더 ────────────────────────────────────────────────────
@@ -2887,7 +2876,6 @@ def cert_add(emp_id):
         db.commit()
         # 만료 30일 이내면 즉시 알림
         if expiry_date:
-            from datetime import timedelta
             days_left = (date.fromisoformat(expiry_date) - date.today()).days
             if 0 <= days_left <= 30:
                 add_notification(
@@ -4877,7 +4865,6 @@ ACTION_LABELS = {
 @app.route('/employees/<int:emp_id>/action', methods=['POST'])
 @admin_required
 def employee_action(emp_id):
-    from datetime import datetime as dt
     db   = get_db()
     emp  = db.execute('SELECT * FROM users WHERE id=?', (emp_id,)).fetchone()
     if not emp:
@@ -5634,7 +5621,6 @@ def employee_offboard(emp_id):
 def employee_severance(emp_id):
     """퇴직 종합 정산 — 퇴직금 + 미사용연차수당 + 일할급여 자동계산."""
     import calendar as _cal
-    import json as _json
     db  = get_db()
     emp = db.execute(
         'SELECT u.*, d.name dept_name, p.name pos_name '
@@ -6267,14 +6253,6 @@ TERMINATE_TYPES = {
     'retirement': '정년퇴직',
 }
 
-LEAVE_DAYS   = {
-    'annual': 1.0, 'half_am': 0.5, 'half_pm': 0.5, 'sick': 1.0,
-    'remote': 0.0, 'outing': 0.0,
-    'maternity': 90.0, 'paternity': 10.0,
-    'parental': 0.0, 'family_care': 0.0,
-    'bereavement': 0.0, 'military': 0.0, 'compensation': 0.0,
-}
-
 def calc_working_days(start_str, end_str):
     """평일(월~금) 근무일수 계산"""
     from datetime import date, timedelta
@@ -6470,7 +6448,6 @@ def leave_new():
                 ).fetchone()
                 if req_row and emp and emp['manager_id']:
                     from integrations.slack import leave_approval_blocks, send_dm_blocks
-                    from integrations.dispatcher import notify_slack
                     mgr = db.execute('SELECT email, name FROM users WHERE id=?', (emp['manager_id'],)).fetchone()
                     if mgr and mgr['email']:
                         blocks = leave_approval_blocks(
@@ -7456,7 +7433,6 @@ def payroll_discard_drafts():
 @admin_required
 def payroll_preview():
     """급여 생성 전 미리보기 — INSERT 없이 계산 결과만 JSON 반환"""
-    import calendar as cal_mod, json as _json
     db    = get_db()
     year  = int(request.form.get('year', 2026))
     month = int(request.form.get('month', 1))
@@ -7613,8 +7589,8 @@ def payroll_withholding():
 @app.route('/compensation', methods=['GET', 'POST'])
 @admin_required
 def compensation():
-    from payroll_utils import calc_compa_ratio, compa_band as _compa_band, calc_payslip, calc_extra_pay, check_min_wage, merit_from_matrix
-    import calendar as cal_mod, json as _json, datetime
+    from payroll_utils import calc_compa_ratio, compa_band as _compa_band, check_min_wage
+    import calendar as cal_mod, datetime
     db  = get_db()
     cfg = get_company_config()
 
@@ -8771,8 +8747,6 @@ def admin_payroll():
 
         # 월 급여 일괄 생성 (근태 + 복리후생 연동)
         elif action == 'generate':
-            import calendar as cal_mod
-            import json as _json
             year  = int(request.form.get('year', 2026))
             month = int(request.form.get('month', 1))
             if not (1 <= month <= 12):
@@ -9467,27 +9441,6 @@ def salary_table():
                            grade_map=grade_map,
                            fmt_krw=fmt_krw,
                            active_page='salary_table')
-
-
-# ── Certificate helpers ───────────────────────────────────────
-def _cert_user(db):
-    """admin은 ?user_id=X 로 대상 지정 가능, 나머지는 본인"""
-    role = session.get('user_role')
-    uid  = int(request.args.get('user_id', session['user_id']))
-    if role not in ('admin',) and uid != session['user_id']:
-        abort(403)
-    user = db.execute(
-        'SELECT u.*, d.name AS dept_name, p.name AS pos_name, '
-        '       jf.name AS jf_name '
-        'FROM users u '
-        'LEFT JOIN departments d   ON u.department_id  = d.id '
-        'LEFT JOIN positions   p   ON u.position_id    = p.id '
-        'LEFT JOIN job_families jf ON u.job_family_id  = jf.id '
-        'WHERE u.id=?', (uid,)
-    ).fetchone()
-    if not user:
-        abort(404)
-    return user
 
 
 # ── Certificate hub ───────────────────────────────────────────
@@ -11535,10 +11488,6 @@ def perf_min_months(db=None):
     except Exception:
         pass
     return 3
-
-
-def perf_exclude_label(code, min_m):
-    return PERF_EXCLUDE_LABEL.get(code, '').replace('{m}', str(min_m))
 
 
 def _months_between(d1, d2):
@@ -16559,26 +16508,6 @@ def attendance_remote():
     return redirect(url_for('attendance_home'))
 
 
-WORK_TYPES = {
-    'standard':   '일반근무',
-    'flex':       '선택근로제 (§52)',
-    'elastic':    '탄력근로제 (§51)',
-    'autonomous': '재량근로제 (§58)',
-}
-
-BLOCK_TYPES = {
-    'office': '오피스 근무',
-    'remote': '재택 근무',
-    'lunch':  '점심시간',
-}
-
-
-def _week_monday(d):
-    """주어진 date의 해당 주 월요일 반환"""
-    from datetime import timedelta
-    return d - timedelta(days=d.weekday())
-
-
 @app.route('/attendance/checkin', methods=['POST'])
 @login_required
 def do_checkin():
@@ -18129,11 +18058,10 @@ def peer_assignments():
 # ── Export (Excel 내보내기) ──────────────────────────────────
 from export_utils import (make_wb, write_header, write_row, auto_width,
                            freeze_header, to_response, apply_number_format,
-                           KRW_FORMAT, NUM_FORMAT)
+                           KRW_FORMAT)
 import urllib.parse
 
 
-ANALYTICS_AREAS = [('people', '인력'), ('attend', '근태'), ('pay', '보상'), ('exit', '퇴직')]
 ANALYTICS_LEVELS = {'late': '위험', 'wait': '주의', 'ref': '참고', 'done': '정상'}
 
 
@@ -18451,7 +18379,6 @@ def people_analytics():
             elif months < 60:     tenure_dist['3-5년'] += 1
             else:                 tenure_dist['5년 이상'] += 1
 
-    import json as _json2
     attrition_data = {
         'total': total_attrition,
         'regrettable_count': regrettable_count,
@@ -18859,7 +18786,6 @@ def report_builder():
 @app.route('/report/preview', methods=['POST'])
 @admin_required
 def report_preview():
-    import json as _json
     data      = request.get_json(force=True)
     fields    = data.get('fields', [])
     filters   = data.get('filters', {})
@@ -18882,7 +18808,6 @@ def report_preview():
 @app.route('/report/export', methods=['POST'])
 @admin_required
 def report_export():
-    import json as _json
     data    = request.get_json(force=True)
     fields  = data.get('fields', [])
     filters = data.get('filters', {})
@@ -19368,7 +19293,6 @@ def forbidden(e):
 @app.errorhandler(404)
 def not_found(e):
     return render_template('errors/404.html'), 404
-
 
 
 # ── 전자계약 ─────────────────────────────────────────────────
@@ -20815,7 +20739,7 @@ def slack_command():
     if not _verify_slack_signature():
         app.logger.warning('Slack command 서명 검증 실패 — 요청 거부')
         return '', 401
-    from integrations.slack import send_dm, IS_DEMO
+    from integrations.slack import IS_DEMO
     text      = request.form.get('text', '').strip()
     slack_uid = request.form.get('user_id', '')
     resp_url  = request.form.get('response_url', '')

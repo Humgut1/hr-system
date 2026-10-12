@@ -23,7 +23,7 @@ from werkzeug.security import generate_password_hash
 
 from database import init_db
 from master_db import (
-    create_tenant, get_master_db, get_tenant_db_path, get_training_tenant,
+    create_tenant, get_tenant_db_path, get_training_tenant,
     mark_training_tenant, get_or_create_api_token, register_tenant_user,
     migrate_master_db,
 )

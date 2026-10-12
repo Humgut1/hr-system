@@ -5,6 +5,16 @@
 
 ---
 
+## v1.7.4 — 2026-10-12 · 의존성·정적 자산 정리 (정비 로드맵 M5)
+
+- **MCP 서버 기동 실패 수리** — `requirements.txt`의 `mcp>=1.0.0`이 새로 설치하면 mcp 2.x를 깔고, 2.x엔 `Server.list_tools()/call_tool()` 데코레이터가 없어 `mcp_server.py`가 import 단계에서 죽었음 → `mcp==1.30.0` 고정(8개 도구 목록·호출 확인)
+- `itsdangerous==2.2.0` 명시(SSO 표 서명에 직접 사용)
+- **Chart.js 로컬화** — 분석 화면의 jsdelivr CDN → `static/js/vendor/chart-4.4.1.umd.js`(npm 패키지 원본, MIT 헤더 유지). 실브라우저에서 `Chart.version` 4.4.1 로드 확인
+- **죽은 코드 정리** — 안 쓰는 import 27건(app.py·migrate_db·training_company·integrations), 안 쓰는 상수/함수 8개(ANALYTICS_AREAS·ATTENDANCE_STATUS_COLOR·BLOCK_TYPES·WORK_TYPES·LEAVE_DAYS·_cert_user·_week_monday·perf_exclude_label)
+- 검증: pytest 53 · 스윕 132×3 · MCP 도구 8개 · 연동 모듈 import
+
+---
+
 ## v1.7.3 — 2026-10-12 · 계산 회귀 테스트 + 법령 위반 계산 4건 수리 (정비 로드맵 M4)
 
 - **`tests/test_payroll.py` 53개** — 기대값은 코드 출력이 아니라 법령에서 손으로 계산: 최저임금(연도별·월 환산·파트타임), §60 연차(개월·연차·가산·상한·말일/윤일 입사·미사용 수당·잔액 단일 공식·병가 정책·대기 포함), 퇴직금 산식·1년 미만, 일할계산, §54 휴게·§50 소정·§56③ 야간 분 집계, §56 연장·야간·휴일 수당(중복 가산 포함), §53 주 52시간 판정, 2025/2026 4대보험 요율·연금 상하한, 간이세액표(구간 시작·단조성·1천만원 행 연속성·자녀 차감·80/120%·지방세·상여 원천징수), §47 근로소득공제

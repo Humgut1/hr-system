@@ -22,11 +22,8 @@
   - 테넌트 `suspended` 상태 실제 차단 — 지금은 슈퍼어드민이 정지해도 표시만 되고 로그인이 막히지 않음(웹훅 API 토큰만 막힘). 결제 삭제로 구독 잠금도 없어졌으니 정지 상태를 로그인에서 걸러야 함
 - ✅ **M3. SQLite 운영 안정화 (2026-10-12 완료, v1.7.2)** — 전 DB WAL(기동 시 기존 테넌트까지), 연결 timeout 15초, synchronous=NORMAL, 백업 복원을 WAL 안전하게(-wal/-shm 정리 + 백업 API로 .pre-restore). **복원은 서버를 멈춘 뒤에**
 - ✅ **M4. 계산 회귀 테스트 (2026-10-12 완료, v1.7.3)** — `tests/test_payroll.py` 53개(법령 기준 기대값) + `.github/workflows/ci.yml`(pytest + 스윕). 테스트가 잡은 **법령 위반 4건 수리**: 최저임금 2025년 값 사용, 연장·휴일 근로수당 가산분(0.5배)만 지급, 연차 기념일 하루 늦게 증가, 근로소득공제 1억 초과 2% 누락
-- [ ] **M5. 의존성·정적 자산 정리**
-  - Chart.js(jsdelivr CDN, 분석 화면) → `static/`에 내려받아 로컬 참조 (작업 규칙 2번 "외부 CDN 금지"와 정합)
-  - requirements.txt: `itsdangerous` 명시(SSO가 직접 씀), `mcp>=1.0.0` 버전 고정
-  - pyflakes 경고 정리 — 안 쓰는 import ~30건, 안 쓰는 상수/함수(ANALYTICS_AREAS·ATTENDANCE_STATUS_COLOR·BLOCK_TYPES·WORK_TYPES·LEAVE_DAYS·_cert_user·_week_monday·perf_exclude_label)
-  - ~~로그인 화면이 flash 메시지를 안 그림~~ → M2에서 같이 고침
+- ✅ **M5. 의존성·정적 자산 정리 (2026-10-12 완료, v1.7.4)** — Chart.js 로컬화(`static/js/vendor/chart-4.4.1.umd.js`), requirements 고정(`itsdangerous==2.2.0`, **`mcp==1.30.0` — `>=1.0.0`이 2.x를 깔아 MCP 서버가 기동 실패하던 것**), 안 쓰는 import 27건·죽은 상수/함수 8개 삭제, 로그인 flash는 M2에서
+  - 남은 것(별도 결정): Font Awesome(cdnjs)·Pretendard(jsdelivr) 웹폰트도 외부 CDN — 로컬화하면 폰트 파일 수 MB 추가. 루프 변수가 flask `g`를 가리는 5곳·안 쓰는 지역변수 5곳은 동작 영향 없어 둠(M6 분리 때 정리)
 - [ ] **M6. app.py 분리** — 2.1만 줄 단일 파일을 Flask Blueprint로 모듈별 분리(인사/근태/급여·보상/성과/채용 요청서·오퍼 결재/설정/SaaS/API·SSO). 동작 변경 없이 이동만, 단계별로 스윕 통과 확인
 - [ ] **M7. 정리 후보 결정·처리** — 아래 "정리 후보" 목록을 승헌씨가 남김/삭제 결정 → 삭제분 처리. 남은 ATS DB 표 처리도 여기서 같이 결정
 - [ ] **M8. 기능 추가 (우선순위 순, 각각 별도 기획 후 진행)**
