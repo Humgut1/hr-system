@@ -1,0 +1,32 @@
+# 정비 로드맵 M4 — push·PR 마다 계산 회귀 테스트 + 전 라우트 스윕
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt pytest
+
+      - name: 계산 회귀 테스트 (급여·연차·수당·4대보험·세액)
+        run: python -m pytest tests/ -q
+
+      - name: 데모 DB 시드
+        run: python migrate_db.py > /dev/null
+
+      - name: 전 라우트 스윕 (GET × 3역할, 500 에러 0건)
+        env:
+          SWEEP_ADMIN_PW: 'changeme!'   # migrate_db 시드 기본 비밀번호
+        run: python tests/sweep.py

@@ -6,7 +6,7 @@
   - 근로기준법 제56조  : 연장·야간·휴일 근로 가산수당
   - 근로기준법 제60조  : 연차유급휴가 + 미사용연차수당
   - 근로기준법 제48조  : 임금명세서 필수 기재사항
-  - 최저임금법         : 2026년 시간급 최저임금
+  - 최저임금법         : 연도별 시간급 최저임금 (MIN_WAGE_BY_YEAR)
   - 소득세법 §12       : 비과세 소득 (식대 20만원, 교통비 20만원, 육아수당 10만원 등)
   - 소득세법 §47       : 근로소득공제 (총급여 구간별 공제율)
   - 소득세법 §50       : 기본공제 (본인 + 부양가족 1인당 150만원)
@@ -33,13 +33,28 @@ WEEKLY_WARNING   = 2880  # 경고선 48시간 = 2880분
 # 월 환산 근로시간: (주 40h + 주휴 8h) × 52주 / 12개월 = 208.67 → 209h
 MONTHLY_STD_HOURS = 209
 
-# ── 최저임금 (최저임금법, 2026년) ─────────────────────────────
-MIN_WAGE_HOURLY  = 10_030                          # 시간급 (원)
-MIN_WAGE_MONTHLY = MIN_WAGE_HOURLY * MONTHLY_STD_HOURS   # 월 환산 = 2,096,270원
+# ── 최저임금 (최저임금법, 고용노동부 고시) ─────────────────────
+# 매년 8월 5일까지 고시되는 다음 해 시간급을 여기에 추가한다. 적용 연도에 맞는 값을 쓴다.
+MIN_WAGE_BY_YEAR = {
+    2025: 10_030,
+    2026: 10_320,   # 고용노동부 고시 제2025-47호 (월 209h 환산 2,156,880원)
+    2027: 10_700,   # 고용노동부 고시 제2026-60호 (2027.1.1 시행)
+}
+
+
+def min_wage_hourly(year: int = None) -> int:
+    """해당 연도 시간급 최저임금. 표에 없는 미래 연도는 가장 최근 값."""
+    year = year or date.today().year
+    known = [y for y in MIN_WAGE_BY_YEAR if y <= year]
+    return MIN_WAGE_BY_YEAR[max(known)] if known else MIN_WAGE_BY_YEAR[min(MIN_WAGE_BY_YEAR)]
+
+
+MIN_WAGE_HOURLY  = min_wage_hourly()                        # 시간급 (원) — 기동 연도 기준
+MIN_WAGE_MONTHLY = MIN_WAGE_HOURLY * MONTHLY_STD_HOURS      # 월 환산 (2026: 2,156,880원)
 
 
 def check_min_wage(base_salary: int,
-                   monthly_hours: int = MONTHLY_STD_HOURS) -> dict:
+                   monthly_hours: int = MONTHLY_STD_HOURS, year: int = None) -> dict:
     """
     기본급이 최저임금 미달 여부 확인.
 
@@ -50,14 +65,15 @@ def check_min_wage(base_salary: int,
     Returns:
         ok, shortage, min_monthly, min_hourly, effective_hourly
     """
-    min_monthly      = MIN_WAGE_HOURLY * monthly_hours
+    hourly           = min_wage_hourly(year)
+    min_monthly      = hourly * monthly_hours
     shortage         = max(0, min_monthly - base_salary)
     effective_hourly = round(base_salary / monthly_hours) if monthly_hours else 0
     return {
         'ok':              shortage == 0,
         'shortage':        shortage,
         'min_monthly':     min_monthly,
-        'min_hourly':      MIN_WAGE_HOURLY,
+        'min_hourly':      hourly,
         'effective_hourly': effective_hourly,
         'monthly_hours':   monthly_hours,
     }
@@ -142,28 +158,40 @@ def calc_severance(hire_date_str: str, termination_date_str: str,
 
 
 # ── 연차 계산 (근로기준법 제60조) ─────────────────────────
-def calc_annual_leave(hire_date_str: str) -> float:
+def _completed_months(start: date, as_of: date) -> int:
+    """start 부터 as_of 전날까지 채운 개월 수 (민법 §160 — 역(曆)에 의한 계산).
+    한 달을 채운 '다음 날' 1이 된다: 1/15 입사 → 2/15 에 1, 1/31 입사 → 3/1 에 1."""
+    if as_of <= start:
+        return 0
+    m = (as_of.year - start.year) * 12 + (as_of.month - start.month)
+    last_dom = _cal.monthrange(as_of.year, as_of.month)[1]
+    # 기산일이 그 달에 없으면(1/31 → 2월) 그 달 말일이 만료일 → 다음 날부터 1개월 완성
+    if as_of.day < min(start.day, last_dom) or (start.day > last_dom and as_of.day == last_dom):
+        m -= 1
+    return max(0, m)
+
+
+def annual_leave_entitlement(hire: date, as_of: date) -> float:
+    """§60 연차 발생 일수 — as_of 시점 기준 (연차는 기간을 채운 다음 날 발생, 대법원 2021다227100).
+    - 1년 미만  : 1개월 개근마다 1일, 최대 11일 (§60②)
+    - 1년 이상  : 15일 (§60①)
+    - 3년 이상  : 최초 1년을 넘는 계속근로 2년마다 1일 가산, 최대 25일 (§60④)
+    ※ 출근율 80% 요건은 따로 판정하지 않는다(개근 가정).
     """
-    입사일 기준 연차 일수 계산.
-    - 1년 미만  : 1개월 개근 시 1일, 최대 11일
-    - 1년 이상  : 15일 기본
-    - 3년 이상  : 2년마다 1일 가산, 최대 25일
-    """
+    months = _completed_months(hire, as_of)
+    if months < 12:
+        return float(min(months, 11))
+    years = months // 12
+    return float(min(15 + (years - 1) // 2, 25))
+
+
+def calc_annual_leave(hire_date_str: str, as_of: date = None) -> float:
+    """입사일 기준 연차 일수 (as_of 미지정 시 오늘)."""
     try:
         hire = date.fromisoformat(hire_date_str)
     except (ValueError, TypeError):
         return 15.0
-
-    today      = date.today()
-    days_total = (today - hire).days
-
-    if days_total < 365:
-        months = int(days_total / 30.4375)  # 평균 월일수
-        return float(min(months, 11))
-
-    full_years = int(days_total / 365.25)
-    extra      = (full_years - 1) // 2      # 3년차부터 2년마다 +1일
-    return float(min(15 + extra, 25))
+    return annual_leave_entitlement(hire, as_of or date.today())
 
 
 def compute_leave_balance(db, user_id, year=None, sick_policy='annual', include_pending=False):
@@ -232,7 +260,7 @@ def calc_earned_income_deduction(annual_gross: int) -> int:
     elif annual_gross <= 100_000_000:
         d = 12_000_000 + int((annual_gross - 45_000_000) * 0.05)
     else:
-        d = 14_750_000
+        d = 14_750_000 + int((annual_gross - 100_000_000) * 0.02)   # 1억 초과분 2%
     return min(d, 20_000_000)
 
 
@@ -1014,17 +1042,7 @@ def calc_unused_leave_pay(hire_date_str: str, termination_date_str: str,
         return {'total_leave': 0, 'used_days': used_days,
                 'unused_days': 0, 'unused_leave_pay': 0}
 
-    tenure_days = (term - hire).days
-
-    if tenure_days < 30:
-        total_leave = 0.0
-    elif tenure_days < 365:
-        months      = int(tenure_days / 30.4375)
-        total_leave = float(min(months, 11))
-    else:
-        full_years  = int(tenure_days / 365.25)
-        extra       = (full_years - 1) // 2      # 3년차부터 2년마다 +1
-        total_leave = float(min(15 + extra, 25))
+    total_leave = annual_leave_entitlement(hire, term)   # §60 — calc_annual_leave 와 같은 규칙
 
     unused_days      = max(0.0, total_leave - used_days)
     unused_leave_pay = int(avg_daily_wage * unused_days)
@@ -1215,46 +1233,40 @@ def calc_day_hours(date_str: str, check_in_str: str, check_out_str: str) -> dict
     }
 
 
-def calc_extra_pay(overtime_min: int, night_min: int, base_salary: int, 
+def calc_extra_pay(overtime_min: int, night_min: int, base_salary: int,
                    is_holiday: bool = False, holiday_regular_min: int = 0) -> dict:
     """
-    연장·야간·휴일 수당 금액 계산 (근로기준법 §56).
+    연장·야간·휴일 근로 수당 (근로기준법 §56). 월급의 기본급은 소정근로(월 209h)만 덮으므로
+    연장·휴일 근로 시간은 시간급 전액에 가산분을 더해 지급한다.
 
-    가산율:
-      연장근로  : 통상임금의 50% 가산 (×1.5 중 0.5 가산분)
-      야간근로  : 통상임금의 50% 가산 (×1.5 중 0.5 가산분)
-      휴일근로 (§56②):
-        - 8시간 이내: 50% 가산 (총 1.5배)
-        - 8시간 초과: 100% 가산 (총 2.0배)
-      
-      → 모든 가산은 중복 적용됨 (예: 휴일 8시간 초과이면서 야간이면 휴일가산 100% + 야간가산 50% = 150% 가산)
+      연장근로 (§56①)         : 통상시급 × 1.5 × 연장시간
+      휴일근로 (§56②)
+        - 8시간 이내          : 통상시급 × 1.5 × 휴일근로시간
+        - 8시간 초과          : 통상시급 × 2.0 × 초과시간   (연장 가산을 따로 더하지 않는다)
+      야간근로 (§56③ 22~06시) : 통상시급 × 0.5 × 야간시간   (위 수당과 중복 가산)
 
-    시급 산정: 월 기본급 ÷ 209시간 (주 40h 기준 월 환산)
+    통상시급 = 월 기본급 ÷ 209시간.
+    휴일이면 holiday_regular_min + overtime_min 이 그날 휴일근로 전체이며, 앞 8시간과 나머지로 나눈다.
+    (2026-10 M4: 이전 버전은 가산분 0.5만 지급해 연장·휴일 근로를 덜 계산했다)
     """
     if base_salary <= 0:
         return {'overtime_pay': 0, 'night_pay': 0, 'holiday_pay': 0, 'total_extra_pay': 0, 'hourly_wage': 0}
-    
-    overtime_min = max(0, overtime_min)
-    night_min    = max(0, night_min)
-    minute_wage  = base_salary / 209 / 60
-    
-    # 1. 연장 가산분 (50%)
-    # 휴일이 아닌 날의 8시간 초과분 혹은 휴일의 8시간 초과분(연장) 처리
-    overtime_pay = int(minute_wage * overtime_min * 0.5)
-    
-    # 2. 야간 가산분 (50%)
-    night_pay    = int(minute_wage * night_min * 0.5)
-    
-    # 3. 휴일 가산분 (50% or 100%)
-    holiday_pay = 0
+
+    overtime_min = max(0, overtime_min or 0)
+    night_min    = max(0, night_min or 0)
+
+    def pay(minutes, rate):
+        # 곱한 뒤 나눈다 — base/209/60 을 먼저 하면 소수 오차로 30,000원이 29,999원이 된다 (원 미만 절사)
+        return int(base_salary * minutes * rate / (MONTHLY_STD_HOURS * 60))
+
+    overtime_pay = holiday_pay = 0
     if is_holiday:
-        # 휴일근로 전체 시간에 대해 일단 50% 가산 (8시간 이내분 포함)
-        total_holiday_min = holiday_regular_min + overtime_min
-        holiday_pay += int(minute_wage * total_holiday_min * 0.5)
-        
-        # 8시간 초과분(overtime_min)에 대해서는 추가로 50% 더 가산 (총 100% 가산분)
-        if overtime_min > 0:
-            holiday_pay += int(minute_wage * overtime_min * 0.5)
+        total     = max(0, holiday_regular_min or 0) + overtime_min
+        within_8h = min(total, DAILY_WORK_MAX)
+        holiday_pay = pay(within_8h, 1.5) + pay(total - within_8h, 2.0)
+    else:
+        overtime_pay = pay(overtime_min, 1.5)
+    night_pay = pay(night_min, 0.5)
 
     return {
         'overtime_pay':    overtime_pay,
