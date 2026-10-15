@@ -481,9 +481,11 @@ def apply_scheduled_once():
 
 def _do_apply_action(db, pa):
     """personnel_action 행을 실제 users/salary 테이블에 반영."""
+    import people_history
     emp_id = pa['user_id']
     a_type = pa['action_type']
     to_val = pa['to_value']
+    before = people_history.snapshot(db, emp_id)
     if a_type == 'dept_change':
         db.execute('UPDATE users SET department_id=? WHERE id=?', (to_val.split('|')[-1], emp_id))
     elif a_type == 'position_change':
@@ -502,6 +504,9 @@ def _do_apply_action(db, pa):
             db.execute('UPDATE employee_salary SET base_salary=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=?', (new_sal, emp_id))
         else:
             db.execute('INSERT INTO employee_salary (user_id, base_salary) VALUES (?,?)', (emp_id, new_sal))
+    actor = db.execute('SELECT name FROM users WHERE id=?', (pa['processed_by'],)).fetchone() if pa['processed_by'] else None
+    people_history.record_diff(db, emp_id, before, 'action', pa['processed_by'], actor['name'] if actor else None,
+                               ref='pa:%s' % pa['id'], reason=pa['reason'])
 
 
 
@@ -521,6 +526,21 @@ def validate_password(pw):
     if kinds < 2:
         return '비밀번호는 영문/숫자/특수문자 중 2종 이상을 조합해야 합니다.'
     return None
+
+
+def _history_before(db, uid):
+    """직원 정보를 고치기 전 값(B1 변경 이력)."""
+    import people_history
+    return people_history.snapshot(db, uid)
+
+
+def _history_after(db, uid, before, source, reason=None, password=False):
+    """고친 뒤 바뀐 칸을 이력으로 남긴다. commit 은 부르는 쪽이."""
+    import people_history
+    aid, aname = session.get('user_id'), session.get('user_name')
+    people_history.record_diff(db, uid, before, source, aid, aname, reason=reason)
+    if password:
+        people_history.record_change(db, uid, 'password', None, None, source, aid, aname)
 
 
 def log_audit(action, category, target_user_id=None, detail=''):
@@ -2382,6 +2402,7 @@ def employee_detail(emp_id):
 
     return render_template('employees/detail.html',
                            learn=__import__('learning').summary(db, emp_id),
+                           history=__import__('people_history').timeline(db, emp_id) if can_see_sensitive else [],
                            emp=emp, payslips=payslips, leaves=leaves,
                            goals=goals, cycle=cycle,
                            annual_leave=annual_leave, used_leave=used_leave,
@@ -3699,8 +3720,10 @@ def employee_bulk_update_confirm():
         emp_id = row['emp_id']
         sets = row['sets']
         if sets:
+            before = _history_before(db, emp_id)
             cols = ', '.join(f'{c}=?' for c in sets)
             db.execute(f'UPDATE users SET {cols} WHERE id=?', (*sets.values(), emp_id))
+            _history_after(db, emp_id, before, 'bulk')
             field_count += len(sets)
         if row['salary'] is not None:
             new_sal = row['salary']
@@ -4910,6 +4933,7 @@ def employee_edit(emp_id):
         elif db.execute('SELECT id FROM users WHERE email=? AND id!=?', (email, emp_id)).fetchone():
             error = '이미 사용 중인 이메일입니다.'
         else:
+            before = _history_before(db, emp_id)
             if new_pw:
                 db.execute(
                     'UPDATE users SET name=?, email=?, password_hash=?, role=?, '
@@ -4932,6 +4956,7 @@ def employee_edit(emp_id):
                 )
             db.execute('UPDATE users SET job_profile_id=? WHERE id=?',
                        (request.form.get('job_profile_id', type=int), emp_id))
+            _history_after(db, emp_id, before, 'edit', password=bool(new_pw))
             db.commit()
             # ── master.db 이메일 변경 동기화 ─────────────────────
             tid = session.get('tenant_id', 1)
@@ -5573,6 +5598,7 @@ def termination_request_detail(req_id):
             preview = calc_severance(termination['hire_date'] or '', term_date, [dict(r) for r in payslips])
             severance_note = request.form.get('completion_note', '').strip() or None
 
+            before = _history_before(db, termination['user_id'])
             db.execute(
                 "UPDATE users "
                 "SET status='resigned', termination_date=?, termination_reason=? "
@@ -5583,6 +5609,7 @@ def termination_request_detail(req_id):
                     termination['user_id']
                 )
             )
+            _history_after(db, termination['user_id'], before, 'resign')
 
             existing = db.execute(
                 'SELECT id FROM severance_payments WHERE user_id=? AND termination_date=?',
@@ -5682,10 +5709,12 @@ def employee_offboard(emp_id):
         term_reason = request.form.get('term_reason', '').strip() or TERMINATE_TYPES.get(term_type, '')
         note        = request.form.get('note', '').strip() or None
 
+        before = _history_before(db, emp_id)
         db.execute(
             "UPDATE users SET status='resigned', termination_date=?, termination_reason=? WHERE id=?",
             (term_date, term_reason, emp_id)
         )
+        _history_after(db, emp_id, before, 'resign')
         result = calc_severance(emp['hire_date'] or '', term_date, payslip_list)
         if result.get('eligible'):
             db.execute(
@@ -12998,10 +13027,12 @@ def profile():
             emergency_name     = request.form.get('emergency_name', '').strip() or None
             emergency_phone    = request.form.get('emergency_phone', '').strip() or None
             emergency_relation = request.form.get('emergency_relation', '').strip() or None
+            before = _history_before(db, uid)
             db.execute(
                 'UPDATE users SET phone=?, address=?, emergency_name=?, emergency_phone=?, emergency_relation=? WHERE id=?',
                 (phone, address, emergency_name, emergency_phone, emergency_relation, uid)
             )
+            _history_after(db, uid, before, 'self')
             db.commit()
             # 온보딩 체크리스트 'talentcore_login' 자동 완료
             from datetime import datetime as _dt
@@ -13032,6 +13063,8 @@ def profile():
                     'UPDATE users SET password_hash=? WHERE id=?',
                     (generate_password_hash(new_pw), uid)
                 )
+                __import__('people_history').record_change(db, uid, 'password', None, None, 'self',
+                                                           uid, session.get('user_name'))
                 db.commit()
                 msg = '비밀번호가 변경되었습니다.'
 

@@ -1,0 +1,83 @@
+<!-- ══════════════════ 변경 이력 탭 (B1) ══════════════════ -->
+<div class="tab-panel" id="tab-history">
+  <div class="section-card">
+    <div class="hx-head">
+      <h3 class="hx-title">변경 이력 <span class="hx-count">{{ history|length }}건</span></h3>
+      <div class="hx-filter" role="group" aria-label="이력 거르기">
+        <button type="button" class="hx-chip on" data-k="">전체</button>
+        <button type="button" class="hx-chip" data-k="hr">인사</button>
+        <button type="button" class="hx-chip" data-k="personal">개인 정보</button>
+        <button type="button" class="hx-chip" data-k="account">계정</button>
+      </div>
+    </div>
+    {% if history %}
+    <ol class="hx-list">
+      {% for h in history %}
+      <li class="hx-row" data-k="{{ h.kind }}">
+        <div class="hx-when">{{ h.at|kst }}</div>
+        <div class="hx-what">
+          <span class="hx-field">{{ h.label }}</span>
+          {% if h.field == 'password' %}
+          <span class="hx-new">변경됨</span>
+          {% else %}
+          <span class="hx-old">{{ h.old or '없음' }}</span>
+          <span class="hx-arrow" aria-label="에서">→</span>
+          <span class="hx-new">{{ h.new or '없음' }}</span>
+          {% endif %}
+        </div>
+        <div class="hx-who">
+          {{ h.source_label }}{% if h.actor %} · {{ h.actor }}{% endif %}{% if h.reason %} · {{ h.reason }}{% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="hx-empty" hidden>이 종류의 변경 이력이 없습니다.</p>
+    {% else %}
+    <p class="hx-empty">변경 이력이 없습니다.</p>
+    {% endif %}
+  </div>
+</div>
+<style>
+  .hx-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+  .hx-title{font-weight:700;font-size:.95rem;margin:0}
+  .hx-count{font-weight:500;color:var(--text-muted);font-size:.8rem;margin-left:4px}
+  .hx-filter{display:flex;flex-wrap:wrap;gap:6px}
+  .hx-chip{border:1px solid var(--border);background:transparent;color:var(--text-muted);border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer}
+  .hx-chip.on{background:var(--text);color:var(--surface, #fff);border-color:var(--text)}
+  .hx-list{list-style:none;margin:0;padding:0}
+  .hx-row{display:grid;grid-template-columns:130px 1fr;gap:2px 14px;padding:10px 0;border-top:1px solid var(--border);font-size:13px}
+  .hx-row:first-child{border-top:0}
+  .hx-when{color:var(--text-muted);white-space:nowrap;grid-row:span 2}
+  .hx-what{min-width:0;overflow-wrap:anywhere}
+  .hx-field{font-weight:700;margin-right:8px}
+  .hx-old{color:var(--text-muted);text-decoration:line-through}
+  .hx-arrow{color:var(--text-muted);margin:0 4px}
+  .hx-new{font-weight:600;color:var(--text)}
+  .hx-who{color:var(--text-muted);font-size:12px;overflow-wrap:anywhere}
+  .hx-empty{padding:28px 0;text-align:center;color:var(--text-muted);font-size:13px;margin:0}
+  @media (max-width:560px){
+    .hx-row{grid-template-columns:1fr}
+    .hx-when{grid-row:auto;font-size:12px}
+  }
+</style>
+<script>
+(function(){
+  var box = document.getElementById('tab-history');
+  if (!box) return;
+  var chips = box.querySelectorAll('.hx-chip');
+  var rows = box.querySelectorAll('.hx-row');
+  var empty = box.querySelector('.hx-list ~ .hx-empty');
+  chips.forEach(function(c){
+    c.addEventListener('click', function(){
+      chips.forEach(function(x){ x.classList.toggle('on', x === c); });
+      var k = c.dataset.k, shown = 0;
+      rows.forEach(function(r){
+        var on = !k || r.dataset.k === k;
+        r.hidden = !on;
+        if (on) shown++;
+      });
+      if (empty) empty.hidden = shown > 0;
+    });
+  });
+})();
+</script>

@@ -2366,6 +2366,9 @@ def init_db(db_path: str = None):
         # ── Grow 직무 교육: 세부 직무·교육 기록 (learning.py) ──
         import learning
         learning.ensure_schema(c)
+        # ── B1 직원 정보 변경 이력 (people_history.py) ──
+        import people_history
+        people_history.ensure_schema(c)
 
         conn.commit()
     finally:
