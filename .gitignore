@@ -51,3 +51,4 @@ onboarding_plan.html
 *.bak_*
 *.db.bak*
 *.bak_t25/
+private_uploads/

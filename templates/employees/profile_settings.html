@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}사진·공개 범위{% endblock %}
+{% block page_title %}사진·공개 범위{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('employees') }}" class="btn btn-ghost btn-sm" style="margin-bottom:14px;">
+  <i class="fas fa-arrow-left"></i> 직원 목록
+</a>
+
+<div class="ps-grid">
+  <div class="card">
+    <div class="card-head"><span class="card-title">동료에게 보이는 칸</span></div>
+    <div class="card-body">
+      <div class="ps-note">이름·부서·직급·사진·회사 이메일은 늘 보입니다. 본인·관리자·직속 매니저는 전부 봅니다.</div>
+      <form method="POST">
+        <input type="hidden" name="action" value="public">
+        <div class="ps-checks">
+          {% for k, label in choices %}
+          <label class="ps-check">
+            <input type="checkbox" name="pub_{{ k }}" value="1" {% if k in pub %}checked{% endif %}>
+            <span>{{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">저장</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">사진 한꺼번에 올리기</span>
+      <span class="ps-count">재직 {{ total }}명 중 사진 {{ have }}명</span>
+    </div>
+    <div class="card-body">
+      <div class="ps-note">파일 이름을 사번으로 맞춰 주세요. 예) <code>TC-0129.jpg</code> · JPG·PNG · 한 번에 500장까지 · 올리기 전에 자동으로 줄입니다.</div>
+      <form method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="action" value="photos">
+        <input type="file" name="photos" multiple accept="image/jpeg,image/png,image/webp" class="input" data-photo-resize required style="max-width:100%;">
+        <div data-photo-note class="ps-note" style="margin:6px 0 10px;"></div>
+        <button type="submit" class="btn btn-primary btn-sm">올리기</button>
+      </form>
+
+      {% if report %}
+      <div class="ps-report">
+        <div class="ps-line"><b>반영</b> {{ report.ok|length }}명</div>
+        {% if report.ok %}<div class="ps-list">{{ report.ok|join(' · ') }}</div>{% endif %}
+        {% if report.miss %}
+        <div class="ps-line" style="color:var(--orange);"><b>사번 없음</b> {{ report.miss|length }}개</div>
+        <div class="ps-list">{{ report.miss|join(' · ') }}</div>
+        {% endif %}
+        {% if report.bad %}
+        <div class="ps-line" style="color:var(--red);"><b>올리지 못함</b> {{ report.bad|length }}개</div>
+        <div class="ps-list">{% for b in report.bad %}<div>{{ b }}</div>{% endfor %}</div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<style>
+  .ps-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .ps-note{font-size:12.5px;color:var(--tx-3);margin-bottom:12px;line-height:1.6;word-break:keep-all}
+  .ps-note code{font-size:12px}
+  .ps-checks{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin-bottom:14px}
+  .ps-check{display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer}
+  .ps-count{font-size:12px;color:var(--tx-3);margin-left:auto}
+  .ps-report{margin-top:16px;border-top:1px solid var(--border);padding-top:12px;font-size:13px}
+  .ps-line{margin:8px 0 4px}
+  .ps-list{font-size:12px;color:var(--tx-2);word-break:break-all;max-height:180px;overflow:auto}
+  @media (max-width:760px){.ps-grid{grid-template-columns:1fr}}
+</style>
+<script src="{{ url_for('static', filename='js/photo-resize.js') }}"></script>
+{% endblock %}

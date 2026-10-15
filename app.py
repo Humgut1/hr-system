@@ -103,6 +103,7 @@ TOSS_SECRET_KEY = os.environ.get(
 from database import init_db, DEFAULT_REVIEW_FORM, review_form_snapshot
 import copilot
 import workplace
+import people_profile
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -314,6 +315,7 @@ def get_db():
         db = g._database = sqlite3.connect(db_path)
         db.row_factory = sqlite3.Row
         db.execute('PRAGMA foreign_keys = ON')
+        people_profile.ensure_schema(db, db_path)
     return db
 
 @app.teardown_appcontext
@@ -543,6 +545,16 @@ def _history_after(db, uid, before, source, reason=None, password=False):
         people_history.record_change(db, uid, 'password', None, None, source, aid, aname)
 
 
+def _profile_save(db, uid, fields, ecs, source):
+    """B2 칸·비상 연락처 저장. _history_before/_history_after 사이에서 부른다(칸 변경은 거기서 기록)."""
+    people_profile.apply_fields(db, uid, fields)
+    if ecs is not None:
+        ch = people_profile.emergency_save(db, uid, ecs)
+        if ch:
+            __import__('people_history').record_change(db, uid, 'emergency_contacts', ch[0], ch[1], source,
+                                                       session.get('user_id'), session.get('user_name'))
+
+
 def log_audit(action, category, target_user_id=None, detail=''):
     """
     감사 로그 기록 (Phase A-3).
@@ -692,6 +704,24 @@ def perf_addon_gate():
         return
     flash(f"{PERF_ADDONS[key][1]} 기능이 꺼져 있습니다 · 회사 설정 > 성과 부가 기능에서 켤 수 있습니다", 'warning')
     return redirect(url_for('performance'))
+
+
+@app.before_request
+def locked_account_gate():
+    """잠긴 계정(B2)은 이미 들어와 있던 세션도 다음 요청에서 내보낸다."""
+    uid = session.get('user_id')
+    if not uid or session.get('demo_mode') or session.get('training_mode'):
+        return
+    if (request.endpoint or '') in ('static', 'login', 'logout'):
+        return
+    try:
+        r = get_db().execute('SELECT locked_at FROM users WHERE id=?', (uid,)).fetchone()
+    except Exception:
+        return
+    if r and r['locked_at']:
+        session.clear()
+        flash('계정이 잠겨 있습니다. 인사 담당자에게 해제를 요청하세요.', 'error')
+        return redirect(url_for('login'))
 
 
 def _demo_write_blocked():
@@ -870,6 +900,7 @@ def login():
             db_path = get_tenant_db_path(tenant_id)
             _db = sqlite3.connect(db_path)
             _db.row_factory = sqlite3.Row
+            people_profile.ensure_schema(_db, db_path)
             user = _db.execute(
                 'SELECT u.*, d.name AS dept_name, p.name AS pos_name '
                 'FROM users u '
@@ -878,9 +909,35 @@ def login():
                 'WHERE u.email = ? AND u.status = ?',
                 (email, 'active')
             ).fetchone()
+            pw_ok = bool(user) and check_password_hash(user['password_hash'], password)
+            locked = bool(user) and bool(user['locked_at'])
+            if user and not locked:
+                # 연속 실패 세기(B2) — LOCK_AFTER 번이면 잠근다. 성공하면 0.
+                if pw_ok:
+                    if user['failed_logins']:
+                        _db.execute('UPDATE users SET failed_logins=0 WHERE id=?', (user['id'],))
+                else:
+                    n = (user['failed_logins'] or 0) + 1
+                    if n >= people_profile.LOCK_AFTER:
+                        _db.execute("UPDATE users SET failed_logins=?, locked_at=CURRENT_TIMESTAMP, "
+                                    "lock_reason=? WHERE id=?",
+                                    (n, '비밀번호 %d회 연속 실패' % n, user['id']))
+                        try:
+                            import people_history
+                            people_history.record_change(_db, user['id'], 'locked', '해제', '잠금', 'lock',
+                                                         None, '시스템', reason='비밀번호 %d회 연속 실패' % n)
+                        except Exception:
+                            pass
+                    else:
+                        _db.execute('UPDATE users SET failed_logins=? WHERE id=?', (n, user['id']))
+                _db.commit()
             _db.close()
 
-            if user and check_password_hash(user['password_hash'], password):
+            if pw_ok and locked:
+                log_audit('login_failed', 'auth', user['id'], f'잠긴 계정 로그인 시도 ({email})')
+                return render_template('login.html',
+                                       error='계정이 잠겨 있습니다. 인사 담당자에게 해제를 요청하세요.')
+            if pw_ok:
                 sso_next = session.get('sso_next') or ''
                 session.clear()
                 session['tenant_id']  = tenant_id
@@ -2402,6 +2459,9 @@ def employee_detail(emp_id):
 
     return render_template('employees/detail.html',
                            learn=__import__('learning').summary(db, emp_id),
+                           ecs=people_profile.emergency_list(db, emp_id) if can_see_sensitive else [],
+                           pub=_profile_public(db), full_view=can_see_sensitive,
+                           tz_label=people_profile.TZ_LABEL,
                            history=__import__('people_history').timeline(db, emp_id) if can_see_sensitive else [],
                            emp=emp, payslips=payslips, leaves=leaves,
                            goals=goals, cycle=cycle,
@@ -3119,7 +3179,10 @@ def employee_new():
         employment_type = request.form.get('employment_type', 'full_time')
         manager_id      = request.form.get('manager_id') or None
 
-        if not name or not email or not password:
+        pf, pecs, perr = people_profile.parse_form(request.form, True)
+        if perr:
+            error = perr
+        elif not name or not email or not password:
             error = '이름, 이메일, 비밀번호는 필수입니다.'
         elif validate_password(password):
             error = validate_password(password)
@@ -3139,6 +3202,7 @@ def employee_new():
             # 세부 직무 — Grow 직무 교육 과정이 이 값으로 정해진다
             db.execute('UPDATE users SET job_profile_id=? WHERE id=?',
                        (request.form.get('job_profile_id', type=int), new_id))
+            _profile_save(db, new_id, pf, pecs, 'edit')
             # 지원자→직원 전환: applicant에 hired_employee_id 연결
             from_applicant_id = request.form.get('from_applicant', type=int)
             if from_applicant_id:
@@ -3283,7 +3347,8 @@ def employee_new():
     return render_template('employees/form.html',
                            mode='new', depts=depts, poses=poses, jfs=jfs, jps=jps,
                            managers=managers, error=error, emp=None,
-                           prefill=prefill,
+                           prefill=prefill, ecs=[],
+                           timezones=people_profile.TIMEZONES,
                            active_page='employees')
 
 # ══════════════════════════════════════════════════════════════
@@ -3527,7 +3592,23 @@ def employee_import_confirm():
 #  CSV 왕복 — 내보내기 → 수정 → 재업로드 일괄 수정 (Phase P1-4, improvement_plan.md)
 # ══════════════════════════════════════════════════════════════
 
-BULK_UPDATE_COLUMNS = ['사번', '이름', '부서', '직급', '직군', '고용형태', '기본급(월)', '매니저이메일']
+# B2 연락처 칸: (열 이름, users 칸, 최대 길이). 빈칸 = 그대로, '-' = 지우기.
+BULK_CONTACT_COLUMNS = [('부르는이름', 'preferred_name', 40), ('직함', 'job_title', 60),
+                        ('휴대폰', 'phone', 30), ('회사전화', 'work_phone', 30),
+                        ('개인이메일', 'personal_email', 120), ('자리', 'seat_location', 60),
+                        ('시간대', 'timezone', 40)]
+BULK_UPDATE_COLUMNS = ['사번', '이름', '부서', '직급', '직군', '고용형태', '기본급(월)', '매니저이메일'] + \
+    [c[0] for c in BULK_CONTACT_COLUMNS]
+
+
+def _bulk_tz(v):
+    """시간대 칸: 'Asia/Seoul' 또는 '한국 (서울)' 둘 다 받는다. 모르면 None."""
+    if v in people_profile.TZ_LABEL:
+        return v
+    for code, label in people_profile.TIMEZONES:
+        if v.replace(' ', '') == label.replace(' ', ''):
+            return code
+    return None
 
 
 @app.route('/employees/export-editable')
@@ -3539,7 +3620,9 @@ def export_employees_editable():
     db = get_db()
     rows = db.execute(
         "SELECT u.emp_no, u.name, d.name AS dept, p.name AS pos, jf.name AS jf, "
-        "       u.employment_type, es.base_salary, mgr.email AS manager_email "
+        "       u.employment_type, es.base_salary, mgr.email AS manager_email, "
+        "       u.preferred_name, u.job_title, u.phone, u.work_phone, u.personal_email, "
+        "       u.seat_location, u.timezone "
         "FROM users u "
         "LEFT JOIN departments d ON u.department_id=d.id "
         "LEFT JOIN positions p ON u.position_id=p.id "
@@ -3550,15 +3633,17 @@ def export_employees_editable():
         "ORDER BY d.name, u.name"
     ).fetchall()
 
+    import csv as _csv
     out = io.StringIO()
-    out.write(','.join(BULK_UPDATE_COLUMNS) + '\n')
+    w = _csv.writer(out, lineterminator='\n')
+    w.writerow(BULK_UPDATE_COLUMNS)
     for r in rows:
-        vals = [
+        w.writerow([
             r['emp_no'] or '', r['name'] or '', r['dept'] or '', r['pos'] or '', r['jf'] or '',
             EMP_TYPE_KO.get(r['employment_type'], r['employment_type'] or ''),
             str(r['base_salary'] or ''), r['manager_email'] or '',
-        ]
-        out.write(','.join(f'"{v}"' if ',' in v else v for v in vals) + '\n')
+        ] + [(r[col] or '') if col != 'timezone' else (r['timezone'] or 'Asia/Seoul')
+             for _, col, _n in BULK_CONTACT_COLUMNS])
 
     return Response('﻿' + out.getvalue(),
                      mimetype='text/csv; charset=utf-8',
@@ -3595,6 +3680,8 @@ def employee_bulk_update():
     for r in db.execute(
         "SELECT u.id, u.emp_no, u.name, u.department_id, u.position_id, u.job_family_id, "
         "       u.employment_type, u.manager_id, "
+        "       u.preferred_name, u.job_title, u.phone, u.work_phone, u.personal_email, "
+        "       u.seat_location, u.timezone, "
         "       d.name AS dept_name, p.name AS pos_name, jf.name AS jf_name, "
         "       mgr.email AS mgr_email, es.base_salary "
         "FROM users u "
@@ -3670,6 +3757,23 @@ def employee_bulk_update():
                     changes['manager_id'] = {
                         'label': '매니저', 'old': cur['mgr_email'] or '-', 'new': mgr_email, 'value': mgr['id'],
                     }
+            for label, col, n in BULK_CONTACT_COLUMNS:
+                v = r[label]
+                if not v:
+                    continue
+                if col == 'timezone':
+                    new = 'Asia/Seoul' if v == '-' else _bulk_tz(v)
+                    if not new:
+                        errors.append(f"시간대 모름: {v}")
+                        continue
+                else:
+                    new = None if v == '-' else v[:n]
+                    if col == 'personal_email' and new and ('@' not in new or ' ' in new):
+                        errors.append(f"개인이메일 형식 오류: {v}")
+                        continue
+                old = cur[col] if col != 'timezone' else (cur[col] or 'Asia/Seoul')
+                if (old or None) != new:
+                    changes[col] = {'label': label, 'old': old or '-', 'new': new or '(지움)', 'value': new}
 
         results.append({
             'line': i, 'emp_no': emp_no, 'name': r['이름'] or (cur['name'] if cur else ''),
@@ -4615,12 +4719,14 @@ def directory_api():
     if not tenant:
         return {'ok': False, 'error': 'invalid token'}, 401
 
-    conn = sqlite3.connect(get_tenant_db_path(tenant['id']))
+    _dbp = get_tenant_db_path(tenant['id'])
+    conn = sqlite3.connect(_dbp)
     conn.row_factory = sqlite3.Row
     try:
+        people_profile.ensure_schema(conn, _dbp)
         rows = conn.execute(
             'SELECT u.id, u.emp_no, u.name, u.email, u.role, u.status, '
-            '       u.employment_type, u.hire_date, '
+            '       u.employment_type, u.hire_date, u.preferred_name, u.job_title, '
             '       d.name AS dept, p.name AS position, p.level AS level, '
             '       m.emp_no AS manager_emp_no '
             'FROM users u '
@@ -4641,8 +4747,10 @@ def directory_api():
         people.append({
             'emp_no': r['emp_no'] or '',
             'name': r['name'] or '',
+            'preferred_name': r['preferred_name'] or None,
             'email': (r['email'] or '').strip().lower() or None,
             'title': r['position'] or '',
+            'job_title': r['job_title'] or None,      # 직함(B2). title 은 예전처럼 직급 이름
             # 직급 레벨(1~9). Hire 가 '실장(L8) 이상이 면접관이면 발송 전에 한 번
             # 확인' 규칙을 걸려면 이 값이 있어야 한다. 이름만으로는 판단이 안 된다.
             'level': r['level'],
@@ -4926,7 +5034,10 @@ def employee_edit(emp_id):
         term_reason      = request.form.get('termination_reason', '').strip() or None
         new_pw           = request.form.get('password', '').strip()
 
-        if not name or not email:
+        pf, pecs, perr = people_profile.parse_form(request.form, True)
+        if perr:
+            error = perr
+        elif not name or not email:
             error = '이름과 이메일은 필수입니다.'
         elif new_pw and validate_password(new_pw):
             error = validate_password(new_pw)
@@ -4956,6 +5067,7 @@ def employee_edit(emp_id):
                 )
             db.execute('UPDATE users SET job_profile_id=? WHERE id=?',
                        (request.form.get('job_profile_id', type=int), emp_id))
+            _profile_save(db, emp_id, pf, pecs, 'edit')
             _history_after(db, emp_id, before, 'edit', password=bool(new_pw))
             db.commit()
             # ── master.db 이메일 변경 동기화 ─────────────────────
@@ -4970,6 +5082,8 @@ def employee_edit(emp_id):
     return render_template('employees/form.html',
                            mode='edit', depts=depts, poses=poses, jfs=jfs, jps=jps,
                            managers=managers, error=error, emp=emp,
+                           ecs=people_profile.emergency_list(db, emp_id),
+                           timezones=people_profile.TIMEZONES,
                            active_page='employees')
 
 ACTION_LABELS = {
@@ -13021,17 +13135,15 @@ def profile():
     if request.method == 'POST':
         action = request.form.get('action')
 
+        pf = pecs = None
         if action == 'update_info':
+            pf, pecs, error = people_profile.parse_form(request.form, False)
+        if action == 'update_info' and not error:
             phone              = request.form.get('phone', '').strip() or None
             address            = request.form.get('address', '').strip() or None
-            emergency_name     = request.form.get('emergency_name', '').strip() or None
-            emergency_phone    = request.form.get('emergency_phone', '').strip() or None
-            emergency_relation = request.form.get('emergency_relation', '').strip() or None
             before = _history_before(db, uid)
-            db.execute(
-                'UPDATE users SET phone=?, address=?, emergency_name=?, emergency_phone=?, emergency_relation=? WHERE id=?',
-                (phone, address, emergency_name, emergency_phone, emergency_relation, uid)
-            )
+            db.execute('UPDATE users SET phone=?, address=? WHERE id=?', (phone, address, uid))
+            _profile_save(db, uid, pf, pecs, 'self')
             _history_after(db, uid, before, 'self')
             db.commit()
             # 온보딩 체크리스트 'talentcore_login' 자동 완료
@@ -13070,7 +13182,136 @@ def profile():
 
     return render_template('profile.html', user=user, error=error, msg=msg,
                            learn=__import__('learning').summary(db, uid),
+                           ecs=people_profile.emergency_list(db, uid),
+                           timezones=people_profile.TIMEZONES,
                            active_page='profile')
+
+
+# ── 직원 사진·계정 잠금·공개 범위 (B2) ──────────────────────────
+# 사람은 사번으로 찾는다: 사진 주소 /people/photo/<사번>, 한꺼번에 올리기 파일 이름 <사번>.jpg
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def _tenant_id():
+    return int(session.get('tenant_id', 1) or 1)
+
+
+def _profile_public(db):
+    r = db.execute("SELECT value FROM company_settings WHERE key='profile_public_fields'").fetchone()
+    return people_profile.public_fields(r['value'] if r else None)
+
+
+@app.route('/people/photo/<emp_no>')
+@login_required
+def person_photo(emp_no):
+    db = get_db()
+    r = db.execute('SELECT photo FROM users WHERE emp_no=?', (emp_no,)).fetchone()
+    if not r or not r['photo']:
+        abort(404)
+    from flask import send_from_directory
+    resp = send_from_directory(people_profile.photo_dir(_BASE_DIR, _tenant_id()),
+                               os.path.basename(r['photo']), max_age=86400)
+    resp.headers['Cache-Control'] = 'private, max-age=86400'
+    return resp
+
+
+@app.route('/people/<emp_no>/photo', methods=['POST'])
+@login_required
+def person_photo_save(emp_no):
+    db = get_db()
+    t = db.execute('SELECT id, name FROM users WHERE emp_no=?', (emp_no,)).fetchone()
+    if not t:
+        abort(404)
+    me = session['user_id']
+    if t['id'] != me and session.get('user_role') != 'admin':
+        abort(403)
+    back = _safe_next(url_for('profile') if t['id'] == me else url_for('employee_detail', emp_id=t['id']))
+    src = 'self' if t['id'] == me else 'edit'
+    import people_history
+    if request.form.get('action') == 'remove':
+        if people_profile.photo_remove(db, _BASE_DIR, _tenant_id(), t['id']):
+            people_history.record_change(db, t['id'], 'photo', '있음', '없음', src, me, session.get('user_name'))
+            db.commit()
+            flash('사진을 지웠습니다.', 'success')
+        return redirect(back)
+    f = request.files.get('photo')
+    had = db.execute('SELECT photo FROM users WHERE id=?', (t['id'],)).fetchone()['photo']
+    name, err = people_profile.photo_save(db, _BASE_DIR, _tenant_id(), t['id'], f.read() if f else b'')
+    if err:
+        flash(err, 'error')
+        return redirect(back)
+    people_history.record_change(db, t['id'], 'photo', '있음' if had else '없음', '새 사진', src,
+                                 me, session.get('user_name'))
+    db.commit()
+    flash('사진을 바꿨습니다.', 'success')
+    return redirect(back)
+
+
+@app.route('/employees/<int:emp_id>/lock', methods=['POST'])
+@admin_required
+def employee_lock(emp_id):
+    db = get_db()
+    t = db.execute('SELECT id, name, locked_at FROM users WHERE id=?', (emp_id,)).fetchone()
+    if not t:
+        abort(404)
+    back = url_for('employee_detail', emp_id=emp_id)
+    lock = request.form.get('action') == 'lock'
+    reason = (request.form.get('reason') or '').strip()[:200] or None
+    if lock and emp_id == session['user_id']:
+        flash('본인 계정은 잠글 수 없습니다.', 'error')
+        return redirect(back)
+    if lock == bool(t['locked_at']):
+        return redirect(back)
+    import people_history
+    if lock:
+        db.execute("UPDATE users SET locked_at=datetime('now'), lock_reason=? WHERE id=?",
+                   (reason or '관리자 잠금', emp_id))
+    else:
+        db.execute('UPDATE users SET locked_at=NULL, lock_reason=NULL, failed_logins=0 WHERE id=?', (emp_id,))
+    people_history.record_change(db, emp_id, 'locked', '해제' if lock else '잠금', '잠금' if lock else '해제',
+                                 'lock', session['user_id'], session.get('user_name'), reason=reason)
+    db.commit()
+    log_audit('update', 'personal_info', emp_id, '계정 %s (%s)' % ('잠금' if lock else '해제', t['name']))
+    flash('%s 계정을 %s.' % (t['name'], '잠갔습니다' if lock else '풀었습니다'), 'success')
+    return redirect(back)
+
+
+@app.route('/employees/profile-settings', methods=['GET', 'POST'])
+@admin_required
+def employee_profile_settings():
+    """직원 정보 설정: 동료에게 보이는 칸 + 사진 한꺼번에 올리기(파일 이름 = 사번)."""
+    db = get_db()
+    report = None
+    if request.method == 'POST' and request.form.get('action') == 'public':
+        keep = [k for k, _ in people_profile.PUBLIC_CHOICES if request.form.get('pub_' + k)]
+        db.execute("INSERT INTO company_settings (key,value) VALUES ('profile_public_fields',?) "
+                   'ON CONFLICT(key) DO UPDATE SET value=excluded.value', (','.join(keep),))
+        db.commit()
+        flash('공개 범위를 저장했습니다.', 'success')
+        return redirect(url_for('employee_profile_settings'))
+    if request.method == 'POST' and request.form.get('action') == 'photos':
+        import people_history
+        report = dict(ok=[], miss=[], bad=[])
+        for f in request.files.getlist('photos')[:500]:
+            fname = os.path.basename(f.filename or '')
+            stem = os.path.splitext(fname)[0].strip()
+            u = db.execute('SELECT id, name, photo FROM users WHERE emp_no=?', (stem,)).fetchone() if stem else None
+            if not u:
+                report['miss'].append(fname)
+                continue
+            name, err = people_profile.photo_save(db, _BASE_DIR, _tenant_id(), u['id'], f.read())
+            if err:
+                report['bad'].append('%s — %s' % (fname, err))
+                continue
+            people_history.record_change(db, u['id'], 'photo', '있음' if u['photo'] else '없음', '새 사진',
+                                         'bulk', session['user_id'], session.get('user_name'))
+            report['ok'].append('%s %s' % (stem, u['name']))
+        db.commit()
+    pub = _profile_public(db)
+    have = db.execute("SELECT COUNT(*) FROM users WHERE status='active' AND photo IS NOT NULL").fetchone()[0]
+    total = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
+    return render_template('employees/profile_settings.html', choices=people_profile.PUBLIC_CHOICES,
+                           pub=pub, report=report, have=have, total=total, active_page='employees')
 
 
 # ── Recruit ─────────────────────────────────────────────────

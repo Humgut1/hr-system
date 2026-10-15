@@ -9,9 +9,9 @@
 """
 
 TRACKED = (
-    ('name', '이름'), ('email', '이메일'), ('phone', '휴대폰'), ('address', '주소'),
-    ('emergency_name', '비상 연락처 이름'), ('emergency_phone', '비상 연락처 번호'),
-    ('emergency_relation', '비상 연락처 관계'),
+    ('name', '이름'), ('preferred_name', '부르는 이름'), ('email', '이메일'),
+    ('personal_email', '개인 이메일'), ('phone', '휴대폰'), ('work_phone', '회사 전화'),
+    ('address', '주소'), ('job_title', '직함'), ('seat_location', '자리'), ('timezone', '시간대'),
     ('birth_date', '생년월일'), ('hire_date', '입사일'),
     ('department_id', '부서'), ('position_id', '직급'), ('job_family_id', '직군'),
     ('job_profile_id', '세부 직무'), ('manager_id', '상위 관리자'),
@@ -21,19 +21,27 @@ TRACKED = (
 LABEL = dict(TRACKED)
 LABEL['password'] = '비밀번호'
 LABEL['salary'] = '기본급'
+# 비상 연락처는 여러 명이라 한 줄 요약으로 남긴다(옛 칸 3개는 예전 기록 읽기용 이름만)
+LABEL['emergency_contacts'] = '비상 연락처'
+LABEL['emergency_name'] = '비상 연락처 이름'
+LABEL['emergency_phone'] = '비상 연락처 번호'
+LABEL['emergency_relation'] = '비상 연락처 관계'
+LABEL['photo'] = '사진'
+LABEL['locked'] = '계정 잠금'
 
 SOURCE_LABEL = {
     'edit': '직원 수정', 'self': '본인 수정', 'bulk': '엑셀 일괄 변경', 'action': '인사 발령',
-    'resign': '퇴사 처리', 'password': '비밀번호', 'system': '시스템',
+    'resign': '퇴사 처리', 'password': '비밀번호', 'system': '시스템', 'lock': '계정 잠금',
 }
 
-PERSONAL = {'name', 'email', 'phone', 'address', 'emergency_name', 'emergency_phone',
-            'emergency_relation', 'birth_date'}
+PERSONAL = {'name', 'preferred_name', 'email', 'personal_email', 'phone', 'work_phone', 'address',
+            'emergency_name', 'emergency_phone', 'emergency_relation', 'emergency_contacts',
+            'birth_date', 'photo', 'seat_location', 'timezone'}
 
 
 def kind_of(field):
     """화면 거르기용: hr(인사) · personal(개인 정보) · account(계정)."""
-    if field == 'password':
+    if field in ('password', 'locked'):
         return 'account'
     return 'personal' if field in PERSONAL else 'hr'
 

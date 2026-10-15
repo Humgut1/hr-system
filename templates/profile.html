@@ -23,14 +23,11 @@
     <div class="card-head"><span class="card-title">기본 정보</span></div>
     <div class="card-body">
       <!-- 아바타 + 이름 -->
-      <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px;">
-        <div style="width:64px; height:64px; border-radius:50%; background:var(--primary);
-                    display:flex; align-items:center; justify-content:center;
-                    font-size:28px; font-weight:900; color:var(--surface); flex-shrink:0;">
-          {{ session.user_name[0] if session.user_name else 'U' }}
-        </div>
-        <div>
-          <div style="font-size:18px; font-weight:900; color:var(--tx-1);">{{ user.name }}</div>
+      {% from '_avatar.html' import avatar %}
+      <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px; flex-wrap:wrap;">
+        {{ avatar(user, 64) }}
+        <div style="min-width:0;">
+          <div style="font-size:18px; font-weight:900; color:var(--tx-1);">{{ user.name }}{% if user.preferred_name %} <span style="font-size:13px; font-weight:500; color:var(--tx-3);">({{ user.preferred_name }})</span>{% endif %}</div>
           <div style="font-size:13px; color:var(--tx-3);">{{ user.email }}</div>
           <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">
             {{ user.dept_name or '—' }} · {{ user.pos_name or '—' }}
@@ -39,6 +36,26 @@
             {% elif session.user_role == 'recruiter' %} · 리크루터
             {% endif %}
           </div>
+          {% if user.job_title %}<div style="font-size:12px; color:var(--tx-3); margin-top:2px;">{{ user.job_title }}</div>{% endif %}
+          {% if user.emp_no %}
+          <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
+            <form method="POST" action="{{ url_for('person_photo_save', emp_no=user.emp_no) }}" enctype="multipart/form-data" style="margin:0;">
+              <input type="hidden" name="next" value="/profile">
+              <label class="btn btn-ghost btn-sm" style="cursor:pointer;">
+                {{ '사진 바꾸기' if user.photo else '사진 올리기' }}
+                <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" data-photo-resize data-autosubmit hidden>
+              </label>
+              <span data-photo-note style="font-size:12px; color:var(--tx-3);"></span>
+            </form>
+            {% if user.photo %}
+            <form method="POST" action="{{ url_for('person_photo_save', emp_no=user.emp_no) }}" style="margin:0;">
+              <input type="hidden" name="action" value="remove"><input type="hidden" name="next" value="/profile">
+              <button type="submit" class="btn btn-ghost btn-sm">사진 지우기</button>
+            </form>
+            {% endif %}
+          </div>
+          <script src="{{ url_for('static', filename='js/photo-resize.js') }}"></script>
+          {% endif %}
         </div>
       </div>
 
@@ -83,30 +100,39 @@
                  placeholder="예) 서울시 강남구 테헤란로 123">
         </div>
 
-        <div style="border-top:1px solid var(--border); margin:20px 0 16px; padding-top:16px;">
-          <div style="font-size:13px; font-weight:700; color:var(--tx-2); margin-bottom:12px;">
-            비상연락처
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:0 12px;">
+          <div class="field">
+            <label class="form-label">부르는 이름</label>
+            <input type="text" name="preferred_name" class="form-control" maxlength="40"
+                   value="{{ user.preferred_name or '' }}" placeholder="예) Jay">
           </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-            <div class="field" style="margin:0;">
-              <label class="form-label">이름</label>
-              <input type="text" name="emergency_name" class="form-control"
-                     value="{{ user.emergency_name or '' }}"
-                     placeholder="홍길동">
-            </div>
-            <div class="field" style="margin:0;">
-              <label class="form-label">관계</label>
-              <input type="text" name="emergency_relation" class="form-control"
-                     value="{{ user.emergency_relation or '' }}"
-                     placeholder="배우자 / 부모님 등">
-            </div>
+          <div class="field">
+            <label class="form-label">회사 전화</label>
+            <input type="text" name="work_phone" class="form-control" maxlength="30"
+                   value="{{ user.work_phone or '' }}" placeholder="02-000-0000 / 내선">
           </div>
-          <div class="field" style="margin-top:12px;">
-            <label class="form-label">연락처</label>
-            <input type="text" name="emergency_phone" class="form-control"
-                   value="{{ user.emergency_phone or '' }}"
-                   placeholder="010-0000-0000">
+          <div class="field">
+            <label class="form-label">개인 이메일</label>
+            <input type="email" name="personal_email" class="form-control" maxlength="120"
+                   value="{{ user.personal_email or '' }}">
           </div>
+          <div class="field">
+            <label class="form-label">자리</label>
+            <input type="text" name="seat_location" class="form-control" maxlength="60"
+                   value="{{ user.seat_location or '' }}" placeholder="예) 본사 7층 A-12">
+          </div>
+          <div class="field">
+            <label class="form-label">시간대</label>
+            <select name="timezone" class="form-control">
+              {% for v, label in timezones %}
+              <option value="{{ v }}" {% if (user.timezone or 'Asia/Seoul') == v %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border); margin:8px 0 16px; padding-top:16px;">
+          {% include 'employees/_ec_fields.html' %}
         </div>
 
         <button type="submit" class="btn btn-primary">

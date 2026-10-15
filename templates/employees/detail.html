@@ -205,16 +205,18 @@
   <i class="fas fa-arrow-left"></i> 직원 목록
 </a>
 
+{% from '_avatar.html' import avatar %}
 <div class="prof-header">
-  <div class="prof-avatar">{{ emp.name[0] }}</div>
+  {{ avatar(emp, 64) }}
   <div style="flex:1; min-width:0;">
     <div class="prof-name">
       {{ emp.name }}
       {% if emp.emp_no %}
       <span style="font-size:13px; font-weight:600; color:var(--text-muted); margin-left:8px;">{{ emp.emp_no }}</span>
       {% endif %}
+      {% if emp.preferred_name %}<span style="font-size:13px; font-weight:500; color:var(--text-muted); margin-left:6px;">부르는 이름 {{ emp.preferred_name }}</span>{% endif %}
     </div>
-    <div class="prof-sub">{{ emp.dept_name or '미지정 부서' }} · {{ emp.pos_name or '미지정 직급' }}</div>
+    <div class="prof-sub">{{ emp.dept_name or '미지정 부서' }} · {{ emp.pos_name or '미지정 직급' }}{% if emp.job_title and (full_view or 'job_title' in pub) %} · {{ emp.job_title }}{% endif %}</div>
     <div class="prof-meta">
       {% if emp.role == 'admin' %}<span class="prof-tag" style="background:var(--info-bg); color:var(--info);">관리자</span>
       {% elif emp.role == 'manager' %}<span class="prof-tag" style="background:var(--green-bg); color:var(--green);">매니저</span>
@@ -229,6 +231,9 @@
       {% if emp.status == 'resigned' %}
       <span class="prof-tag" style="background:var(--red-bg); color:var(--red);">퇴직</span>
       {% endif %}
+      {% if emp.locked_at and session.user_role == 'admin' %}
+      <span class="prof-tag" style="background:var(--red-bg); color:var(--red);">계정 잠김</span>
+      {% endif %}
     </div>
   </div>
   {% if session.user_role == 'admin' and emp.status == 'active' %}
@@ -236,6 +241,14 @@
     <a href="{{ url_for('employee_edit', emp_id=emp.id) }}" class="btn btn-ghost btn-sm">
       <i class="fas fa-pencil-alt"></i> 정보 수정
     </a>
+    {% if emp.id != session.user_id %}
+    <form method="POST" action="{{ url_for('employee_lock', emp_id=emp.id) }}" style="margin:0;"
+          {% if not emp.locked_at %}onsubmit="var r=prompt('계정을 잠그는 이유를 적어 주세요. 잠그면 바로 로그아웃됩니다.');if(r===null)return false;this.reason.value=r;"{% endif %}>
+      <input type="hidden" name="action" value="{{ 'unlock' if emp.locked_at else 'lock' }}">
+      <input type="hidden" name="reason" value="">
+      <button type="submit" class="btn btn-ghost btn-sm">{{ '잠금 풀기' if emp.locked_at else '계정 잠금' }}</button>
+    </form>
+    {% endif %}
     <a href="{{ url_for('termination_request_new', emp_id=emp.id) }}" class="btn btn-sm"
        style="background:var(--red-bg); color:var(--red); border:1px solid var(--red-bg);">
       <i class="fas fa-user-minus"></i> 퇴직 처리
@@ -246,6 +259,14 @@
     <a href="{{ url_for('employee_edit', emp_id=emp.id) }}" class="btn btn-ghost btn-sm">
       <i class="fas fa-pencil-alt"></i> 정보 수정
     </a>
+    {% if emp.id != session.user_id %}
+    <form method="POST" action="{{ url_for('employee_lock', emp_id=emp.id) }}" style="margin:0;"
+          {% if not emp.locked_at %}onsubmit="var r=prompt('계정을 잠그는 이유를 적어 주세요. 잠그면 바로 로그아웃됩니다.');if(r===null)return false;this.reason.value=r;"{% endif %}>
+      <input type="hidden" name="action" value="{{ 'unlock' if emp.locked_at else 'lock' }}">
+      <input type="hidden" name="reason" value="">
+      <button type="submit" class="btn btn-ghost btn-sm">{{ '잠금 풀기' if emp.locked_at else '계정 잠금' }}</button>
+    </form>
+    {% endif %}
   </div>
   {% endif %}
 </div>
@@ -270,10 +291,46 @@
     <div class="section-head">개인 정보</div>
     <div class="info-grid">
       <div class="info-row"><div class="lbl">이름</div><div class="val">{{ emp.name }}</div></div>
-      <div class="info-row"><div class="lbl">이메일</div><div class="val">{{ emp.email }}</div></div>
-      <div class="info-row"><div class="lbl">전화번호</div><div class="val">{{ emp.phone or '—' }}</div></div>
-      <div class="info-row"><div class="lbl">생년월일</div><div class="val">{{ emp.birth_date or '—' }}</div></div>
+      {% if emp.preferred_name %}<div class="info-row"><div class="lbl">부르는 이름</div><div class="val">{{ emp.preferred_name }}</div></div>{% endif %}
+      <div class="info-row"><div class="lbl">회사 이메일</div><div class="val">{{ emp.email }}</div></div>
+      {% if full_view or 'job_title' in pub %}<div class="info-row"><div class="lbl">직함</div><div class="val">{{ emp.job_title or '—' }}</div></div>{% endif %}
+      {% if full_view or 'work_phone' in pub %}<div class="info-row"><div class="lbl">회사 전화</div><div class="val">{{ emp.work_phone or '—' }}</div></div>{% endif %}
+      {% if full_view or 'phone' in pub %}<div class="info-row"><div class="lbl">휴대폰</div><div class="val">{{ emp.phone or '—' }}</div></div>{% endif %}
+      {% if full_view or 'personal_email' in pub %}<div class="info-row"><div class="lbl">개인 이메일</div><div class="val">{{ emp.personal_email or '—' }}</div></div>{% endif %}
+      {% if full_view or 'seat_location' in pub %}<div class="info-row"><div class="lbl">자리</div><div class="val">{{ emp.seat_location or '—' }}</div></div>{% endif %}
+      {% if full_view or 'timezone' in pub %}<div class="info-row"><div class="lbl">시간대</div><div class="val">{{ tz_label.get(emp.timezone or 'Asia/Seoul', emp.timezone) }}</div></div>{% endif %}
+      {% if full_view or 'birth_date' in pub %}<div class="info-row"><div class="lbl">생년월일</div><div class="val">{{ emp.birth_date or '—' }}</div></div>{% endif %}
     </div>
+    {% if full_view %}
+    <div class="section-head" style="margin-top:0; border-top:1px solid var(--border);">비상 연락처</div>
+    <div class="info-grid">
+      {% for x in ecs %}
+      <div class="info-row"><div class="lbl">{{ '대표' if loop.first else loop.index ~ '번째' }}</div><div class="val">{{ x.name }}{% if x.relation %} ({{ x.relation }}){% endif %} · {{ x.phone }}</div></div>
+      {% else %}
+      <div class="info-row"><div class="lbl">비상 연락처</div><div class="val">—</div></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if session.user_role == 'admin' and emp.emp_no %}
+    <div class="section-head" style="margin-top:0; border-top:1px solid var(--border);">사진</div>
+    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:4px 0 16px;">
+      <form method="POST" action="{{ url_for('person_photo_save', emp_no=emp.emp_no) }}" enctype="multipart/form-data" style="margin:0;">
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer;">
+          {{ '사진 바꾸기' if emp.photo else '사진 올리기' }}
+          <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" data-photo-resize data-autosubmit hidden>
+        </label>
+        <span data-photo-note style="font-size:12px; color:var(--text-muted);"></span>
+      </form>
+      {% if emp.photo %}
+      <form method="POST" action="{{ url_for('person_photo_save', emp_no=emp.emp_no) }}" style="margin:0;">
+        <input type="hidden" name="action" value="remove"><input type="hidden" name="next" value="{{ request.path }}">
+        <button type="submit" class="btn btn-ghost btn-sm">사진 지우기</button>
+      </form>
+      {% endif %}
+    </div>
+    <script src="{{ url_for('static', filename='js/photo-resize.js') }}"></script>
+    {% endif %}
 
     <div class="section-head" style="margin-top:0; border-top:1px solid var(--border);">계정 정보</div>
     <div class="info-grid">
@@ -296,6 +353,9 @@
         </div>
       </div>
       <div class="info-row"><div class="lbl">계정 생성일</div><div class="val">{{ (emp.created_at or '')[:10] or '—' }}</div></div>
+      {% if session.user_role == 'admin' %}
+      <div class="info-row"><div class="lbl">계정 잠금</div><div class="val">{% if emp.locked_at %}<span style="color:var(--red); font-weight:700;">잠김</span> · {{ emp.locked_at|kst }}{% if emp.lock_reason %} · {{ emp.lock_reason }}{% endif %}{% else %}풀림{% if emp.failed_logins %} · 비밀번호 연속 실패 {{ emp.failed_logins }}회{% endif %}{% endif %}</div></div>
+      {% endif %}
     </div>
   </div>
 </div>

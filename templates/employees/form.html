@@ -86,11 +86,49 @@
           </div>
         </div>
 
-        <div class="field">
-          <label class="form-label">전화번호</label>
-          <input type="tel" name="phone" class="input"
-                 value="{{ emp.phone if emp else pf.get('phone', '') }}" placeholder="010-0000-0000">
+        <div class="grid-2" style="gap:14px;">
+          <div class="field">
+            <label class="form-label">부르는 이름 <span style="font-weight:400; color:var(--text-muted);">(선택)</span></label>
+            <input type="text" name="preferred_name" class="input" maxlength="40" value="{{ (emp['preferred_name'] if emp else pf.get('preferred_name', '')) or '' }}" placeholder="예: Jay, 하나">
+          </div>
+          <div class="field">
+            <label class="form-label">직함 <span style="font-weight:400; color:var(--text-muted);">(직급과 별개)</span></label>
+            <input type="text" name="job_title" class="input" maxlength="60" value="{{ (emp['job_title'] if emp else pf.get('job_title', '')) or '' }}" placeholder="예: 백엔드 리드">
+          </div>
         </div>
+
+        <div class="grid-2" style="gap:14px;">
+          <div class="field">
+            <label class="form-label">휴대폰</label>
+            <input type="tel" name="phone" class="input"
+                   value="{{ emp.phone if emp else pf.get('phone', '') }}" placeholder="010-0000-0000">
+          </div>
+          <div class="field">
+            <label class="form-label">회사 전화</label>
+            <input type="tel" name="work_phone" class="input" maxlength="30" value="{{ (emp['work_phone'] if emp else pf.get('work_phone', '')) or '' }}" placeholder="02-000-0000">
+          </div>
+        </div>
+
+        <div class="grid-2" style="gap:14px;">
+          <div class="field">
+            <label class="form-label">개인 이메일</label>
+            <input type="email" name="personal_email" class="input" maxlength="120" value="{{ (emp['personal_email'] if emp else pf.get('personal_email', '')) or '' }}" placeholder="퇴사 후 연락용">
+          </div>
+          <div class="field">
+            <label class="form-label">자리</label>
+            <input type="text" name="seat_location" class="input" maxlength="60" value="{{ (emp['seat_location'] if emp else pf.get('seat_location', '')) or '' }}" placeholder="예: 본사 5층 A-12">
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="form-label">시간대</label>
+          {% set _tz = (emp['timezone'] if emp else pf.get('timezone')) or 'Asia/Seoul' %}
+          <select name="timezone" class="input">
+            {% for k, lb in timezones %}<option value="{{ k }}" {% if k == _tz %}selected{% endif %}>{{ lb }}</option>{% endfor %}
+          </select>
+        </div>
+
+        {% include 'employees/_ec_fields.html' %}
 
         <!-- 인사 정보 -->
         <div class="section-label" style="font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin:22px 0 12px;">

@@ -6,7 +6,8 @@
 
 {% if step == 'upload' %}
 <!-- ── 1단계: 업로드 ─────────────────────────────────────── -->
-<div style="display:grid; grid-template-columns:1fr 340px; gap:20px; align-items:start;">
+<style>.bu-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}@media (max-width:760px){.bu-grid{grid-template-columns:minmax(0,1fr)}}</style>
+<div class="bu-grid">
 
   <div class="card">
     <div class="card-head">
@@ -15,7 +16,7 @@
     <form method="POST" enctype="multipart/form-data" style="padding:20px;">
       <div style="border:2px dashed var(--line); border-radius:10px; padding:36px; text-align:center; margin-bottom:16px;">
         <i class="fas fa-cloud-upload-alt" style="font-size:34px; color:var(--tx-3);"></i>
-        <div style="margin:10px 0 14px;" class="muted">부서·직급·직군·고용형태·기본급·매니저를 수정한 CSV 파일을 선택하세요</div>
+        <div style="margin:10px 0 14px;" class="muted">부서·직급·고용형태·기본급·매니저·연락처를 고친 CSV 파일을 선택하세요</div>
         <input type="file" name="file" accept=".csv" required class="form-control" style="max-width:340px; margin:0 auto;">
       </div>
       <button type="submit" class="btn btn-primary"><i class="fas fa-check" style="margin-right:6px;"></i>업로드 및 변경사항 확인</button>
@@ -29,10 +30,10 @@
     <div style="font-weight:700; margin-bottom:10px;"><i class="fas fa-info-circle" style="color:var(--primary); margin-right:6px;"></i>사용 방법</div>
     <ul class="muted" style="font-size:13px; line-height:1.9; padding-left:18px; margin:0;">
       <li>먼저 <b>수정용 CSV 내보내기</b>로 현재 재직 직원 명단을 받으세요</li>
-      <li>엑셀에서 부서·직급·직군·고용형태·기본급·매니저이메일 값을 고친 뒤 저장</li>
+      <li>엑셀에서 부서·직급·직군·고용형태·기본급·매니저이메일·부르는이름·직함·휴대폰·회사전화·개인이메일·자리·시간대 값을 고친 뒤 저장</li>
       <li><b>사번</b>으로 대상 직원을 찾으므로 사번 열은 수정·삭제하지 마세요</li>
       <li>이름 열은 참고용이며 실제 반영되지 않습니다 (개명은 개별 수정 이용)</li>
-      <li>값을 비워두면 해당 항목은 변경하지 않습니다</li>
+      <li>값을 비워두면 해당 항목은 변경하지 않습니다. 연락처 칸을 지우려면 <b>-</b> 를 적으세요</li>
       <li>업로드 후 <b>변경 내역을 미리보기에서 확인</b>한 뒤 반영됩니다 — 바로 저장되지 않으니 안심하세요</li>
     </ul>
   </div>

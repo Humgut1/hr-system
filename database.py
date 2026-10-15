@@ -2369,6 +2369,9 @@ def init_db(db_path: str = None):
         # ── B1 직원 정보 변경 이력 (people_history.py) ──
         import people_history
         people_history.ensure_schema(c)
+        # B2 직원 개인 정보·연락처: 칸 + 비상 연락처 표
+        import people_profile
+        people_profile.ensure_schema(conn)
 
         conn.commit()
     finally:

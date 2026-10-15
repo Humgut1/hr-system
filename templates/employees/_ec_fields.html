@@ -1,0 +1,65 @@
+{# 비상 연락처 여러 명(B2) — 직원 등록·수정과 내 프로필이 같이 쓴다. ecs = [{name, relation, phone}] #}
+<div class="ec-box" data-max="3">
+  <input type="hidden" name="ec_present" value="1">
+  <div class="ec-head">
+    <span class="form-label" style="margin:0;">비상 연락처</span>
+    <span class="ec-note">최대 3명 · 첫째가 대표</span>
+  </div>
+  <div class="ec-rows">
+    {% set _ecs = ecs if ecs else [{'name': '', 'relation': '', 'phone': ''}] %}
+    {% for x in _ecs %}
+    <div class="ec-row">
+      <input type="text" name="ec_name" class="input" value="{{ x.name }}" placeholder="이름" maxlength="40" aria-label="비상 연락처 이름">
+      <input type="text" name="ec_relation" class="input" value="{{ x.relation }}" placeholder="관계" maxlength="20" list="ec-rel-list" aria-label="관계">
+      <input type="tel" name="ec_phone" class="input" value="{{ x.phone }}" placeholder="010-0000-0000" maxlength="30" aria-label="번호">
+      <button type="button" class="ec-del" aria-label="이 연락처 빼기">빼기</button>
+    </div>
+    {% endfor %}
+  </div>
+  <datalist id="ec-rel-list">
+    <option value="배우자"><option value="부모"><option value="자녀"><option value="형제자매"><option value="친척"><option value="지인">
+  </datalist>
+  <button type="button" class="ec-add">+ 연락처 추가</button>
+</div>
+<style>
+  .ec-box{margin-top:4px}
+  .ec-head{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+  .ec-note{font-size:12px;color:var(--text-muted)}
+  .ec-row{display:grid;grid-template-columns:1fr 110px 1fr auto;gap:8px;margin-bottom:8px}
+  .ec-row .input{min-width:0}
+  .ec-del,.ec-add{border:1px solid var(--border);background:transparent;color:var(--text-muted);border-radius:6px;padding:0 10px;font-size:12px;cursor:pointer}
+  .ec-add{padding:6px 12px}
+  .ec-add[hidden]{display:none}
+  @media (max-width:560px){
+    .ec-row{grid-template-columns:1fr 1fr;padding-bottom:8px;border-bottom:1px solid var(--border)}
+    .ec-row input[name=ec_phone]{grid-column:1/2}
+  }
+</style>
+<script>
+(function(){
+  document.querySelectorAll('.ec-box').forEach(function(box){
+    if (box.dataset.ready) return;
+    box.dataset.ready = '1';
+    var rows = box.querySelector('.ec-rows'), add = box.querySelector('.ec-add');
+    var max = +box.dataset.max || 3;
+    function sync(){ add.hidden = rows.children.length >= max; }
+    rows.addEventListener('click', function(e){
+      var b = e.target.closest('.ec-del');
+      if (!b) return;
+      var row = b.closest('.ec-row');
+      if (rows.children.length > 1) row.remove();
+      else row.querySelectorAll('input').forEach(function(i){ i.value = ''; });
+      sync();
+    });
+    add.addEventListener('click', function(){
+      if (rows.children.length >= max) return;
+      var n = rows.firstElementChild.cloneNode(true);
+      n.querySelectorAll('input').forEach(function(i){ i.value = ''; });
+      rows.appendChild(n);
+      n.querySelector('input').focus();
+      sync();
+    });
+    sync();
+  });
+})();
+</script>
