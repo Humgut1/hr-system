@@ -55,23 +55,28 @@ def _cols(c, table):
     return {r[1] for r in c.execute('PRAGMA table_info(%s)' % table).fetchall()}
 
 
+_DDL = (
+    '''CREATE TABLE IF NOT EXISTS field_changes (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     INTEGER NOT NULL REFERENCES users(id),
+        field       TEXT NOT NULL,
+        old_value   TEXT,
+        new_value   TEXT,
+        source      TEXT NOT NULL DEFAULT 'edit',
+        ref         TEXT,
+        actor_id    INTEGER,
+        actor_name  TEXT,
+        reason      TEXT,
+        created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )''',
+    'CREATE INDEX IF NOT EXISTS idx_field_changes_user ON field_changes(user_id, created_at)',
+)
+
+
 def ensure_schema(c):
-    c.executescript('''
-        CREATE TABLE IF NOT EXISTS field_changes (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id     INTEGER NOT NULL REFERENCES users(id),
-            field       TEXT NOT NULL,
-            old_value   TEXT,
-            new_value   TEXT,
-            source      TEXT NOT NULL DEFAULT 'edit',
-            ref         TEXT,
-            actor_id    INTEGER,
-            actor_name  TEXT,
-            reason      TEXT,
-            created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_field_changes_user ON field_changes(user_id, created_at);
-    ''')
+    # executescript 는 진행 중인 저장을 먼저 commit 해 버리므로 execute 로 하나씩.
+    for q in _DDL:
+        c.execute(q)
 
 
 def _row(c, uid):
@@ -118,6 +123,7 @@ def readable(c, field, value):
 
 
 def _insert(c, uid, field, old, new, source, actor_id, actor_name, ref, reason):
+    ensure_schema(c)
     c.execute(
         'INSERT INTO field_changes (user_id, field, old_value, new_value, source, ref, actor_id, actor_name, reason) '
         'VALUES (?,?,?,?,?,?,?,?,?)',
@@ -157,6 +163,7 @@ _PA_FIELD = {
 
 def timeline(c, uid, limit=300):
     """시간 역순 목록. 각 줄: at, field, label, old, new, source, source_label, actor, reason."""
+    ensure_schema(c)
     out = []
     for r in c.execute(
             'SELECT field, old_value, new_value, source, actor_name, reason, created_at, ref '
