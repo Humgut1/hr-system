@@ -380,6 +380,13 @@ document.addEventListener('keydown', function (e) {
       .catch(function() { return []; })
       .then(function(employees) {
         var html = '';
+        // 홈 검색창: "연차 금요일" 같은 말은 맨 위 '바로 하기' 한 줄로
+        var quick = (inputId === 'homeSearchInput' && window.HOME_QUICK) ? window.HOME_QUICK(q) : null;
+        if (quick) {
+          html += '<div class="search-section-label">바로 하기</div>' +
+                  '<a href="' + esc(quick.url) + '" class="search-result-item">' +
+                  '<i class="fas fa-arrow-right search-result-icon"></i><span>' + esc(quick.label) + '</span></a>';
+        }
         if (navMatched.length) {
           html += '<div class="search-section-label">메뉴</div>';
           html += navMatched.map(function(item) {
@@ -399,7 +406,7 @@ document.addEventListener('keydown', function (e) {
                    '</small></span></a>';
           }).join('');
         }
-        if (!navMatched.length && !employees.length) html = '<div class="search-empty">결과 없음</div>';
+        if (!quick && !navMatched.length && !employees.length) html ='<div class="search-empty">결과 없음</div>';
         results.innerHTML = html;
         results.style.display = 'block';
       });

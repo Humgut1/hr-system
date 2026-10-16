@@ -1721,287 +1721,139 @@ def _admin_month_dues(db, cfg, payslip_count):
     return rows
 
 
+def _hm_min(s):
+    try:
+        h, m = str(s)[:5].split(':')
+        return int(h) * 60 + int(m)
+    except (ValueError, AttributeError):
+        return None
+
+
+def _home_clock(db, uid):
+    """홈 왼쪽 위 출퇴근 띠: before(출근 전) / in(근무 중) / out(퇴근)."""
+    today = date.today().isoformat()
+    row = db.execute('SELECT check_in, check_out FROM checkins WHERE user_id=? AND date=?',
+                     (uid, today)).fetchone()
+    sched = get_user_schedule(db, uid, today) or {}
+    start = (sched.get('work_start') or sched.get('core_start') or '09:00')[:5]
+    ci = (row['check_in'] or '')[:5] if row else ''
+    co = (row['check_out'] or '')[:5] if row else ''
+    state = 'out' if ci and co else ('in' if ci else 'before')
+    mins = None
+    if ci:
+        a = _hm_min(ci)
+        b = _hm_min(co or datetime.now().strftime('%H:%M'))
+        if a is not None and b is not None:
+            mins = max(0, b - a)
+    return {'state': state, 'start': start, 'in': ci, 'out': co, 'mins': mins}
+
+
+_HOME_TODO_KIND = {'one_on_one': '1:1', 'feedback': '피드백', 'goal': '목표', 'appeal': '이의신청',
+                   'overtime': '연장근로', 'leave': '휴가'}
+
+
+def _home_todo_from_c2(items):
+    return [{'title': i['title'], 'kind': _HOME_TODO_KIND.get(i.get('category'), '할 일'),
+             'due': '—', 'state': 'idle', 'link': i.get('link') or url_for('approvals_hub')}
+            for i in items]
+
+
+def _home_todo_from_rows(rows):
+    return [{'title': r['title'], 'kind': r['kind'], 'due': r['due_label'] if r.get('due') else '대기',
+             'state': r['state'], 'link': r['link']} for r in rows]
+
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    """홈 = 한 장: 출퇴근 · 큰 검색창 · 처리할 일 3줄 · 바닥 한 줄."""
     role = session.get('user_role')
     uid  = session.get('user_id')
+    dept_id = session.get('dept_id')
     db   = get_db()
-    today      = date.today().isoformat()
-    greet      = _greeting()
-    today_str  = _today_label()
-    first_name = (session.get('user_name') or '').split()[0]
+    today = date.today().isoformat()
     cfg = get_company_config()
     if not cfg.get('setup_completed') and role == 'admin':
         return redirect(url_for('admin_setup'))
 
+    def n(sql, args=()):
+        return db.execute(sql, args).fetchone()[0] or 0
+
+    out_sql = ("SELECT COUNT(DISTINCT lr.user_id) FROM leave_requests lr JOIN users u ON lr.user_id=u.id "
+               "WHERE lr.status='approved' AND lr.start_date<=? AND lr.end_date>=?")
+    todo, stats = [], []
+
     if role == 'admin':
-        total_employees   = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
-        total_departments = db.execute("SELECT COUNT(*) FROM departments").fetchone()[0]
-        pending_leave     = db.execute("SELECT COUNT(*) FROM leave_requests WHERE status='pending'").fetchone()[0]
-        # T6 — 옛 ATS(job_postings/applicants) 대신 자리 카드가 채용 지표의 근거다.
-        open_seats        = db.execute(
-            "SELECT COUNT(*) FROM job_openings WHERE status IN ('approved','open')").fetchone()[0]
-        hires_waiting_count = db.execute("SELECT COUNT(*) FROM incoming_hires WHERE status='waiting'").fetchone()[0]
-        recent_employees  = db.execute(
-            'SELECT u.name, d.name AS dept, p.name AS pos, u.hire_date '
-            'FROM users u LEFT JOIN departments d ON u.department_id=d.id '
-            'LEFT JOIN positions p ON u.position_id=p.id '
-            "WHERE u.status='active' ORDER BY u.created_at DESC LIMIT 6"
-        ).fetchall()
-        recent_posts = db.execute(
-            'SELECT id, title, pinned, created_at FROM announcements '
-            'ORDER BY pinned DESC, created_at DESC LIMIT 5'
-        ).fetchall()
-        who_out = db.execute(
-            'SELECT u.name, d.name AS dept, lr.type, lr.end_date '
-            'FROM leave_requests lr JOIN users u ON lr.user_id=u.id '
-            'LEFT JOIN departments d ON u.department_id=d.id '
-            "WHERE lr.status='approved' AND lr.start_date<=? AND lr.end_date>=? "
-            'ORDER BY u.name LIMIT 8', (today, today)
-        ).fetchall()
-        # ── 미결 문서: 결재 대기함과 같은 목록(기한·상태 포함) ──
-        inbox_items = collect_approval_rows(db, uid, role, session.get('dept_id'))
-        inbox_count = len(inbox_items)
-        inbox_late  = sum(1 for r in inbox_items if r['state'] == 'late')
-        out_today   = db.execute(
-            "SELECT COUNT(DISTINCT lr.user_id) FROM leave_requests lr "
-            "WHERE lr.status='approved' AND lr.start_date<=? AND lr.end_date>=?", (today, today)).fetchone()[0]
-        # ── 신규 위젯 데이터 ─────────────────────────────────
-        this_year   = date.today().year
-        this_month_n = date.today().month
-        payroll_row = db.execute(
-            "SELECT COUNT(*) as cnt, COALESCE(SUM(net_pay),0) as total "
-            "FROM payslips WHERE year=? AND month=?", (this_year, this_month_n)
-        ).fetchone()
-        payroll_summary = {'count': payroll_row['cnt'], 'total': payroll_row['total']}
-        # 열려 있는 자리를 요청서 단위로 묶어 보여준다 (T6)
-        open_jobs = db.execute(
-            "SELECT r.id AS req_id, r.title, "
-            "  SUM(CASE WHEN o.status IN ('approved','open') THEN 1 ELSE 0 END) AS open_count, "
-            "  COUNT(o.id) AS total_count "
-            "FROM job_openings o JOIN job_requisitions r ON o.requisition_id=r.id "
-            "GROUP BY r.id HAVING open_count > 0 ORDER BY r.id DESC LIMIT 5"
-        ).fetchall()
-        week_ago = (date.today() - timedelta(days=7)).isoformat()
-        ot_violations = db.execute(
-            "SELECT u.name, u.id as uid, SUM(c.overtime_min) as ot_min "
-            "FROM checkins c JOIN users u ON c.user_id=u.id "
-            "WHERE c.check_in >= ? AND u.status='active' "
-            "GROUP BY c.user_id HAVING SUM(c.overtime_min) > 720 "
-            "ORDER BY ot_min DESC LIMIT 5", (week_ago,)
-        ).fetchall()
-        month_dues = _admin_month_dues(db, cfg, payroll_summary['count'])
-        enabled_widgets = get_widget_prefs(uid, 'admin')
-        widget_catalog  = WIDGET_CATALOG['admin']
-        return render_template('dashboard/admin.html',
-            month_dues=month_dues,
-            greet=greet, today_str=today_str, first_name=first_name,
-            total_employees=total_employees, total_departments=total_departments,
-            pending_leave=pending_leave, open_seats=open_seats,
-            hires_waiting_count=hires_waiting_count,
-            recent_employees=recent_employees,
-            recent_posts=recent_posts, who_out=who_out,
-            inbox_items=inbox_items, inbox_count=inbox_count,
-            inbox_late=inbox_late, out_today=out_today, today_iso=today,
-            payroll_summary=payroll_summary, open_jobs=open_jobs,
-            ot_violations=ot_violations,
-            labels=LEAVE_LABELS, active_page='home',
-            enabled_widgets=enabled_widgets, widget_catalog=widget_catalog)
-
-    if role == 'manager':
-        dept_id = session.get('dept_id')
-        team_count = db.execute(
-            "SELECT COUNT(*) FROM users WHERE department_id=? AND status='active'", (dept_id,)
-        ).fetchone()[0]
-        pending_count = db.execute(
-            "SELECT COUNT(*) FROM leave_requests lr JOIN users u ON lr.user_id=u.id "
-            "WHERE u.department_id=? AND lr.status='pending'", (dept_id,)
-        ).fetchone()[0]
-        today_leave = db.execute(
-            "SELECT COUNT(*) FROM leave_requests lr JOIN users u ON lr.user_id=u.id "
-            "WHERE u.department_id=? AND lr.status='approved' "
-            "AND lr.start_date<=? AND lr.end_date>=?", (dept_id, today, today)
-        ).fetchone()[0]
-        # Inbox: 팀 대기 휴가 신청
-        inbox_rows = db.execute(
-            "SELECT lr.id, lr.type, lr.start_date, lr.end_date, u.name as user_name "
-            "FROM leave_requests lr JOIN users u ON lr.user_id=u.id "
-            "WHERE u.department_id=? AND lr.status='pending' "
-            "ORDER BY lr.created_at ASC LIMIT 5", (dept_id,)
-        ).fetchall()
-        inbox_items = [
-            {'id': r['id'], 'category': 'leave',
-             'title': r['user_name'] + ' — ' + LEAVE_LABELS.get(r['type'], r['type']),
-             'sub': r['start_date'] + (' ~ ' + r['end_date'] if r['start_date'] != r['end_date'] else '')}
-            for r in inbox_rows
+        todo = _home_todo_from_rows(collect_approval_rows(db, uid, role, dept_id))
+        stats = [
+            ('재직', n("SELECT COUNT(*) FROM users WHERE status='active'"), url_for('employees')),
+            ('오늘 부재', n(out_sql, (today, today)), url_for('attendance_home', tab='leaves')),
+            ('입사 예정', n("SELECT COUNT(*) FROM incoming_hires WHERE status='waiting'"), url_for('hires_list')),
+            ('빈 포지션', n("SELECT COUNT(*) FROM job_openings WHERE status IN ('approved','open')"),
+             url_for('seat_board')),
         ]
-        # ── 승인 허브 확장 (P1-1): 목표 승인·이의신청·OT ──
-        goal_rows = db.execute(
-            "SELECT u.id AS uid, u.name, COUNT(*) AS cnt, c.id AS cid, c.name AS cycle_name "
-            "FROM performance_goals g JOIN users u ON g.user_id=u.id "
-            "JOIN performance_cycles c ON g.cycle_id=c.id "
-            "WHERE g.approval_status='submitted' AND c.status='active' "
-            "AND (u.manager_id=? OR u.department_id=?) "
-            "GROUP BY u.id, c.id ORDER BY MIN(g.created_at) ASC LIMIT 3",
-            (uid, dept_id)
-        ).fetchall()
-        for r in goal_rows:
-            inbox_items.append({
-                'id': r['uid'], 'category': 'goal',
-                'title': f"{r['name']} — 목표 승인 요청 ({r['cnt']}개)",
-                'sub': r['cycle_name'],
-                'link': url_for('performance', cycle=r['cid'])
-            })
-        appeal_rows = db.execute(
-            "SELECT ga.id, u.name, ga.old_grade, ga.cycle_id "
-            "FROM grade_appeals ga JOIN users u ON ga.user_id=u.id "
-            "WHERE ga.status='pending' AND u.manager_id=? ORDER BY ga.created_at ASC LIMIT 3",
-            (uid,)
-        ).fetchall()
-        for r in appeal_rows:
-            inbox_items.append({
-                'id': r['id'], 'category': 'appeal',
-                'title': f"{r['name']} — 등급 이의신청 (현재 {r['old_grade']})",
-                'sub': '재검토 의견 필요',
-                'link': url_for('performance_appeals', cycle=r['cycle_id'])
-            })
-        ot_rows = db.execute(
-            "SELECT o.id, u.name, o.date, o.ot_minutes FROM overtime_requests o "
-            "JOIN users u ON o.user_id=u.id "
-            "WHERE o.status='pending' AND u.department_id=? ORDER BY o.created_at ASC LIMIT 3",
-            (dept_id,)
-        ).fetchall()
-        for r in ot_rows:
-            inbox_items.append({
-                'id': r['id'], 'category': 'overtime',
-                'title': f"{r['name']} — 연장근로 승인 요청",
-                'sub': f"{r['date']} · {r['ot_minutes'] // 60}시간 {r['ot_minutes'] % 60}분",
-                'link': url_for('attendance_home', tab='ot')
-            })
-        inbox_items.extend(_c2_todo(db, uid, role, session.get('dept_id'), get_perf_culture()))
-        inbox_count = len(inbox_items)
-        team_goals = db.execute(
-            "SELECT pg.title, pg.self_score, u.name as user_name, AVG(pr.score) as avg_score "
-            "FROM performance_goals pg JOIN users u ON pg.user_id=u.id "
-            "LEFT JOIN performance_reviews pr ON pg.id=pr.goal_id "
-            "WHERE u.department_id=? GROUP BY pg.id ORDER BY u.name LIMIT 8", (dept_id,)
-        ).fetchall()
-        recent_posts = db.execute(
-            'SELECT id, title, pinned, created_at FROM announcements '
-            'ORDER BY pinned DESC, created_at DESC LIMIT 4'
-        ).fetchall()
-        who_out = db.execute(
-            "SELECT u.name, lr.type, lr.end_date FROM leave_requests lr "
-            "JOIN users u ON lr.user_id=u.id WHERE u.department_id=? "
-            "AND lr.status='approved' AND lr.start_date<=? AND lr.end_date>=? "
-            "ORDER BY u.name", (dept_id, today, today)
-        ).fetchall()
-        upcoming_reviews = db.execute(
-            "SELECT pc.name as cycle_name, pc.end_date AS review_end, "
-            "COUNT(DISTINCT pg.user_id) as member_count, "
-            "COUNT(DISTINCT CASE WHEN pr.id IS NOT NULL THEN pg.user_id END) as reviewed_count "
-            "FROM performance_cycles pc "
-            "JOIN performance_goals pg ON pc.id=pg.cycle_id "
-            "JOIN users u ON pg.user_id=u.id "
-            "LEFT JOIN performance_reviews pr ON pg.id=pr.goal_id "
-            "WHERE u.department_id=? AND pc.end_date >= ? "
-            "GROUP BY pc.id ORDER BY pc.end_date ASC LIMIT 3",
-            (dept_id, today)
-        ).fetchall()
-        enabled_widgets = get_widget_prefs(uid, 'manager')
-        widget_catalog  = WIDGET_CATALOG['manager']
-        return render_template('dashboard/manager.html',
-            greet=greet, today_str=today_str, first_name=first_name,
-            team_count=team_count, pending_count=pending_count,
-            today_leave=today_leave, inbox_items=inbox_items, inbox_count=inbox_count,
-            team_goals=team_goals, recent_posts=recent_posts,
-            who_out=who_out, upcoming_reviews=upcoming_reviews,
-            labels=LEAVE_LABELS, active_page='home',
-            enabled_widgets=enabled_widgets, widget_catalog=widget_catalog)
+        hints = ['급여', '입사 예정자', '연장근로', '헤드카운트']
 
-    if role == 'recruiter':
-        # T6 — 리크루터가 TalentCore에서 하는 일은 '요청서·자리·입사 예정자' 셋이다.
-        # 후보자·면접·오퍼는 Hire 소관이라 여기서 세지 않는다.
-        pending_reqs_n = db.execute(
-            "SELECT COUNT(*) FROM job_requisitions WHERE status IN ('pending_dept','pending_hr')"
-        ).fetchone()[0]
-        open_seats = db.execute(
-            "SELECT COUNT(*) FROM job_openings WHERE status IN ('approved','open')").fetchone()[0]
-        ready_to_push = db.execute(
-            "SELECT COUNT(*) FROM job_openings WHERE status='approved'").fetchone()[0]
-        hires_waiting_count = db.execute(
-            "SELECT COUNT(*) FROM incoming_hires WHERE status='waiting'").fetchone()[0]
-        recent_reqs = db.execute(
-            'SELECT r.id, r.title, r.status, r.created_at, d.name AS dept_name, '
-            "  (SELECT COUNT(*) FROM job_openings o WHERE o.requisition_id=r.id) AS seats, "
-            "  (SELECT COUNT(*) FROM job_openings o WHERE o.requisition_id=r.id AND o.status='filled') AS filled "
-            'FROM job_requisitions r LEFT JOIN departments d ON r.department_id=d.id '
-            'ORDER BY r.id DESC LIMIT 6'
-        ).fetchall()
-        upcoming_hires = db.execute(
-            'SELECT id, name, start_date, department_name, job_title '
-            "FROM incoming_hires WHERE status='waiting' "
-            "ORDER BY COALESCE(start_date, '9999-12-31') LIMIT 5"
-        ).fetchall()
-        recent_posts = db.execute(
-            'SELECT id, title, pinned, created_at FROM announcements '
-            'ORDER BY pinned DESC, created_at DESC LIMIT 5'
-        ).fetchall()
-        REQ_STATUS_MAP = {
-            'draft':'작성 중', 'pending_dept':'부서장 결재', 'pending_hr':'HR 결재',
-            'approved':'승인됨', 'rejected':'반려', 'posted':'공고 중',
-        }
-        return render_template('dashboard/recruiter.html',
-            greet=greet, today_str=today_str, first_name=first_name,
-            pending_reqs_n=pending_reqs_n, open_seats=open_seats,
-            ready_to_push=ready_to_push, hires_waiting_count=hires_waiting_count,
-            recent_reqs=recent_reqs, upcoming_hires=upcoming_hires,
-            recent_posts=recent_posts, req_status_map=REQ_STATUS_MAP,
-            hire_url=_hire_config()['url'], active_page='home')
+    elif role == 'manager':
+        todo = (_home_todo_from_rows(collect_approval_rows(db, uid, role, dept_id))
+                + _home_todo_from_c2(_c2_todo(db, uid, role, dept_id, get_perf_culture())))
+        team = "SELECT COUNT(*) FROM users WHERE department_id=? AND status='active'"
+        worked = ("SELECT COUNT(*) FROM checkins c JOIN users u ON c.user_id=u.id WHERE u.department_id=? "
+                  "AND u.status='active' AND c.date=? AND c.check_in IS NOT NULL AND c.check_in<>''")
+        remote = ("SELECT COUNT(*) FROM checkins c JOIN users u ON c.user_id=u.id WHERE u.department_id=? "
+                  "AND u.status='active' AND c.date=? AND c.is_remote=1")
+        stats = [
+            ('우리 팀', n(team, (dept_id,)), url_for('employees')),
+            ('근무', n(worked, (dept_id, today)), url_for('attendance_home')),
+            ('휴가', n(out_sql + " AND u.department_id=?", (today, today, dept_id)),
+             url_for('attendance_home', tab='leaves')),
+            ('재택', n(remote, (dept_id, today)), url_for('attendance_home')),
+        ]
+        hints = ['근태 승인', '성과 평가', '휴가', '연차 금요일']
 
+    elif role == 'recruiter':
+        rows = [r for r in collect_approval_rows(db, uid, role, dept_id) if r['key'] == 'requisition']
+        todo = _home_todo_from_rows(rows)
+        ready = n("SELECT COUNT(*) FROM job_openings WHERE status='approved'")
+        if ready:
+            todo.append({'title': f'Hire 로 보낼 포지션 {ready}개', 'kind': '포지션', 'due': '대기',
+                         'state': 'wait', 'link': url_for('opening_board')})
+        t0 = date.today()
+        for h in db.execute("SELECT name, start_date FROM incoming_hires WHERE status='waiting' "
+                            "AND start_date IS NOT NULL AND start_date<=? ORDER BY start_date LIMIT 5",
+                            ((t0 + timedelta(days=14)).isoformat(),)).fetchall():
+            label, state = _due_state(h['start_date'], t0)
+            todo.append({'title': f"{h['name']} — 입사 준비", 'kind': '입사 예정', 'due': label,
+                         'state': state, 'link': url_for('hires_list')})
+        stats = [
+            ('결재 중 요청서', n("SELECT COUNT(*) FROM job_requisitions WHERE status IN ('pending_dept','pending_hr')"),
+             url_for('requisition_list')),
+            ('빈 포지션', n("SELECT COUNT(*) FROM job_openings WHERE status IN ('approved','open')"),
+             url_for('seat_board')),
+            ('Hire 로 보낼 것', ready, url_for('opening_board')),
+            ('입사 예정', n("SELECT COUNT(*) FROM incoming_hires WHERE status='waiting'"), url_for('hires_list')),
+        ]
+        hints = ['채용 요청', '충원 현황', '입사 예정자', '오퍼 결재']
 
-    # employee
-    hire_row = db.execute('SELECT hire_date FROM users WHERE id=?', (uid,)).fetchone()
-    hire_date_str = hire_row['hire_date'] if hire_row else None
-    _bal = get_leave_balance(db, uid)
-    total_leave  = _bal['total']
-    used_leave   = _bal['used']
-    remain_leave = _bal['remaining']
-    recent_reqs   = db.execute(
-        'SELECT type, start_date, end_date, days, status FROM leave_requests '
-        'WHERE user_id=? ORDER BY created_at DESC LIMIT 5', (uid,)
-    ).fetchall()
-    upcoming_leave = db.execute(
-        "SELECT type, start_date, end_date, days FROM leave_requests "
-        "WHERE user_id=? AND status='approved' AND start_date>? "
-        "ORDER BY start_date ASC LIMIT 3", (uid, today)
-    ).fetchall()
-    recent_posts = db.execute(
-        'SELECT id, title, pinned, created_at FROM announcements '
-        'ORDER BY pinned DESC, created_at DESC LIMIT 4'
-    ).fetchall()
-    tenure_str = _tenure(hire_date_str)
-    pct_used   = int(float(used_leave) / total_leave * 100) if total_leave else 0
-    my_goals = db.execute(
-        "SELECT pg.id, pg.title, pg.weight, pg.progress, pg.self_score, pc.name as cycle_name "
-        "FROM performance_goals pg "
-        "JOIN performance_cycles pc ON pg.cycle_id=pc.id "
-        "WHERE pg.user_id=? AND pc.status IN ('active','closed') "
-        "ORDER BY pc.start_date DESC, pg.weight DESC LIMIT 5", (uid,)
-    ).fetchall()
-    enabled_widgets = get_widget_prefs(uid, 'employee')
-    widget_catalog  = WIDGET_CATALOG['employee']
-    return render_template('dashboard/employee.html',
-        greet=greet, today_str=today_str, first_name=first_name,
-        total_leave=total_leave, used_leave=used_leave,
-        remain_leave=remain_leave, pct_used=pct_used,
-        recent_reqs=recent_reqs, upcoming_leave=upcoming_leave,
-        recent_posts=recent_posts, tenure_str=tenure_str,
-        my_goals=my_goals,
-        perf_todo=_c2_todo(db, uid, 'employee', None, get_perf_culture(), with_team=False),
-        labels=LEAVE_LABELS, active_page='home',
-        enabled_widgets=enabled_widgets, widget_catalog=widget_catalog)
+    else:
+        todo = _home_todo_from_c2(_c2_todo(db, uid, 'employee', None, get_perf_culture(), with_team=False))
+        bal = get_leave_balance(db, uid)
+        nxt = db.execute("SELECT start_date FROM leave_requests WHERE user_id=? AND status='approved' "
+                         "AND start_date>? ORDER BY start_date LIMIT 1", (uid, today)).fetchone()
+        rem = bal['remaining']
+        rem_s = (f'{rem:g}' if isinstance(rem, (int, float)) else str(rem)) + '일'
+        stats = [('남은 연차', rem_s, url_for('leave_my'))]
+        if nxt:
+            stats.append(('다음 휴가', nxt['start_date'][5:].replace('-', '/'),
+                          url_for('attendance_home', tab='leaves')))
+        hints = ['연차 금요일', '급여명세서', '증명서', '조직도']
+
+    rank = {'late': 0, 'wait': 1, 'idle': 2}
+    todo.sort(key=lambda t: rank.get(t['state'], 3))
+    return render_template('dashboard/home.html',
+        clock=_home_clock(db, uid), todo=todo, todo_late=sum(1 for t in todo if t['state'] == 'late'),
+        stats=stats, hints=hints, today_iso=today, today_str=_today_label(),
+        active_page='home')
 
 
 @app.route('/dashboard/widgets', methods=['POST'])
@@ -18496,6 +18348,11 @@ def _week_monday(d):
     return d - timedelta(days=d.weekday())
 
 
+def _clock_back():
+    """출퇴근 뒤 돌아갈 곳 — 홈 출퇴근 띠에서 눌렀으면 홈으로."""
+    return redirect(url_for('dashboard' if request.form.get('next') == 'home' else 'attendance_home'))
+
+
 @app.route('/attendance/checkin', methods=['POST'])
 @login_required
 def do_checkin():
@@ -18522,7 +18379,7 @@ def do_checkin():
         work_start = schedule.get('work_start', '') if schedule else ''
         flash(f'지각 처리됐습니다. (기준 출근 시각: {work_start})', 'warning')
 
-    return redirect(url_for('attendance_home'))
+    return _clock_back()
 
 
 @app.route('/attendance/checkout', methods=['POST'])
@@ -18541,7 +18398,7 @@ def do_checkout():
         # 체크인과 동일 시각이면 0분 처리 (잘못된 버튼 클릭 방지)
         if check_in_time == now:
             flash('체크인과 동일한 시각입니다. 퇴근 시 다시 눌러주세요.', 'warning')
-            return redirect(url_for('attendance_home'))
+            return _clock_back()
 
         hrs = calc_day_hours(today, check_in_time, now)
         is_holiday = bool(db.execute(
@@ -18611,7 +18468,7 @@ def do_checkout():
                 'warning'
             )
 
-    return redirect(url_for('attendance_home'))
+    return _clock_back()
 
 
 # ── Peer Review & Calibration ────────────────────────────────

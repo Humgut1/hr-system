@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block title %}홈{% endblock %}
+{% block page_head %}{% endblock %}
+
+{% block extra_css %}
+<style>
+body:has(.hm) .gnb-search{visibility:hidden}
+.hm{display:flex;flex-direction:column;min-height:calc(100vh - 120px)}
+.hm-top{display:flex;align-items:center;gap:10px;min-width:0;min-height:40px}
+.hm-top form{margin:0;display:flex}
+.hm-ct{font-size:13px;color:var(--tx-2);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.hm-ct b{font-family:var(--mono);color:var(--tx-1);font-weight:600}
+.hm-cdot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--idle)}
+.hm-cdot.on{background:var(--done);box-shadow:0 0 0 3px color-mix(in srgb,var(--done) 18%,transparent)}
+.hm-clock{border:1px solid var(--tx-1);background:var(--surface);color:var(--tx-1);border-radius:999px;height:32px;padding:0 16px;font-size:13px;font-weight:700;cursor:pointer;flex:none;font-family:inherit;display:inline-flex;align-items:center;text-decoration:none}
+.hm-clock:hover{background:var(--hover)}
+.hm-clock.solid{background:var(--primary);color:var(--on-primary);border-color:var(--primary)}
+.hm-clock.solid:hover{opacity:.88}
+.hm-clock.ghost{border-color:var(--line);color:var(--tx-3);font-weight:500;height:28px;padding:0 11px;font-size:12px}
+
+.hm-col{width:100%;max-width:600px;margin:56px auto 0;display:flex;flex-direction:column;align-items:center}
+.hm-mark{width:76px;height:76px;color:var(--tx-1);display:block}
+.hm-word{font-family:'Unbounded',var(--font);font-weight:700;font-size:15px;margin-top:10px;letter-spacing:-.01em;color:var(--tx-1)}
+
+.hm-search{width:100%;margin-top:28px}
+.hm-sbox{display:flex;align-items:center;gap:10px;border:1px solid var(--line-strong);border-radius:26px;padding:0 8px 0 20px;height:52px;background:var(--surface)}
+.hm-sbox:focus-within{border-color:var(--tx-2)}
+.hm-sbox i{color:var(--tx-3);font-size:14px}
+.hm-sbox input{flex:1;min-width:0;border:0;outline:0;background:none;font-size:16px;color:var(--tx-1);font-family:inherit;height:100%;padding:0}
+.hm-sbox input::placeholder{color:var(--tx-3)}
+.hm-sbox .kbd{font-family:var(--mono);font-size:11px;color:var(--tx-4);padding-right:8px;flex:none}
+.hm-search .global-search-results{border-radius:14px}
+
+.hm-hint{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:14px}
+.hm-hint button{border:1px solid var(--line);background:none;border-radius:999px;padding:4px 11px;font-size:12.5px;color:var(--tx-2);cursor:pointer;font-family:inherit}
+.hm-hint button:hover{border-color:var(--line-strong);color:var(--tx-1)}
+
+.hm-todo{width:100%;margin-top:40px}
+.hm-todo .hd{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--tx-3);padding:0 4px 6px}
+.hm-todo .hd b{color:var(--tx-1);font-family:var(--mono);font-weight:600}
+.hm-todo .hd a{color:var(--tx-3);text-decoration:none}
+.hm-todo .hd a:hover{color:var(--tx-1)}
+.hm-todo ul{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.hm-todo li{border-bottom:1px solid var(--line-2)}
+.hm-todo li a{display:flex;align-items:center;gap:12px;padding:10px 4px;min-width:0;color:var(--tx-1);text-decoration:none;font-size:14px}
+.hm-todo li a:hover{background:var(--hover)}
+.hm-todo .dot{width:6px;height:6px;border-radius:50%;background:var(--idle);flex:none}
+.hm-todo .dot.late{background:var(--late)}
+.hm-todo .dot.wait{background:var(--wait)}
+.hm-todo .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hm-todo .kind{font-size:12px;color:var(--tx-3);flex:none}
+.hm-todo .d{font-family:var(--mono);font-size:12px;flex:none;color:var(--tx-3);min-width:44px;text-align:right}
+.hm-todo .d.late{color:var(--late)}
+.hm-todo .d.wait{color:var(--wait)}
+.hm-todo .none{padding:14px 4px;font-size:13px;color:var(--tx-3);border-bottom:1px solid var(--line-2)}
+
+.hm-foot{margin-top:auto;padding:14px 4px 0;display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;font-size:12px;color:var(--tx-3);border-top:1px solid var(--line-2)}
+.hm-foot .fl{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.hm-foot a{color:var(--tx-3);text-decoration:none}
+.hm-foot a:hover{color:var(--tx-1)}
+.hm-foot b{color:var(--tx-1);font-weight:600;font-family:var(--mono);font-size:12px}
+.hm-foot .sep{color:var(--tx-4)}
+.hm-gap{height:56px}
+
+@media (max-width:640px){
+  .hm-ct .tail{display:none}
+  .hm-col{margin-top:32px}
+  .hm-sbox .kbd{display:none}
+  .hm-todo .kind{display:none}
+  .hm-gap{height:32px}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hm">
+  <div class="hm-top">
+    {% if clock.state == 'before' %}
+      <form method="post" action="{{ url_for('do_checkin') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="home">
+        <button type="submit" class="hm-clock solid">출근하기</button>
+      </form>
+      <span class="hm-ct">출근 전<span class="tail"> · 오늘 <b>{{ clock.start }}</b> 시작</span></span>
+    {% elif clock.state == 'in' %}
+      <span class="hm-cdot on"></span>
+      <span class="hm-ct">근무 중 <b>{{ clock.in }}</b><span class="tail" id="hmWorked" data-in="{{ clock.in }}">{% if clock.mins is not none %} · {{ clock.mins // 60 }}시간 {{ clock.mins % 60 }}분{% endif %}</span></span>
+      <form method="post" action="{{ url_for('do_checkout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="home">
+        <button type="submit" class="hm-clock">퇴근하기</button>
+      </form>
+    {% else %}
+      <span class="hm-cdot"></span>
+      <span class="hm-ct">퇴근 <b>{{ clock.out }}</b><span class="tail">{% if clock.mins is not none %} · {{ clock.mins // 60 }}시간 {{ clock.mins % 60 }}분{% endif %}</span></span>
+      <a href="{{ url_for('attendance_home') }}" class="hm-clock ghost">근무 기록</a>
+    {% endif %}
+  </div>
+
+  <div class="hm-col">
+    <svg class="hm-mark" id="hmMark" viewBox="0 0 512 512" aria-hidden="true">
+      <path fill="currentColor" d="M330 84H366A62 62 0 0 1 428 146V182A62 62 0 0 1 366 244H330A62 62 0 0 1 268 182V146A62 62 0 0 1 330 84ZM146 268H182A62 62 0 0 1 244 330V366A62 62 0 0 1 182 428H146A62 62 0 0 1 84 366V330A62 62 0 0 1 146 268ZM330 268H366A62 62 0 0 1 428 330V366A62 62 0 0 1 366 428H330A62 62 0 0 1 268 366V330A62 62 0 0 1 330 268Z"/>
+      <path fill="currentColor" d="M84 164A80 80 0 1 0 244 164A80 80 0 1 0 84 164Z"/>
+      <g id="hmEyes"><circle cx="152" cy="168" r="10.4" fill="var(--bg)"/><circle cx="200" cy="168" r="10.4" fill="var(--bg)"/></g>
+    </svg>
+    <div class="hm-word">talentcore</div>
+
+    <div class="hm-search global-search-wrap" id="homeSearchWrap">
+      <div class="hm-sbox">
+        <i class="fas fa-search" aria-hidden="true"></i>
+        <input type="text" id="homeSearchInput" placeholder="직원 이름, 메뉴, 연차 금요일" autocomplete="off" aria-label="검색">
+        <span class="kbd">/</span>
+      </div>
+      <div class="global-search-results" id="homeSearchResults" style="display:none;"></div>
+    </div>
+
+    <div class="hm-hint">
+      {% for h in hints %}<button type="button" data-q="{{ h }}">{{ h }}</button>{% endfor %}
+    </div>
+
+    <div class="hm-todo">
+      <div class="hd">
+        <span>처리할 일 <b>{{ todo|length }}</b>{% if todo_late %} · 지남 <b>{{ todo_late }}</b>{% endif %}</span>
+        <a href="{{ url_for('approvals_hub') }}">결재함 →</a>
+      </div>
+      <ul>
+        {% for t in todo[:3] %}
+        <li><a href="{{ t.link }}">
+          <span class="dot {{ t.state }}"></span>
+          <span class="t">{{ t.title }}</span>
+          <span class="kind">{{ t.kind }}</span>
+          <span class="d {{ t.state }}">{{ t.due }}</span>
+        </a></li>
+        {% else %}
+        <li class="none">처리할 일 없음</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="hm-gap"></div>
+  <div class="hm-foot">
+    <span class="fl">
+      {% for label, value, url in stats %}
+        {% if not loop.first %}<span class="sep">·</span>{% endif %}
+        <a href="{{ url }}">{{ label }} <b>{{ value }}</b></a>
+      {% endfor %}
+    </span>
+    <span>{{ session.get('dept_name') or '' }}{% if session.get('dept_name') %} · {% endif %}{{ session.get('user_name') or '' }}</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var TODAY = '{{ today_iso }}';
+  var DOW = ['일','월','화','수','목','금','토'];
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+
+  // "연차 금요일" · "반차 내일" · "휴가 10/31" → 휴가 신청 바로 하기
+  window.HOME_QUICK = function (q) {
+    if (!/연차|반차|휴가/.test(q)) return null;
+    var p = TODAY.split('-'), base = new Date(+p[0], +p[1] - 1, +p[2]), d = null, m;
+    if (/모레/.test(q)) { d = new Date(base); d.setDate(d.getDate() + 2); }
+    else if (/내일/.test(q)) { d = new Date(base); d.setDate(d.getDate() + 1); }
+    else if (/오늘/.test(q)) { d = new Date(base); }
+    else if ((m = q.match(/(\d{1,2})\s*[\/.월]\s*(\d{1,2})/))) {
+      d = new Date(base.getFullYear(), +m[1] - 1, +m[2]);
+      if (d < base) d.setFullYear(d.getFullYear() + 1);
+    } else if ((m = q.match(/([월화수목금토일])\s*요?일?/))) {
+      var want = DOW.indexOf(m[1]), add = (want - base.getDay() + 7) % 7;
+      d = new Date(base); d.setDate(d.getDate() + add);
+    }
+    var kind = /반차/.test(q) ? '반차' : '연차';
+    var type = /반차/.test(q) ? 'half_am' : 'annual';
+    if (!d) return { label: '휴가 신청 · ' + kind, url: '/leave/new?type=' + type };
+    var label = '휴가 신청 · ' + kind + ' ' + (d.getMonth() + 1) + '/' + d.getDate() + '(' + DOW[d.getDay()] + ')';
+    return { label: label, url: '/leave/new?type=' + type + '&start=' + iso(d) };
+  };
+
+  // 추천 검색어 → 검색창에 채우기
+  var input = document.getElementById('homeSearchInput');
+  document.querySelectorAll('.hm-hint button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      input.value = b.getAttribute('data-q');
+      input.focus();
+      input.dispatchEvent(new Event('input'));
+    });
+  });
+
+  // 근무 시간 1분마다
+  var w = document.getElementById('hmWorked');
+  if (w) {
+    var t = (w.getAttribute('data-in') || '').split(':');
+    var start = (+t[0]) * 60 + (+t[1]);
+    setInterval(function () {
+      var n = new Date(), mins = Math.max(0, n.getHours() * 60 + n.getMinutes() - start);
+      w.textContent = ' · ' + Math.floor(mins / 60) + '시간 ' + (mins % 60) + '분';
+    }, 60000);
+  }
+
+  // 로고 눈이 마우스를 따라본다 (움직임 줄이기면 그대로)
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    var g = document.getElementById('hmEyes'), mk = document.getElementById('hmMark');
+    document.addEventListener('pointermove', function (e) {
+      var b = mk.getBoundingClientRect();
+      var cx = b.left + b.width * 176 / 512, cy = b.top + b.height * 168 / 512;
+      var dx = e.clientX - cx, dy = e.clientY - cy, dist = Math.hypot(dx, dy) || 1;
+      var k = Math.min(1, dist / 240) * 14;
+      g.setAttribute('transform', 'translate(' + (dx / dist * k).toFixed(1) + ' ' + (dy / dist * k).toFixed(1) + ')');
+    });
+  }
+}());
+</script>
+{% endblock %}

@@ -176,7 +176,7 @@
   var META = {{ leave_meta | tojson }};
   var ANNUAL_REMAIN = {{ annual_remain }};
   var ANNUAL_TOTAL  = {{ annual_total }};
-  var SPECIAL_USED  = {{ special_used }};
+  var SPECIAL_USED  = {{ special_used | tojson }};
   var selected = null;
 
   window.selectType = function (key) {
@@ -267,6 +267,16 @@
       endEl.value = s.toISOString().slice(0, 10);
     }
   };
+
+  // 홈 검색 '바로 하기'에서 넘어온 값 (?type=annual&start=YYYY-MM-DD)
+  var qs = new URLSearchParams(location.search);
+  var qt = qs.get('type'), qd = qs.get('start');
+  if (qt && META[qt]) selectType(qt);
+  if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)) {
+    document.getElementById('startDate').value = qd;
+    document.getElementById('endDate').value = qd;
+    onStartChange();
+  }
 }());
 </script>
 {% endblock %}
