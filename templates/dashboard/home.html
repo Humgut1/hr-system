@@ -24,15 +24,17 @@ body:has(.hm) .gnb-search{visibility:hidden}
 
 .hm-search{width:100%;margin-top:28px}
 .hm-sbox{display:flex;align-items:center;gap:10px;border:1px solid var(--line-strong);border-radius:26px;padding:0 8px 0 20px;height:52px;background:var(--surface)}
-.hm-sbox:focus-within{border-color:var(--tx-2)}
+.hm-sbox:focus-within{border-color:var(--tx-1);box-shadow:0 0 0 3px color-mix(in srgb,var(--tx-1) 12%,transparent)}
+.hm :is(a,button):focus-visible{outline:2px solid var(--tx-1);outline-offset:2px;border-radius:6px}
+.hm-todo li a:focus-visible{outline-offset:-2px}
 .hm-sbox i{color:var(--tx-3);font-size:14px}
 .hm-sbox input{flex:1;min-width:0;border:0;outline:0;background:none;font-size:16px;color:var(--tx-1);font-family:inherit;height:100%;padding:0}
 .hm-sbox input::placeholder{color:var(--tx-3)}
-.hm-sbox .kbd{font-family:var(--mono);font-size:11px;color:var(--tx-4);padding-right:8px;flex:none}
+.hm-sbox .kbd{font-family:var(--mono);font-size:11px;line-height:1;color:var(--tx-3);border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:5px;padding:3px 7px;margin-right:8px;flex:none;background:var(--bg)}
 .hm-search .global-search-results{border-radius:14px}
 
 .hm-hint{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:14px}
-.hm-hint button{border:1px solid var(--line);background:none;border-radius:999px;padding:4px 11px;font-size:12.5px;color:var(--tx-2);cursor:pointer;font-family:inherit}
+.hm-hint button{border:1px solid var(--line);background:none;border-radius:999px;padding:0 12px;min-height:32px;font-size:12.5px;color:var(--tx-2);cursor:pointer;font-family:inherit}
 .hm-hint button:hover{border-color:var(--line-strong);color:var(--tx-1)}
 
 .hm-todo{width:100%;margin-top:40px}
@@ -42,17 +44,20 @@ body:has(.hm) .gnb-search{visibility:hidden}
 .hm-todo .hd a:hover{color:var(--tx-1)}
 .hm-todo ul{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
 .hm-todo li{border-bottom:1px solid var(--line-2)}
-.hm-todo li a{display:flex;align-items:center;gap:12px;padding:10px 4px;min-width:0;color:var(--tx-1);text-decoration:none;font-size:14px}
+.hm-todo li a{display:flex;align-items:center;gap:12px;padding:10px 4px;min-height:44px;box-sizing:border-box;min-width:0;color:var(--tx-1);text-decoration:none;font-size:14px}
 .hm-todo li a:hover{background:var(--hover)}
 /* 상태는 색 + 모양: 지남 = 꽉 찬 점 · 임박 = 반쯤 찬 점 · 여유 = 빈 테두리 */
 .hm-todo .dot{width:9px;height:9px;border-radius:50%;flex:none;box-sizing:border-box;border:1.5px solid var(--tx-3);background:none}
 .hm-todo .dot.late{border-color:var(--late);background:var(--late)}
 .hm-todo .dot.wait{border-color:var(--wait);background:linear-gradient(90deg,var(--wait) 50%,transparent 50%)}
+.hm-todo .tx{flex:1;min-width:0;display:flex;align-items:center;gap:12px}
 .hm-todo .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hm-todo .kind{font-size:12px;color:var(--tx-3);flex:none}
 .hm-todo .d{font-family:var(--mono);font-size:12px;flex:none;color:var(--tx-3);min-width:44px;text-align:right}
 .hm-todo .d.late{color:var(--late)}
 .hm-todo .d.wait{color:var(--wait)}
+.hm-todo .more{display:flex;align-items:center;justify-content:flex-end;min-height:40px;padding:0 4px;font-size:12.5px;color:var(--tx-2);text-decoration:none}
+.hm-todo .more:hover{color:var(--tx-1);text-decoration:underline}
 .hm-todo .none{padding:14px 4px;font-size:13px;color:var(--tx-3);border-bottom:1px solid var(--line-2)}
 
 .hm-foot{margin-top:auto;padding:14px 4px 0;display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;font-size:12px;color:var(--tx-3);border-top:1px solid var(--line-2)}
@@ -67,7 +72,12 @@ body:has(.hm) .gnb-search{visibility:hidden}
   .hm-ct .tail{display:none}
   .hm-col{margin-top:32px}
   .hm-sbox .kbd{display:none}
-  .hm-todo .kind{display:none}
+  .hm-todo .tx{flex-direction:column;align-items:stretch;gap:2px}
+  .hm-todo .kind{font-size:11.5px}
+  .hm-hint button{min-height:40px;padding:0 14px}
+  .hm-clock{height:40px}
+  .hm-clock.ghost{height:40px;padding:0 14px}
+  .hm-foot a{display:inline-flex;align-items:center;min-height:40px}
   .hm-gap{height:32px}
 }
 </style>
@@ -110,7 +120,7 @@ body:has(.hm) .gnb-search{visibility:hidden}
       <div class="hm-sbox">
         <i class="fas fa-search" aria-hidden="true"></i>
         <input type="text" id="homeSearchInput" placeholder="직원 이름, 메뉴, 연차 금요일" autocomplete="off" aria-label="검색">
-        <span class="kbd">/</span>
+        <kbd class="kbd" title="어디서든 / 를 누르면 여기로">/</kbd>
       </div>
       <div class="global-search-results" id="homeSearchResults" style="display:none;"></div>
     </div>
@@ -128,14 +138,14 @@ body:has(.hm) .gnb-search{visibility:hidden}
         {% for t in todo[:3] %}
         <li><a href="{{ t.link }}">
           <span class="dot {{ t.state }}" role="img" aria-label="{{ {'late': '기한 지남', 'wait': '기한 임박'}.get(t.state, '여유') }}"></span>
-          <span class="t">{{ t.title }}</span>
-          <span class="kind">{{ t.kind }}</span>
+          <span class="tx"><span class="t">{{ t.title }}</span><span class="kind">{{ t.kind }}</span></span>
           <span class="d {{ t.state }}">{{ t.due }}</span>
         </a></li>
         {% else %}
         <li class="none">처리할 일 없음</li>
         {% endfor %}
       </ul>
+      {% if todo|length > 3 %}<a class="more" href="{{ url_for('approvals_hub') }}">외 {{ todo|length - 3 }}건 더 보기 →</a>{% endif %}
     </div>
   </div>
 
