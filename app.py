@@ -104,6 +104,7 @@ from database import init_db, DEFAULT_REVIEW_FORM, review_form_snapshot
 import copilot
 import workplace
 import people_profile
+import people_consent
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -547,6 +548,7 @@ def _history_after(db, uid, before, source, reason=None, password=False):
 
 def _profile_save(db, uid, fields, ecs, source):
     """B2 칸·비상 연락처 저장. _history_before/_history_after 사이에서 부른다(칸 변경은 거기서 기록)."""
+    fields, ecs = people_consent.filter_fields(db, uid, fields, ecs)   # B3: 동의 없는 칸은 안 넣는다
     people_profile.apply_fields(db, uid, fields)
     if ecs is not None:
         ch = people_profile.emergency_save(db, uid, ecs)
@@ -3770,6 +3772,9 @@ def employee_bulk_update():
                     new = None if v == '-' else v[:n]
                     if col == 'personal_email' and new and ('@' not in new or ' ' in new):
                         errors.append(f"개인이메일 형식 오류: {v}")
+                        continue
+                    if col == 'personal_email' and new and 'personal_email' in people_consent.blocked(db, cur['id']):
+                        errors.append("개인이메일 동의 없음")
                         continue
                 old = cur[col] if col != 'timezone' else (cur[col] or 'Asia/Seoul')
                 if (old or None) != new:
@@ -13234,6 +13239,9 @@ def person_photo_save(emp_no):
             db.commit()
             flash('사진을 지웠습니다.', 'success')
         return redirect(back)
+    if 'photo' in people_consent.blocked(db, t['id']):
+        flash('사진 동의가 없어 올릴 수 없습니다.', 'error')
+        return redirect(back)
     f = request.files.get('photo')
     had = db.execute('SELECT photo FROM users WHERE id=?', (t['id'],)).fetchone()['photo']
     name, err = people_profile.photo_save(db, _BASE_DIR, _tenant_id(), t['id'], f.read() if f else b'')
@@ -13299,6 +13307,9 @@ def employee_profile_settings():
             if not u:
                 report['miss'].append(fname)
                 continue
+            if 'photo' in people_consent.blocked(db, u['id']):
+                report['bad'].append('%s — 사진 동의 없음' % fname)
+                continue
             name, err = people_profile.photo_save(db, _BASE_DIR, _tenant_id(), u['id'], f.read())
             if err:
                 report['bad'].append('%s — %s' % (fname, err))
@@ -13312,6 +13323,12 @@ def employee_profile_settings():
     total = db.execute("SELECT COUNT(*) FROM users WHERE status='active'").fetchone()[0]
     return render_template('employees/profile_settings.html', choices=people_profile.PUBLIC_CHOICES,
                            pub=pub, report=report, have=have, total=total, active_page='employees')
+
+
+# B3 개인정보 동의 — 화면·표는 people_consent.py
+people_consent.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
+                                  add_notification=add_notification, log_audit=log_audit,
+                                  base_dir=_BASE_DIR, tenant_id=_tenant_id))
 
 
 # ── Recruit ─────────────────────────────────────────────────

@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% block title %}개인정보 동의{% endblock %}
+{% block page_title %}개인정보 동의{% endblock %}
+
+{% block content %}
+<div class="cn-grid">
+  <div>
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">동의 현황</span>
+        <span class="cn-sub">재직 {{ total }}명 · 남은 사람 {{ todo }}명</span>
+      </div>
+      <div class="card-body">
+        <div class="cn-bar">
+          <div class="fchips" style="margin:0;">
+            <a class="fchip {% if f == 'todo' %}on{% endif %}" href="{{ url_for('consent_settings', f='todo', q=q) }}">남은 사람 <b>{{ todo }}</b></a>
+            <a class="fchip {% if f == 'all' %}on{% endif %}" href="{{ url_for('consent_settings', f='all', q=q) }}">전체 <b>{{ total }}</b></a>
+          </div>
+          <form method="GET" class="cn-q">
+            <input type="hidden" name="f" value="{{ f }}">
+            <input type="search" name="q" value="{{ q }}" class="input" placeholder="이름·사번·부서">
+          </form>
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('consent_settings', csv=1) }}"><i class="fas fa-download"></i> CSV</a>
+          <form method="POST" style="margin:0;" onsubmit="return confirm('남은 {{ todo }}명에게 알림을 보냅니다.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="remind">
+            <button type="submit" class="btn btn-primary btn-sm" {% if not todo %}disabled{% endif %}>동의 요청 보내기</button>
+          </form>
+        </div>
+
+        <div class="tbl-x">
+          <table class="table cn-tbl">
+            <thead>
+              <tr>
+                <th>사번</th><th>이름</th><th>부서</th>
+                {% for p in ps %}<th title="{{ p.title }} (v{{ p.version }})">{{ p.title }}</th>{% endfor %}
+              </tr>
+              <tr class="cn-sum">
+                <td colspan="3">동의·확인</td>
+                {% for c in counts %}<td>{{ c.done }}/{{ total }}{% if c.withdrawn and ps[loop.index0].kind == 'optional' %} · 철회 {{ c.withdrawn }}{% endif %}</td>{% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for u in people %}
+              <tr>
+                <td class="cn-mono">{{ u.emp_no or '-' }}</td>
+                <td><a href="{{ url_for('employee_detail', emp_id=u.id) }}">{{ u.name }}</a></td>
+                <td class="cn-dept">{{ u.dept or '-' }}</td>
+                {% for c in u.cells %}
+                {% set p = ps[loop.index0] %}
+                <td><span class="cn-st cn-{{ c.state }}{% if p.kind == 'required' and c.state == 'withdrawn' %} cn-done{% endif %}">{{ (SLR if p.kind == 'required' else SL)[c.state] }}</span></td>
+                {% endfor %}
+              </tr>
+              {% else %}
+              <tr><td colspan="{{ 3 + ps|length }}" class="cn-empty">{% if f == 'todo' %}모두 확인했습니다.{% else %}해당하는 사람이 없습니다.{% endif %}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if shown_n > 300 %}<div class="cn-sub" style="margin:8px 0 0;">앞 300명만 보입니다. 전체는 CSV 로 받으세요.</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">동의 목적</span>
+        <a class="btn btn-ghost btn-sm" style="margin-left:auto;" href="{{ url_for('consent_settings', edit='new') }}">목적 더하기</a>
+      </div>
+      <div class="card-body">
+        <ul class="cn-plist">
+          {% for p in allp %}
+          <li>
+            <a href="{{ url_for('consent_settings', edit=p.id) }}" class="{% if ep and ep.id == p.id %}on{% endif %}">
+              <span>{{ p.title }}</span>
+              <span class="cn-sub">{{ '필수 안내' if p.kind == 'required' else '선택 동의' }} · v{{ p.version }}{% if not p.active %} · 꺼짐{% endif %}</span>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+
+        {% if edit %}
+        <form method="POST" class="cn-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="save">
+          {% if ep %}<input type="hidden" name="id" value="{{ ep.id }}">{% endif %}
+          <label class="form-label">이름</label>
+          <input class="input" name="title" maxlength="60" required value="{{ ep.title if ep else '' }}">
+          <label class="form-label">종류</label>
+          <select class="input" name="kind" {% if ep and ep.builtin %}disabled{% endif %}>
+            <option value="optional" {% if not ep or ep.kind == 'optional' %}selected{% endif %}>선택 동의 (동의·철회)</option>
+            <option value="required" {% if ep and ep.kind == 'required' %}selected{% endif %}>필수 안내 (확인만)</option>
+          </select>
+          <label class="form-label">모으는 정보</label>
+          <input class="input" name="items" maxlength="400" value="{{ ep['items'] if ep and ep['items'] else '' }}">
+          <label class="form-label">쓰는 곳</label>
+          <textarea class="input" name="body" rows="3" maxlength="1000">{{ ep.body if ep and ep.body else '' }}</textarea>
+          <label class="form-label">근거</label>
+          <input class="input" name="basis" maxlength="200" value="{{ ep.basis if ep and ep.basis else '' }}">
+          <label class="form-label">보관 기간</label>
+          <input class="input" name="retention" maxlength="300" value="{{ ep.retention if ep and ep.retention else '' }}">
+          {% if ep %}
+          <label class="cn-check"><input type="checkbox" name="active" value="1" {% if ep.active %}checked{% endif %}> 사용</label>
+          <label class="cn-check"><input type="checkbox" name="bump" value="1"> 내용이 바뀜 — 전원 다시 동의 (v{{ ep.version }} → v{{ ep.version + 1 }})</label>
+          {% endif %}
+          <div style="display:flex;gap:6px;margin-top:12px;">
+            <button type="submit" class="btn btn-primary btn-sm">저장</button>
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('consent_settings') }}">닫기</a>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-head"><span class="card-title">입력 막기</span></div>
+      <div class="card-body">
+        <div class="cn-note">철회한 사람의 사진·비상 연락처·개인 이메일은 늘 막힙니다. 켜면 아직 답하지 않은 사람도 막습니다.</div>
+        <form method="POST" style="margin:0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="strict">
+          <label class="cn-check"><input type="checkbox" name="strict" value="1" {% if strict %}checked{% endif %}> 동의 전 입력 막기</label>
+          <button type="submit" class="btn btn-primary btn-sm" style="margin-top:8px;">저장</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .cn-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+  .cn-sub{font-size:12px;color:var(--tx-3);margin-left:auto}
+  .cn-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
+  .cn-q{margin:0;flex:1;min-width:140px}
+  .cn-q .input{width:100%}
+  .tbl-x{overflow-x:auto}
+  .cn-tbl{font-size:12.5px;white-space:nowrap}
+  .cn-tbl th{font-weight:600}
+  .cn-sum td{font-size:11.5px;color:var(--tx-3);font-family:var(--mono)}
+  .cn-mono{font-family:var(--mono);font-size:12px}
+  .cn-dept{color:var(--tx-2)}
+  .cn-st{font-size:12px}
+  .cn-done{color:var(--done)}
+  .cn-renew,.cn-none{color:var(--wait)}
+  .cn-withdrawn{color:var(--tx-3)}
+  .cn-empty{text-align:center;color:var(--tx-3);padding:18px}
+  .cn-plist{list-style:none;margin:0;padding:0}
+  .cn-plist a{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:6px;color:inherit;text-decoration:none}
+  .cn-plist a .cn-sub{margin-left:0}
+  .cn-plist a:hover,.cn-plist a.on{background:var(--surface-2)}
+  .cn-form{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
+  .cn-form .form-label{display:block;font-size:12px;color:var(--tx-3);margin:10px 0 4px}
+  .cn-form .input{width:100%}
+  .cn-check{display:flex;align-items:center;gap:8px;font-size:13px;margin-top:10px;cursor:pointer}
+  .cn-note{font-size:12.5px;color:var(--tx-3);line-height:1.6;margin-bottom:8px;word-break:keep-all}
+  @media (max-width:980px){.cn-grid{grid-template-columns:minmax(0,1fr)}}
+</style>
+{% endblock %}

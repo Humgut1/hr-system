@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}개인정보 동의{% endblock %}
+{% block page_title %}개인정보 동의{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('profile') }}" class="btn btn-ghost btn-sm" style="margin-bottom:14px;">
+  <i class="fas fa-arrow-left"></i> 내 정보
+</a>
+
+{% if req_todo %}
+<div class="card cs-top">
+  <div class="card-body cs-top-in">
+    <span>확인하지 않은 필수 안내 {{ req_todo }}건</span>
+    <form method="POST" style="margin:0;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="all">
+      <button type="submit" class="btn btn-primary btn-sm">전부 확인</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% for group, gname in [('required', '필수 안내'), ('optional', '선택 동의')] %}
+<div class="cs-group">{{ gname }}</div>
+{% for r in rows if r.p.kind == group %}
+<div class="card cs-card">
+  <div class="card-body">
+    <div class="cs-head">
+      <span class="cs-title">{{ r.p.title }}</span>
+      <span class="chip {% if r.state == 'done' or (group == 'required' and r.state == 'withdrawn') %}chip-positive{% elif r.state in ('renew','none') %}chip-warn{% endif %}">{{ r.label }}</span>
+      {% if r.at %}<span class="cs-at">{{ r.at|kst }}</span>{% endif %}
+    </div>
+    <dl class="cs-dl">
+      {% if r.p['items'] %}<dt>모으는 정보</dt><dd>{{ r.p['items'] }}</dd>{% endif %}
+      {% if r.p.body %}<dt>쓰는 곳</dt><dd>{{ r.p.body }}</dd>{% endif %}
+      {% if r.p.basis %}<dt>근거</dt><dd>{{ r.p.basis }}</dd>{% endif %}
+      {% if r.p.retention %}<dt>보관 기간</dt><dd>{{ r.p.retention }}</dd>{% endif %}
+    </dl>
+    <form method="POST" class="cs-act"
+          {% if group == 'optional' and r.state in ('done','renew') %}onsubmit="return confirm('철회하면 저장돼 있던 정보도 지워집니다. 철회할까요?');"{% endif %}>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="code" value="{{ r.p.code }}">
+      {% if group == 'required' %}
+        {% if r.state in ('none','renew') %}
+        <button type="submit" name="action" value="notice" class="btn btn-primary btn-sm">확인</button>
+        {% endif %}
+      {% else %}
+        {% if r.state != 'done' %}
+        <button type="submit" name="action" value="agree" class="btn btn-primary btn-sm">동의</button>
+        {% endif %}
+        {% if r.state in ('done','renew') %}
+        <button type="submit" name="action" value="withdraw" class="btn btn-ghost btn-sm">철회</button>
+        {% elif r.state == 'none' %}
+        <button type="submit" name="action" value="withdraw" class="btn btn-ghost btn-sm">동의 안 함</button>
+        {% endif %}
+      {% endif %}
+    </form>
+  </div>
+</div>
+{% endfor %}
+{% endfor %}
+
+<style>
+  .cs-top{margin-bottom:16px}
+  .cs-top-in{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13.5px}
+  .cs-group{font-size:12px;font-weight:600;color:var(--tx-3);margin:18px 0 8px}
+  .cs-card{margin-bottom:10px}
+  .cs-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .cs-title{font-weight:650;font-size:14.5px}
+  .cs-at{font-size:12px;color:var(--tx-3);margin-left:auto}
+  .cs-dl{display:grid;grid-template-columns:84px 1fr;gap:4px 12px;margin:0 0 10px;font-size:13px}
+  .cs-dl dt{color:var(--tx-3)}
+  .cs-dl dd{margin:0;word-break:keep-all}
+  .cs-act{display:flex;gap:6px;margin:0}
+  .cs-act:empty{display:none}
+  @media (max-width:480px){.cs-dl{grid-template-columns:1fr}.cs-dl dd{margin-bottom:6px}.cs-at{margin-left:0;width:100%}}
+</style>
+{% endblock %}

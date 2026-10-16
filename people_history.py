@@ -32,6 +32,7 @@ LABEL['locked'] = '계정 잠금'
 SOURCE_LABEL = {
     'edit': '직원 수정', 'self': '본인 수정', 'bulk': '엑셀 일괄 변경', 'action': '인사 발령',
     'resign': '퇴사 처리', 'password': '비밀번호', 'system': '시스템', 'lock': '계정 잠금',
+    'consent': '동의 철회',
 }
 
 PERSONAL = {'name', 'preferred_name', 'email', 'personal_email', 'phone', 'work_phone', 'address',

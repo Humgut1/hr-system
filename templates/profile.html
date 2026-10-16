@@ -37,8 +37,12 @@
             {% endif %}
           </div>
           {% if user.job_title %}<div style="font-size:12px; color:var(--tx-3); margin-top:2px;">{{ user.job_title }}</div>{% endif %}
+          {% set _cb = consent_blocked(user.id) %}
           {% if user.emp_no %}
           <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
+            {% if 'photo' in _cb %}
+            <span style="font-size:12px; color:var(--tx-3);">사진은 개인정보 동의 후 올릴 수 있습니다 · <a href="{{ url_for('my_consents') }}" style="color:inherit; text-decoration:underline;">동의하기</a></span>
+            {% else %}
             <form method="POST" action="{{ url_for('person_photo_save', emp_no=user.emp_no) }}" enctype="multipart/form-data" style="margin:0;">
               <input type="hidden" name="next" value="/profile">
               <label class="btn btn-ghost btn-sm" style="cursor:pointer;">
@@ -47,6 +51,7 @@
               </label>
               <span data-photo-note style="font-size:12px; color:var(--tx-3);"></span>
             </form>
+            {% endif %}
             {% if user.photo %}
             <form method="POST" action="{{ url_for('person_photo_save', emp_no=user.emp_no) }}" style="margin:0;">
               <input type="hidden" name="action" value="remove"><input type="hidden" name="next" value="/profile">
@@ -113,8 +118,12 @@
           </div>
           <div class="field">
             <label class="form-label">개인 이메일</label>
+            {% if 'personal_email' in _cb %}
+            <div style="font-size:12px; color:var(--tx-3); padding:8px 0;">개인정보 동의가 필요합니다 · <a href="{{ url_for('my_consents') }}" style="color:inherit; text-decoration:underline;">동의하기</a></div>
+            {% else %}
             <input type="email" name="personal_email" class="form-control" maxlength="120"
                    value="{{ user.personal_email or '' }}">
+            {% endif %}
           </div>
           <div class="field">
             <label class="form-label">자리</label>
@@ -132,7 +141,8 @@
         </div>
 
         <div style="border-top:1px solid var(--border); margin:8px 0 16px; padding-top:16px;">
-          {% include 'employees/_ec_fields.html' %}
+          {% with ec_blocked = ('emergency' in _cb), ec_self = True %}{% include 'employees/_ec_fields.html' %}{% endwith %}
+          <div style="margin-top:10px; font-size:12px;"><a href="{{ url_for('my_consents') }}" style="color:var(--tx-3);">개인정보 동의 관리</a></div>
         </div>
 
         <button type="submit" class="btn btn-primary">
