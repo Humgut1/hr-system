@@ -5,7 +5,7 @@
 {% block extra_css %}
 <style>
 body:has(.hm) .gnb-search{visibility:hidden}
-.hm{display:flex;flex-direction:column;min-height:calc(100vh - 120px)}
+.hm{display:flex;flex-direction:column;min-height:calc(100vh - 170px)}
 .hm-top{display:flex;align-items:center;gap:10px;min-width:0;min-height:40px}
 .hm-top form{margin:0;display:flex}
 .hm-ct{font-size:13px;color:var(--tx-2);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -17,10 +17,19 @@ body:has(.hm) .gnb-search{visibility:hidden}
 .hm-clock.solid{background:var(--primary);color:var(--on-primary);border-color:var(--primary)}
 .hm-clock.solid:hover{opacity:.88}
 .hm-clock.ghost{border-color:var(--line);color:var(--tx-3);font-weight:500;height:28px;padding:0 11px;font-size:12px}
+.hm-top-r{margin-left:auto;display:flex;align-items:center;gap:14px;min-width:0;font-size:13px;color:var(--tx-3)}
+.hm-news{display:flex;align-items:center;gap:8px;min-width:0;max-width:340px;color:var(--tx-2);text-decoration:none;border:1px solid var(--line);border-radius:999px;height:32px;padding:0 14px}
+.hm-news:hover{border-color:var(--line-strong);color:var(--tx-1)}
+.hm-news em{font-style:normal;font-size:11.5px;color:var(--tx-3);flex:none}
+.hm-news span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.hm-date{white-space:nowrap;flex:none}
 
-.hm-col{width:100%;max-width:600px;margin:56px auto 0;display:flex;flex-direction:column;align-items:center}
-.hm-mark{width:76px;height:76px;color:var(--tx-1);display:block}
-.hm-word{font-family:'Unbounded',var(--font);font-weight:700;font-size:15px;margin-top:10px;letter-spacing:-.01em;color:var(--tx-1)}
+/* 검색창이 화면 가운데쯤: 위(로고·검색)와 아래(할 일)가 남는 높이를 반씩 */
+.hm-col{width:100%;max-width:600px;margin:0 auto;flex:1;display:flex;flex-direction:column;align-items:center}
+.hm-hero{flex:1 1 0;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-top:24px}
+.hm-low{flex:1 1 0;width:100%}
+.hm-mark{width:100px;height:100px;color:var(--tx-1);display:block}
+.hm-word{font-family:'Unbounded',var(--font);font-weight:700;font-size:18px;margin-top:12px;letter-spacing:-.01em;color:var(--tx-1)}
 
 .hm-search{width:100%;margin-top:28px}
 .hm-sbox{display:flex;align-items:center;gap:10px;border:1px solid var(--line-strong);border-radius:26px;padding:0 8px 0 20px;height:52px;background:var(--surface)}
@@ -62,15 +71,26 @@ body:has(.hm) .gnb-search{visibility:hidden}
 
 .hm-foot{margin-top:auto;padding:14px 4px 0;display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;font-size:12px;color:var(--tx-3);border-top:1px solid var(--line-2)}
 .hm-foot .fl{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
-.hm-foot a{color:var(--tx-3);text-decoration:none}
+.hm-foot a{color:var(--tx-2);text-decoration:none;font-size:12.5px}
 .hm-foot a:hover{color:var(--tx-1)}
-.hm-foot b{color:var(--tx-1);font-weight:600;font-family:var(--mono);font-size:12px}
-.hm-foot .sep{color:var(--tx-4)}
+.hm-foot b{color:var(--tx-1);font-weight:700;font-family:var(--mono);font-size:13.5px;margin-left:2px}
+.hm-foot .sep{color:var(--tx-3)}
 .hm-gap{height:56px}
+
+/* 노트북처럼 낮은 화면: 스크롤 없이 한 장에 들어오게 간격을 줄인다 */
+@media (max-height:820px){
+  .hm-hero{padding-top:0}
+  .hm-mark{width:80px;height:80px}
+  .hm-search{margin-top:20px}
+  .hm-hint{margin-top:10px}
+  .hm-todo{margin-top:20px}
+  .hm-gap{height:20px}
+}
 
 @media (max-width:640px){
   .hm-ct .tail{display:none}
-  .hm-col{margin-top:32px}
+  .hm-hero{padding-top:20px}
+  .hm-top-r{display:none}
   .hm-sbox .kbd{display:none}
   .hm-todo .tx{flex-direction:column;align-items:stretch;gap:2px}
   .hm-todo .kind{font-size:11.5px}
@@ -106,9 +126,14 @@ body:has(.hm) .gnb-search{visibility:hidden}
       <span class="hm-ct">퇴근 <b>{{ clock.out }}</b><span class="tail">{% if clock.mins is not none %} · {{ clock.mins // 60 }}시간 {{ clock.mins % 60 }}분{% endif %}</span></span>
       <a href="{{ url_for('attendance_home') }}" class="hm-clock ghost">근무 기록</a>
     {% endif %}
+    <div class="hm-top-r">
+      {% if notice %}<a class="hm-news" href="{{ url_for('announcement_detail', post_id=notice.id) }}"><em>공지</em><span>{{ notice.title }}</span></a>{% endif %}
+      <span class="hm-date">{{ today_str }}</span>
+    </div>
   </div>
 
   <div class="hm-col">
+   <div class="hm-hero">
     <svg class="hm-mark" id="hmMark" viewBox="0 0 512 512" aria-hidden="true">
       <path fill="currentColor" d="M330 84H366A62 62 0 0 1 428 146V182A62 62 0 0 1 366 244H330A62 62 0 0 1 268 182V146A62 62 0 0 1 330 84ZM146 268H182A62 62 0 0 1 244 330V366A62 62 0 0 1 182 428H146A62 62 0 0 1 84 366V330A62 62 0 0 1 146 268ZM330 268H366A62 62 0 0 1 428 330V366A62 62 0 0 1 366 428H330A62 62 0 0 1 268 366V330A62 62 0 0 1 330 268Z"/>
       <path fill="currentColor" d="M84 164A80 80 0 1 0 244 164A80 80 0 1 0 84 164Z"/>
@@ -128,7 +153,9 @@ body:has(.hm) .gnb-search{visibility:hidden}
     <div class="hm-hint">
       {% for h in hints %}<button type="button" data-q="{{ h }}">{{ h }}</button>{% endfor %}
     </div>
+   </div>
 
+   <div class="hm-low">
     <div class="hm-todo">
       <div class="hd">
         <span>처리할 일 <b>{{ todo|length }}</b>{% if todo_late %} · 지남 <b>{{ todo_late }}</b>{% endif %}</span>
@@ -147,6 +174,7 @@ body:has(.hm) .gnb-search{visibility:hidden}
       </ul>
       {% if todo|length > 3 %}<a class="more" href="{{ url_for('approvals_hub') }}">외 {{ todo|length - 3 }}건 더 보기 →</a>{% endif %}
     </div>
+   </div>
   </div>
 
   <div class="hm-gap"></div>

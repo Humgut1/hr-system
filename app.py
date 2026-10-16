@@ -1764,6 +1764,15 @@ def _home_todo_from_rows(rows):
              'state': r['state'], 'link': r['link']} for r in rows]
 
 
+def _home_hints(first, defaults):
+    """추천 검색어 4개 — 지금 내 상황에 맞는 것(first)을 앞에, 나머지는 역할 기본값으로 채운다."""
+    out = []
+    for h in list(first) + list(defaults):
+        if h and h not in out:
+            out.append(h)
+    return out[:4]
+
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -1793,7 +1802,12 @@ def dashboard():
             ('빈 포지션', n("SELECT COUNT(*) FROM job_openings WHERE status IN ('approved','open')"),
              url_for('seat_board')),
         ]
-        hints = ['급여', '입사 예정자', '연장근로', '헤드카운트']
+        soon = n("SELECT COUNT(*) FROM incoming_hires WHERE status='waiting' AND start_date BETWEEN ? AND ?",
+                 (today, (date.today() + timedelta(days=14)).isoformat()))
+        hints = _home_hints(
+            ['결재함' if todo else '', '급여' if date.today().day >= 20 else '',
+             '입사 예정자' if soon else ''],
+            ['급여', '입사 예정자', '연장근로', '헤드카운트'])
 
     elif role == 'manager':
         todo = (_home_todo_from_rows(collect_approval_rows(db, uid, role, dept_id))
@@ -1810,7 +1824,12 @@ def dashboard():
              url_for('attendance_home', tab='leaves')),
             ('재택', n(remote, (dept_id, today)), url_for('attendance_home')),
         ]
-        hints = ['근태 승인', '성과 평가', '휴가', '연차 금요일']
+        kinds = {t['kind'] for t in todo}
+        hints = _home_hints(
+            ['근태 승인' if kinds & {'휴가', '연장근로'} else '',
+             '성과 평가' if kinds & {'목표', '피드백', '1:1', '이의신청'} else '',
+             '결재함' if todo else ''],
+            ['근태 승인', '성과 평가', '휴가', '연차 금요일'])
 
     elif role == 'recruiter':
         rows = [r for r in collect_approval_rows(db, uid, role, dept_id) if r['key'] == 'requisition']
@@ -1834,7 +1853,10 @@ def dashboard():
             ('Hire 로 보낼 것', ready, url_for('opening_board')),
             ('입사 예정', n("SELECT COUNT(*) FROM incoming_hires WHERE status='waiting'"), url_for('hires_list')),
         ]
-        hints = ['채용 요청', '충원 현황', '입사 예정자', '오퍼 결재']
+        hints = _home_hints(
+            ['충원 현황' if ready else '',
+             '입사 예정자' if any(t['kind'] == '입사 예정' for t in todo) else ''],
+            ['채용 요청', '충원 현황', '입사 예정자', '오퍼 결재'])
 
     else:
         todo = _home_todo_from_c2(_c2_todo(db, uid, 'employee', None, get_perf_culture(), with_team=False))
@@ -1847,13 +1869,24 @@ def dashboard():
         if nxt:
             stats.append(('다음 휴가', nxt['start_date'][5:].replace('-', '/'),
                           url_for('attendance_home', tab='leaves')))
-        hints = ['연차 금요일', '급여명세서', '증명서', '조직도']
+        me = db.execute("SELECT hire_date FROM users WHERE id=?", (uid,)).fetchone()
+        new_hire = bool(me and me['hire_date'] and me['hire_date'] >= (date.today() - timedelta(days=60)).isoformat())
+        unsigned = n("SELECT COUNT(*) FROM contracts WHERE employee_id=? AND status='pending'", (uid,))
+        has_leave = not isinstance(rem, (int, float)) or rem > 0
+        hints = _home_hints(
+            ['근로계약' if unsigned else '', '조직도' if new_hire else '',
+             '급여명세서' if date.today().day >= 20 or date.today().day <= 5 else ''],
+            ['연차 금요일' if has_leave else '', '급여명세서', '증명서', '조직도', '회의실 예약'])
 
     rank = {'late': 0, 'wait': 1, 'idle': 2}
     todo.sort(key=lambda t: rank.get(t['state'], 3))
     for t in todo:  # 홈은 글자로도 구분: '3일 초과' → '3일 지남', 'D-day' → '오늘'
         t['due'] = str(t.get('due') or '—').replace('일 초과', '일 지남').replace('D-day', '오늘')
-    return render_template('dashboard/home.html',
+    # 홈 위쪽 한 줄: 최근 2주 공지 하나(고정 공지 먼저)
+    notice = db.execute("SELECT id, title FROM announcements WHERE pinned=1 OR created_at>=? "
+                        "ORDER BY pinned DESC, created_at DESC LIMIT 1",
+                        ((date.today() - timedelta(days=14)).isoformat(),)).fetchone()
+    return render_template('dashboard/home.html', notice=notice,
         clock=_home_clock(db, uid), todo=todo, todo_late=sum(1 for t in todo if t['state'] == 'late'),
         stats=stats, hints=hints, today_iso=today, today_str=_today_label(),
         active_page='home')
