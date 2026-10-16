@@ -1,0 +1,183 @@
+<!-- ══════════════════ 신분·서류 탭 (B4) ══════════════════ -->
+{% set ids = ids_view(emp.id) %}
+{% set ids_admin = session.user_role == 'admin' %}
+{% set ids_me = session.user_id == emp.id %}
+<div class="tab-panel" id="tab-ids">
+  {% if not ids.ready %}
+  <div class="id-warn">암호화 열쇠가 설정되지 않아 주민등록번호·서류 번호를 저장할 수 없습니다.</div>
+  {% endif %}
+
+  <div class="section-card id-card">
+    <div class="id-head">
+      <h3 class="id-title">주민등록번호</h3>
+      <span class="id-sub">암호화 저장 · 전체 보기는 기록됩니다</span>
+    </div>
+    <div class="id-row">
+      <span class="id-val" id="rrn-val">{{ ids.u.rrn_mask or '등록 안 됨' }}</span>
+      {% if ids.u.rrn_mask %}
+      <button type="button" class="btn btn-ghost btn-sm" data-reveal="rrn">전체 보기</button>
+      {% endif %}
+      <button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('.id-card').querySelector('.id-form').hidden=false">{{ '바꾸기' if ids.u.rrn_mask else '등록' }}</button>
+      {% if ids.u.rrn_mask and ids_admin %}
+      <form method="POST" action="{{ url_for('ids_save', emp_id=emp.id) }}" style="margin:0" onsubmit="return confirm('주민등록번호를 지웁니다.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="rrn_clear">
+        <button type="submit" class="btn btn-ghost btn-sm">지우기</button>
+      </form>
+      {% endif %}
+    </div>
+    <form method="POST" action="{{ url_for('ids_save', emp_id=emp.id) }}" class="id-form" hidden autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="rrn">
+      <input class="input" name="rrn" inputmode="numeric" maxlength="14" placeholder="000000-0000000" required autocomplete="off">
+      <button type="submit" class="btn btn-primary btn-sm" {% if not ids.ready %}disabled{% endif %}>저장</button>
+    </form>
+  </div>
+
+  <div class="section-card id-card">
+    <div class="id-head">
+      <h3 class="id-title">장애 정보</h3>
+      <span class="id-sub">장애인 의무고용 계산에만 씁니다</span>
+    </div>
+    <div class="id-row"><span class="id-val">{{ ids.dis or '해당 없음' }}</span>
+      {% if ids.u.disability_since %}<span class="id-sub">등록일 {{ ids.u.disability_since }}</span>{% endif %}
+      {% if ids_admin %}<button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('.id-card').querySelector('.id-form').hidden=false">바꾸기</button>{% endif %}
+    </div>
+    {% if ids_admin %}
+    <form method="POST" action="{{ url_for('ids_save', emp_id=emp.id) }}" class="id-form id-grid" hidden>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="dis">
+      <label>정도
+        <select class="input" name="level">
+          <option value="">해당 없음</option>
+          {% for k, l in ids.levels %}<option value="{{ k }}" {% if ids.u.disability_level == k %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>유형<input class="input" name="type" maxlength="40" value="{{ ids.u.disability_type or '' }}" placeholder="예: 지체"></label>
+      <label>등록일<input class="input" type="date" name="since" value="{{ ids.u.disability_since or '' }}"></label>
+      <label class="id-check"><input type="checkbox" name="short" value="1" {% if ids.u.disability_short %}checked{% endif %}> 월 소정근로 60시간 미만</label>
+      <div><button type="submit" class="btn btn-primary btn-sm">저장</button></div>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="section-card id-card">
+    <div class="id-head">
+      <h3 class="id-title">여권·비자·면허 <span class="id-sub">{{ ids.docs|length }}건</span></h3>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="idDocForm()">추가</button>
+    </div>
+    {% if ids.docs %}
+    <div class="tbl-x">
+    <table class="table id-tbl">
+      <thead><tr><th>종류</th><th>번호</th><th>국가·발급</th><th>만료일</th><th></th></tr></thead>
+      <tbody>
+      {% for d in ids.docs %}
+      <tr>
+        <td>{{ d.kind_label }}{% if d.label %} · {{ d.label }}{% endif %}</td>
+        <td class="id-mono"><span id="doc-val-{{ d.id }}">{{ d.number_mask or '-' }}</span>
+          {% if d.number_mask %}<button type="button" class="id-link" data-reveal="doc" data-doc="{{ d.id }}">보기</button>{% endif %}</td>
+        <td>{{ d.country or '' }}{% if d.country and d.issuer %} · {% endif %}{{ d.issuer or '' }}</td>
+        <td class="id-mono">{{ d.expiry_date or '-' }}
+          {% if d.left %}<span class="id-left {% if d.days < 0 %}is-late{% elif d.days <= 30 %}is-wait{% endif %}">{{ d.left }}</span>{% endif %}</td>
+        <td class="id-act">
+          <button type="button" class="id-link" onclick='idDocForm({{ {"id": d.id, "kind": d.kind, "label": d.label or "", "country": d.country or "", "issuer": d.issuer or "", "issued_date": d.issued_date or "", "expiry_date": d.expiry_date or "", "note": d.note or ""}|tojson }})'>고치기</button>
+          <form method="POST" action="{{ url_for('ids_save', emp_id=emp.id) }}" style="display:inline;margin:0" onsubmit="return confirm('이 서류를 지웁니다.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="doc_delete">
+            <input type="hidden" name="doc_id" value="{{ d.id }}">
+            <button type="submit" class="id-link">지우기</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="id-empty">등록된 서류가 없습니다.</p>
+    {% endif %}
+    <form method="POST" action="{{ url_for('ids_save', emp_id=emp.id) }}" class="id-form id-grid" id="id-doc-form" hidden autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="doc">
+      <input type="hidden" name="doc_id" value="">
+      <label>종류
+        <select class="input" name="kind" required>
+          {% for k, l in ids.kinds %}<option value="{{ k }}">{{ l }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>이름<input class="input" name="label" maxlength="60" placeholder="예: 1종 보통, E-7"></label>
+      <label>번호<input class="input" name="number" maxlength="40" placeholder="고칠 때 비우면 그대로" autocomplete="off"></label>
+      <label>국가<input class="input" name="country" maxlength="40"></label>
+      <label>발급 기관<input class="input" name="issuer" maxlength="60"></label>
+      <label>발급일<input class="input" type="date" name="issued_date"></label>
+      <label>만료일<input class="input" type="date" name="expiry_date"></label>
+      <label>메모<input class="input" name="note" maxlength="200"></label>
+      <div><button type="submit" class="btn btn-primary btn-sm">저장</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="this.form.hidden=true">닫기</button></div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .id-card{margin-bottom:16px}
+  .id-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .id-title{font-weight:700;font-size:.95rem;margin:0}
+  .id-sub{font-size:12px;color:var(--tx-3);font-weight:400}
+  .id-head .btn{margin-left:auto}
+  .id-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .id-val{font-family:var(--mono);font-size:14px}
+  .id-form{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+  .id-form[hidden]{display:none}
+  .id-form .input{min-width:0}
+  .id-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+  .id-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--tx-3)}
+  .id-grid .id-check{flex-direction:row;align-items:center;font-size:13px;color:inherit}
+  .id-tbl{font-size:13px;white-space:nowrap}
+  .id-mono{font-family:var(--mono);font-size:12.5px}
+  .id-left{margin-left:6px;font-size:12px;color:var(--tx-3)}
+  .id-left.is-wait{color:var(--wait)}
+  .id-left.is-late{color:var(--late)}
+  .id-act{text-align:right}
+  .id-link{background:none;border:0;padding:0 4px;color:var(--tx-2);font-size:12px;cursor:pointer;text-decoration:underline}
+  .id-empty{font-size:13px;color:var(--tx-3);margin:0}
+  .id-warn{font-size:13px;color:var(--late);margin-bottom:12px}
+</style>
+<script>
+(function(){
+  var me = {{ 'true' if ids_me else 'false' }};
+  var url = {{ url_for('ids_reveal', emp_id=emp.id)|tojson }};
+  var tok = {{ csrf_token()|tojson }};
+  document.querySelectorAll('#tab-ids [data-reveal]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var reason = '';
+      if (!me) {
+        reason = prompt('전체 번호를 보는 사유를 적어 주세요. 감사 로그에 남습니다.');
+        if (reason === null) return;
+        if (reason.trim().length < 2) { alert('사유를 2글자 이상 적어 주세요.'); return; }
+      }
+      var fd = new FormData();
+      fd.append('csrf_token', tok);
+      fd.append('what', b.dataset.reveal);
+      if (b.dataset.doc) fd.append('doc_id', b.dataset.doc);
+      fd.append('reason', reason);
+      fetch(url, {method:'POST', body:fd, credentials:'same-origin'}).then(function(r){ return r.json(); }).then(function(j){
+        if (!j.ok) { alert(j.error || '볼 수 없습니다.'); return; }
+        var el = document.getElementById(b.dataset.doc ? 'doc-val-' + b.dataset.doc : 'rrn-val');
+        var old = el.textContent;
+        el.textContent = j.value;
+        b.hidden = true;
+        setTimeout(function(){ el.textContent = old; b.hidden = false; }, 30000);   // 30초 뒤 다시 가림
+      }).catch(function(){ alert('볼 수 없습니다.'); });
+    });
+  });
+  window.idDocForm = function(d){
+    var f = document.getElementById('id-doc-form');
+    f.reset();
+    d = d || {};
+    f.doc_id.value = d.id || '';
+    ['kind','label','country','issuer','issued_date','expiry_date','note'].forEach(function(k){ if (d[k] !== undefined) f[k].value = d[k]; });
+    f.hidden = false;
+    f.scrollIntoView({block:'nearest'});
+  };
+})();
+</script>

@@ -1,0 +1,177 @@
+{% extends 'base.html' %}
+{% block title %}신분·서류{% endblock %}
+{% block page_title %}신분·서류{% endblock %}
+
+{% block content %}
+<div class="fchips" style="margin-bottom:12px;">
+  <a class="fchip {% if tab == 'docs' %}on{% endif %}" href="{{ url_for('ids_admin', tab='docs') }}">만료 서류 <b>{{ counts.expired + counts.d30 }}</b></a>
+  <a class="fchip {% if tab == 'quota' %}on{% endif %}" href="{{ url_for('ids_admin', tab='quota') }}">장애인 고용</a>
+  <a class="fchip {% if tab == 'log' %}on{% endif %}" href="{{ url_for('ids_admin', tab='log') }}">전체 보기 기록</a>
+</div>
+{% if not ready %}<div class="ix-warn">암호화 열쇠가 설정되지 않아 주민등록번호·서류 번호를 저장할 수 없습니다. 서버 환경 변수 HR_FIELD_KEY 를 확인하세요.</div>{% endif %}
+
+{% if tab == 'docs' %}
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">만료 서류</span>
+    <span class="ix-sub">지남 {{ counts.expired }} · 30일 안 {{ counts.d30 }} · 주민등록번호 등록 {{ rrn_n }}/{{ total }}명</span>
+  </div>
+  <div class="card-body">
+    <div class="ix-bar">
+      <div class="fchips" style="margin:0;">
+        {% for w in (30, 90, 365) %}
+        <a class="fchip {% if within == w %}on{% endif %}" href="{{ url_for('ids_admin', tab='docs', within=w) }}">{{ w }}일 안</a>
+        {% endfor %}
+      </div>
+      <a class="btn btn-ghost btn-sm" style="margin-left:auto;" href="{{ url_for('ids_admin', tab='docs', within=within, csv='docs') }}"><i class="fas fa-download"></i> CSV</a>
+    </div>
+    <div class="tbl-x">
+      <table class="table ix-tbl">
+        <thead><tr><th>사번</th><th>이름</th><th>부서</th><th>서류</th><th>만료일</th><th>남은 날</th></tr></thead>
+        <tbody>
+        {% for x in rows %}
+        <tr>
+          <td class="ix-mono">{{ x.emp_no or '-' }}</td>
+          <td><a href="{{ url_for('employee_detail', emp_id=x.uid) }}#tab-{{ 'skills' if x.kind == 'cert' else 'ids' }}">{{ x.name }}</a></td>
+          <td class="ix-dim">{{ x.dept or '-' }}</td>
+          <td>{{ x.what }}{% if x.country %} <span class="ix-dim">· {{ x.country }}</span>{% endif %}</td>
+          <td class="ix-mono">{{ x.expiry_date }}</td>
+          <td class="{% if x.days < 0 %}ix-late{% elif x.days <= 30 %}ix-wait{% else %}ix-dim{% endif %}">{{ x.left }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="ix-empty">{{ within }}일 안에 만료되는 서류가 없습니다.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="ix-note">여권·비자·외국인등록증·운전면허·자격증. 만료 30일·7일 전과 만료일에 본인에게, 관리자에게는 하루 한 번 묶어서 알림이 갑니다.</div>
+  </div>
+</div>
+
+{% elif tab == 'quota' %}
+<div class="ix-grid">
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">장애인 의무고용 {{ q.year }}</span>
+      <span class="ix-sub">1~{{ q.through }}월 기준 · 참고용 추정 · 실제 신고는 한국장애인고용공단 기준</span>
+    </div>
+    <div class="card-body">
+      {% if not q.applies %}
+      <p class="ix-line">상시근로자 {{ q.avg_staff }}명 — {{ QUOTA_MIN }}명 미만이라 의무고용 대상이 아닙니다.</p>
+      {% else %}
+      <dl class="ix-dl">
+        <div><dt>상시근로자(월평균)</dt><dd>{{ q.avg_staff }}명</dd></div>
+        <div><dt>의무고용률</dt><dd>{% if q.rate is not none %}{{ q.rate }}%{% if q.rate_year != q.year %} <span class="ix-dim">({{ q.rate_year }}년 값)</span>{% endif %}{% else %}<span class="ix-late">비율 없음</span>{% endif %}</dd></div>
+        <div><dt>의무 인원</dt><dd>{{ q.need if q.need is not none else '-' }}명</dd></div>
+        <div><dt>장애인 인정 인원(월평균)</dt><dd>{{ q.avg_dis }}명</dd></div>
+        <div><dt>부족</dt><dd class="{% if q.short and q.levy %}ix-late{% endif %}">{{ q.short }}명</dd></div>
+      </dl>
+      {% if q.short and q.levy %}
+      <p class="ix-line ix-late">{{ q.short }}명 부족 — 상시근로자 {{ LEVY_MIN }}명 이상이라 고용부담금 대상입니다. 금액은 공단 신고로 확정됩니다.</p>
+      {% elif q.short %}
+      <p class="ix-line ix-dim">{{ LEVY_MIN }}명 미만이라 부담금은 없습니다.</p>
+      {% endif %}
+      {% endif %}
+      <div class="tbl-x" style="margin-top:12px;">
+        <table class="table ix-tbl ix-months">
+          <thead><tr><th>월</th>{% for m in q.months %}<th>{{ m.m }}</th>{% endfor %}</tr></thead>
+          <tbody>
+            <tr><td>상시근로자</td>{% for m in q.months %}<td>{{ m.staff }}</td>{% endfor %}</tr>
+            <tr><td>장애인 인정</td>{% for m in q.months %}<td>{{ m.dis }}</td>{% endfor %}</tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="ix-note">중증 = 2명(월 60시간 미만이면 1명), 경증 = 1명(월 60시간 미만이면 세지 않음). 월 60시간 미만 근로자는 상시근로자에서도 뺍니다. 의무 인원은 소수점 버림.</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">의무고용률</span></div>
+      <div class="card-body">
+        <table class="table ix-tbl">
+          {% for r in rates %}
+          <tr><td class="ix-mono">{{ r.year }}</td><td>{{ r.rate }}%</td>
+            <td style="text-align:right;"><form method="POST" style="margin:0" onsubmit="return confirm('{{ r.year }}년 값을 지웁니다.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="rate_delete"><input type="hidden" name="year" value="{{ r.year }}">
+              <button type="submit" class="ix-link">지우기</button></form></td></tr>
+          {% endfor %}
+        </table>
+        <form method="POST" class="ix-rate">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input class="input" type="number" name="year" min="2000" max="2100" placeholder="연도" required>
+          <input class="input" type="number" name="rate" step="0.1" min="0.1" max="19.9" placeholder="%" required>
+          <button type="submit" class="btn btn-primary btn-sm">저장</button>
+        </form>
+        <div class="ix-note">그해 값이 없으면 그 이전 가장 최근 연도 값을 씁니다. 법이 바뀌면 여기서 고칩니다.</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-head">
+        <span class="card-title">장애인 재직자 <span class="ix-sub" style="margin-left:4px;">{{ q.roster|length }}명</span></span>
+        <a class="btn btn-ghost btn-sm" style="margin-left:auto;" href="{{ url_for('ids_admin', tab='quota', csv='dis') }}"><i class="fas fa-download"></i> CSV</a>
+      </div>
+      <div class="card-body">
+        <ul class="ix-list">
+          {% for p in q.roster %}
+          <li><a href="{{ url_for('employee_detail', emp_id=p.id) }}#tab-ids">{{ p.name }}</a>
+            <span class="ix-dim">{{ p.emp_no or '' }} · {{ p.level_label }}{% if p.disability_short %} · 60시간 미만{% endif %} · {{ p.counts }}명</span></li>
+          {% else %}
+          <li class="ix-dim">등록된 사람이 없습니다. 직원 상세 [신분·서류]에서 넣습니다.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% else %}
+<div class="card">
+  <div class="card-head"><span class="card-title">전체 번호 보기 기록</span><span class="ix-sub">최근 30건 · 전부는 감사 로그</span></div>
+  <div class="card-body">
+    <div class="tbl-x">
+      <table class="table ix-tbl">
+        <thead><tr><th>시각</th><th>본 사람</th><th>대상</th><th>내용</th></tr></thead>
+        <tbody>
+        {% for r in reveals %}
+        <tr><td class="ix-mono">{{ r.created_at|kst }}</td><td>{{ r.actor_name or '-' }}</td>
+          <td>{{ r.target or '-' }} <span class="ix-dim">{{ r.emp_no or '' }}</span></td><td>{{ r.detail }}</td></tr>
+        {% else %}
+        <tr><td colspan="4" class="ix-empty">기록이 없습니다.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<style>
+  .ix-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+  .ix-sub{font-size:12px;color:var(--tx-3);margin-left:auto}
+  .ix-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
+  .tbl-x{overflow-x:auto}
+  .ix-tbl{font-size:13px;white-space:nowrap}
+  .ix-months td,.ix-months th{text-align:center;font-family:var(--mono);font-size:12px}
+  .ix-months td:first-child{text-align:left;font-family:inherit}
+  .ix-mono{font-family:var(--mono);font-size:12.5px}
+  .ix-dim{color:var(--tx-3)}
+  .ix-wait{color:var(--wait)}
+  .ix-late{color:var(--late)}
+  .ix-empty{text-align:center;color:var(--tx-3);padding:18px}
+  .ix-note{font-size:12px;color:var(--tx-3);line-height:1.6;margin-top:10px;word-break:keep-all}
+  .ix-warn{font-size:13px;color:var(--late);margin-bottom:12px}
+  .ix-line{font-size:13.5px;margin:10px 0 0;word-break:keep-all}
+  .ix-dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin:0}
+  .ix-dl dt{font-size:12px;color:var(--tx-3)}
+  .ix-dl dd{margin:2px 0 0;font-family:var(--mono);font-size:15px}
+  .ix-rate{display:flex;gap:6px;margin-top:10px}
+  .ix-rate .input{width:0;flex:1;min-width:0}
+  .ix-link{background:none;border:0;padding:0;color:var(--tx-2);font-size:12px;cursor:pointer;text-decoration:underline}
+  .ix-list{list-style:none;margin:0;padding:0;font-size:13px}
+  .ix-list li{padding:6px 0;border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap}
+  @media (max-width:980px){.ix-grid{grid-template-columns:minmax(0,1fr)}}
+</style>
+{% endblock %}

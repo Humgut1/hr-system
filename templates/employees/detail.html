@@ -283,6 +283,9 @@
   <button class="tab-btn" data-tab="documents">문서</button>
   <button class="tab-btn" data-tab="history">변경 이력</button>
   {% endif %}
+  {% if session.user_role == 'admin' or session.user_id == emp.id %}
+  <button class="tab-btn" data-tab="ids">신분·서류</button>
+  {% endif %}
   <button class="tab-btn" data-tab="family">가족·생애사건</button>
 </div>
 
@@ -1097,6 +1100,9 @@
 </div>
 {% include "employees/_history.html" %}
 {% endif %}{# can_see_sensitive #}
+{% if session.user_role == 'admin' or session.user_id == emp.id %}
+{% include "employees/_ids.html" %}
+{% endif %}
 
 <!-- ══════════════════ 가족·생애사건 탭 ══════════════════ -->
 <div class="tab-panel" id="tab-family">

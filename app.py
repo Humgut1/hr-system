@@ -105,6 +105,7 @@ import copilot
 import workplace
 import people_profile
 import people_consent
+import people_ids
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -2868,17 +2869,9 @@ def cert_add(emp_id):
             (emp_id, cert_name, issued_by, issued_date, expiry_date)
         )
         db.commit()
-        # 만료 30일 이내면 즉시 알림
+        # 만료 알림(30일·7일·만료일)은 people_ids.sweep 이 한 번씩 보낸다
         if expiry_date:
-            from datetime import timedelta
-            days_left = (date.fromisoformat(expiry_date) - date.today()).days
-            if 0 <= days_left <= 30:
-                add_notification(
-                    emp_id, 'warning', 'cert',
-                    '자격증 만료 임박',
-                    f'"{cert_name}" 자격증이 {days_left}일 후 만료됩니다.',
-                    url_for('employee_detail', emp_id=emp_id) + '#tab-skills'
-                )
+            people_ids.sweep(db, lambda u, t, c, l: add_notification(u, 'action', 'cert', t, c, l), only_uid=emp_id)
     return redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-skills')
 
 
@@ -13183,6 +13176,8 @@ def employee_profile_settings():
 people_consent.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
                                   add_notification=add_notification, log_audit=log_audit,
                                   base_dir=_BASE_DIR, tenant_id=_tenant_id))
+people_ids.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
+                              add_notification=add_notification, log_audit=log_audit))
 
 
 # ── Recruit ─────────────────────────────────────────────────
