@@ -399,7 +399,18 @@ document.addEventListener('keydown', function (e) {
   }
   function showRecent() {
     var list = getRecent();
-    if (!list.length) { results.style.display = 'none'; return; }
+    if (!list.length) {  // 처음엔 최근 본 것이 없으니 자주 쓰는 메뉴
+      var picks = [];
+      ['/attendance/home?tab=leaves', '/attendance/home', '/payroll', '/approvals', '/employees', '/org', '/rooms'].forEach(function(u) {
+        var hit = NAV_ITEMS.filter(function(it) { return it.url === u; })[0];
+        if (hit && picks.length < 5 && picks.indexOf(hit) < 0) picks.push(hit);
+      });
+      NAV_ITEMS.forEach(function(it) { if (picks.length < 5 && picks.indexOf(it) < 0) picks.push(it); });
+      if (!picks.length) { results.style.display = 'none'; return; }
+      show('<div class="search-section-label">자주 쓰는 메뉴</div>' +
+           picks.map(function(it) { return row(it.url, it.icon, it.label, it.group, '메뉴'); }).join('') + KEYS);
+      return;
+    }
     show('<div class="search-section-label has-act"><span>최근 본 것</span><button type="button" class="search-clear">지우기</button></div>' +
          list.map(function(r) { return row(r.url, r.icon || 'fa-clock', r.label, r.sub, r.kind); }).join('') + KEYS);
   }
