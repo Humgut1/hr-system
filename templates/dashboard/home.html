@@ -44,9 +44,10 @@ body:has(.hm) .gnb-search{visibility:hidden}
 .hm-todo li{border-bottom:1px solid var(--line-2)}
 .hm-todo li a{display:flex;align-items:center;gap:12px;padding:10px 4px;min-width:0;color:var(--tx-1);text-decoration:none;font-size:14px}
 .hm-todo li a:hover{background:var(--hover)}
-.hm-todo .dot{width:6px;height:6px;border-radius:50%;background:var(--idle);flex:none}
-.hm-todo .dot.late{background:var(--late)}
-.hm-todo .dot.wait{background:var(--wait)}
+/* 상태는 색 + 모양: 지남 = 꽉 찬 점 · 임박 = 반쯤 찬 점 · 여유 = 빈 테두리 */
+.hm-todo .dot{width:9px;height:9px;border-radius:50%;flex:none;box-sizing:border-box;border:1.5px solid var(--tx-3);background:none}
+.hm-todo .dot.late{border-color:var(--late);background:var(--late)}
+.hm-todo .dot.wait{border-color:var(--wait);background:linear-gradient(90deg,var(--wait) 50%,transparent 50%)}
 .hm-todo .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hm-todo .kind{font-size:12px;color:var(--tx-3);flex:none}
 .hm-todo .d{font-family:var(--mono);font-size:12px;flex:none;color:var(--tx-3);min-width:44px;text-align:right}
@@ -126,7 +127,7 @@ body:has(.hm) .gnb-search{visibility:hidden}
       <ul>
         {% for t in todo[:3] %}
         <li><a href="{{ t.link }}">
-          <span class="dot {{ t.state }}"></span>
+          <span class="dot {{ t.state }}" role="img" aria-label="{{ {'late': '기한 지남', 'wait': '기한 임박'}.get(t.state, '여유') }}"></span>
           <span class="t">{{ t.title }}</span>
           <span class="kind">{{ t.kind }}</span>
           <span class="d {{ t.state }}">{{ t.due }}</span>

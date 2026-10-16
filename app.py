@@ -1850,6 +1850,8 @@ def dashboard():
 
     rank = {'late': 0, 'wait': 1, 'idle': 2}
     todo.sort(key=lambda t: rank.get(t['state'], 3))
+    for t in todo:  # 홈은 글자로도 구분: '3일 초과' → '3일 지남', 'D-day' → '오늘'
+        t['due'] = str(t.get('due') or '—').replace('일 초과', '일 지남').replace('D-day', '오늘')
     return render_template('dashboard/home.html',
         clock=_home_clock(db, uid), todo=todo, todo_late=sum(1 for t in todo if t['state'] == 'late'),
         stats=stats, hints=hints, today_iso=today, today_str=_today_label(),

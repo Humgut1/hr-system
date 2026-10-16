@@ -297,6 +297,16 @@ img { max-width: 100%; }
 .search-result-icon { width: 14px; color: var(--tx-3); font-size: 12px; }
 .search-section-label { padding: 7px 10px 3px; font-size: 11px; font-weight: 600; color: var(--tx-3); }
 .search-empty { padding: 14px; text-align: center; color: var(--tx-3); font-size: 13px; }
+/* 검색: Enter 가 열 줄을 미리 칠함 · 줄 종류 글자 · 키 안내 · 최근 본 것 */
+.global-search-results:not(:focus-within) .search-result-item.is-first, .search-result-item:focus { background: var(--hover); box-shadow: inset 2px 0 0 var(--tx-1); }
+.search-result-item > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sr-kind { margin-left: auto; flex: none; font-style: normal; font-size: 11.5px; font-weight: 500; color: var(--tx-3); display: inline-flex; align-items: center; gap: 6px; }
+.search-keys { display: flex; gap: 14px; padding: 7px 10px 5px; margin-top: 4px; border-top: 1px solid var(--line-2); font-size: 11.5px; color: var(--tx-3); }
+.search-keys span { display: inline-flex; align-items: center; gap: 3px; }
+.search-section-label.has-act { display: flex; justify-content: space-between; align-items: center; }
+.search-clear { border: 0; background: none; padding: 0; font: inherit; color: var(--tx-3); cursor: pointer; }
+.search-clear:hover { color: var(--tx-1); text-decoration: underline; }
+@media (max-width: 640px), (hover: none) { .search-keys, .sr-kind .search-kbd { display: none; } }
 
 /* ---- Buttons -------------------------------------------------------------- */
 .btn {

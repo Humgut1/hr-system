@@ -359,8 +359,50 @@ document.addEventListener('keydown', function (e) {
   });
   input.addEventListener('focus', function() {
     wrap.classList.add('search-focused');
-    if (input.value.trim()) doSearch(input.value.trim());
+    doSearch(input.value.trim());
   });
+
+  // 최근 본 것 — 검색에서 연 직원·메뉴 5개, 내 브라우저에만
+  var RECENT_KEY = 'tc.recent.{{ session.get("tenant_id") or 1 }}.{{ session.get("user_id") or 0 }}';
+  function getRecent() {
+    try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') || []; } catch (e) { return []; }
+  }
+  function setRecent(list) {
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 5))); } catch (e) {}
+  }
+  results.addEventListener('click', function(e) {
+    if (e.target.closest('.search-clear')) {
+      e.preventDefault(); setRecent([]); results.style.display = 'none'; input.focus(); return;
+    }
+    var a = e.target.closest('a.search-result-item');
+    if (!a || !a.dataset.label || a.dataset.kind === '바로 하기') return;
+    var url = a.getAttribute('href');
+    var list = getRecent().filter(function(r) { return r.url !== url; });
+    list.unshift({ url: url, label: a.dataset.label, sub: a.dataset.sub || '', kind: a.dataset.kind, icon: a.dataset.icon || '' });
+    setRecent(list);
+  });
+
+  function row(url, icon, label, sub, kind) {
+    return '<a href="' + esc(url) + '" class="search-result-item" data-label="' + esc(label) + '" data-sub="' + esc(sub) +
+           '" data-kind="' + esc(kind) + '" data-icon="' + esc(icon) + '">' +
+           '<i class="fas ' + esc(icon) + ' search-result-icon"></i>' +
+           '<span>' + esc(label) + (sub ? '<small style="color:var(--tx-3);margin-left:8px;">' + esc(sub) + '</small>' : '') + '</span>' +
+           '<em class="sr-kind">' + esc(kind) + '</em></a>';
+  }
+  var KEYS = '<div class="search-keys"><span><kbd class="search-kbd">↑</kbd><kbd class="search-kbd">↓</kbd> 이동</span>' +
+             '<span><kbd class="search-kbd">Enter</kbd> 열기</span><span><kbd class="search-kbd">Esc</kbd> 닫기</span></div>';
+  function show(html) {
+    results.innerHTML = html;
+    var first = results.querySelector('.search-result-item');
+    if (first) first.classList.add('is-first');
+    results.style.display = 'block';
+  }
+  function showRecent() {
+    var list = getRecent();
+    if (!list.length) { results.style.display = 'none'; return; }
+    show('<div class="search-section-label has-act"><span>최근 본 것</span><button type="button" class="search-clear">지우기</button></div>' +
+         list.map(function(r) { return row(r.url, r.icon || 'fa-clock', r.label, r.sub, r.kind); }).join('') + KEYS);
+  }
   document.addEventListener('click', function(e) {
     if (!wrap.contains(e.target)) {
       results.style.display = 'none';
@@ -369,7 +411,7 @@ document.addEventListener('keydown', function (e) {
   });
 
   function doSearch(q) {
-    if (!q) { results.style.display = 'none'; return; }
+    if (!q) { showRecent(); return; }
     var ql = q.toLowerCase();
     var navMatched = NAV_ITEMS.filter(function(item) {
       return item.label.toLowerCase().includes(ql) || item.group.toLowerCase().includes(ql);
@@ -382,33 +424,23 @@ document.addEventListener('keydown', function (e) {
         var html = '';
         // 홈 검색창: "연차 금요일" 같은 말은 맨 위 '바로 하기' 한 줄로
         var quick = (inputId === 'homeSearchInput' && window.HOME_QUICK) ? window.HOME_QUICK(q) : null;
+        if (input.value.trim() !== q) return;  // 늦게 온 옛 응답은 버린다
         if (quick) {
-          html += '<div class="search-section-label">바로 하기</div>' +
-                  '<a href="' + esc(quick.url) + '" class="search-result-item">' +
-                  '<i class="fas fa-arrow-right search-result-icon"></i><span>' + esc(quick.label) + '</span></a>';
+          html += '<div class="search-section-label">바로 하기</div>' + row(quick.url, 'fa-arrow-right', quick.label, '', '바로 하기');
         }
         if (navMatched.length) {
           html += '<div class="search-section-label">메뉴</div>';
-          html += navMatched.map(function(item) {
-            return '<a href="' + item.url + '" class="search-result-item">' +
-                   '<i class="fas ' + item.icon + ' search-result-icon"></i>' +
-                   '<span>' + esc(item.label) + '<small style="color:var(--tx-3);margin-left:8px;">' + esc(item.group) + '</small></span></a>';
-          }).join('');
+          html += navMatched.map(function(item) { return row(item.url, item.icon, item.label, item.group, '메뉴'); }).join('');
         }
         if (employees.length) {
           html += '<div class="search-section-label">직원</div>';
           html += employees.map(function(e) {
-            return '<a href="/employees/' + e.id + '" class="search-result-item">' +
-                   '<i class="fas fa-user search-result-icon"></i>' +
-                   '<span>' + esc(e.name) +
-                   '<small style="color:var(--tx-3);margin-left:8px;">' +
-                   esc(e.dept_name || '') + (e.pos_name ? ' · ' + esc(e.pos_name) : '') +
-                   '</small></span></a>';
+            return row('/employees/' + e.id, 'fa-user', e.name,
+                       (e.dept_name || '') + (e.pos_name ? ' · ' + e.pos_name : ''), '직원');
           }).join('');
         }
-        if (!quick && !navMatched.length && !employees.length) html ='<div class="search-empty">결과 없음</div>';
-        results.innerHTML = html;
-        results.style.display = 'block';
+        if (!quick && !navMatched.length && !employees.length) { show('<div class="search-empty">결과 없음</div>'); return; }
+        show(html + KEYS);
       });
   }
 
@@ -435,6 +467,7 @@ document.addEventListener('keydown', function (e) {
     if (idx < 0) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); (items[idx + 1] || items[0]).focus(); }
     if (e.key === 'ArrowUp') { e.preventDefault(); if (idx === 0) input.focus(); else items[idx - 1].focus(); }
+    if (e.key === 'Escape') { document.activeElement.blur(); results.style.display = 'none'; }
   });
   }
 }());
