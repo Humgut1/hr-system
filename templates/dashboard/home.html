@@ -5,7 +5,8 @@
 {% block extra_css %}
 <style>
 body:has(.hm) .gnb-search{visibility:hidden}
-.hm{display:flex;flex-direction:column;min-height:calc(100vh - 170px)}
+body:has(.hm) .page-content{padding-bottom:0;display:flex;flex-direction:column}
+.hm{flex:1;display:flex;flex-direction:column}
 .hm-top{display:flex;align-items:center;gap:10px;min-width:0;min-height:40px}
 .hm-top form{margin:0;display:flex}
 .hm-ct{font-size:13px;color:var(--tx-2);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -26,10 +27,10 @@ body:has(.hm) .gnb-search{visibility:hidden}
 
 /* 검색창이 화면 가운데쯤: 위(로고·검색)와 아래(할 일)가 남는 높이를 반씩 */
 .hm-col{width:100%;max-width:600px;margin:0 auto;flex:1;display:flex;flex-direction:column;align-items:center}
-.hm-hero{flex:1 1 0;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-top:24px}
-.hm-low{flex:1 1 0;width:100%}
-.hm-mark{width:100px;height:100px;color:var(--tx-1);display:block}
-.hm-word{font-family:'Unbounded',var(--font);font-weight:700;font-size:18px;margin-top:12px;letter-spacing:-.01em;color:var(--tx-1)}
+.hm-hero{flex:1.35 1 0;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-top:24px}
+.hm-low{flex:1 1 0;width:100%;padding-bottom:24px}
+.hm-mark{width:132px;height:132px;color:var(--tx-1);display:block}
+.hm-word{font-family:'Unbounded',var(--font);font-weight:700;font-size:20px;margin-top:14px;letter-spacing:-.01em;color:var(--tx-1)}
 
 .hm-search{width:100%;margin-top:28px}
 .hm-sbox{display:flex;align-items:center;gap:10px;border:1px solid var(--line-strong);border-radius:26px;padding:0 8px 0 20px;height:52px;background:var(--surface)}
@@ -69,22 +70,30 @@ body:has(.hm) .gnb-search{visibility:hidden}
 .hm-todo .more:hover{color:var(--tx-1);text-decoration:underline}
 .hm-todo .none{padding:14px 4px;font-size:13px;color:var(--tx-3);border-bottom:1px solid var(--line-2)}
 
-.hm-foot{margin-top:auto;padding:14px 4px 0;display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;font-size:12px;color:var(--tx-3);border-top:1px solid var(--line-2)}
+.hm-band{margin:0 -28px;background:var(--surface);border-top:1px solid var(--line)}
+.hm-foot{max-width:1384px;margin:0 auto;padding:16px 28px 14px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;font-size:12px;color:var(--tx-3)}
 .hm-foot .fl{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
 .hm-foot a{color:var(--tx-2);text-decoration:none;font-size:12.5px}
 .hm-foot a:hover{color:var(--tx-1)}
 .hm-foot b{color:var(--tx-1);font-weight:700;font-family:var(--mono);font-size:13.5px;margin-left:2px}
 .hm-foot .sep{color:var(--tx-3)}
-.hm-gap{height:56px}
+.hm-prov{max-width:1384px;margin:0 auto;padding:12px 28px 18px;border-top:1px solid var(--line-2);display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;font-size:12px;color:var(--tx-3)}
+.hm-prov .by{display:flex;align-items:center;gap:7px;color:var(--tx-2)}
+.hm-prov .by svg{width:16px;height:16px;color:var(--tx-2)}
+.hm-prov .by b{font-family:'Unbounded',var(--font);font-weight:700;font-size:12px;letter-spacing:-.02em;color:var(--tx-1)}
+.hm-prov a{color:var(--tx-3);text-decoration:none}
+.hm-prov a:hover{color:var(--tx-1)}
+.hm-prov .cr{margin-left:auto}
 
 /* 노트북처럼 낮은 화면: 스크롤 없이 한 장에 들어오게 간격을 줄인다 */
 @media (max-height:820px){
   .hm-hero{padding-top:0}
-  .hm-mark{width:80px;height:80px}
+  .hm-mark{width:96px;height:96px}
+  .hm-word{font-size:18px;margin-top:10px}
+  .hm-low{padding-bottom:16px}
   .hm-search{margin-top:20px}
   .hm-hint{margin-top:10px}
   .hm-todo{margin-top:20px}
-  .hm-gap{height:20px}
 }
 
 @media (max-width:640px){
@@ -97,8 +106,12 @@ body:has(.hm) .gnb-search{visibility:hidden}
   .hm-hint button{min-height:40px;padding:0 14px}
   .hm-clock{height:40px}
   .hm-clock.ghost{height:40px;padding:0 14px}
+  .hm-mark{width:96px;height:96px}
+  .hm-band{margin:0 -16px}
+  .hm-foot,.hm-prov{padding-left:16px;padding-right:16px}
   .hm-foot a{display:inline-flex;align-items:center;min-height:40px}
-  .hm-gap{height:32px}
+  .hm-prov a{display:inline-flex;align-items:center;min-height:40px}
+  .hm-prov .cr{margin-left:0;width:100%}
 }
 </style>
 {% endblock %}
@@ -177,7 +190,7 @@ body:has(.hm) .gnb-search{visibility:hidden}
    </div>
   </div>
 
-  <div class="hm-gap"></div>
+  <div class="hm-band">
   <div class="hm-foot">
     <span class="fl">
       {% for label, value, url in stats %}
@@ -186,6 +199,17 @@ body:has(.hm) .gnb-search{visibility:hidden}
       {% endfor %}
     </span>
     <span>{{ session.get('dept_name') or '' }}{% if session.get('dept_name') %} · {% endif %}{{ session.get('user_name') or '' }}</span>
+  </div>
+  <div class="hm-prov">
+    <span class="by">
+      <svg viewBox="0 0 512 512" aria-hidden="true"><path fill="currentColor" d="M330 84H366A62 62 0 0 1 428 146V182A62 62 0 0 1 366 244H330A62 62 0 0 1 268 182V146A62 62 0 0 1 330 84ZM146 268H182A62 62 0 0 1 244 330V366A62 62 0 0 1 182 428H146A62 62 0 0 1 84 366V330A62 62 0 0 1 146 268ZM330 268H366A62 62 0 0 1 428 330V366A62 62 0 0 1 366 428H330A62 62 0 0 1 268 366V330A62 62 0 0 1 330 268Z"/><path fill="currentColor" d="M84 164A80 80 0 1 0 244 164A80 80 0 1 0 84 164Z"/></svg>
+      <b>talentcore</b>
+    </span>
+    <a href="{{ url_for('terms_of_service') }}">이용약관</a>
+    <a href="{{ url_for('privacy_policy') }}">개인정보처리방침</a>
+    <a href="{{ url_for('my_consents') }}">내 개인정보 동의</a>
+    <span class="cr">© 2026 TalentCore</span>
+  </div>
   </div>
 </div>
 {% endblock %}
