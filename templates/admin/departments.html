@@ -13,6 +13,13 @@
 .dept-indent { display: inline-block; }
 .leader-form   { margin: 0; }
 .leader-select { padding: 4px 8px; font-size: 12px; min-width: 150px; max-width: 190px; }
+.og-code { font-family: var(--mono); font-size: 11.5px; color: var(--tx-3); margin-left: 6px; }
+.og-name { font-weight: 600; color: var(--tx-1); }
+.og-name:hover { text-decoration: underline; }
+.og-closed summary { cursor: pointer; padding: 10px 18px; font-size: 13px; color: var(--tx-3); }
+.og-st { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--tx-3); white-space: nowrap; }
+.og-st-inactive { color: var(--wait); border-color: var(--wait); }
+.lvl-select { padding: 4px 8px; font-size: 12px; min-width: 110px; }
 </style>
 {% endblock %}
 
@@ -24,7 +31,8 @@
     <div class="card" style="margin-bottom:16px;">
       <div class="card-head">
         <span class="card-title">조직 구조</span>
-        <span style="font-size:13px; color:var(--tx-3);">{{ depts|length }}개</span>
+        <span style="font-size:13px; color:var(--tx-3);">{{ depts|length }}개
+          · <a href="{{ url_for('org_export') }}" style="color:var(--tx-2); text-decoration:underline;">CSV 내려받기</a></span>
       </div>
 
       <!-- 범례 -->
@@ -84,7 +92,7 @@
                 <span class="dept-indent" style="margin-left:{% if tkey=='hq' %}12{% elif tkey=='dept' %}24{% else %}36{% endif %}px;
                                                   color:var(--border); margin-right:4px;">└</span>
                 {% endif %}
-                <span style="font-weight:600;">{{ d.name }}</span>
+                <a class="og-name" href="{{ url_for('org_detail', did=d.id) }}">{{ d.name }}</a><span class="og-code">{{ d.code }}</span>
               </td>
               <td>
                 {% set tc = dept_type_color.get(d.dept_type, 'var(--tx-3)') %}
@@ -128,15 +136,7 @@
                 <span class="badge badge-info">{{ d.member_count }}명</span>
               </td>
               <td>
-                <form method="POST" action="{{ url_for('departments') }}"
-                      onsubmit="return confirm('삭제하면 소속 직원의 부서 배정이 해제됩니다. 계속하시겠습니까?')">
-                  <input type="hidden" name="action" value="delete_dept">
-                  <input type="hidden" name="dept_id" value="{{ d.id }}">
-                  <button type="submit" class="btn btn-sm"
-                          style="background:var(--red-bg); color:var(--red); border:1px solid var(--red-bg);">
-                    <i class="fas fa-trash-alt"></i>
-                  </button>
-                </form>
+                <a class="btn btn-ghost btn-sm" href="{{ url_for('org_detail', did=d.id) }}">관리</a>
               </td>
             </tr>
             {% endfor %}
@@ -145,6 +145,25 @@
           </tbody>
         </table>
       </div>
+      {% if closed %}
+      <details class="og-closed">
+        <summary>닫힌·해체된 조직 {{ closed|length }}개</summary>
+        <div class="tbl-wrap">
+          <table>
+            <tbody>
+              {% for d in closed %}
+              <tr>
+                <td><a class="og-name" href="{{ url_for('org_detail', did=d.id) }}">{{ d.name }}</a><span class="og-code">{{ d.code }}</span></td>
+                <td style="color:var(--tx-3); font-size:13px;">{{ dept_type_label.get(d.dept_type, d.dept_type) }}</td>
+                <td><span class="og-st og-st-{{ d.status }}">{{ status_label.get(d.status, d.status) }}</span></td>
+                <td style="color:var(--tx-3); font-size:12.5px;">{{ d.closed_at or '' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+      {% endif %}
     </div>
 
     <!-- 조직 추가 -->
@@ -180,6 +199,12 @@
             <input type="text" name="name" class="input" placeholder="예: 글로벌사업팀" required>
           </div>
 
+          <div class="field" style="margin:0;">
+            <label class="form-label">조직 코드 <span style="color:var(--tx-3); font-weight:400;">(비우면 자동 · 영문 대문자·숫자 2~20자)</span></label>
+            <input type="text" name="code" class="input" placeholder="예: GLB-SALES" maxlength="20"
+                   pattern="[A-Za-z0-9_\-]{2,20}" style="font-family:var(--mono);">
+          </div>
+
           <div class="field" style="margin:0;" id="parentField">
             <label class="form-label">상위 조직</label>
             <select name="parent_id" class="input" id="parentSelect">
@@ -212,6 +237,7 @@
             <tr>
               <th>직급명</th>
               <th>레벨</th>
+              <th>관리 단계</th>
               <th></th>
             </tr>
           </thead>
@@ -223,6 +249,18 @@
                 <span class="badge badge-inactive" style="font-variant-numeric:tabular-nums;">
                   Lv.{{ p.level }}
                 </span>
+              </td>
+              <td>
+                <form method="POST" action="{{ url_for('departments') }}" class="leader-form">
+                  <input type="hidden" name="action" value="set_pos_level">
+                  <input type="hidden" name="pos_id" value="{{ p.id }}">
+                  <select name="mgmt_level_id" class="input lvl-select" onchange="this.form.submit()">
+                    <option value="">— 미지정 —</option>
+                    {% for m in mgmt_levels %}
+                    <option value="{{ m.id }}" {% if p.mgmt_level_id == m.id %}selected{% endif %}>{{ m.name }}</option>
+                    {% endfor %}
+                  </select>
+                </form>
               </td>
               <td>
                 <form method="POST" action="{{ url_for('departments') }}"
@@ -257,9 +295,57 @@
             <label class="form-label">레벨 <span style="color:var(--tx-3); font-weight:400;">(숫자 높을수록 상위)</span></label>
             <input type="number" name="level" class="input" min="1" max="20" value="5">
           </div>
+          <div class="field" style="margin:0;">
+            <label class="form-label">관리 단계</label>
+            <select name="mgmt_level_id" class="input">
+              <option value="">— 미지정 —</option>
+              {% for m in mgmt_levels %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}
+            </select>
+          </div>
           <button type="submit" class="btn btn-primary" style="align-self:flex-start;">
             <i class="fas fa-plus"></i> 추가
           </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 관리 단계 -->
+    <div class="card" style="margin-top:16px;">
+      <div class="card-head">
+        <span class="card-title">관리 단계</span>
+        <span style="font-size:13px; color:var(--tx-3);">직급을 임원·조직장·중간관리자·실무자처럼 묶습니다</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>이름</th><th>코드</th><th>직급</th><th></th></tr></thead>
+          <tbody>
+            {% for m in mgmt_levels %}
+            <tr>
+              <td style="font-weight:600;">{{ m.name }}</td>
+              <td style="font-family:var(--mono); font-size:12px; color:var(--tx-3);">{{ m.code }}</td>
+              <td>{{ m.pos_count }}개</td>
+              <td>
+                {% if not m.pos_count %}
+                <form method="POST" action="{{ url_for('departments') }}" class="leader-form"
+                      onsubmit="return confirm('관리 단계를 지울까요?')">
+                  <input type="hidden" name="action" value="delete_level">
+                  <input type="hidden" name="level_id" value="{{ m.id }}">
+                  <button type="submit" class="btn btn-ghost btn-sm">지우기</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('departments') }}" style="display:flex; gap:8px; flex-wrap:wrap;">
+          <input type="hidden" name="action" value="add_level">
+          <input type="text" name="name" class="input" placeholder="이름 예: 파트장" required style="flex:1 1 120px; min-width:0;">
+          <input type="text" name="code" class="input" placeholder="코드 예: PART" required maxlength="20"
+                 pattern="[A-Za-z0-9_\-]{2,20}" style="flex:1 1 100px; min-width:0; font-family:var(--mono);">
+          <button type="submit" class="btn btn-ghost btn-sm">추가</button>
         </form>
       </div>
     </div>

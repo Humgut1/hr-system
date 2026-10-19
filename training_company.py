@@ -21,6 +21,7 @@ from datetime import date, timedelta
 
 from werkzeug.security import generate_password_hash
 
+import org_admin
 from database import init_db
 from master_db import (
     create_tenant, get_master_db, get_tenant_db_path, get_training_tenant,
@@ -183,6 +184,9 @@ def seed_training_company(db_path: str):
     # 세부 직무 — 채용팀장은 리크루터 과정(Grow)
     db.execute("UPDATE users SET job_profile_id=(SELECT id FROM job_profiles WHERE code='TA_REC') WHERE id=2")
     db.commit()
+    # 조직 코드·상태 칸 — 파일을 새로 만들었으니 이 프로세스의 '이미 했음' 표시를 지우고 다시
+    org_admin.forget(db)
+    org_admin.ensure_schema(db)
     db.close()
 
 

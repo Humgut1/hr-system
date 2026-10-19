@@ -1,0 +1,246 @@
+{% extends 'base.html' %}
+{% block title %}{{ d.name }} · 조직{% endblock %}
+{% block page_title %}조직·직급{% endblock %}
+
+{% block content %}
+<div class="og-head">
+  <a class="og-back" href="{{ url_for('departments') }}"><i class="fas fa-arrow-left"></i> 조직·직급</a>
+  <div class="og-title">
+    <h2>{{ d.name }}</h2>
+    <span class="og-code">{{ d.code }}</span>
+    <span class="og-type" style="color:{{ type_color.get(d.dept_type, 'var(--tx-3)') }}">{{ type_label.get(d.dept_type, d.dept_type) }}</span>
+    <span class="og-st og-st-{{ d.status }}">{{ status_label[d.status] }}{% if d.closed_at %} · {{ d.closed_at }}{% endif %}</span>
+  </div>
+  <div class="og-meta">
+    상위 <b>{% if d.parent_id %}<a href="{{ url_for('org_detail', did=d.parent_id) }}">{{ d.parent_name }}</a>{% else %}(최상위){% endif %}</b>
+    · 조직장 <b>{{ d.leader_name or '없음' }}</b>
+    · 재직 <b>{{ members|length }}</b>
+    · {{ fy }} 정원 <b>{{ hc if hc is not none else '-' }}</b>
+  </div>
+</div>
+
+<div class="og-grid">
+  <div>
+    {% if d.status == 'active' %}
+    <div class="card">
+      <div class="card-head"><span class="card-title">이름 · 코드</span></div>
+      <div class="card-body">
+        <form method="POST" class="og-row">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="rename">
+          <label class="og-lab">조직명</label>
+          <input class="input" name="name" value="{{ d.name }}" required maxlength="60">
+          <input class="input" name="note" placeholder="바꾸는 이유(선택)" maxlength="200">
+          <button type="submit" class="btn btn-ghost btn-sm">이름 바꾸기</button>
+        </form>
+        <form method="POST" class="og-row">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="code">
+          <label class="og-lab">조직 코드</label>
+          <input class="input og-mono" name="code" value="{{ d.code }}" required pattern="[A-Za-z0-9_\-]{2,20}" maxlength="20">
+          <button type="submit" class="btn btn-ghost btn-sm">코드 바꾸기</button>
+        </form>
+        <div class="og-note">코드는 엑셀 일괄 등록·연동에서 조직을 찾는 열쇠입니다. 이름이 바뀌어도 코드는 그대로 둡니다.</div>
+      </div>
+    </div>
+
+    <div class="card og-gap">
+      <div class="card-head"><span class="card-title">상위 조직</span></div>
+      <div class="card-body">
+        <form method="POST" class="og-row">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="move">
+          <select class="input" name="parent_id">
+            {% if not parent_opts or d.dept_type == 'division' %}<option value="">(최상위)</option>{% endif %}
+            {% for o in parent_opts %}
+            <option value="{{ o.id }}" {% if o.id == d.parent_id %}selected{% endif %}>{{ o.name }} · {{ type_label.get(o.dept_type, '') }}</option>
+            {% endfor %}
+          </select>
+          <input class="input" name="note" placeholder="이유(선택)" maxlength="200">
+          <button type="submit" class="btn btn-ghost btn-sm">옮기기</button>
+        </form>
+        <div class="og-note">옮기면 이 조직 정원만큼 예전 상위 조직 정원에서 빼고 새 상위 조직 정원에 더합니다({{ fy }}년부터).</div>
+      </div>
+    </div>
+
+    <div class="card og-gap">
+      <div class="card-head"><span class="card-title">닫기</span></div>
+      <div class="card-body">
+        {% if blockers %}
+        <p class="og-line">아래가 남아 있어 닫을 수 없습니다.</p>
+        <ul class="og-list">
+          {% for b in blockers %}
+          <li><span class="og-wait">{{ b[0] }} {{ b[1] }}</span> <a class="og-link" href="{{ b[2] }}">보기</a></li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <form method="POST" onsubmit="return confirm('{{ d.name }} 을(를) 닫을까요?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="close">
+          {% set open_kids = kids|selectattr('status', 'equalto', 'active')|list %}
+          {% if open_kids %}
+          <p class="og-line">열려 있는 하위 조직의 새 상위 조직을 고르세요.</p>
+          <div class="tbl-x">
+          <table class="table og-tbl">
+            <tbody>
+            {% for k in open_kids %}
+            <tr>
+              <td>{{ k.name }} <span class="og-dim">{{ type_label.get(k.dept_type, '') }}</span></td>
+              <td>
+                <select class="input" name="child_{{ k.id }}">
+                  {% if k.dept_type == 'division' or not kid_opts[k.id] %}<option value="">(최상위)</option>{% endif %}
+                  {% for o in kid_opts[k.id] %}
+                  <option value="{{ o.id }}" {% if o.id == d.parent_id %}selected{% endif %}>{{ o.name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          </div>
+          {% endif %}
+          <div class="og-row">
+            <input class="input" name="note" placeholder="닫는 이유(선택)" maxlength="200">
+            <button type="submit" class="btn btn-ghost btn-sm">닫기</button>
+          </div>
+        </form>
+        <div class="og-note">닫으면 고르는 목록에서 빠집니다. 옛 근태·급여·평가 기록에는 이름이 그대로 남습니다. 남은 정원은 0 이 되고 상위 조직 정원에서도 뺍니다. 조직장은 비웁니다.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% elif d.status == 'inactive' %}
+    <div class="card">
+      <div class="card-head"><span class="card-title">다시 열기</span></div>
+      <div class="card-body">
+        <form method="POST" class="og-row">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="reopen">
+          <select class="input" name="parent_id">
+            {% if not parent_opts or d.dept_type == 'division' %}<option value="">(최상위)</option>{% endif %}
+            {% for o in parent_opts %}
+            <option value="{{ o.id }}" {% if o.id == d.parent_id %}selected{% endif %}>{{ o.name }}</option>
+            {% endfor %}
+          </select>
+          <input class="input" name="note" placeholder="이유(선택)" maxlength="200">
+          <button type="submit" class="btn btn-ghost btn-sm">다시 열기</button>
+        </form>
+        <div class="og-note">정원은 되살리지 않습니다. 다시 연 뒤 <a class="og-link" href="{{ url_for('admin_setup') }}">초기 설정</a>에서 넣어 주세요.{% if d.parent_status and d.parent_status != 'active' %} 예전 상위 조직({{ d.parent_name }})도 닫혀 있어 새 상위 조직을 골라야 합니다.{% endif %}</div>
+      </div>
+    </div>
+    <div class="card og-gap">
+      <div class="card-head"><span class="card-title">해체</span></div>
+      <div class="card-body">
+        <form method="POST" class="og-row" onsubmit="return confirm('해체하면 다시 열 수 없습니다. 해체할까요?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="dissolve">
+          <input class="input" name="note" placeholder="이유(선택)" maxlength="200">
+          <button type="submit" class="btn btn-ghost btn-sm">해체</button>
+        </form>
+        <div class="og-note">해체한 조직은 다시 열 수 없고 목록 맨 아래에 접혀 보입니다. 기록은 남습니다.</div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if not usage %}
+    <div class="card og-gap">
+      <div class="card-head"><span class="card-title">지우기</span></div>
+      <div class="card-body">
+        <form method="POST" class="og-row" onsubmit="return confirm('{{ d.name }} 을(를) 지울까요?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="delete">
+          <span class="og-line">한 번도 쓰이지 않은 조직이라 완전히 지울 수 있습니다.</span>
+          <button type="submit" class="btn btn-ghost btn-sm">지우기</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">변경 기록</span></div>
+      <div class="card-body">
+        <ul class="og-ev">
+          {% for e in events %}
+          <li>
+            <span class="og-mono og-dim">{{ (e.created_at or '')|kst }}</span>
+            <b>{{ event_label.get(e.kind, e.kind) }}</b>
+            {% if e.before or e.after %}<span>{{ e.before or '-' }} → {{ e.after or '-' }}</span>{% endif %}
+            {% if e.note %}<span class="og-dim">{{ e.note }}</span>{% endif %}
+            {% if e.actor_name %}<span class="og-dim">· {{ e.actor_name }}</span>{% endif %}
+          </li>
+          {% else %}
+          <li class="og-dim">기록이 없습니다. 이 기능을 켜기 전의 변경은 남아 있지 않습니다.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+
+    <div class="card og-gap">
+      <div class="card-head"><span class="card-title">하위 조직</span></div>
+      <div class="card-body">
+        <ul class="og-list">
+          {% for k in kids %}
+          <li><a href="{{ url_for('org_detail', did=k.id) }}">{{ k.name }}</a>
+            <span class="og-dim og-mono">{{ k.code }}</span>
+            {% if k.status != 'active' %}<span class="og-st og-st-{{ k.status }}">{{ status_label[k.status] }}</span>{% else %}<span class="og-dim">{{ k.cnt }}명</span>{% endif %}</li>
+          {% else %}
+          <li class="og-dim">없습니다.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+
+    <div class="card og-gap">
+      <div class="card-head"><span class="card-title">재직자</span>{% if past %}<span class="og-sub">예전 소속 {{ past }}명</span>{% endif %}</div>
+      <div class="card-body">
+        <ul class="og-list">
+          {% for m in members %}
+          <li><a href="{{ url_for('employee_detail', emp_id=m.id) }}">{{ m.name }}</a>
+            <span class="og-dim og-mono">{{ m.emp_no or '-' }}</span>
+            <span class="og-dim">{{ m.pos_name or '' }}</span></li>
+          {% else %}
+          <li class="og-dim">없습니다.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .og-head{margin-bottom:16px}
+  .og-back{font-size:12.5px;color:var(--tx-3)}
+  .og-title{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:8px 0 6px}
+  .og-title h2{margin:0;font-size:20px}
+  .og-code,.og-mono{font-family:var(--mono);font-size:12.5px}
+  .og-code{color:var(--tx-2);border:1px solid var(--line);border-radius:4px;padding:1px 6px}
+  .og-type{font-size:12.5px}
+  .og-st{font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--tx-2)}
+  .og-st-inactive{color:var(--wait);border-color:var(--wait)}
+  .og-st-dissolved{color:var(--tx-3)}
+  .og-meta{font-size:13px;color:var(--tx-3);word-break:keep-all}
+  .og-meta b{color:var(--tx-1);font-weight:600}
+  .og-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
+  .og-gap{margin-top:16px}
+  .og-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
+  .og-row .input{min-width:0;flex:1 1 160px}
+  .og-row select.input{flex:1 1 200px}
+  .og-lab{font-size:12.5px;color:var(--tx-3);width:64px}
+  .og-note{font-size:12px;color:var(--tx-3);line-height:1.6;word-break:keep-all}
+  .og-line{font-size:13px;margin:0 0 8px;word-break:keep-all}
+  .og-dim{color:var(--tx-3)}
+  .og-wait{color:var(--wait)}
+  .og-sub{font-size:12px;color:var(--tx-3);margin-left:auto}
+  .og-link{color:var(--tx-2);text-decoration:underline;font-size:12.5px}
+  .og-list,.og-ev{list-style:none;margin:0;padding:0;font-size:13px}
+  .og-list li,.og-ev li{padding:6px 0;border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:baseline}
+  .og-ev li{overflow-wrap:anywhere}
+  .tbl-x{overflow-x:auto}
+  .og-tbl{font-size:13px;margin-bottom:10px}
+  .og-tbl select.input{min-width:160px}
+  @media (max-width:980px){.og-grid{grid-template-columns:minmax(0,1fr)}}
+</style>
+{% endblock %}

@@ -107,6 +107,7 @@ import people_profile
 import people_consent
 import people_ids
 import people_tenure
+import org_admin
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -319,6 +320,7 @@ def get_db():
         db.row_factory = sqlite3.Row
         db.execute('PRAGMA foreign_keys = ON')
         people_profile.ensure_schema(db, db_path)
+        org_admin.ensure_schema(db)
     return db
 
 @app.teardown_appcontext
@@ -1282,9 +1284,10 @@ def _setup_context(db):
     config  = get_company_config()
     company = get_company_info()
 
+    org_admin.ensure_schema(db)
     depts = [dict(r) for r in db.execute(
         'SELECT d.id, d.name, d.parent_id, d.dept_type, u.name AS leader_name '
-        'FROM departments d LEFT JOIN users u ON d.leader_id=u.id ORDER BY d.id').fetchall()]
+        "FROM departments d LEFT JOIN users u ON d.leader_id=u.id WHERE d.status='active' ORDER BY d.id").fetchall()]
     active = {r[0]: r[1] for r in db.execute(
         "SELECT department_id, COUNT(*) FROM users WHERE status='active' GROUP BY department_id").fetchall()}
     target = {r[0]: r[1] for r in db.execute(
@@ -1346,6 +1349,7 @@ def _setup_save_org(db, f):
     from datetime import datetime as dt
     fy = dt.now().year
     notes = []
+    org_admin.ensure_schema(db)
 
     def upsert_hc(dept_id, raw):
         raw = (raw or '').strip()
@@ -1375,8 +1379,8 @@ def _setup_save_org(db, f):
         pname = (parents[i] if i < len(parents) else '').strip()
         parent = None
         if pname:
-            parent = db.execute('SELECT id, dept_type FROM departments WHERE name=? ORDER BY id DESC LIMIT 1',
-                                (pname,)).fetchone()
+            parent = db.execute("SELECT id, dept_type FROM departments WHERE (name=? OR code=?) "
+                                "ORDER BY status='active' DESC, id DESC LIMIT 1", (pname, pname)).fetchone()
             if not parent:
                 notes.append('%s — 상위 조직 "%s" 없음' % (name, pname))
                 continue
@@ -1385,12 +1389,13 @@ def _setup_save_org(db, f):
                     name, DEPT_TYPE_LABEL[dtype], pname, DEPT_TYPE_LABEL.get(parent['dept_type'], '')))
                 continue
         pid = parent['id'] if parent else None
-        row = db.execute('SELECT id FROM departments WHERE name=? AND parent_id IS ?', (name, pid)).fetchone()
+        row = db.execute("SELECT id FROM departments WHERE name=? AND parent_id IS ? AND status='active'",
+                         (name, pid)).fetchone()
         if row:
             did = row['id']
         else:
-            did = db.execute('INSERT INTO departments (name, parent_id, dept_type) VALUES (?,?,?)',
-                             (name, pid, dtype)).lastrowid
+            did = org_admin.create(db, name, pid, dtype, actor=dict(id=session.get('user_id'),
+                                                                    name=session.get('user_name')))
         upsert_hc(did, hcs[i] if i < len(hcs) else '')
 
     # 직급 추가
@@ -2092,7 +2097,7 @@ def employees():
     if status not in ('active', 'resigned'):
         status = 'active'
 
-    depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    depts = org_admin.active_depts(db)
     jfs   = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
     poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
 
@@ -2256,7 +2261,7 @@ def employee_detail(emp_id):
         "WHERE u.manager_id=? AND u.status='active'",
         (emp_id,)
     ).fetchall()
-    action_departments = db.execute('SELECT id, name FROM departments ORDER BY name').fetchall()
+    action_departments = org_admin.active_depts(db, keep=emp['department_id'], cols='id, name')
     action_positions = db.execute('SELECT id, name FROM positions ORDER BY level').fetchall()
     action_managers = db.execute(
         "SELECT id, name FROM users WHERE role IN ('admin','manager') AND status='active' AND id!=? ORDER BY name",
@@ -3039,7 +3044,7 @@ def assign_buddy(emp_id):
 @admin_required
 def employee_new():
     db      = get_db()
-    depts   = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    depts   = org_admin.active_depts(db)
     poses   = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
     jfs     = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
     jps     = __import__('learning').all_profiles(db)
@@ -3211,8 +3216,7 @@ def employee_new():
             # 부서/직급 이름 → id 매칭 (일치하는 것만 프리필)
             dept_id = None
             if h['department_name']:
-                d = db.execute('SELECT id FROM departments WHERE name=?', (h['department_name'],)).fetchone()
-                dept_id = d['id'] if d else None
+                dept_id = org_admin.find_dept(db, h['department_name'])
             pos_id = None
             if h['position_name']:
                 p = db.execute('SELECT id FROM positions WHERE name=?', (h['position_name'],)).fetchone()
@@ -3292,7 +3296,7 @@ def employee_import_template():
     import io
     from flask import Response
     db = get_db()
-    dept = (db.execute('SELECT name FROM departments ORDER BY id LIMIT 1').fetchone() or {'name': ''})['name']
+    dept = (db.execute("SELECT name FROM departments WHERE status='active' ORDER BY id LIMIT 1").fetchone() or {'name': ''})['name']
     pos  = (db.execute('SELECT name FROM positions ORDER BY id LIMIT 1').fetchone() or {'name': ''})['name']
     jf   = (db.execute('SELECT name FROM job_families ORDER BY id LIMIT 1').fetchone() or {'name': ''})['name']
     out = io.StringIO()
@@ -3328,7 +3332,7 @@ def employee_import():
         return redirect(url_for('employee_import'))
 
     # 이름 매칭용 사전
-    depts = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM departments').fetchall()}
+    depts = org_admin.dept_lookup(db)   # 이름 또는 조직 코드, 운영 중인 조직만
     poses = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM positions').fetchall()}
     jfs   = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM job_families').fetchall()}
     existing_emails = {r['email'] for r in db.execute('SELECT email FROM users').fetchall()}
@@ -3593,7 +3597,7 @@ def employee_bulk_update():
         flash('데이터 행이 없습니다.', 'warning')
         return redirect(url_for('employee_bulk_update'))
 
-    depts = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM departments').fetchall()}
+    depts = org_admin.dept_lookup(db)   # 이름 또는 조직 코드, 운영 중인 조직만
     poses = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM positions').fetchall()}
     jfs   = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM job_families').fetchall()}
 
@@ -4648,10 +4652,11 @@ def directory_api():
     conn.row_factory = sqlite3.Row
     try:
         people_profile.ensure_schema(conn, _dbp)
+        org_admin.ensure_schema(conn)
         rows = conn.execute(
             'SELECT u.id, u.emp_no, u.name, u.email, u.role, u.status, '
             '       u.employment_type, u.hire_date, u.preferred_name, u.job_title, '
-            '       d.name AS dept, p.name AS position, p.level AS level, '
+            '       d.name AS dept, d.code AS dept_code, p.name AS position, p.level AS level, '
             '       m.emp_no AS manager_emp_no '
             'FROM users u '
             'LEFT JOIN departments d ON d.id = u.department_id '
@@ -4679,6 +4684,7 @@ def directory_api():
             # 확인' 규칙을 걸려면 이 값이 있어야 한다. 이름만으로는 판단이 안 된다.
             'level': r['level'],
             'dept': r['dept'] or '',
+            'dept_code': r['dept_code'] or None,  # 조직 코드(B6) — 이름이 바뀌어도 그대로
             'role': r['role'] or 'employee',      # admin / manager / recruiter / employee
             'active': (r['status'] or 'active') == 'active',
             'employment_type': r['employment_type'] or None,
@@ -4931,7 +4937,7 @@ def employee_edit(emp_id):
     emp      = db.execute('SELECT * FROM users WHERE id=?', (emp_id,)).fetchone()
     if not emp:
         abort(404)
-    depts    = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    depts    = org_admin.active_depts(db, keep=emp['department_id'])
     poses    = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
     jfs      = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
     jps      = __import__('learning').all_profiles(db)
@@ -5878,37 +5884,80 @@ def employee_severance(emp_id):
 @admin_required
 def departments():
     db = get_db()
+    org_admin.ensure_schema(db)
+    actor = dict(id=session.get('user_id'), name=session.get('user_name'))
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'add_dept':
             name      = request.form.get('name', '').strip()
             parent_id = request.form.get('parent_id') or None
             dept_type = request.form.get('dept_type', 'team')
+            code      = request.form.get('code', '').strip().upper()
             if dept_type not in DEPT_TYPE_LABEL:
                 dept_type = 'team'
-            if name:
-                db.execute('INSERT INTO departments (name, parent_id, dept_type) VALUES (?,?,?)',
-                           (name, parent_id, dept_type))
-                db.commit()
+            parent_id = int(parent_id) if parent_id and str(parent_id).isdigit() else None
+            err = None if name else '조직명을 적어 주세요.'
+            if not err:
+                err = org_admin.parent_error(db, 0, parent_id, dept_type, DEPT_TYPE_PARENT_ALLOWED)
+            if not err:
+                try:
+                    org_admin.create(db, name, parent_id, dept_type, actor=actor, code=code or None)
+                    db.commit()
+                    flash('%s 을(를) 만들었습니다.' % name, 'success')
+                except ValueError as e:
+                    err = str(e)
+            if err:
+                flash(err, 'error')
         elif action == 'delete_dept':
-            db.execute('DELETE FROM departments WHERE id=?', (request.form.get('dept_id'),))
-            db.commit()
+            did = request.form.get('dept_id', type=int)
+            err = org_admin.delete(db, did) if did else '조직이 없습니다.'
+            if err:
+                flash(err, 'error')
+            else:
+                db.commit()
+                flash('조직을 지웠습니다.', 'success')
         elif action == 'set_leader':
             # 부서장(조직 리더) 지정 — 면접 조율에서 1차 면접관(HM)의 출처가 된다
-            did = request.form.get('dept_id')
-            lid = request.form.get('leader_id') or None
-            if did:
+            did = request.form.get('dept_id', type=int)
+            lid = request.form.get('leader_id', type=int)
+            d = org_admin.dept(db, did) if did else None
+            if d and d['status'] == 'active' and lid != d['leader_id']:
+                new = db.execute('SELECT name FROM users WHERE id=?', (lid,)).fetchone() if lid else None
                 db.execute('UPDATE departments SET leader_id=? WHERE id=?', (lid, did))
+                org_admin.log(db, did, 'leader', d['leader_name'], new['name'] if new else None, actor=actor)
                 db.commit()
         elif action == 'add_pos':
             name  = request.form.get('name', '').strip()
             level = request.form.get('level', 1)
+            ml    = request.form.get('mgmt_level_id', type=int)
             if name:
-                db.execute('INSERT INTO positions (name, level) VALUES (?, ?)', (name, level))
+                db.execute('INSERT INTO positions (name, level, mgmt_level_id) VALUES (?, ?, ?)', (name, level, ml))
                 db.commit()
+        elif action == 'set_pos_level':
+            db.execute('UPDATE positions SET mgmt_level_id=? WHERE id=?',
+                       (request.form.get('mgmt_level_id', type=int), request.form.get('pos_id', type=int)))
+            db.commit()
         elif action == 'delete_pos':
             db.execute('DELETE FROM positions WHERE id=?', (request.form.get('pos_id'),))
             db.commit()
+        elif action == 'add_level':
+            name = request.form.get('name', '').strip()
+            code = request.form.get('code', '').strip().upper()
+            if not name or not org_admin.CODE_RE.match(code):
+                flash('관리 단계 이름과 코드(영문 대문자·숫자 2~20자)를 적어 주세요.', 'error')
+            elif db.execute('SELECT 1 FROM management_levels WHERE code=?', (code,)).fetchone():
+                flash('코드 %s 는 이미 있습니다.' % code, 'error')
+            else:
+                so = db.execute('SELECT COALESCE(MAX(sort_order),0)+1 FROM management_levels').fetchone()[0]
+                db.execute('INSERT INTO management_levels (code, name, sort_order) VALUES (?,?,?)', (code, name, so))
+                db.commit()
+        elif action == 'delete_level':
+            lid = request.form.get('level_id', type=int)
+            if db.execute('SELECT 1 FROM positions WHERE mgmt_level_id=?', (lid,)).fetchone():
+                flash('이 관리 단계를 쓰는 직급이 있어 지울 수 없습니다.', 'error')
+            else:
+                db.execute('DELETE FROM management_levels WHERE id=?', (lid,))
+                db.commit()
         return redirect(url_for('departments'))
 
     depts = db.execute(
@@ -5954,12 +6003,14 @@ def departments():
         outside = [u for u in leader_pool
                    if d['leader_id'] and u['id'] == d['leader_id'] and u['id'] not in picked]
         leader_choices[d['id']] = (mine, below, outside)
-    all_depts = db.execute(
-        'SELECT * FROM departments ORDER BY dept_type, parent_id NULLS FIRST, name'
-    ).fetchall()
+    all_depts = org_admin.active_depts(db, order='dept_type, parent_id NULLS FIRST, name')
     poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
+    closed = [d for d in depts if d['status'] != 'active']
+    depts = [d for d in depts if d['status'] == 'active']
     return render_template('admin/departments.html',
-                           depts=depts, all_depts=all_depts, poses=poses,
+                           depts=depts, closed=closed, all_depts=all_depts, poses=poses,
+                           mgmt_levels=org_admin.levels(db),
+                           status_label=org_admin.STATUS_LABEL,
                            leader_choices=leader_choices,
                            dept_types=DEPT_TYPES,
                            dept_type_label=DEPT_TYPE_LABEL,
@@ -6091,7 +6142,7 @@ def admin_schedules():
         "WHERE u.status='active' ORDER BY u.name"
     ).fetchall()
 
-    depts = db.execute('SELECT id, name FROM departments ORDER BY name').fetchall()
+    depts = org_admin.active_depts(db, cols='id, name')
 
     from datetime import date
     return render_template('admin/schedules.html',
@@ -6730,7 +6781,7 @@ def attendance():
     db      = get_db()
     status  = request.args.get('status', 'pending')
     dept_id = request.args.get('dept', '')
-    depts   = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    depts   = org_admin.active_depts(db)
 
     sql = (
         'SELECT r.*, u.name AS user_name, u.department_id, '
@@ -6989,9 +7040,7 @@ def attendance_calendar():
     dept_filter = None
     departments = []
     if role in ('admin', 'manager'):
-        departments = db.execute(
-            "SELECT id, name FROM departments ORDER BY name"
-        ).fetchall()
+        departments = org_admin.active_depts(db, cols='id, name')
         raw_dept = request.args.get('dept', '')
         if raw_dept.isdigit():
             dept_filter = int(raw_dept)
@@ -8051,7 +8100,7 @@ def compensation():
         'LEFT JOIN performance_cycles pc ON pc.id=c.perf_cycle_id ORDER BY c.id DESC'
     ).fetchall()
 
-    departments = db.execute('SELECT id, name FROM departments ORDER BY name').fetchall()
+    departments = org_admin.active_depts(db, cols='id, name')
 
     # ── 보상 검토 요약 (보상 검토 탭) ──
     acr_stage_counts = {}
@@ -8170,9 +8219,7 @@ def salary_adjustments():
         'FROM salary_adjustments a JOIN users u ON a.created_by=u.id '
         'ORDER BY a.id DESC'
     ).fetchall()
-    departments = db.execute(
-        "SELECT id, name FROM departments WHERE dept_type='team' OR dept_type IS NULL ORDER BY name"
-    ).fetchall()
+    departments = org_admin.active_depts(db, cols='id, name', where="dept_type='team' OR dept_type IS NULL")
     cfg = get_company_config()
     return render_template('payroll/adjustments.html',
                            rows=rows, departments=departments, cfg=cfg,
@@ -10260,7 +10307,7 @@ def goal_alignment():
     total = len(personal)
     aligned_total = sum(1 for pg in personal if pg['aligned_goal_id'] in org_ids)
 
-    depts = db.execute('SELECT id, name FROM departments ORDER BY name').fetchall() if role == 'admin' else \
+    depts = org_admin.active_depts(db, cols='id, name') if role == 'admin' else \
         db.execute('SELECT id, name FROM departments WHERE id=?', (my_dept,)).fetchall()
     align_opts = {}
     for o in org:
@@ -13253,6 +13300,9 @@ people_ids.init_app(app, dict(get_db=get_db, login_required=login_required, admi
 # B5 재입사·수습·옛 기록 — 화면·표는 people_tenure.py
 people_tenure.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
                                  add_notification=add_notification, log_audit=log_audit))
+org_admin.init_app(app, dict(get_db=get_db, admin_required=admin_required, log_audit=log_audit,
+                             DEPT_TYPE_LABEL=DEPT_TYPE_LABEL, DEPT_TYPE_COLOR=DEPT_TYPE_COLOR,
+                             DEPT_TYPE_PARENT_ALLOWED=DEPT_TYPE_PARENT_ALLOWED))
 
 
 # ── Recruit ─────────────────────────────────────────────────
@@ -14048,7 +14098,7 @@ def _dept_leader_chain(db, dept_id):
 @login_required
 def requisition_new():
     db    = get_db()
-    depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    depts = org_admin.active_depts(db)
     poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
     jfs   = db.execute('SELECT jf.*, jfg.name AS group_name, jfg.sort_order AS group_sort FROM job_families jf LEFT JOIN job_family_groups jfg ON jf.group_id=jfg.id ORDER BY jfg.sort_order, jf.sort_order').fetchall()
     # 백필이면 "누구 자리인가"를 반드시 적게 한다 — 이게 없으면 백필인지 증원인지 아무도 모른다
@@ -14403,7 +14453,7 @@ def seat_board_data(db, today=None):
 
     deps = [dict(r) for r in db.execute(
         'SELECT d.id, d.name, d.parent_id, d.dept_type, d.leader_id, u.name AS leader_name '
-        'FROM departments d LEFT JOIN users u ON d.leader_id=u.id ORDER BY d.id').fetchall()]
+        "FROM departments d LEFT JOIN users u ON d.leader_id=u.id WHERE d.status='active' ORDER BY d.id").fetchall()]
     by_id = {d['id']: d for d in deps}
     kids = {}
     for d in deps:
@@ -15222,9 +15272,7 @@ def offer_approval_create_api():
             if r:
                 dept_id = r['department_id']
         if not dept_id and dept_name:
-            r = db.execute('SELECT id FROM departments WHERE name=? LIMIT 1', (dept_name,)).fetchone()
-            if r:
-                dept_id = r['id']
+            dept_id = org_admin.find_dept(db, dept_name)
         if dept_id and not dept_name:
             r = db.execute('SELECT name FROM departments WHERE id=?', (dept_id,)).fetchone()
             dept_name = r['name'] if r else ''
@@ -15833,7 +15881,7 @@ def recruit_postings():
 @recruiter_or_admin
 def recruit_posting_new():
     db    = get_db()
-    depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    depts = org_admin.active_depts(db)
     poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
     error = None
 
@@ -15925,7 +15973,7 @@ def recruit_posting_edit(posting_id):
     posting = db.execute('SELECT * FROM job_postings WHERE id=?', (posting_id,)).fetchone()
     if not posting:
         abort(404)
-    depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+    depts = org_admin.active_depts(db, keep=posting['department_id'])
     poses = db.execute('SELECT * FROM positions ORDER BY level').fetchall()
     error = None
 
@@ -17977,7 +18025,7 @@ def attendance_home():
     depts           = []
 
     if role in ('admin', 'manager'):
-        depts = db.execute('SELECT * FROM departments ORDER BY name').fetchall()
+        depts = org_admin.active_depts(db)
         dept_f = request.args.get('dept', '')
         apv_status = request.args.get('apv_status', 'pending')
 
@@ -20104,6 +20152,7 @@ def people_analytics():
     dept_headcount = db.execute(
         "SELECT d.name AS dept, COUNT(u.id) AS cnt "
         "FROM departments d LEFT JOIN users u ON u.department_id=d.id AND u.status='active' "
+        "WHERE d.status='active' "
         "GROUP BY d.id, d.name ORDER BY cnt DESC LIMIT 12"
     ).fetchall()
 
@@ -20320,7 +20369,7 @@ def people_analytics():
     _fy = today.year
     _target = {r[0]: r[1] for r in db.execute(
         'SELECT department_id, target_count FROM department_headcount WHERE fiscal_year=?', (_fy,)).fetchall()}
-    _deps = db.execute('SELECT id, name, parent_id FROM departments ORDER BY id').fetchall()
+    _deps = db.execute("SELECT id, name, parent_id FROM departments WHERE status='active' ORDER BY id").fetchall()
     _parent = {d['id']: d['parent_id'] for d in _deps}
     _dname = {d['id']: d['name'] for d in _deps}
     _kids = {}

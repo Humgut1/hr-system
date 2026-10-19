@@ -17,6 +17,7 @@ import re
 import sqlite3
 from datetime import date, timedelta
 
+import org_admin
 import people_history
 
 _DDL = (
@@ -836,7 +837,7 @@ def init_app(app, h):
         return render_template(
             'tenure/rehire.html', emp=u, error=error, form=request.form, ex=last_exit(db, emp_id),
             periods=periods(db, emp_id), default_months=default_months(db), emp_types=EMP_LABEL,
-            depts=db.execute('SELECT id, name FROM departments ORDER BY name').fetchall(),
+            depts=org_admin.active_depts(db, cols='id, name'),
             poses=db.execute('SELECT id, name FROM positions ORDER BY id').fetchall(),
             managers=db.execute("SELECT id, name, emp_no FROM users WHERE status='active' AND role!='guest' "
                                 'ORDER BY name').fetchall(),
