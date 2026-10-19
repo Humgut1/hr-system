@@ -204,8 +204,8 @@ def compute_leave_balance(db, user_id, year=None, sick_policy='annual', include_
     used = float(db.execute(
         f"SELECT COALESCE(SUM(days),0) FROM leave_requests "
         f"WHERE user_id=? AND status IN {statuses} AND type IN ({placeholders}) "
-        f"AND strftime('%Y', start_date)=?",
-        (user_id, *deduct_types, str(year))
+        f"AND strftime('%Y', start_date)=? AND start_date >= ?",
+        (user_id, *deduct_types, str(year), str(hire_date or '')[:10])   # 재입사(B5): 지금 입사일 전 휴가는 빼고 센다
     ).fetchone()[0])
 
     total = base + carryover

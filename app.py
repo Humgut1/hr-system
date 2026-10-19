@@ -106,6 +106,7 @@ import workplace
 import people_profile
 import people_consent
 import people_ids
+import people_tenure
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -3141,6 +3142,12 @@ def employee_new():
             ).fetchone()[0]
             update_peak_headcount(tid, active_count)
             flash(f'직원 {name}(TC-{new_id:05d})이 추가되었습니다.', 'success')
+            try:   # B5: 같은 사람일 수 있는 계정(돌아온 퇴사자 등) 안내
+                _dup = app.config['TENURE_DUP_WARNING'](new_id)
+                if _dup:
+                    flash(_dup, 'warning')
+            except Exception as _de:
+                app.logger.warning(f'dup check failed for {new_id}: {_de}')
             # ── 외부 서비스 연동 트리거 ───────────────────────
             try:
                 from integrations.dispatcher import on_employee_created
@@ -3241,7 +3248,8 @@ IMPORT_TMP_DIR = os.path.join(os.path.dirname(__file__), 'static', 'uploads', 'i
 os.makedirs(IMPORT_TMP_DIR, exist_ok=True)
 
 IMPORT_COLUMNS = ['이름', '이메일', '부서', '직급', '직군', '고용형태',
-                  '입사일', '생년월일', '전화', '기본급(월)', '매니저이메일']
+                  '입사일', '생년월일', '전화', '기본급(월)', '매니저이메일',
+                  '사번', '퇴사일', '퇴사사유']   # B5: 뒤 3칸은 빈칸 가능 — 퇴사일이 있으면 퇴사자로 옮겨 온다
 
 EMP_TYPE_MAP = {
     '정규직': 'full_time', '계약직': 'contract', '인턴': 'intern', '파트타임': 'part_time',
@@ -3289,8 +3297,9 @@ def employee_import_template():
     jf   = (db.execute('SELECT name FROM job_families ORDER BY id LIMIT 1').fetchone() or {'name': ''})['name']
     out = io.StringIO()
     out.write(','.join(IMPORT_COLUMNS) + '\n')
-    out.write(f'홍길동,hong@example.com,{dept},{pos},{jf},정규직,2026-01-02,1995-03-15,010-1234-5678,3200000,kim@example.com\n')
-    out.write(f'김철수,kim@example.com,{dept},{pos},{jf},계약직,2026-02-01,,,,\n')
+    out.write(f'홍길동,hong@example.com,{dept},{pos},{jf},정규직,2026-01-02,1995-03-15,010-1234-5678,3200000,kim@example.com,,,\n')
+    out.write(f'김철수,kim@example.com,{dept},{pos},{jf},계약직,2026-02-01,,,,,,,\n')
+    out.write(f'이전임,old@example.com,{dept},{pos},{jf},정규직,2018-03-02,,,,,OLD-0123,2024-06-30,개인 사유\n')
     return Response('﻿' + out.getvalue(),
                     mimetype='text/csv; charset=utf-8',
                     headers={'Content-Disposition': 'attachment; filename=employee_import_template.csv'})
@@ -3323,8 +3332,9 @@ def employee_import():
     poses = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM positions').fetchall()}
     jfs   = {r['name']: r['id'] for r in db.execute('SELECT id, name FROM job_families').fetchall()}
     existing_emails = {r['email'] for r in db.execute('SELECT email FROM users').fetchall()}
+    existing_nos = {r['emp_no'] for r in db.execute('SELECT emp_no FROM users WHERE emp_no IS NOT NULL').fetchall()}
 
-    seen_emails = set()
+    seen_emails, seen_nos = set(), set()
     results = []
     for i, row in enumerate(rows, start=2):  # CSV 2행부터 (1행 = 헤더)
         r = {k: (row.get(k) or '').strip() for k in IMPORT_COLUMNS}
@@ -3377,6 +3387,24 @@ def employee_import():
             except ValueError:
                 errors.append(f"기본급 숫자 아님: {r['기본급(월)']}")
 
+        # B5: 사번(있으면 그대로 씀) · 퇴사일(있으면 퇴사자로)
+        emp_no = r['사번'][:30] or None
+        if emp_no:
+            if emp_no in existing_nos:
+                errors.append(f"이미 있는 사번: {emp_no}")
+            elif emp_no in seen_nos:
+                errors.append(f"파일 내 중복 사번: {emp_no}")
+            seen_nos.add(emp_no)
+        term_date = _norm_date(r['퇴사일'])
+        if term_date is False:
+            errors.append(f"퇴사일 형식 오류: {r['퇴사일']}")
+        elif term_date and not hire_date:
+            errors.append('퇴사일이 있으면 입사일도 필요')
+        elif term_date and hire_date and term_date < hire_date:
+            errors.append('퇴사일이 입사일보다 앞')
+        if r['퇴사사유'] and not term_date:
+            errors.append('퇴사사유만 있고 퇴사일 없음')
+
         results.append({
             'line': i, 'raw': r, 'errors': errors,
             'data': None if errors else {
@@ -3386,6 +3414,8 @@ def employee_import():
                 'hire_date': hire_date, 'birth_date': birth_date,
                 'phone': r['전화'] or None, 'salary': salary,
                 'manager_email': r['매니저이메일'].lower() or None,
+                'emp_no': emp_no, 'termination_date': term_date or None,
+                'termination_reason': r['퇴사사유'][:200] or None,
             },
         })
 
@@ -3435,11 +3465,19 @@ def employee_import_confirm():
              r['phone'], r['hire_date'], r['birth_date'], r['employment_type'])
         )
         new_id = cur.lastrowid
-        db.execute("UPDATE users SET emp_no = 'TC-' || printf('%05d', id) WHERE id=?", (new_id,))
+        if r.get('emp_no'):
+            db.execute('UPDATE users SET emp_no=? WHERE id=?', (r['emp_no'], new_id))
+        else:
+            db.execute("UPDATE users SET emp_no = 'TC-' || printf('%05d', id) WHERE id=?", (new_id,))
         if r['salary']:
             db.execute('INSERT INTO employee_salary (user_id, base_salary) VALUES (?,?)',
                        (new_id, r['salary']))
         email_to_id[r['email']] = new_id
+        if r.get('termination_date'):
+            # B5: 옛 직원 — 퇴사자로 넣고 로그인 명부에는 올리지 않는다
+            db.execute("UPDATE users SET status='resigned', termination_date=?, termination_reason=? WHERE id=?",
+                       (r['termination_date'], r.get('termination_reason'), new_id))
+            continue
         register_tenant_user(r['email'], session.get('tenant_id', 1))
 
     # 매니저 이메일 2차 매핑 (같은 파일 안의 직원도 매니저로 지정 가능)
@@ -3463,7 +3501,8 @@ def employee_import_confirm():
 
     os.remove(tmp_path)
     log_audit('create', 'personal_info', None, f'CSV 직원 일괄 임포트 — {len(rows)}명')
-    msg = f'{len(rows)}명 등록 완료.'
+    gone = sum(1 for r in rows if r.get('termination_date'))
+    msg = f'{len(rows)}명 등록 완료.' + (f' 이 중 퇴사자 {gone}명은 기록만 남기고 로그인은 막았습니다.' if gone else '')
     if unmatched_managers:
         msg += f' (매니저 매핑 실패 {len(unmatched_managers)}건: {", ".join(unmatched_managers[:5])})'
     flash(msg, 'success' if not unmatched_managers else 'warning')
@@ -13211,6 +13250,9 @@ people_consent.init_app(app, dict(get_db=get_db, login_required=login_required, 
                                   base_dir=_BASE_DIR, tenant_id=_tenant_id))
 people_ids.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
                               add_notification=add_notification, log_audit=log_audit))
+# B5 재입사·수습·옛 기록 — 화면·표는 people_tenure.py
+people_tenure.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
+                                 add_notification=add_notification, log_audit=log_audit))
 
 
 # ── Recruit ─────────────────────────────────────────────────

@@ -1,0 +1,176 @@
+<!-- ══════════════════ 근속·수습 탭 (B5) ══════════════════ -->
+{% set tn = tenure_view(emp.id) %}
+{% set tn_admin = session.user_role == 'admin' %}
+<div class="tab-panel" id="tab-tenure">
+  <div class="section-card tn-card">
+    <div class="tn-head">
+      <h3 class="tn-title">근속 구간 <span class="tn-sub">합계 {{ tn.periods.total_label }}</span></h3>
+      {% if tn_admin and emp.status == 'resigned' %}
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('employee_rehire', emp_id=emp.id) }}">재입사 처리</a>
+      {% endif %}
+    </div>
+    <div class="tbl-x">
+    <table class="table tn-tbl">
+      <thead><tr><th>입사</th><th>퇴사</th><th>근속</th><th>퇴사 사유</th></tr></thead>
+      <tbody>
+      {% for p in tn.periods.rows %}
+      <tr>
+        <td class="tn-mono">{{ p.start or '-' }}</td>
+        <td class="tn-mono">{% if p.current %}<span class="tn-now">재직 중</span>{% else %}{{ p.end or '-' }}{% endif %}</td>
+        <td>{{ p.label }}</td>
+        <td class="tn-dim">{{ p.end_reason or '' }}{% if p.note %} · {{ p.note }}{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="tn-dim">입사일이 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% if tn.periods.rehired %}<p class="tn-note">연차·퇴직금은 지금 구간(마지막 입사일)부터 셉니다. 지난 구간 급여·근태 기록은 그대로 남아 있습니다.</p>{% endif %}
+  </div>
+
+  <div class="section-card tn-card">
+    {% set pc = tn.prob.current %}
+    <div class="tn-head">
+      <h3 class="tn-title">수습</h3>
+      {% if pc %}<span class="tn-sub">{{ pc.start_date }} ~ {{ pc.end_date }}{% if pc.extended_count %} · 연장 {{ pc.extended_count }}회{% endif %}</span>{% endif %}
+    </div>
+    {% if pc %}
+    <div class="tn-row">
+      <span class="{% if pc.days < 0 %}tn-late{% elif pc.days <= 14 %}tn-wait{% endif %}">
+        {% if pc.days < 0 %}종료일 {{ -pc.days }}일 지남{% elif pc.days == 0 %}오늘 종료{% else %}{{ pc.days }}일 남음{% endif %}</span>
+      {% if pc.extend_reason %}<span class="tn-dim">연장 사유 · {{ pc.extend_reason }}</span>{% endif %}
+    </div>
+    {% if tn_admin %}
+    <div class="tn-row" style="margin-top:10px;">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="tnOpen('tn-decide')">결과 정하기</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="tnOpen('tn-extend')">연장</button>
+    </div>
+    <form method="POST" action="{{ url_for('tenure_save', emp_id=emp.id) }}" class="tn-form tn-grid" id="tn-decide" hidden>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="prob_decide">
+      <label>결과
+        <select class="input" name="result" required>
+          <option value="passed">통과</option><option value="failed">미통과</option><option value="cancelled">취소</option>
+        </select></label>
+      <label>메모(미통과는 필수)<input class="input" name="note" maxlength="300"></label>
+      <div><button type="submit" class="btn btn-primary btn-sm">저장</button></div>
+    </form>
+    <form method="POST" action="{{ url_for('tenure_save', emp_id=emp.id) }}" class="tn-form tn-grid" id="tn-extend" hidden>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="prob_extend">
+      <label>새 종료일<input class="input" type="date" name="end_date" required min="{{ pc.end_date }}"></label>
+      <label>연장 사유<input class="input" name="reason" maxlength="200" required></label>
+      <div><button type="submit" class="btn btn-primary btn-sm">저장</button></div>
+    </form>
+    {% endif %}
+    {% else %}
+    <div class="tn-row"><span class="tn-dim">진행 중인 수습이 없습니다.</span>
+      {% if tn_admin and emp.status == 'active' %}<button type="button" class="btn btn-ghost btn-sm" onclick="tnOpen('tn-start')">수습 시작</button>{% endif %}</div>
+    {% if tn_admin and emp.status == 'active' %}
+    <form method="POST" action="{{ url_for('tenure_save', emp_id=emp.id) }}" class="tn-form tn-grid" id="tn-start" hidden>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="prob_start">
+      <label>시작일<input class="input" type="date" name="start_date" required value="{{ emp.hire_date or '' }}"></label>
+      <label>기간(개월)<input class="input" type="number" name="months" min="1" max="12" value="{{ tn.default_months or 3 }}"></label>
+      <label>종료일(직접 정할 때)<input class="input" type="date" name="end_date"></label>
+      <div><button type="submit" class="btn btn-primary btn-sm">시작</button></div>
+    </form>
+    {% endif %}
+    {% endif %}
+    {% if tn.prob.history %}
+    <ul class="tn-list">
+      {% for h in tn.prob.history %}
+      <li><span class="tn-mono">{{ h.start_date }} ~ {{ h.end_date }}</span> <b>{{ h.status_label }}</b>
+        {% if h.extended_count %}<span class="tn-dim">연장 {{ h.extended_count }}회</span>{% endif %}
+        {% if h.result_note %}<span class="tn-dim">· {{ h.result_note }}</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  {% for kind, title, rows in (('career', '입사 전 경력', tn.careers.career), ('legacy', '옛 시스템 이력', tn.careers.legacy)) %}
+  <div class="section-card tn-card">
+    <div class="tn-head">
+      <h3 class="tn-title">{{ title }} <span class="tn-sub">{{ rows|length }}건{% if kind == 'career' and tn.careers.career_total %} · 합계 {{ tn.careers.career_total }}{% endif %}</span></h3>
+      {% if tn_admin %}<button type="button" class="btn btn-ghost btn-sm" onclick="tnOpen('tn-add-{{ kind }}')">추가</button>{% endif %}
+    </div>
+    {% if rows %}
+    <div class="tbl-x">
+    <table class="table tn-tbl">
+      <thead><tr><th>기간</th><th>{{ '회사' if kind == 'career' else '조직' }}</th><th>직무·내용</th><th></th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="tn-mono">{{ r.start_date or '?' }} ~ {{ r.end_date or '' }}{% if r.label %} <span class="tn-dim">{{ r.label }}</span>{% endif %}</td>
+        <td>{{ r.company or '' }}{% if r.company and r.dept %} · {% endif %}{{ r.dept or '' }}</td>
+        <td class="tn-wrap">{{ r.title or '' }}{% if r.title and r.description %} · {% endif %}<span class="tn-dim">{{ r.description or '' }}</span></td>
+        <td style="text-align:right;">
+          {% if r.source == 'csv' %}<span class="tn-dim">CSV</span>{% endif %}
+          {% if tn_admin %}
+          <form method="POST" action="{{ url_for('tenure_save', emp_id=emp.id) }}" style="display:inline;margin:0" onsubmit="return confirm('이 줄을 지웁니다.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="career_delete">
+            <input type="hidden" name="career_id" value="{{ r.id }}">
+            <button type="submit" class="tn-link">지우기</button>
+          </form>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="tn-dim" style="margin:0;font-size:13px;">없습니다.</p>
+    {% endif %}
+    {% if tn_admin %}
+    <form method="POST" action="{{ url_for('tenure_save', emp_id=emp.id) }}" class="tn-form tn-grid" id="tn-add-{{ kind }}" hidden>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="career">
+      <input type="hidden" name="kind" value="{{ kind }}">
+      {% if kind == 'career' %}<label>회사<input class="input" name="company" maxlength="80"></label>{% endif %}
+      <label>부서<input class="input" name="dept" maxlength="80"></label>
+      <label>{{ '직무' if kind == 'career' else '발령·직급' }}<input class="input" name="title" maxlength="80"></label>
+      <label>시작일<input class="input" type="date" name="start_date"></label>
+      <label>종료일<input class="input" type="date" name="end_date"></label>
+      <label>내용<input class="input" name="description" maxlength="500"></label>
+      <div><button type="submit" class="btn btn-primary btn-sm">저장</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="this.form.hidden=true">닫기</button></div>
+    </form>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<style>
+  .tn-card{margin-bottom:16px}
+  .tn-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .tn-title{font-weight:700;font-size:.95rem;margin:0}
+  .tn-sub{font-size:12px;color:var(--tx-3);font-weight:400}
+  .tn-head .btn{margin-left:auto}
+  .tn-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px}
+  #tab-tenure .tbl-x{overflow-x:auto;max-width:100%}
+  .tn-tbl{font-size:13px;white-space:nowrap}
+  .tn-wrap{white-space:normal;min-width:180px}
+  .tn-mono{font-family:var(--mono);font-size:12.5px}
+  .tn-dim{color:var(--tx-3)}
+  .tn-now{color:var(--tx-2);font-family:inherit}
+  .tn-wait{color:var(--wait)}
+  .tn-late{color:var(--late)}
+  .tn-note{font-size:12px;color:var(--tx-3);margin:10px 0 0;word-break:keep-all}
+  .tn-form{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+  .tn-form[hidden]{display:none}
+  .tn-form .input{min-width:0}
+  .tn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+  .tn-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--tx-3)}
+  .tn-link{background:none;border:0;padding:0 4px;color:var(--tx-2);font-size:12px;cursor:pointer;text-decoration:underline}
+  .tn-list{list-style:none;margin:12px 0 0;padding:0;font-size:13px}
+  .tn-list li{padding:6px 0;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap}
+</style>
+<script>
+window.tnOpen = function(id){
+  document.querySelectorAll('#tab-tenure .tn-form').forEach(function(f){ f.hidden = f.id !== id; });
+  var f = document.getElementById(id);
+  if (f) f.scrollIntoView({block:'nearest'});
+};
+</script>

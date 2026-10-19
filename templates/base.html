@@ -49,6 +49,7 @@
     {'l':'근로계약', 'u':url_for('contracts_list'), 'p':['contracts'], 's':True, 'i':'fa-file-contract'},
     {'l':'온보딩', 'u':url_for('me_onboarding'), 'p':['me_onboarding','onboarding'], 's':'onboarding' in PF, 'i':'fa-list-check'},
     {'l':'신분·서류', 'u':url_for('ids_admin'), 'p':['ids'], 's':R == 'admin', 'i':'fa-id-card'},
+    {'l':'재입사·수습', 'u':url_for('tenure_admin'), 'p':['tenure'], 's':R == 'admin', 'i':'fa-user-clock'},
     {'l':'승계 계획', 'u':url_for('succession'), 'p':['succession'], 's':MGR and 'succession' in PF and addon.succession, 'i':'fa-chess-king'},
   ]},
   {'key':'work', 'label':'근태', 'gi':'fa-clock', 'items':[

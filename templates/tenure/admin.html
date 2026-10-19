@@ -1,0 +1,216 @@
+{% extends 'base.html' %}
+{% block title %}재입사·수습{% endblock %}
+{% block page_title %}재입사·수습{% endblock %}
+
+{% block content %}
+<div class="fchips" style="margin-bottom:12px;">
+  <a class="fchip {% if tab == 'prob' %}on{% endif %}" href="{{ url_for('tenure_admin', tab='prob') }}">수습 중 <b>{{ counts.prob }}</b></a>
+  <a class="fchip {% if tab == 'leavers' %}on{% endif %}" href="{{ url_for('tenure_admin', tab='leavers') }}">퇴사자 <b>{{ counts.leavers }}</b></a>
+  <a class="fchip {% if tab == 'dup' %}on{% endif %}" href="{{ url_for('tenure_admin', tab='dup') }}">중복 의심 <b>{{ counts.dup }}</b></a>
+  <a class="fchip {% if tab == 'import' %}on{% endif %}" href="{{ url_for('tenure_admin', tab='import') }}">경력·옛 이력 불러오기</a>
+</div>
+
+{% if tab == 'prob' %}
+<div class="tu-grid">
+  <div class="card">
+    <div class="card-head"><span class="card-title">수습 중</span><span class="tu-sub">종료 14일 전·당일에 매니저와 관리자에게 알림</span></div>
+    <div class="card-body">
+      <div class="tbl-x">
+        <table class="table tu-tbl">
+          <thead><tr><th>사번</th><th>이름</th><th>부서</th><th>매니저</th><th>기간</th><th>남은 날</th></tr></thead>
+          <tbody>
+          {% for p in active %}
+          <tr>
+            <td class="tu-mono">{{ p.emp_no or '-' }}</td>
+            <td><a href="{{ url_for('employee_detail', emp_id=p.user_id) }}#tab-tenure">{{ p.name }}</a></td>
+            <td class="tu-dim">{{ p.dept or '-' }}</td>
+            <td class="tu-dim">{{ p.mgr or '-' }}</td>
+            <td class="tu-mono">{{ p.start_date }} ~ {{ p.end_date }}{% if p.extended_count %} <span class="tu-dim">연장 {{ p.extended_count }}</span>{% endif %}</td>
+            <td class="{% if p.days < 0 %}tu-late{% elif p.days <= 14 %}tu-wait{% else %}tu-dim{% endif %}">{% if p.days < 0 %}{{ -p.days }}일 지남{% elif p.days == 0 %}오늘{% else %}{{ p.days }}일{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="tu-empty">수습 중인 사람이 없습니다.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">수습 기본 기간</span></div>
+      <div class="card-body">
+        <form method="POST" class="tu-inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="months">
+          <input class="input" type="number" name="months" min="0" max="12" value="{{ default_months }}">
+          <span class="tu-dim">개월</span>
+          <button type="submit" class="btn btn-primary btn-sm">저장</button>
+        </form>
+        <div class="tu-note">재입사·수습 시작 때 처음 채워지는 값입니다. 0 이면 재입사 때 수습을 두지 않습니다.</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <div class="card-head"><span class="card-title">최근 끝난 수습</span></div>
+      <div class="card-body">
+        <ul class="tu-list">
+          {% for p in done[:15] %}
+          <li><a href="{{ url_for('employee_detail', emp_id=p.user_id) }}#tab-tenure">{{ p.name }}</a>
+            <span class="{% if p.status == 'failed' %}tu-late{% else %}tu-dim{% endif %}">{{ p.status_label }}</span>
+            <span class="tu-dim tu-mono">{{ (p.decided_at or '')[:10] }}</span></li>
+          {% else %}
+          <li class="tu-dim">없습니다.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% elif tab == 'leavers' %}
+<div class="card">
+  <div class="card-head"><span class="card-title">퇴사자</span><span class="tu-sub">계정·서류·급여 기록은 지우지 않고 남깁니다</span></div>
+  <div class="card-body">
+    <form class="tu-bar" method="GET">
+      <input type="hidden" name="tab" value="leavers">
+      <input class="input" name="q" value="{{ q }}" placeholder="이름·사번·이메일" style="max-width:240px;">
+      <button type="submit" class="btn btn-ghost btn-sm">찾기</button>
+      <a class="btn btn-ghost btn-sm" style="margin-left:auto;" href="{{ url_for('tenure_admin', tab='leavers', q=q, csv='leavers') }}"><i class="fas fa-download"></i> CSV</a>
+    </form>
+    <div class="tbl-x">
+      <table class="table tu-tbl">
+        <thead><tr><th>사번</th><th>이름</th><th>부서</th><th>입사</th><th>퇴사</th><th>근속</th><th>사유</th><th>서류</th><th>재입사</th><th></th></tr></thead>
+        <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="tu-mono">{{ r.emp_no or '-' }}</td>
+          <td><a href="{{ url_for('employee_detail', emp_id=r.id) }}#tab-tenure">{{ r.name }}</a>{% if r.past %} <span class="tu-dim">지난 구간 {{ r.past }}</span>{% endif %}</td>
+          <td class="tu-dim">{{ r.dept or '-' }}</td>
+          <td class="tu-mono">{{ r.hire_date or '-' }}</td>
+          <td class="tu-mono">{{ r.termination_date or '-' }}</td>
+          <td>{{ r.span }}</td>
+          <td class="tu-dim">{{ r.termination_reason or '' }}</td>
+          <td>{% if r.docs %}<a href="{{ url_for('employee_detail', emp_id=r.id) }}#tab-documents">{{ r.docs }}</a>{% else %}<span class="tu-dim">0</span>{% endif %}</td>
+          <td class="{% if r.elig == 0 %}tu-late{% else %}tu-dim{% endif %}">{{ {1: '가능', 0: '불가'}.get(r.elig, '-') }}</td>
+          <td><a class="tu-link" href="{{ url_for('employee_rehire', emp_id=r.id) }}">재입사</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="tu-empty">퇴사자가 없습니다.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% elif tab == 'dup' %}
+<div class="card">
+  <div class="card-head"><span class="card-title">같은 사람일 수 있는 계정</span><span class="tu-sub">주민등록번호 · 이름+생년월일 · 전화가 같은 짝</span></div>
+  <div class="card-body">
+    {% for d in dups %}
+    <div class="tu-pair">
+      <div class="tu-why">{{ d.why|join(' · ') }}</div>
+      <div class="tu-sides">
+        {% for s in (d.a, d.b) %}
+        {% set o = d.b if s.id == d.a.id else d.a %}
+        <div class="tu-side">
+          <div><a href="{{ url_for('employee_detail', emp_id=s.id) }}">{{ s.name }}</a> <span class="tu-mono tu-dim">{{ s.emp_no or '' }}</span>
+            <span class="tu-dim">{{ {'active':'재직','resigned':'퇴사','inactive':'비활성'}.get(s.status, s.status) }}</span></div>
+          <div class="tu-dim tu-small">{{ s.email }} · {{ s.dept or '부서 없음' }} · 입사 {{ s.hire_date or '-' }}</div>
+          <div class="tu-small">{% if s.use.heavy %}업무 기록 {{ s.use.heavy_label }}{% else %}<span class="tu-dim">업무 기록 없음</span>{% endif %}</div>
+          {% if s.id in d.can_drop %}
+          <form method="POST" style="margin:6px 0 0" onsubmit="return confirm('{{ s.name }}({{ s.emp_no or s.email }}) 계정을 지우고 {{ o.name }}({{ o.emp_no or o.email }})에 합칩니다. 되돌릴 수 없습니다.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="merge">
+            <input type="hidden" name="keep" value="{{ o.id }}"><input type="hidden" name="drop" value="{{ s.id }}">
+            <button type="submit" class="btn btn-ghost btn-sm">이 계정을 지우고 합치기</button>
+          </form>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% if not d.can_drop %}<div class="tu-small tu-dim">둘 다 업무 기록이 있어 합칠 수 없습니다. 같은 사람이면 한쪽을 퇴사 처리하세요.</div>{% endif %}
+    </div>
+    {% else %}
+    <p class="tu-empty">중복 의심 계정이 없습니다.</p>
+    {% endfor %}
+    {% if merges %}
+    <h4 class="tu-h">합치기 기록</h4>
+    <ul class="tu-list">
+      {% for m in merges %}
+      <li><span class="tu-mono tu-dim">{{ m.created_at|kst }}</span> 지운 계정 #{{ m.removed_user_id }} → <a href="{{ url_for('employee_detail', emp_id=m.kept_user_id) }}">#{{ m.kept_user_id }}</a> <span class="tu-dim">{{ m.actor_name or '' }}</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</div>
+
+{% else %}
+<div class="tu-grid">
+  <div class="card">
+    <div class="card-head"><span class="card-title">입사 전 경력·옛 시스템 이력 CSV</span>
+      <a class="btn btn-ghost btn-sm" style="margin-left:auto;" href="{{ url_for('tenure_admin', csv='template') }}"><i class="fas fa-download"></i> 양식</a></div>
+    <div class="card-body">
+      <form method="POST" enctype="multipart/form-data" class="tu-bar">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="file" name="file" accept=".csv" required class="input" style="max-width:300px;">
+        <button type="submit" name="action" value="career_check" class="btn btn-ghost btn-sm">검사</button>
+        <button type="submit" name="action" value="career_commit" class="btn btn-primary btn-sm">넣기</button>
+      </form>
+      <div class="tu-note">칸: {{ columns|join(' · ') }}. 사번으로 사람을 찾습니다. 구분은 "경력" 또는 "옛 이력". 틀린 줄은 건너뜁니다. [검사]는 저장하지 않습니다.</div>
+      {% if report is defined %}
+      <div class="tu-sub" style="margin:12px 0 6px;">{{ '넣음' if committed else '검사' }} · 맞는 줄 {{ ok }} · 틀린 줄 {{ report|length - ok }}</div>
+      <div class="tbl-x">
+        <table class="table tu-tbl">
+          <thead><tr><th>줄</th><th>사번</th><th>이름</th><th>결과</th></tr></thead>
+          <tbody>
+          {% for i, no, nm, err in report %}
+          <tr><td class="tu-mono">{{ i }}</td><td class="tu-mono">{{ no or '-' }}</td><td>{{ nm or '' }}</td>
+            <td class="{% if err %}tu-late{% else %}tu-dim{% endif %}">{{ err or '맞음' }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-title">옛 직원 한꺼번에 옮기기</span></div>
+    <div class="card-body">
+      <p class="tu-line">직원 일괄 등록 CSV 에 <b>사번 · 퇴사일 · 퇴사사유</b> 칸을 채우면 퇴사자로 들어옵니다. 로그인은 막히고 기록만 남습니다.</p>
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('employee_import') }}">직원 일괄 등록</a>
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('tenure_admin', csv='careers') }}"><i class="fas fa-download"></i> 넣은 경력 CSV</a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<style>
+  .tu-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+  .tu-sub{font-size:12px;color:var(--tx-3);margin-left:auto}
+  .tu-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
+  .tu-bar .input{min-width:0}
+  .tbl-x{overflow-x:auto}
+  .tu-tbl{font-size:13px;white-space:nowrap}
+  .tu-mono{font-family:var(--mono);font-size:12.5px}
+  .tu-dim{color:var(--tx-3)}
+  .tu-wait{color:var(--wait)}
+  .tu-late{color:var(--late)}
+  .tu-small{font-size:12.5px;margin-top:2px}
+  .tu-empty{text-align:center;color:var(--tx-3);padding:18px;margin:0}
+  .tu-note{font-size:12px;color:var(--tx-3);line-height:1.6;margin-top:10px;word-break:keep-all}
+  .tu-line{font-size:13px;margin:0 0 10px;word-break:keep-all}
+  .tu-inline{display:flex;align-items:center;gap:8px}
+  .tu-inline .input{width:80px}
+  .tu-link{color:var(--tx-2);font-size:12.5px;text-decoration:underline}
+  .tu-list{list-style:none;margin:0;padding:0;font-size:13px}
+  .tu-list li{padding:6px 0;border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap}
+  .tu-pair{border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:12px}
+  .tu-why{font-size:12px;color:var(--wait);margin-bottom:8px}
+  .tu-sides{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:6px}
+  .tu-side{font-size:13.5px;min-width:0;overflow-wrap:anywhere}
+  .tu-h{font-size:13px;margin:16px 0 6px}
+  @media (max-width:980px){.tu-grid{grid-template-columns:minmax(0,1fr)}}
+  @media (max-width:640px){.tu-sides{grid-template-columns:1fr}}
+</style>
+{% endblock %}

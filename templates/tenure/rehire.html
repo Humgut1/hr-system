@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}재입사 처리{% endblock %}
+{% block page_title %}재입사 처리{% endblock %}
+
+{% block content %}
+<div class="rh-wrap">
+  <a class="rh-back" href="{{ url_for('employee_detail', emp_id=emp.id) }}#tab-tenure">← {{ emp.name }}</a>
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">{{ emp.name }} <span class="rh-dim">{{ emp.emp_no or '' }} · {{ emp.email }}</span></span>
+    </div>
+    <div class="card-body">
+      <div class="tbl-x">
+        <table class="table rh-tbl">
+          <thead><tr><th>입사</th><th>퇴사</th><th>근속</th><th>퇴사 사유</th></tr></thead>
+          <tbody>
+          {% for p in periods.rows %}
+          <tr><td class="rh-mono">{{ p.start or '-' }}</td><td class="rh-mono">{{ p.end or '-' }}</td><td>{{ p.label }}</td><td class="rh-dim">{{ p.end_reason or '' }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="rh-note">사번 {{ emp.emp_no or '-' }} 그대로 쓰고, 위 구간은 지난 근속으로 남깁니다. 연차·퇴직금은 새 입사일부터 셉니다. 로그인도 다시 됩니다.</p>
+
+      {% if ex and ex.is_rehire_eligible == 0 %}
+      <div class="rh-warn">퇴사 때 "재입사 불가"로 적힌 사람입니다.{% if ex.exit_reason_category %} 퇴사 구분: {{ ex.exit_reason_category }}.{% endif %}</div>
+      {% endif %}
+      {% if error %}<div class="rh-warn">{{ error }}</div>{% endif %}
+
+      <form method="POST" class="rh-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label>새 입사일<input class="input" type="date" name="hire_date" required value="{{ form.hire_date or '' }}"
+          {% if emp.termination_date %}min="{{ emp.termination_date }}"{% endif %}></label>
+        <label>부서
+          <select class="input" name="department_id">
+            <option value="">-</option>
+            {% for d in depts %}<option value="{{ d.id }}" {% if (form.department_id or emp.department_id)|string == d.id|string %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+          </select></label>
+        <label>직급
+          <select class="input" name="position_id">
+            <option value="">-</option>
+            {% for p in poses %}<option value="{{ p.id }}" {% if (form.position_id or emp.position_id)|string == p.id|string %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+          </select></label>
+        <label>고용 형태
+          <select class="input" name="employment_type">
+            {% for k, l in emp_types.items() %}<option value="{{ k }}" {% if (form.employment_type or emp.employment_type) == k %}selected{% endif %}>{{ l }}</option>{% endfor %}
+          </select></label>
+        <label>매니저
+          <select class="input" name="manager_id">
+            <option value="">-</option>
+            {% for m in managers %}{% if m.id != emp.id %}<option value="{{ m.id }}" {% if (form.manager_id or emp.manager_id)|string == m.id|string %}selected{% endif %}>{{ m.name }} {{ m.emp_no or '' }}</option>{% endif %}{% endfor %}
+          </select></label>
+        <label>수습(개월, 0 = 없음)<input class="input" type="number" name="probation_months" min="0" max="12" value="{{ form.get('probation_months', default_months) }}"></label>
+        <label class="rh-wide">메모<input class="input" name="note" maxlength="200" value="{{ form.note or '' }}" placeholder="예: 같은 팀 복귀"></label>
+        {% if ex and ex.is_rehire_eligible == 0 %}
+        <label class="rh-check rh-wide"><input type="checkbox" name="confirm_ineligible" value="1"> 재입사 불가 표시를 확인했고 그래도 진행합니다</label>
+        {% endif %}
+        <div class="rh-wide"><button type="submit" class="btn btn-primary">재입사 처리</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+<style>
+  .rh-wrap{max-width:820px}
+  .rh-back{display:inline-block;font-size:13px;color:var(--tx-2);margin-bottom:10px;text-decoration:none}
+  .rh-dim{color:var(--tx-3);font-weight:400;font-size:12.5px}
+  .rh-mono{font-family:var(--mono);font-size:12.5px}
+  .tbl-x{overflow-x:auto}
+  .rh-tbl{font-size:13px;white-space:nowrap}
+  .rh-note{font-size:12.5px;color:var(--tx-3);margin:10px 0 14px;word-break:keep-all}
+  .rh-warn{font-size:13px;color:var(--late);margin:0 0 12px}
+  .rh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;align-items:end}
+  .rh-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--tx-3)}
+  .rh-grid .input{min-width:0}
+  .rh-wide{grid-column:1/-1}
+  .rh-grid .rh-check{flex-direction:row;align-items:center;gap:6px;font-size:13px;color:inherit}
+</style>
+{% endblock %}

@@ -45,7 +45,11 @@
     gap: 0;
     border-bottom: 2px solid var(--border);
     margin-bottom: 20px;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
+  .tab-nav::-webkit-scrollbar { display: none; }
+  .tab-nav .tab-btn { flex: none; }
   .tab-btn {
     padding: 10px 18px;
     font-size: 13.5px;
@@ -282,6 +286,7 @@
   <button class="tab-btn" data-tab="benefits">복리후생</button>
   <button class="tab-btn" data-tab="documents">문서</button>
   <button class="tab-btn" data-tab="history">변경 이력</button>
+  <button class="tab-btn" data-tab="tenure">근속·수습</button>
   {% endif %}
   {% if session.user_role == 'admin' or session.user_id == emp.id %}
   <button class="tab-btn" data-tab="ids">신분·서류</button>
@@ -1099,6 +1104,7 @@
   </div>
 </div>
 {% include "employees/_history.html" %}
+{% include "employees/_tenure.html" %}
 {% endif %}{# can_see_sensitive #}
 {% if session.user_role == 'admin' or session.user_id == emp.id %}
 {% include "employees/_ids.html" %}
