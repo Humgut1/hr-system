@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+{% block title %}온보딩 계획{% endblock %}
+{% block page_title %}온보딩 계획{% endblock %}
+
+{% macro plan_form(p=None) %}
+<form method="POST" class="op-form" action="{{ url_for('obplan_admin', id=p.id) if p else url_for('obplan_admin', tab='new') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="action" value="save">
+  <div class="op-row">
+    <label class="op-f op-wide"><span>계획 이름</span><input class="input" name="name" maxlength="80" required value="{{ p.name if p else '' }}" placeholder="개발 조직 온보딩"></label>
+    <label class="op-f"><span>우선순위</span><input class="input" type="number" name="priority" min="1" max="999" value="{{ p.priority if p else 100 }}"></label>
+    <label class="op-f"><span>상태</span>
+      <select class="input" name="active"><option value="1" {% if not p or p.active %}selected{% endif %}>켜짐</option><option value="0" {% if p and not p.active %}selected{% endif %}>꺼짐</option></select></label>
+  </div>
+  <div class="op-note">숫자가 작을수록 먼저 보입니다. 조건이 맞는 계획은 여러 개라도 전부 붙고, 기본 계획 위에 더해집니다.</div>
+  {% set s = p.scope_obj if p else {'depts': [], 'positions': [], 'types': [], 'profiles': [], 'sites': []} %}
+  <div class="op-h">붙는 조건 <span class="op-dim">비워 두면 전원 · 여러 칸을 채우면 모두 맞아야 함</span></div>
+  <div class="op-row">
+    <label class="op-f"><span>조직(하위 포함)</span>
+      <select class="input op-multi" name="depts" multiple size="6">{% for d in ch.depts %}<option value="{{ d.id }}" {% if d.id in s.depts %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label>
+    <label class="op-f"><span>직급</span>
+      <select class="input op-multi" name="positions" multiple size="6">{% for x in ch.positions %}<option value="{{ x.id }}" {% if x.id in s.positions %}selected{% endif %}>{{ x.name }}</option>{% endfor %}</select></label>
+    {% if ch.profiles %}<label class="op-f"><span>세부 직무</span>
+      <select class="input op-multi" name="profiles" multiple size="6">{% for x in ch.profiles %}<option value="{{ x.id }}" {% if x.id in s.profiles %}selected{% endif %}>{{ x.name }}</option>{% endfor %}</select></label>{% endif %}
+  </div>
+  <span class="op-dim op-small">Ctrl(맥은 Cmd)을 누르고 여러 개 고릅니다.</span>
+  <div class="op-checks"><span class="op-dim">고용형태</span>
+    {% for k, v in etypes.items() %}<label><input type="checkbox" name="types" value="{{ k }}" {% if k in s.types %}checked{% endif %}> {{ v }}</label>{% endfor %}
+  </div>
+  {% if ch.sites %}<div class="op-checks"><span class="op-dim">근무지</span>
+    {% for x in ch.sites %}<label><input type="checkbox" name="sites" value="{{ x.code }}" {% if x.code in s.sites %}checked{% endif %}> {{ x.name }}</label>{% endfor %}
+  </div>
+  <div class="op-note">근무지는 그 사람 부서가 앉은 층의 건물로 봅니다(회사·건물 설정).</div>{% endif %}
+  <label class="op-f"><span>메모</span><textarea class="input" name="note" rows="2" maxlength="500">{{ p.note if p and p.note else '' }}</textarea></label>
+  <div class="op-act"><button type="submit" class="btn btn-primary btn-sm">저장</button></div>
+</form>
+{% endmacro %}
+
+{% macro item_form(i=None) %}
+<form method="POST" class="op-form op-item-form" action="{{ url_for('obplan_admin', id=p.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="action" value="item_save">
+  {% if i %}<input type="hidden" name="item_id" value="{{ i.id }}">{% endif %}
+  <div class="op-row">
+    <label class="op-f"><span>종류</span><select class="input" name="kind">{% for k, v in kinds.items() %}<option value="{{ k }}" {% if i and i.kind == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+    <label class="op-f"><span>날</span><input class="input" type="number" name="day" min="-{{ max_before }}" max="{{ max_after }}" value="{{ i.day if i else 1 }}"></label>
+    <label class="op-f"><span>알림 받는 사람</span><select class="input" name="target">{% for k, v in targets.items() %}<option value="{{ k }}" {% if i and i.target == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+  </div>
+  <label class="op-f"><span>제목</span><input class="input" name="title" maxlength="120" required value="{{ i.title if i else '' }}" placeholder="개발 환경 세팅"></label>
+  <label class="op-f"><span>내용</span><textarea class="input" name="body" rows="3" maxlength="2000">{{ i.body if i and i.body else '' }}</textarea></label>
+  <label class="op-f"><span>링크(영상은 필수)</span><input class="input" name="url" maxlength="500" value="{{ i.url if i and i.url else '' }}" placeholder="https://… 또는 /wiki/…"></label>
+  <div class="op-note">날: 1 = 입사일(1일차), 5 = 다섯째 근무일(주말·공휴일 빼고), -3 = 입사 3일 전. 할 일은 1일차부터. 알림 받는 사람은 '알림'에만 씁니다. {% raw %}{{name}}{% endraw %} 같은 자리표시자는 기본 계획과 같습니다.</div>
+  <div class="op-act"><button type="submit" class="btn btn-primary btn-sm">{{ '고치기' if i else '항목 넣기' }}</button>
+    {% if i %}<a class="btn btn-ghost btn-sm" href="{{ url_for('obplan_admin', id=p.id) }}">취소</a>{% endif %}</div>
+</form>
+{% endmacro %}
+
+{% block content %}
+<div class="fchips" style="margin-bottom:12px;">
+  <a class="fchip {% if tab in ('list', 'detail') %}on{% endif %}" href="{{ url_for('obplan_admin') }}">계획 목록</a>
+  <a class="fchip {% if tab == 'new' %}on{% endif %}" href="{{ url_for('obplan_admin', tab='new') }}">새 계획</a>
+</div>
+
+{% if tab == 'list' %}
+<div class="card">
+  <div class="card-head"><span class="card-title">온보딩 계획</span><span class="op-sub">입사 {{ window }}일 안쪽 재직자에게 적용</span></div>
+  <div class="card-body">
+    <div class="tbl-x">
+      <table class="table op-tbl">
+        <thead><tr><th>순서</th><th>계획</th><th>상태</th><th>붙는 조건</th><th>항목</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="op-dim">-</td>
+            <td><a href="{{ url_for('workplace_settings') }}">기본 계획</a> <span class="op-dim">회사·건물 설정</span></td>
+            <td>켜짐</td>
+            <td class="op-dim">전원</td>
+            <td>{{ onboard_n }}</td>
+          </tr>
+          {% for x in items_all %}
+          <tr>
+            <td class="op-mono">{{ x.priority }}</td>
+            <td><a href="{{ url_for('obplan_admin', id=x.id) }}">{{ x.name }}</a></td>
+            <td class="{% if not x.active %}op-dim{% endif %}">{{ '켜짐' if x.active else '꺼짐' }}</td>
+            <td class="op-dim op-wrap">{{ x.scope_label }}</td>
+            <td>{{ x.n_items }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if not items_all %}<div class="op-empty">추가 계획이 없습니다. 모든 입사자는 기본 계획만 받습니다.</div>{% endif %}
+    <div class="op-note">기본 계획(체크리스트·첫날·첫 주·FAQ)은 회사·건물 설정에서 고칩니다. 추가 계획은 조건이 맞는 사람에게만 더해집니다.</div>
+  </div>
+</div>
+
+{% elif tab == 'new' %}
+<div class="card"><div class="card-head"><span class="card-title">새 계획</span></div><div class="card-body">{{ plan_form() }}</div></div>
+
+{% else %}
+<div class="op-top">
+  <b>{{ p.name }}</b> <span class="{% if not p.active %}op-dim{% endif %}">{{ '켜짐' if p.active else '꺼짐' }}</span>
+  <span class="op-dim op-wrap">{{ p.scope_label }}</span>
+</div>
+<div class="op-grid">
+  <div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">항목 {{ items|length }}</span>
+        {% if sample %}<span class="op-sub">날짜 예: {{ sample.name }} 입사 {{ sample.hire_date[:10] }}</span>{% endif %}</div>
+      <div class="card-body">
+        <div class="tbl-x">
+          <table class="table op-tbl">
+            <thead><tr><th>날</th><th>종류</th><th>제목</th><th></th></tr></thead>
+            <tbody>
+            {% for i in items %}
+            <tr>
+              <td class="op-mono">{{ i.day_label }}{% if sample_dates.get(i.id) %} <span class="op-dim">{{ sample_dates[i.id].strftime('%m.%d') }}</span>{% endif %}</td>
+              <td>{{ i.kind_label }}{% if i.kind == 'alert' %} <span class="op-dim">→ {{ i.target_label }}</span>{% endif %}</td>
+              <td class="op-wrap">{{ i.title }}{% if i.url %} <span class="op-dim">링크</span>{% endif %}</td>
+              <td class="op-btns">
+                <form method="POST" action="{{ url_for('obplan_admin', id=p.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="item_id" value="{{ i.id }}">
+                  <button class="btn btn-ghost btn-sm" name="action" value="item_up" aria-label="위로">↑</button>
+                  <button class="btn btn-ghost btn-sm" name="action" value="item_down" aria-label="아래로">↓</button>
+                  <a class="btn btn-ghost btn-sm" href="{{ url_for('obplan_admin', id=p.id, edit=i.id) }}#item-form">고치기</a>
+                  <button class="btn btn-ghost btn-sm" name="action" value="item_delete" onclick="return confirm('이 항목을 지울까요?')">지우기</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if not items %}<div class="op-empty">항목이 없습니다. 아래에서 넣으세요.</div>{% endif %}
+        <div class="op-note">같은 날 안에서는 ↑↓ 로 순서를 바꿉니다. 끝낸 사람이 있는 할 일은 지울 수 없습니다.</div>
+        <div class="op-h" id="item-form">{{ '항목 고치기' if edit else '항목 넣기' }}</div>
+        {% set ei = (items|selectattr('id', 'equalto', edit)|first) if edit else None %}
+        {{ item_form(ei) }}
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-head"><span class="card-title">받는 사람 {{ inn|length }}</span><span class="op-sub">입사 {{ window }}일 안쪽 · 입사 예정 포함</span></div>
+      <div class="card-body">
+        <div class="tbl-x">
+          <table class="table op-tbl">
+            <thead><tr><th>사번</th><th>이름</th><th>조직</th><th>입사일</th><th>붙은 이유</th><th></th></tr></thead>
+            <tbody>
+            {% for u in inn %}
+            <tr>
+              <td class="op-mono">{{ u.emp_no or '-' }}</td>
+              <td>{{ u.name }}</td>
+              <td class="op-dim">{{ u.dept or '-' }}</td>
+              <td class="op-mono">{{ u.hire_date[:10] }}</td>
+              <td>{% if u.how == 'manual' %}<span class="op-wait">직접 넣음</span> <span class="op-dim">{{ u.reason }}</span>{% else %}<span class="op-dim">조건</span>{% endif %}</td>
+              <td><a class="btn btn-ghost btn-sm" href="{{ url_for('me_onboarding', user=u.id) }}">미리보기</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if not inn %}<div class="op-empty">지금 이 계획을 받는 사람이 없습니다.</div>{% endif %}
+        {% if out %}
+        <div class="op-h">뺀 사람 {{ out|length }}</div>
+        <ul class="op-list">
+          {% for u in out %}
+          <li><span class="op-mono">{{ u.emp_no or '-' }}</span> {{ u.name }} <span class="op-dim op-why">{{ u.reason }}</span>
+            <form method="POST" action="{{ url_for('obplan_admin', id=p.id) }}" style="margin-left:auto"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="user_id" value="{{ u.id }}"><button class="btn btn-ghost btn-sm" name="action" value="ex_drop">되돌리기</button></form></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">예외</span></div>
+      <div class="card-body">
+        <form method="POST" class="op-form" action="{{ url_for('obplan_admin', id=p.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label class="op-f"><span>사번</span><input class="input" name="emp_no" required maxlength="30"></label>
+          <label class="op-f"><span>사유</span><input class="input" name="reason" required maxlength="200"></label>
+          <div class="op-act">
+            <button class="btn btn-ghost btn-sm" name="action" value="ex_in">넣기</button>
+            <button class="btn btn-ghost btn-sm" name="action" value="ex_out">빼기</button>
+          </div>
+        </form>
+        {% set manual = inn|selectattr('how', 'equalto', 'manual')|list %}
+        {% if manual %}
+        <ul class="op-list">
+          {% for u in manual %}
+          <li>{{ u.name }} <span class="op-dim op-why">{{ u.reason }}</span>
+            <form method="POST" action="{{ url_for('obplan_admin', id=p.id) }}" style="margin-left:auto"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="user_id" value="{{ u.id }}"><button class="btn btn-ghost btn-sm" name="action" value="ex_drop">되돌리기</button></form></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        <div class="op-note">조건과 상관없이 넣거나 뺍니다. 재직 중이고 입사 {{ window }}일 안쪽인 사람만 됩니다.</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-head"><span class="card-title">계획 설정</span></div>
+      <div class="card-body">
+        {{ plan_form(p) }}
+        <div class="op-act" style="margin-top:14px;">
+          <form method="POST" action="{{ url_for('obplan_admin', id=p.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-ghost btn-sm" name="action" value="toggle">{{ '끄기' if p.active else '켜기' }}</button></form>
+          <form method="POST" action="{{ url_for('obplan_admin', id=p.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-ghost btn-sm" name="action" value="delete" onclick="return confirm('계획을 지울까요? 되돌릴 수 없습니다.')">지우기</button></form>
+        </div>
+        <div class="op-note">끄면 아직 안 끝낸 할 일은 사라지고, 끝낸 할 일은 기록으로 남습니다. 할 일을 받은 사람이 있으면 지울 수 없습니다.</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<style>
+  .op-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+  .op-sub{font-size:12px;color:var(--tx-3);margin-left:auto}
+  .op-top{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin-bottom:12px;font-size:14px}
+  .tbl-x{overflow-x:auto}
+  .op-tbl{font-size:13px;white-space:nowrap}
+  .op-wrap{white-space:normal;overflow-wrap:anywhere;min-width:140px}
+  .op-mono{font-family:var(--mono);font-size:12.5px}
+  .op-dim{color:var(--tx-3)}
+  .op-wait{color:var(--wait)}
+  .op-small{font-size:12px}
+  .op-empty{text-align:center;color:var(--tx-3);padding:18px}
+  .op-note{font-size:12px;color:var(--tx-3);line-height:1.6;margin-top:10px;word-break:keep-all}
+  .op-h{font-size:13px;font-weight:600;margin:16px 0 6px}
+  .op-form{display:flex;flex-direction:column;gap:10px}
+  .op-row{display:flex;flex-wrap:wrap;gap:10px}
+  .op-f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--tx-2);min-width:0;flex:1 1 140px}
+  .op-f.op-wide{flex:2 1 220px}
+  .op-multi{min-height:120px}
+  .op-checks{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;align-items:center}
+  .op-checks label{display:flex;align-items:center;gap:4px}
+  .op-act{display:flex;gap:8px;flex-wrap:wrap}
+  .op-btns form{display:flex;gap:4px}
+  .op-list{list-style:none;margin:12px 0 0;padding:0;font-size:13px}
+  .op-list li{padding:6px 0;border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .op-why{overflow-wrap:anywhere;min-width:0}
+  @media (max-width:980px){.op-grid{grid-template-columns:minmax(0,1fr)}}
+</style>
+{% endblock %}

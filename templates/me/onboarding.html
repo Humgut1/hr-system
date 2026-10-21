@@ -193,6 +193,34 @@
   </section>
 {% endif %}
 
+{% if extra and (extra.shown or extra.later) %}
+  {# ── 추가 계획의 공지·카드·영상 ── #}
+  <section class="ob-block">
+    <h2 class="ob-sec">안내 <small>{{ extra.plans|map(attribute='name')|join(' · ') }}</small></h2>
+    {% for x in extra.shown %}
+    <div class="ob-note ob-note-{{ x.kind }}">
+      <div class="ob-note-h"><span class="ob-note-k">{{ x.kind_label }}</span>{{ x.title }}{% if x.new %}<span class="ob-note-new">새 안내</span>{% endif %}
+        {% if x.date_label %}<span class="ob-note-d">{{ x.date_label }}</span>{% endif %}</div>
+      {% if x.body %}<div class="ob-note-b">{{ x.body }}</div>{% endif %}
+      {% if x.url %}<a class="btn btn-sm btn-secondary" href="{{ x.url }}" target="_blank" rel="noopener">{{ '영상 보기' if x.kind == 'video' else '열기' }}</a>{% endif %}
+    </div>
+    {% endfor %}
+    {% for x in extra.later %}
+    <div class="ob-note ob-note-later"><span class="ob-note-k">{{ x.kind_label }}</span>{{ x.title }}<span class="ob-note-d">{{ x.date_label }} 공개</span></div>
+    {% endfor %}
+  </section>
+  <style>
+    .ob-note{border:1px solid var(--line,var(--border));border-radius:8px;padding:10px 12px;margin-bottom:8px;}
+    .ob-note-h{display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;font-weight:600;font-size:13.5px;}
+    .ob-note-k{font-size:11px;color:var(--tx-3);border:1px solid var(--line,var(--border));border-radius:4px;padding:0 5px;font-weight:500;}
+    .ob-note-new{font-size:11px;color:var(--wait);font-weight:500;}
+    .ob-note-d{margin-left:auto;color:var(--tx-3);font-size:11.5px;font-weight:400;}
+    .ob-note-b{margin:6px 0 8px;font-size:13px;line-height:1.6;white-space:pre-line;color:var(--tx-2);overflow-wrap:anywhere;}
+    .ob-note-later{display:flex;gap:6px;align-items:baseline;color:var(--tx-3);font-size:13px;border-style:dashed;}
+    .ob-note-card{background:var(--bg-2,transparent);}
+  </style>
+{% endif %}
+
   {# ── 체크리스트 ── #}
   <section class="ob-block">
     <h2 class="ob-sec">체크리스트 <small>누르면 완료 표시가 바뀝니다</small></h2>

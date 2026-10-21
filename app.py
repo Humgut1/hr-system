@@ -109,6 +109,7 @@ import people_ids
 import people_tenure
 import org_admin
 import labor_agreements
+import onboarding_plans
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -12788,7 +12789,9 @@ def me_onboarding():
         uid = pid
 
     content_tasks = workplace.onboarding_tasks(db)
-    rows = db.execute("SELECT task_key, done FROM onboarding_progress WHERE user_id=?", (uid,)).fetchall()
+    # 'pl-' 로 시작하는 줄은 추가 온보딩 계획의 할 일 — 기본 체크리스트 맞추기에서 빼고 따로 맞춘다
+    rows = db.execute("SELECT task_key, done FROM onboarding_progress WHERE user_id=? AND task_key NOT LIKE 'pl-%'",
+                      (uid,)).fetchall()
     ckeys = {t['key'] for t in content_tasks}
     # 회사 자료의 체크리스트로 맞춘다 — 자료에 없는 항목을 이미 체크했으면(진행 기록이 사라지므로) 그대로 둔다
     if rows and content_tasks and not any(r['done'] for r in rows if r['task_key'] not in ckeys):
@@ -12797,8 +12800,8 @@ def me_onboarding():
                        "VALUES (?,?,?,?,?)", (uid, t['key'], t['label'], t.get('category') or 'general', i + 1))
             db.execute("UPDATE onboarding_progress SET task_label=?, category=?, sort_order=? WHERE user_id=? AND task_key=?",
                        (t['label'], t.get('category') or 'general', i + 1, uid, t['key']))
-        db.execute("DELETE FROM onboarding_progress WHERE user_id=? AND task_key NOT IN (%s)" % ','.join('?' * len(ckeys)),
-                   (uid, *ckeys))
+        db.execute("DELETE FROM onboarding_progress WHERE user_id=? AND task_key NOT LIKE 'pl-%%' AND task_key NOT IN (%s)"
+                   % ','.join('?' * len(ckeys)), (uid, *ckeys))
         db.commit()
     if not rows:
         from integrations.dispatcher import _seed_onboarding_tasks
@@ -12806,8 +12809,15 @@ def me_onboarding():
 
     plan = workplace.onboarding_plan(db, uid)
     vals = plan['values'] if plan else {}
-    due = plan['due'] if plan else {}
+    due = dict(plan['due']) if plan else {}
     today = date.today()
+    onboarding_plans.ensure_schema(db)
+    extra = onboarding_plans.person_view(db, uid, today, vals, everything=bool(preview))
+    if onboarding_plans._people(db, uid, today):
+        onboarding_plans.sync_tasks(db, uid, extra['plan_objs'] if extra else [])
+        db.commit()
+    if extra:
+        due.update(extra['due'])
     tasks = []
     for t in db.execute("SELECT * FROM onboarding_progress WHERE user_id=? ORDER BY sort_order", (uid,)).fetchall():
         t = dict(t)
@@ -12829,7 +12839,8 @@ def me_onboarding():
     else:
         for t in tasks:
             cat = t['category']
-            grouped.setdefault(cat, {'label': workplace.TASK_CATEGORIES.get(cat, cat), 'tasks': []})['tasks'].append(t)
+            grouped.setdefault(cat, {'label': workplace.TASK_CATEGORIES.get(cat, '추가 계획' if cat == 'plan' else cat),
+                                     'tasks': []})['tasks'].append(t)
 
     total = len(tasks)
     done  = sum(1 for t in tasks if t['done'])
@@ -12846,7 +12857,7 @@ def me_onboarding():
         late=sum(1 for t in tasks if t['late']),
         buddy=buddy, manager=plan['who']['manager'] if plan else None,
         jira_epic_key=me['jira_epic_key'] if me else None,
-        hire_date=me['hire_date'] if me else None, preview=preview,
+        hire_date=me['hire_date'] if me else None, preview=preview, extra=extra,
         learn=__import__('learning').summary(db, uid), active_page='me_onboarding')
 
 
@@ -13306,6 +13317,9 @@ org_admin.init_app(app, dict(get_db=get_db, admin_required=admin_required, log_a
                              DEPT_TYPE_PARENT_ALLOWED=DEPT_TYPE_PARENT_ALLOWED))
 # B7 단체협약·노조 — 화면·표는 labor_agreements.py
 labor_agreements.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
+                                    log_audit=log_audit))
+# B8 온보딩 계획 — 화면·표는 onboarding_plans.py (기본 계획은 회사·건물 설정의 온보딩 자료 그대로)
+onboarding_plans.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
                                     log_audit=log_audit))
 
 
