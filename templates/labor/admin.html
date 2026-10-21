@@ -1,0 +1,347 @@
+{% extends 'base.html' %}
+{% block title %}단체협약{% endblock %}
+{% block page_title %}단체협약{% endblock %}
+
+{% macro agr_form(a=None) %}
+<form method="POST" class="lb-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="action" value="save">
+  {% if a %}<input type="hidden" name="id" value="{{ a.id }}">{% endif %}
+  <div class="lb-row">
+    <label class="lb-f lb-wide"><span>협약 이름</span><input class="input" name="title" maxlength="120" required value="{{ a.title if a else '' }}" placeholder="2026 단체협약"></label>
+    <label class="lb-f"><span>종류</span>
+      <select class="input" name="kind">{% for k, v in kinds.items() %}<option value="{{ k }}" {% if a and a.kind == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+  </div>
+  <div class="lb-row">
+    <label class="lb-f lb-wide"><span>노동조합</span><input class="input" name="union_name" maxlength="80" required value="{{ a.union_name if a else '' }}" placeholder="OO노동조합"></label>
+    <label class="lb-f"><span>시작일</span><input class="input" type="date" name="start_date" required value="{{ a.start_date if a else '' }}"></label>
+    <label class="lb-f"><span>종료일</span><input class="input" type="date" name="end_date" required value="{{ a.end_date if a else '' }}"></label>
+  </div>
+  <div class="lb-note">유효기간은 {{ max_years }}년을 넘을 수 없습니다(노동조합법 제32조). 만료 90일·30일 전과 당일에 관리자에게 알림이 갑니다.</div>
+  {% set s = a.scope_obj if a else {'depts': [], 'types': [], 'no_leaders': False} %}
+  <div class="lb-h">적용 조건 <span class="lb-dim">비워 두면 전원</span></div>
+  <div class="lb-f"><span>조직(하위 조직 포함)</span>
+    <select class="input lb-multi" name="depts" multiple size="6">
+      {% for d in depts %}<option value="{{ d.id }}" {% if d.id in s.depts %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+    </select>
+    <span class="lb-dim lb-small">Ctrl(맥은 Cmd)을 누르고 여러 개 고릅니다.</span>
+  </div>
+  <div class="lb-checks">
+    {% for k, v in etypes.items() %}<label><input type="checkbox" name="types" value="{{ k }}" {% if k in s.types %}checked{% endif %}> {{ v }}</label>{% endfor %}
+    <label><input type="checkbox" name="no_leaders" value="1" {% if s.no_leaders %}checked{% endif %}> 조직장 제외</label>
+  </div>
+  <label class="lb-f"><span>메모</span><textarea class="input" name="note" rows="2" maxlength="500">{{ a.note if a and a.note else '' }}</textarea></label>
+  <div class="lb-act"><button type="submit" class="btn btn-primary btn-sm">저장</button></div>
+</form>
+{% endmacro %}
+
+{% block content %}
+<div class="fchips" style="margin-bottom:12px;">
+  <a class="fchip {% if tab in ('list', 'detail') %}on{% endif %}" href="{{ url_for('labor_admin') }}">협약 대장 <b>{{ counts.list }}</b></a>
+  <a class="fchip {% if tab == 'new' %}on{% endif %}" href="{{ url_for('labor_admin', tab='new') }}">새 협약</a>
+  <a class="fchip {% if tab == 'union' %}on{% endif %}" href="{{ url_for('labor_admin', tab='union') }}">조합원 기록{% if union_on %} <b>{{ counts.members }}</b>{% else %} <span class="lb-dim">꺼짐</span>{% endif %}</a>
+</div>
+
+{% if tab == 'list' %}
+<div class="card">
+  <div class="card-head"><span class="card-title">협약 대장</span><span class="lb-sub">90일 안에 만료 {{ counts.soon }}</span></div>
+  <div class="card-body">
+    <div class="tbl-x">
+      <table class="table lb-tbl">
+        <thead><tr><th>상태</th><th>협약</th><th>노조</th><th>유효기간</th><th>남은 날</th><th>적용 조건</th><th>적용</th></tr></thead>
+        <tbody>
+        {% for a in items %}
+        <tr>
+          <td class="{% if a.status == 'active' and a.days <= 90 %}lb-wait{% elif a.status in ('expired', 'ended') %}lb-dim{% endif %}">{{ a.status_label }}</td>
+          <td><a href="{{ url_for('labor_admin', id=a.id) }}">{{ a.title }}</a> <span class="lb-dim">{{ a.kind_label }}</span></td>
+          <td>{{ a.union_name }}</td>
+          <td class="lb-mono">{{ a.start_date }} ~ {{ a.end_date }}</td>
+          <td class="{% if a.status == 'active' and a.days <= 30 %}lb-late{% elif a.status == 'active' and a.days <= 90 %}lb-wait{% else %}lb-dim{% endif %}">{% if a.status in ('active', 'upcoming') %}{% if a.days == 0 %}오늘{% else %}{{ a.days }}일{% endif %}{% else %}-{% endif %}</td>
+          <td class="lb-dim">{{ a.scope_label }}</td>
+          <td class="lb-mono">{{ a.applied }}명</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="lb-empty">등록한 협약이 없습니다. <a href="{{ url_for('labor_admin', tab='new') }}">새 협약</a></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="lb-note">협약 조항은 급여·근태에 자동으로 반영되지 않습니다. 대장은 유효기간과 적용 대상을 관리합니다.</div>
+  </div>
+</div>
+
+{% elif tab == 'new' %}
+<div class="card" style="max-width:760px;">
+  <div class="card-head"><span class="card-title">새 협약</span></div>
+  <div class="card-body">{{ agr_form() }}</div>
+</div>
+
+{% elif tab == 'detail' %}
+<div class="lb-top">
+  <a class="lb-link" href="{{ url_for('labor_admin') }}">협약 대장</a>
+  <span class="lb-dim">/</span> <b>{{ a.title }}</b>
+  <span class="{% if a.status == 'active' and a.days <= 90 %}lb-wait{% elif a.status in ('expired', 'ended') %}lb-dim{% endif %}">{{ a.status_label }}{% if a.status == 'active' %} · {{ a.days }}일 남음{% endif %}</span>
+</div>
+{% if bind and bind.hit %}
+<div class="lb-alert">
+  <b>일반적 구속력 검토 필요</b> — {{ bind.kind }} {{ bind.total }}명 중 {{ bind.n }}명({{ bind.pct }}%)에게 적용됩니다.
+  같은 사업장 동종 근로자 반수 이상에게 적용되면 나머지 {{ bind.rest }}명에게도 이 협약이 적용될 수 있습니다(노동조합법 제35조).
+  사업장이 하나라고 보고 센 값입니다. 노무 검토 후 범위를 정하세요.
+</div>
+{% endif %}
+<div class="lb-grid">
+  <div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">적용 대상 {{ rows|length }}명</span>
+        <a class="btn btn-ghost btn-sm" style="margin-left:auto;" href="{{ url_for('labor_admin', id=a.id, csv='applied') }}"><i class="fas fa-download"></i> 사번 CSV</a></div>
+      <div class="card-body">
+        <form class="lb-bar" method="GET">
+          <input type="hidden" name="id" value="{{ a.id }}">
+          <input class="input" name="q" value="{{ q }}" placeholder="이름·사번·부서" style="max-width:240px;">
+          <button type="submit" class="btn btn-ghost btn-sm">찾기</button>
+        </form>
+        <div class="tbl-x">
+          <table class="table lb-tbl">
+            <thead><tr><th>사번</th><th>이름</th><th>부서</th><th>고용형태</th><th>적용</th><th>시작</th></tr></thead>
+            <tbody>
+            {% for r in rows %}
+            <tr>
+              <td class="lb-mono">{{ r.emp_no or '-' }}</td>
+              <td><a href="{{ url_for('employee_detail', emp_id=r.user_id) }}#tab-labor">{{ r.name }}</a></td>
+              <td class="lb-dim">{{ r.dept or '-' }}</td>
+              <td class="lb-dim">{{ etypes.get(r.employment_type, '-') }}</td>
+              <td>{% if r.source == 'manual' %}예외(포함){% else %}<span class="lb-dim">조건</span>{% endif %}</td>
+              <td class="lb-mono">{{ r.start_date }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="lb-empty">{% if a.status == 'upcoming' %}시작일({{ a.start_date }})부터 적용됩니다.{% elif a.status in ('expired', 'ended') %}{{ a.status_label }}된 협약입니다.{% else %}적용되는 사람이 없습니다.{% endif %}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <div class="card-head"><span class="card-title">빠진 이력</span><span class="lb-sub">최근 50건</span></div>
+      <div class="card-body">
+        <div class="tbl-x">
+          <table class="table lb-tbl">
+            <thead><tr><th>사번</th><th>이름</th><th>기간</th><th>사유</th></tr></thead>
+            <tbody>
+            {% for r in hist %}
+            <tr><td class="lb-mono">{{ r.emp_no or '-' }}</td><td>{{ r.name }}</td>
+              <td class="lb-mono">{{ r.start_date }} ~ {{ r.end_date }}</td><td class="lb-dim">{{ r.why }}</td></tr>
+            {% else %}
+            <tr><td colspan="4" class="lb-empty">없습니다.</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">예외</span></div>
+      <div class="card-body">
+        {% if a.status in ('active', 'upcoming') %}
+        <form method="POST" class="lb-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="id" value="{{ a.id }}">
+          <input class="input" name="emp_no" placeholder="사번" required>
+          <input class="input" name="reason" placeholder="사유(필수)" maxlength="200" required>
+          <div class="lb-act">
+            <button type="submit" name="action" value="ex_in" class="btn btn-ghost btn-sm">포함</button>
+            <button type="submit" name="action" value="ex_out" class="btn btn-ghost btn-sm">제외</button>
+          </div>
+        </form>
+        {% endif %}
+        <ul class="lb-list">
+          {% for e in ex %}
+          <li><span>{{ '포함' if e.mode == 'in' else '제외' }}</span>
+            <a href="{{ url_for('employee_detail', emp_id=e.user_id) }}#tab-labor">{{ e.name }}</a>
+            <span class="lb-mono lb-dim">{{ e.emp_no or '' }}</span>
+            <span class="lb-dim lb-why">{{ e.reason }}</span>
+            {% if a.status in ('active', 'upcoming') %}
+            <form method="POST" style="margin-left:auto;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="id" value="{{ a.id }}"><input type="hidden" name="user_id" value="{{ e.user_id }}">
+              <button type="submit" name="action" value="ex_drop" class="btn btn-ghost btn-sm">풀기</button>
+            </form>
+            {% endif %}
+          </li>
+          {% else %}
+          <li class="lb-dim">없습니다.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% if bind %}
+    <div class="card" style="margin-top:16px;">
+      <div class="card-head"><span class="card-title">동종 근로자 대비</span></div>
+      <div class="card-body">
+        <div class="lb-line"><b>{{ bind.n }}</b> / {{ bind.total }}명 ({{ bind.pct }}%) · {{ bind.kind }}</div>
+        <div class="lb-note">반수 이상이면 일반적 구속력(노동조합법 제35조)을 검토하라는 안내가 뜹니다. 사업장이 하나라고 보고 셉니다.</div>
+      </div>
+    </div>
+    {% endif %}
+    <div class="card" style="margin-top:16px;">
+      <div class="card-head"><span class="card-title">협약 정보</span></div>
+      <div class="card-body">
+        {% if a.status == 'ended' %}
+        <div class="lb-line">{{ a.ended_at }} 종료 · {{ a.end_reason }}</div>
+        <div class="lb-line lb-dim">{{ a.union_name }} · {{ a.start_date }} ~ {{ a.end_date }} · {{ a.scope_label }}</div>
+        {% else %}
+        {{ agr_form(a) }}
+        <details class="lb-end">
+          <summary>협약 종료</summary>
+          <form method="POST" class="lb-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="id" value="{{ a.id }}">
+            <input class="input" name="reason" placeholder="종료 사유(새 협약 체결 등)" maxlength="200" required>
+            <div class="lb-act"><button type="submit" name="action" value="end" class="btn btn-ghost btn-sm">종료</button>
+            <button type="submit" name="action" value="delete" class="btn btn-ghost btn-sm" formnovalidate onclick="return confirm('적용된 적 없는 협약만 지울 수 있습니다. 지울까요?')">지우기</button></div>
+          </form>
+        </details>
+        {% endif %}
+        {% if a.note %}<div class="lb-note">{{ a.note }}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% elif tab == 'union' %}
+{% if not union_on %}
+<div class="card" style="max-width:760px;">
+  <div class="card-head"><span class="card-title">조합원 기록</span><span class="lb-sub">꺼짐</span></div>
+  <div class="card-body">
+    <p class="lb-line">노동조합 가입 여부는 민감정보입니다(개인정보 보호법 제23조). 조합비를 급여에서 떼어야 할 때만 켜세요.</p>
+    <ul class="lb-rules">
+      <li>켜면 개인정보 동의에 <b>조합비 공제(노동조합 가입 정보)</b> 선택 동의가 생깁니다. 동의한 사람만 넣을 수 있습니다.</li>
+      <li>노동조합이 낸 명단(CSV, 사번 기준)으로만 넣습니다. 한 사람씩 손으로 넣지 않습니다.</li>
+      <li>관리자만 봅니다. 매니저·동료 화면과 변경 이력에는 나오지 않습니다.</li>
+      <li>동의를 철회하면 그 사람의 기록을 바로 지웁니다.</li>
+    </ul>
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="union_toggle"><input type="hidden" name="on" value="1">
+      <button type="submit" class="btn btn-primary btn-sm">조합원 기록 켜기</button>
+    </form>
+  </div>
+</div>
+{% else %}
+<div class="lb-grid">
+  <div class="card">
+    <div class="card-head"><span class="card-title">조합원 {{ members|length }}명</span>
+      <a class="btn btn-ghost btn-sm" style="margin-left:auto;" href="{{ url_for('labor_admin', tab='union', csv='members') }}"><i class="fas fa-download"></i> CSV</a></div>
+    <div class="card-body">
+      <form class="lb-bar" method="GET">
+        <input type="hidden" name="tab" value="union">
+        <input class="input" name="q" value="{{ q }}" placeholder="이름·사번·노조" style="max-width:240px;">
+        <button type="submit" class="btn btn-ghost btn-sm">찾기</button>
+      </form>
+      <div class="tbl-x">
+        <table class="table lb-tbl">
+          <thead><tr><th>사번</th><th>이름</th><th>노조</th><th>가입</th><th>탈퇴</th><th>공제</th><th>명단 날짜</th><th></th></tr></thead>
+          <tbody>
+          {% for m in members %}
+          <tr>
+            <td class="lb-mono">{{ m.emp_no or '-' }}</td>
+            <td>{{ m.name }}{% if m.status != 'active' %} <span class="lb-dim">퇴사</span>{% endif %}{% if not m.consent %} <span class="lb-wait">동의 확인 필요</span>{% endif %}</td>
+            <td>{{ m.union_name }}</td>
+            <td class="lb-mono">{{ m.joined_on or '-' }}</td>
+            <td class="lb-mono">{{ m.left_on or '-' }}</td>
+            <td>{{ '공제' if m.dues_deduct else '안 함' }}</td>
+            <td class="lb-mono lb-dim">{{ m.list_date }}</td>
+            <td><form method="POST" onsubmit="return confirm('이 기록을 지울까요?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="union_drop"><input type="hidden" name="mid" value="{{ m.id }}">
+              <button type="submit" class="btn btn-ghost btn-sm">지우기</button></form></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="lb-empty">넣은 기록이 없습니다.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">노조 명단 불러오기</span></div>
+      <div class="card-body">
+        <form method="POST" enctype="multipart/form-data" class="lb-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label class="lb-f"><span>명단 날짜(노조가 낸 날)</span><input class="input" type="date" name="list_date" required value="{{ list_date or '' }}"></label>
+          <input class="input" type="file" name="file" accept=".csv" required>
+          <div class="lb-act">
+            <button type="submit" name="action" value="union_check" class="btn btn-ghost btn-sm">확인</button>
+            <button type="submit" name="action" value="union_commit" class="btn btn-primary btn-sm">저장</button>
+          </div>
+        </form>
+        <div class="lb-note">칸: {{ columns|join(' · ') }}. 같은 사번·노조면 덮어씁니다. 조합비 공제 동의가 없는 사람은 넣지 않습니다.
+          <a class="lb-link" href="{{ url_for('labor_admin', tab='union', csv='template') }}">양식 받기</a></div>
+        {% if report is defined %}
+        <div class="lb-h">{% if committed %}저장함{% else %}확인 결과{% endif %} · 넣을 줄 {{ ok }} / {{ report|length }}</div>
+        <ul class="lb-list">
+          {% for r in report if r.err %}
+          <li><span class="lb-mono">{{ r.line }}행</span> <span class="lb-mono">{{ r.emp_no }}</span> <span class="lb-late">{{ r.err }}</span></li>
+          {% else %}
+          <li class="lb-dim">문제 없는 명단입니다.{% if not committed %} [저장]을 눌러 넣으세요.{% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <div class="card-body">
+        <div class="lb-note" style="margin-top:0;">끄면 화면에서 감추고 조합비 공제 동의 받기를 멈춥니다. 넣은 기록은 남습니다.</div>
+        <form method="POST" style="margin-top:10px;" onsubmit="return confirm('조합원 기록을 끌까요?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="union_toggle"><input type="hidden" name="on" value="0">
+          <button type="submit" class="btn btn-ghost btn-sm">조합원 기록 끄기</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+<style>
+  .lb-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+  .lb-sub{font-size:12px;color:var(--tx-3);margin-left:auto}
+  .lb-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px;font-size:14px}
+  .lb-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
+  .lb-bar .input{min-width:0}
+  .tbl-x{overflow-x:auto}
+  .lb-tbl{font-size:13px;white-space:nowrap}
+  .lb-mono{font-family:var(--mono);font-size:12.5px}
+  .lb-dim{color:var(--tx-3)}
+  .lb-wait{color:var(--wait)}
+  .lb-late{color:var(--late)}
+  .lb-small{font-size:12px}
+  .lb-empty{text-align:center;color:var(--tx-3);padding:18px}
+  .lb-note{font-size:12px;color:var(--tx-3);line-height:1.6;margin-top:10px;word-break:keep-all}
+  .lb-line{font-size:13px;margin:0 0 8px;word-break:keep-all}
+  .lb-h{font-size:13px;font-weight:600;margin:16px 0 6px}
+  .lb-link{color:var(--tx-2);text-decoration:underline}
+  .lb-alert{border:1px solid var(--wait);border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.6;margin-bottom:16px;word-break:keep-all}
+  .lb-alert b{color:var(--wait)}
+  .lb-form{display:flex;flex-direction:column;gap:10px}
+  .lb-row{display:flex;flex-wrap:wrap;gap:10px}
+  .lb-f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--tx-2);min-width:0;flex:1 1 140px}
+  .lb-f.lb-wide{flex:2 1 220px}
+  .lb-multi{min-height:120px}
+  .lb-checks{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px}
+  .lb-checks label{display:flex;align-items:center;gap:4px}
+  .lb-act{display:flex;gap:8px;flex-wrap:wrap}
+  .lb-list{list-style:none;margin:12px 0 0;padding:0;font-size:13px}
+  .lb-list li{padding:6px 0;border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .lb-why{overflow-wrap:anywhere;min-width:0}
+  .lb-rules{font-size:13px;line-height:1.7;margin:0 0 14px;padding-left:18px;word-break:keep-all}
+  .lb-end{margin-top:14px;font-size:13px}
+  .lb-end summary{cursor:pointer;color:var(--tx-2);margin-bottom:10px}
+  @media (max-width:980px){.lb-grid{grid-template-columns:minmax(0,1fr)}}
+</style>
+{% endblock %}

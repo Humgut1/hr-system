@@ -189,6 +189,10 @@ def _clear(c, base, tenant_id, uid, code, actor_id, actor_name):
         if ch:
             people_history.record_change(c, uid, 'emergency_contacts', ch[0], ch[1], 'consent', actor_id,
                                          actor_name, reason='비상 연락처 동의 철회')
+    elif code == 'union_dues':
+        # 가입 여부는 변경 이력에도 남기지 않는다(이력 탭은 인사 담당자 밖에도 보인다)
+        import labor_agreements
+        labor_agreements.forget_member(c, uid)
 
 
 def record(c, uid, p, action, ip=None, actor_id=None):

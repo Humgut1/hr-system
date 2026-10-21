@@ -108,6 +108,7 @@ import people_consent
 import people_ids
 import people_tenure
 import org_admin
+import labor_agreements
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -13303,6 +13304,9 @@ people_tenure.init_app(app, dict(get_db=get_db, login_required=login_required, a
 org_admin.init_app(app, dict(get_db=get_db, admin_required=admin_required, log_audit=log_audit,
                              DEPT_TYPE_LABEL=DEPT_TYPE_LABEL, DEPT_TYPE_COLOR=DEPT_TYPE_COLOR,
                              DEPT_TYPE_PARENT_ALLOWED=DEPT_TYPE_PARENT_ALLOWED))
+# B7 단체협약·노조 — 화면·표는 labor_agreements.py
+labor_agreements.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
+                                    log_audit=log_audit))
 
 
 # ── Recruit ─────────────────────────────────────────────────

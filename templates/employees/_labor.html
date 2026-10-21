@@ -1,0 +1,94 @@
+<!-- ══════════════════ 단체협약 탭 (B7, 관리자만) ══════════════════ -->
+{% set lv = labor_view(emp.id) %}
+<div class="tab-panel" id="tab-labor">
+{% if lv %}
+  <div class="section-card lb-card">
+    <div class="lb-head">
+      <h3 class="lb-title">적용 협약</h3>
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('labor_admin') }}">협약 대장</a>
+    </div>
+    <div class="tbl-x">
+    <table class="table lb-tbl">
+      <thead><tr><th>협약</th><th>노조</th><th>기간</th><th>적용</th><th></th></tr></thead>
+      <tbody>
+      {% for r in lv.agr.rows %}
+      <tr>
+        <td><a href="{{ url_for('labor_admin', id=r.agreement_id) }}">{{ r.title }}</a> <span class="lb-dim">{{ r.kind_label }}</span></td>
+        <td>{{ r.union_name }}</td>
+        <td class="lb-mono">{{ r.start_date }} ~ {% if r.end_date %}{{ r.end_date }}{% else %}<span class="lb-now">적용 중</span>{% endif %}</td>
+        <td class="lb-dim">{% if r.end_date %}{{ r.why }}{% elif r.source == 'manual' %}예외(포함){% else %}조건{% endif %}</td>
+        <td>{% if not r.end_date and r.exception %}
+          <form method="POST" action="{{ url_for('labor_person_save', emp_id=emp.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="agreement_id" value="{{ r.agreement_id }}">
+            <button type="submit" name="action" value="drop" class="btn btn-ghost btn-sm">예외 풀기</button>
+          </form>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="lb-dim">적용된 협약이 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% if lv.agr.outs %}
+    <ul class="lb-list">
+      {% for e in lv.agr.outs %}
+      <li><span>제외</span> {{ e.title }} <span class="lb-dim">{{ e.reason }}</span>
+        <form method="POST" action="{{ url_for('labor_person_save', emp_id=emp.id) }}" style="margin-left:auto;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="agreement_id" value="{{ e.agreement_id }}">
+          <button type="submit" name="action" value="drop" class="btn btn-ghost btn-sm">제외 풀기</button>
+        </form></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if lv.agreements and emp.status == 'active' %}
+    <form method="POST" action="{{ url_for('labor_person_save', emp_id=emp.id) }}" class="lb-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <select class="input" name="agreement_id">{% for a in lv.agreements %}<option value="{{ a.id }}">{{ a.title }}</option>{% endfor %}</select>
+      <input class="input" name="reason" placeholder="사유(필수)" maxlength="200" required>
+      <button type="submit" name="action" value="in" class="btn btn-ghost btn-sm">포함</button>
+      <button type="submit" name="action" value="out" class="btn btn-ghost btn-sm">제외</button>
+    </form>
+    <p class="lb-note">조건과 다르게 정할 때만 씁니다. 바꾼 내용은 협약의 적용 이력에 남습니다.</p>
+    {% endif %}
+  </div>
+
+  {% if lv.union_on %}
+  <div class="section-card lb-card">
+    <div class="lb-head">
+      <h3 class="lb-title">조합원 기록</h3>
+      <span class="lb-sub">관리자만 봅니다 · 조합비 공제 동의 {{ '있음' if lv.consent else '없음' }}</span>
+    </div>
+    {% if lv.members %}
+    <ul class="lb-list">
+      {% for m in lv.members %}
+      <li>{{ m.union_name }} <span class="lb-mono lb-dim">가입 {{ m.joined_on or '-' }}{% if m.left_on %} · 탈퇴 {{ m.left_on }}{% endif %}</span>
+        <span class="lb-dim">{{ '조합비 공제' if m.dues_deduct else '공제 안 함' }} · 명단 {{ m.list_date }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="lb-note" style="margin-top:0;">기록이 없습니다. 노조가 낸 명단으로만 넣습니다(<a href="{{ url_for('labor_admin', tab='union') }}">조합원 기록</a>).</p>
+    {% endif %}
+  </div>
+  {% endif %}
+{% endif %}
+</div>
+
+<style>
+  .lb-card{margin-bottom:16px}
+  .lb-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .lb-head .btn{margin-left:auto}
+  .lb-title{font-weight:700;font-size:.95rem;margin:0}
+  .lb-sub{font-size:12px;color:var(--tx-3);font-weight:400}
+  #tab-labor .tbl-x{overflow-x:auto;max-width:100%}
+  .lb-tbl{font-size:13px;white-space:nowrap}
+  .lb-mono{font-family:var(--mono);font-size:12.5px}
+  .lb-dim{color:var(--tx-3)}
+  .lb-now{color:var(--tx-2)}
+  .lb-note{font-size:12px;color:var(--tx-3);margin:10px 0 0;word-break:keep-all}
+  .lb-form{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+  .lb-form .input{min-width:0;flex:1 1 160px}
+  .lb-list{list-style:none;margin:12px 0 0;padding:0;font-size:13px}
+  .lb-list li{padding:6px 0;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+</style>
