@@ -35,6 +35,7 @@
     {'l':'공지사항', 'u':url_for('announcements'), 'p':['announcements'], 's':True, 'i':'fa-bullhorn'},
     {'l':'알림', 'u':url_for('notifications'), 'p':['notifications'], 's':True, 'i':'fa-bell'},
     {'l':'회의실 예약', 'u':url_for('rooms'), 'p':['rooms'], 's':True, 'i':'fa-door-closed'},
+    {'l':'안전사고 신고', 'u':url_for('safety_report'), 'p':['safety_report'], 's':True, 'i':'fa-helmet-safety'},
   ]},
   {'key':'hiring', 'label':'채용', 'gi':'fa-user-plus', 'items':[
     {'l':'채용 요청', 'u':url_for('requisition_list'), 'p':['requisition'], 's':R in ('admin','manager','recruiter'), 'i':'fa-file-signature'},
@@ -52,6 +53,7 @@
     {'l':'재입사·수습', 'u':url_for('tenure_admin'), 'p':['tenure'], 's':R == 'admin', 'i':'fa-user-clock'},
     {'l':'단체협약', 'u':url_for('labor_admin'), 'p':['labor'], 's':R == 'admin', 'i':'fa-handshake'},
     {'l':'온보딩 계획', 'u':url_for('obplan_admin'), 'p':['obplans'], 's':R == 'admin', 'i':'fa-route'},
+    {'l':'안전사고', 'u':url_for('safety_admin'), 'p':['safety'], 's':safety_can(), 'i':'fa-triangle-exclamation'},
     {'l':'승계 계획', 'u':url_for('succession'), 'p':['succession'], 's':MGR and 'succession' in PF and addon.succession, 'i':'fa-chess-king'},
   ]},
   {'key':'work', 'label':'근태', 'gi':'fa-clock', 'items':[

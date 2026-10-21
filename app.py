@@ -110,6 +110,7 @@ import people_tenure
 import org_admin
 import labor_agreements
 import onboarding_plans
+import safety_incidents
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -13320,6 +13321,9 @@ labor_agreements.init_app(app, dict(get_db=get_db, login_required=login_required
                                     log_audit=log_audit))
 # B8 온보딩 계획 — 화면·표는 onboarding_plans.py (기본 계획은 회사·건물 설정의 온보딩 자료 그대로)
 onboarding_plans.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
+                                    log_audit=log_audit))
+# B9 안전사고 — 신고는 누구나, 목록·처리는 담당자만 (safety_incidents.py)
+safety_incidents.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
                                     log_audit=log_audit))
 
 

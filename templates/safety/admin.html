@@ -1,0 +1,157 @@
+{% extends 'base.html' %}
+{% block title %}안전사고{% endblock %}
+{% block page_title %}안전사고{% endblock %}
+
+{% block content %}
+<div class="fchips" style="margin-bottom:12px;">
+  <a class="fchip {% if status == 'open' %}on{% endif %}" href="{{ url_for('safety_admin', status='open') }}">처리 중 <b>{{ counts.open }}</b></a>
+  <a class="fchip {% if status == 'report' %}on{% endif %}" href="{{ url_for('safety_admin', status='report') }}">조사표 대상{% if counts.unfiled %} <b class="sf-late">{{ counts.unfiled }} 미제출</b>{% endif %}</a>
+  <a class="fchip {% if status == 'closed' %}on{% endif %}" href="{{ url_for('safety_admin', status='closed') }}">종결 <b>{{ counts.closed }}</b></a>
+  <a class="fchip {% if status == 'all' %}on{% endif %}" href="{{ url_for('safety_admin', status='all') }}">전체 <b>{{ counts.all }}</b></a>
+</div>
+
+<div class="sf-grid">
+  <div class="card">
+    <div class="card-head"><span class="card-title">사고 목록</span>
+      <a class="btn btn-ghost btn-sm" style="margin-left:auto;" href="{{ url_for('safety_admin', status=status, kind=kind, q=q, csv=1) }}"><i class="fas fa-download"></i> 사번 CSV</a></div>
+    <div class="card-body">
+      <form class="sf-bar" method="GET">
+        <input type="hidden" name="status" value="{{ status }}">
+        <select class="input" name="kind" style="max-width:160px;">
+          <option value="">모든 종류</option>
+          {% for k, v in kinds.items() %}<option value="{{ k }}" {% if kind == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+        </select>
+        <input class="input" name="q" value="{{ q }}" placeholder="내용·장소·이름·사번" style="max-width:220px;">
+        <button type="submit" class="btn btn-ghost btn-sm">찾기</button>
+      </form>
+      <div class="tbl-x">
+        <table class="table sf-tbl">
+          <thead><tr><th>번호</th><th>사고 일시</th><th>종류</th><th>다친 정도</th><th>다친 사람</th><th>장소</th><th>상태</th><th>조사표</th></tr></thead>
+          <tbody>
+          {% for i in items %}
+          <tr class="{% if r and r.id == i.id %}sf-on{% endif %}">
+            <td class="sf-mono"><a href="{{ url_for('safety_admin', id=i.id, status=status, kind=kind, q=q) }}">#{{ i.id }}</a></td>
+            <td class="sf-mono">{{ i.occurred_at }}</td>
+            <td>{{ i.kind_label }}</td>
+            <td class="{% if i.severity in ('lost_time', 'fatal') %}sf-late{% endif %}">{{ i.severity_label }}</td>
+            <td>{{ i.injured or '-' }}</td>
+            <td class="sf-dim">{{ i.where }}</td>
+            <td class="{% if i.status != 'closed' %}sf-wait{% else %}sf-dim{% endif %}">{{ i.status_label }}</td>
+            <td>{% if i.due_state == 'over' %}<span class="sf-late">{{ -i.due_days }}일 지남</span>{% elif i.due_state == 'soon' %}<span class="sf-wait">{% if i.due_days == 0 %}오늘{% else %}{{ i.due_days }}일 남음{% endif %}</span>{% elif i.due_state == 'wait' %}<span class="sf-mono">{{ i.report_due }}</span>{% elif i.due_state == 'filed' %}<span class="sf-ok">제출</span>{% else %}<span class="sf-dim">-</span>{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="sf-empty">사고가 없습니다.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="sf-note">사망 또는 3일 이상 휴업이 필요한 부상·질병은 사고일부터 1개월 안에 산업재해조사표를 관할 지방고용노동관서에 내야 합니다(산업안전보건법 제57조, 시행규칙 제73조). 기한 7일·3일 전, 당일, 지난 뒤에 담당자에게 알림이 갑니다.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    {% if r %}
+    <div class="card-head"><span class="card-title">#{{ r.id }} {{ r.kind_label }}</span><span class="sf-sub {% if r.status != 'closed' %}sf-wait{% endif %}">{{ r.status_label }}</span></div>
+    <div class="card-body">
+      {% if r.severity == 'fatal' %}
+      <div class="sf-alert"><b>중대재해</b> — 사망 사고는 지체 없이 관할 지방고용노동관서에 보고해야 합니다(산업안전보건법 제54조).</div>
+      {% endif %}
+      {% if r.report_required %}
+      <div class="sf-alert {% if r.due_state == 'filed' %}sf-alert-ok{% endif %}">
+        <b>산업재해조사표</b> 기한 {{ r.report_due }}
+        {% if r.due_state == 'filed' %} · {{ r.filed_on }} 제출{% elif r.due_state == 'over' %} · {{ -r.due_days }}일 지남{% else %} · {{ r.due_days }}일 남음{% endif %}
+      </div>
+      {% endif %}
+      <dl class="sf-dl">
+        <dt>사고 일시</dt><dd class="sf-mono">{{ r.occurred_at }}</dd>
+        <dt>장소</dt><dd>{{ r.where }}</dd>
+        <dt>다친 정도</dt><dd>{{ r.severity_label }}</dd>
+        {% if r.kind in ('injury', 'illness') %}
+        <dt>다친 사람</dt><dd>{% if r.injured_user_id %}<a href="{{ url_for('employee_detail', emp_id=r.injured_user_id) }}">{{ r.injured }}</a>{% if r.inj_dept %} <span class="sf-dim">{{ r.inj_dept }}</span>{% endif %}{% else %}{{ r.injured }} <span class="sf-dim">외부인</span>{% endif %}</dd>
+        <dt>부위</dt><dd>{{ r.injury_part or '-' }}</dd>
+        {% endif %}
+        <dt>신고</dt><dd>{{ r.reporter or '-' }}</dd>
+        <dt>담당</dt><dd>{{ r.assignee or '없음' }}</dd>
+      </dl>
+      <div class="sf-h">내용</div>
+      <p class="sf-text">{{ r.description }}</p>
+      {% if r.immediate_action %}<div class="sf-h">바로 한 조치</div><p class="sf-text">{{ r.immediate_action }}</p>{% endif %}
+
+      {% if r.status == 'closed' %}
+      <div class="sf-h">원인</div><p class="sf-text">{{ r.cause }}</p>
+      <div class="sf-h">재발 방지 대책</div><p class="sf-text">{{ r.corrective }}</p>
+      <form method="POST" class="sf-act">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ r.id }}">
+        <button type="submit" name="action" value="reopen" class="btn btn-ghost btn-sm">다시 열기</button>
+      </form>
+      {% else %}
+      {% if not r.assignee_id %}
+      <form method="POST" class="sf-act" style="margin:10px 0;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ r.id }}">
+        <button type="submit" name="action" value="take" class="btn btn-ghost btn-sm">내가 맡기</button>
+      </form>
+      {% endif %}
+      <form method="POST" class="sf-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ r.id }}">
+        <div class="sf-row">
+          <label class="sf-f"><span>다친 정도</span>
+            <select class="input" name="severity">{% for k, v in sevs.items() %}<option value="{{ k }}" {% if r.severity == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+          <label class="sf-f"><span>휴업 일수</span><input class="input" type="number" min="0" name="lost_days" value="{{ '' if r.lost_days is none else r.lost_days }}"></label>
+        </div>
+        {% if r.kind in ('injury', 'illness') %}
+        <label class="sf-f"><span>조사표 제출일</span><input class="input" type="date" name="filed_on" value="{{ r.filed_on or '' }}"></label>
+        {% endif %}
+        <label class="sf-f"><span>원인</span><textarea class="input" name="cause" rows="3" maxlength="2000">{{ r.cause or '' }}</textarea></label>
+        <label class="sf-f"><span>재발 방지 대책</span><textarea class="input" name="corrective" rows="3" maxlength="2000">{{ r.corrective or '' }}</textarea></label>
+        <div class="sf-act">
+          <button type="submit" name="action" value="save" class="btn btn-ghost btn-sm">저장</button>
+          <button type="submit" name="action" value="close" class="btn btn-primary btn-sm">종결</button>
+        </div>
+      </form>
+      {% endif %}
+
+      <div class="sf-h">처리 기록</div>
+      <ul class="sf-list">
+        {% for h in hist %}<li><span class="sf-mono">{{ h.created_at|kst }}</span> <span>{{ h.name or '-' }}</span> <span class="sf-why">{{ h.what }}</span></li>{% endfor %}
+      </ul>
+    </div>
+    {% else %}
+    <div class="card-body sf-empty">왼쪽 목록에서 사고를 고르세요.</div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+  .sf-grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+  .sf-sub{font-size:12px;margin-left:auto}
+  .sf-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
+  .sf-bar .input{min-width:0}
+  .tbl-x{overflow-x:auto}
+  .sf-tbl{font-size:13px;white-space:nowrap}
+  .sf-tbl tr.sf-on td{background:var(--bg-2)}
+  .sf-mono{font-family:var(--mono);font-size:12.5px}
+  .sf-dim{color:var(--tx-3)}
+  .sf-wait{color:var(--wait)}
+  .sf-late{color:var(--late)}
+  .sf-ok{color:var(--ok)}
+  .sf-empty{text-align:center;color:var(--tx-3);padding:18px}
+  .sf-note{font-size:12px;color:var(--tx-3);line-height:1.6;margin-top:10px;word-break:keep-all}
+  .sf-alert{border:1px solid var(--late);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.6;margin-bottom:12px;word-break:keep-all}
+  .sf-alert b{color:var(--late)}
+  .sf-alert.sf-alert-ok{border-color:var(--line)}
+  .sf-alert.sf-alert-ok b{color:var(--tx-1)}
+  .sf-dl{display:grid;grid-template-columns:80px minmax(0,1fr);gap:6px 10px;font-size:13px;margin:0}
+  .sf-dl dt{color:var(--tx-3)}
+  .sf-dl dd{margin:0;overflow-wrap:anywhere}
+  .sf-h{font-size:13px;font-weight:600;margin:14px 0 6px}
+  .sf-text{font-size:13px;line-height:1.6;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+  .sf-form{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+  .sf-row{display:flex;flex-wrap:wrap;gap:10px}
+  .sf-f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--tx-2);min-width:0;flex:1 1 120px}
+  .sf-act{display:flex;gap:8px;flex-wrap:wrap}
+  .sf-list{list-style:none;margin:0;padding:0;font-size:12.5px}
+  .sf-list li{padding:6px 0;border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap}
+  .sf-why{overflow-wrap:anywhere;min-width:0}
+  @media (max-width:1100px){.sf-grid{grid-template-columns:minmax(0,1fr)}}
+</style>
+{% endblock %}

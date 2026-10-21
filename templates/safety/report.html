@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block title %}안전사고 신고{% endblock %}
+{% block page_title %}안전사고 신고{% endblock %}
+
+{% block content %}
+<div class="sf-grid">
+  <div class="card">
+    <div class="card-head"><span class="card-title">신고</span></div>
+    <div class="card-body">
+      <form method="POST" class="sf-form" id="sfForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="sf-row">
+          <label class="sf-f"><span>사고 일시</span><input class="input" type="datetime-local" name="occurred_at" required value="{{ (f.occurred_at or now or '')|replace(' ', 'T') }}"></label>
+          <label class="sf-f"><span>종류</span>
+            <select class="input" name="kind" id="sfKind" required>
+              <option value="">고르기</option>
+              {% for k, v in kinds.items() %}<option value="{{ k }}" {% if f.kind == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+            </select></label>
+          <label class="sf-f"><span>다친 정도</span>
+            <select class="input" name="severity">
+              {% for k, v in sevs.items() %}<option value="{{ k }}" {% if (f.severity or 'none') == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+            </select></label>
+        </div>
+
+        <div class="sf-hurt" id="sfHurt">
+          <div class="sf-h">다친 사람</div>
+          <div class="sf-checks">
+            {% set who = f.who or 'self' %}
+            <label><input type="radio" name="who" value="self" {% if who == 'self' %}checked{% endif %}> 본인</label>
+            <label><input type="radio" name="who" value="emp" {% if who == 'emp' %}checked{% endif %}> 다른 직원</label>
+            <label><input type="radio" name="who" value="other" {% if who == 'other' %}checked{% endif %}> 외부인</label>
+          </div>
+          <div class="sf-row">
+            <label class="sf-f" data-who="emp"><span>사번</span><input class="input" name="emp_no" maxlength="20" value="{{ f.emp_no or '' }}"></label>
+            <label class="sf-f" data-who="other"><span>이름</span><input class="input" name="injured_name" maxlength="60" value="{{ f.injured_name or '' }}"></label>
+            <label class="sf-f"><span>다친 부위</span><input class="input" name="injury_part" maxlength="100" value="{{ f.injury_part or '' }}" placeholder="왼쪽 손목"></label>
+          </div>
+        </div>
+
+        <div class="sf-h">장소</div>
+        <div class="sf-row">
+          <label class="sf-f"><span>근무지</span>
+            <select class="input" name="site_code" id="sfSite">
+              <option value="">고르기</option>
+              {% for s in loc.sites %}<option value="{{ s.code }}" {% if f.site_code == s.code %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+            </select></label>
+          <label class="sf-f"><span>층</span><select class="input" name="floor" id="sfFloor"><option value="">고르기</option></select></label>
+          <label class="sf-f"><span>방</span><select class="input" name="room_code" id="sfRoom"><option value="">고르기</option></select></label>
+        </div>
+        <label class="sf-f"><span>자세한 장소</span><input class="input" name="place" maxlength="200" value="{{ f.place or '' }}" placeholder="3층 탕비실 앞 계단"></label>
+
+        <label class="sf-f"><span>무슨 일이 있었나요</span><textarea class="input" name="description" rows="4" maxlength="2000" required>{{ f.description or '' }}</textarea></label>
+        <label class="sf-f"><span>바로 한 조치</span><textarea class="input" name="immediate_action" rows="2" maxlength="1000">{{ f.immediate_action or '' }}</textarea></label>
+        <div class="sf-act"><button type="submit" class="btn btn-primary btn-sm">신고하기</button></div>
+        <div class="sf-note">신고 내용은 안전 담당자만 봅니다. 위급하면 119 에 먼저 연락하세요.</div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><span class="card-title">내 신고</span></div>
+    <div class="card-body">
+      <ul class="sf-list">
+        {% for m in mine %}
+        <li><span class="sf-mono">{{ m.occurred_at }}</span> <span>{{ m.kind_label }}</span>
+          <span class="{% if m.status == 'closed' %}sf-dim{% else %}sf-wait{% endif %}" style="margin-left:auto;">{{ m.status_label }}</span></li>
+        {% else %}
+        <li class="sf-dim">신고한 사고가 없습니다.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var LOC = {{ loc|tojson }};
+  var pre = {floor: {{ (f.floor or '')|tojson }}, room: {{ (f.room_code or '')|tojson }}};
+  var site = document.getElementById('sfSite'), fl = document.getElementById('sfFloor'), rm = document.getElementById('sfRoom');
+  function opts(sel, list, val) {
+    sel.innerHTML = '<option value="">고르기</option>';
+    list.forEach(function (o) {
+      var e = document.createElement('option'); e.value = o[0]; e.textContent = o[1];
+      if (o[0] === val) e.selected = true; sel.appendChild(e);
+    });
+  }
+  function fill() {
+    var s = site.value;
+    opts(fl, LOC.floors.filter(function (x) { return x.site_code === s; }).map(function (x) { return [x.floor, x.label]; }), pre.floor);
+    fillRooms();
+  }
+  function fillRooms() {
+    var s = site.value, f = fl.value;
+    opts(rm, LOC.rooms.filter(function (x) { return x.site_code === s && (!f || x.floor === f); }).map(function (x) { return [x.code, x.name]; }), pre.room);
+  }
+  site.addEventListener('change', function () { pre = {floor: '', room: ''}; fill(); });
+  fl.addEventListener('change', function () { pre.room = ''; fillRooms(); });
+  fill();
+
+  var kind = document.getElementById('sfKind'), hurt = document.getElementById('sfHurt');
+  function who() {
+    var w = (document.querySelector('input[name=who]:checked') || {}).value;
+    document.querySelectorAll('[data-who]').forEach(function (el) { el.style.display = el.dataset.who === w ? '' : 'none'; });
+  }
+  function k() { hurt.style.display = (kind.value === 'injury' || kind.value === 'illness') ? '' : 'none'; }
+  kind.addEventListener('change', k);
+  document.querySelectorAll('input[name=who]').forEach(function (r) { r.addEventListener('change', who); });
+  k(); who();
+})();
+</script>
+<style>
+  .sf-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+  .sf-form{display:flex;flex-direction:column;gap:10px}
+  .sf-row{display:flex;flex-wrap:wrap;gap:10px}
+  .sf-f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--tx-2);min-width:0;flex:1 1 140px}
+  .sf-h{font-size:13px;font-weight:600;margin:8px 0 2px}
+  .sf-hurt{display:flex;flex-direction:column;gap:8px}
+  .sf-checks{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px}
+  .sf-checks label{display:flex;align-items:center;gap:4px}
+  .sf-act{display:flex;gap:8px}
+  .sf-note{font-size:12px;color:var(--tx-3);line-height:1.6;word-break:keep-all}
+  .sf-list{list-style:none;margin:0;padding:0;font-size:13px}
+  .sf-list li{padding:7px 0;border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .sf-mono{font-family:var(--mono);font-size:12.5px}
+  .sf-dim{color:var(--tx-3)}
+  .sf-wait{color:var(--wait)}
+  @media (max-width:980px){.sf-grid{grid-template-columns:minmax(0,1fr)}}
+</style>
+{% endblock %}
