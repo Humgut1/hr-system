@@ -248,6 +248,8 @@ def init_app(app, h):
     get_db = h['get_db']
     login_required = h['login_required']
     admin_required = h['admin_required']
+    can = h.get('can') or (lambda code: session.get('user_role') == 'admin')
+    need = h.get('need') or (lambda code: admin_required)
 
     # 화면에서 막힌 칸 표시: {% set cb = consent_blocked(uid) %}
     app.jinja_env.globals['consent_blocked'] = lambda uid: blocked(get_db(), uid) if uid else set()
@@ -312,7 +314,7 @@ def init_app(app, h):
         return render_template('consent/me.html', rows=rows, req_todo=req_todo, active_page='profile')
 
     @app.route('/settings/consents', methods=['GET', 'POST'])
-    @admin_required
+    @need('consents')
     def consent_settings():
         db = get_db()
         ensure_schema(db)

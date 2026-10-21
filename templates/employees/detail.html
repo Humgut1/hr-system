@@ -286,10 +286,10 @@
   <button class="tab-btn" data-tab="benefits">복리후생</button>
   <button class="tab-btn" data-tab="documents">문서</button>
   <button class="tab-btn" data-tab="history">변경 이력</button>
-  <button class="tab-btn" data-tab="tenure">근속·수습</button>
-      {% if session.user_role == 'admin' %}<button class="tab-btn" data-tab="labor">단체협약</button>{% endif %}
   {% endif %}
-  {% if session.user_role == 'admin' or session.user_id == emp.id %}
+  {% if can_see_sensitive or perm('tenure') %}<button class="tab-btn" data-tab="tenure">근속·수습</button>{% endif %}
+  {% if perm('labor') %}<button class="tab-btn" data-tab="labor">단체협약</button>{% endif %}
+  {% if perm('ids') or session.user_id == emp.id %}
   <button class="tab-btn" data-tab="ids">신분·서류</button>
   {% endif %}
   <button class="tab-btn" data-tab="family">가족·생애사건</button>
@@ -1105,10 +1105,10 @@
   </div>
 </div>
 {% include "employees/_history.html" %}
-{% include "employees/_tenure.html" %}
-{% if session.user_role == 'admin' %}{% include "employees/_labor.html" %}{% endif %}
 {% endif %}{# can_see_sensitive #}
-{% if session.user_role == 'admin' or session.user_id == emp.id %}
+{% if can_see_sensitive or perm('tenure') %}{% include "employees/_tenure.html" %}{% endif %}
+{% if perm('labor') %}{% include "employees/_labor.html" %}{% endif %}
+{% if perm('ids') or session.user_id == emp.id %}
 {% include "employees/_ids.html" %}
 {% endif %}
 

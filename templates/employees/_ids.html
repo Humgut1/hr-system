@@ -1,6 +1,6 @@
 <!-- ══════════════════ 신분·서류 탭 (B4) ══════════════════ -->
 {% set ids = ids_view(emp.id) %}
-{% set ids_admin = session.user_role == 'admin' %}
+{% set ids_admin = perm('ids') %}
 {% set ids_me = session.user_id == emp.id %}
 <div class="tab-panel" id="tab-ids">
   {% if not ids.ready %}

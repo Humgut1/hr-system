@@ -1,6 +1,6 @@
 <!-- ══════════════════ 근속·수습 탭 (B5) ══════════════════ -->
 {% set tn = tenure_view(emp.id) %}
-{% set tn_admin = session.user_role == 'admin' %}
+{% set tn_admin = perm('tenure') %}
 <div class="tab-panel" id="tab-tenure">
   <div class="section-card tn-card">
     <div class="tn-head">

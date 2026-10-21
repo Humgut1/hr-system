@@ -605,6 +605,8 @@ def init_app(app, h):
     get_db = h['get_db']
     login_required = h['login_required']
     admin_required = h['admin_required']
+    can = h.get('can') or (lambda code: session.get('user_role') == 'admin')
+    need = h.get('need') or (lambda code: admin_required)
     log_audit = h['log_audit']
 
     def notify(uid, title, content, link):
@@ -636,7 +638,7 @@ def init_app(app, h):
 
     def view(emp_id):
         """직원 상세 [단체협약] 탭 — 관리자만 부른다."""
-        if session.get('user_role') != 'admin':
+        if not can('labor'):
             return None
         db = get_db()
         ensure_schema(db)
@@ -657,7 +659,7 @@ def init_app(app, h):
         return False
 
     @app.route('/employees/<int:emp_id>/agreements', methods=['POST'])
-    @admin_required
+    @need('labor')
     def labor_person_save(emp_id):
         back = redirect(url_for('employee_detail', emp_id=emp_id) + '#tab-labor')
         if demo_block():
@@ -682,7 +684,7 @@ def init_app(app, h):
         return back
 
     @app.route('/people/agreements', methods=['GET', 'POST'])
-    @admin_required
+    @need('labor')
     def labor_admin():
         db = get_db()
         ensure_schema(db)

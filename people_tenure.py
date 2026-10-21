@@ -700,6 +700,8 @@ def init_app(app, h):
     get_db = h['get_db']
     login_required = h['login_required']
     admin_required = h['admin_required']
+    can = h.get('can') or (lambda code: session.get('user_role') == 'admin')
+    need = h.get('need') or (lambda code: admin_required)
     log_audit = h['log_audit']
 
     def notify(uid, title, content, link):
@@ -730,7 +732,7 @@ def init_app(app, h):
             app.logger.error('tenure sweep failed: %s', e)
 
     def can_see(emp_id):
-        if session.get('user_role') == 'admin' or session.get('user_id') == emp_id:
+        if can('tenure') or session.get('user_id') == emp_id:
             return True
         if session.get('user_role') == 'manager':
             r = get_db().execute('SELECT manager_id FROM users WHERE id=?', (emp_id,)).fetchone()
@@ -771,7 +773,7 @@ def init_app(app, h):
         return False
 
     @app.route('/employees/<int:emp_id>/tenure', methods=['POST'])
-    @admin_required
+    @need('tenure')
     def tenure_save(emp_id):
         if demo_block():
             return back(emp_id)
@@ -811,7 +813,7 @@ def init_app(app, h):
         return back(emp_id)
 
     @app.route('/employees/<int:emp_id>/rehire', methods=['GET', 'POST'])
-    @admin_required
+    @need('tenure')
     def employee_rehire(emp_id):
         db = get_db()
         ensure_schema(db)
@@ -844,7 +846,7 @@ def init_app(app, h):
             active_page='employees')
 
     @app.route('/people/tenure', methods=['GET', 'POST'])
-    @admin_required
+    @need('tenure')
     def tenure_admin():
         db = get_db()
         ensure_schema(db)

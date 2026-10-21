@@ -552,6 +552,8 @@ def init_app(app, h):
     get_db = h['get_db']
     login_required = h['login_required']
     admin_required = h['admin_required']
+    can = h.get('can') or (lambda code: session.get('user_role') == 'admin')
+    need = h.get('need') or (lambda code: admin_required)
     log_audit = h['log_audit']
     add_notification = h['add_notification']
 
@@ -586,7 +588,7 @@ def init_app(app, h):
     def who(emp_id):
         """(본인인가, 관리자인가). 둘 다 아니면 403."""
         me = session.get('user_id') == emp_id
-        adm = session.get('user_role') == 'admin'
+        adm = can('ids')
         if not (me or adm):
             abort(403)
         return me, adm
@@ -696,7 +698,7 @@ def init_app(app, h):
         return jsonify(ok=True, value=val)
 
     @app.route('/people/ids', methods=['GET', 'POST'])
-    @admin_required
+    @need('ids')
     def ids_admin():
         db = get_db()
         ensure_schema(db)

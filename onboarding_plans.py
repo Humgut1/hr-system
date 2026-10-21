@@ -513,6 +513,8 @@ def init_app(app, h):
 
     get_db = h['get_db']
     admin_required = h['admin_required']
+    can = h.get('can') or (lambda code: session.get('user_role') == 'admin')
+    need = h.get('need') or (lambda code: admin_required)
     log_audit = h['log_audit']
 
     def notify(uid, title, content, link):
@@ -548,7 +550,7 @@ def init_app(app, h):
         return False
 
     @app.route('/people/onboarding-plans', methods=['GET', 'POST'])
-    @admin_required
+    @need('onboarding_plans')
     def obplan_admin():
         db = get_db()
         ensure_schema(db)

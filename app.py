@@ -112,6 +112,7 @@ import labor_agreements
 import onboarding_plans
 import safety_incidents
 import work_calendars
+import perm_groups
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -13305,29 +13306,50 @@ def employee_profile_settings():
                            pub=pub, report=report, have=have, total=total, active_page='employees')
 
 
+# B11 권한 묶음 — 관리자가 아닌 사람에게 B4~B10 업무 화면을 코드 단위로 맡긴다 (perm_groups.py)
+_perm_can = perm_groups.init_app(app, dict(get_db=get_db, admin_required=admin_required, log_audit=log_audit))
+
+
+def perm_required(code):
+    def deco(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if 'user_id' not in session:
+                return redirect(url_for('login'))
+            if not _perm_can(code):
+                abort(403)
+            if _demo_write_blocked():
+                return redirect(request.referrer or url_for('dashboard'))
+            return f(*args, **kwargs)
+        return decorated
+    return deco
+
+
+_PERM = dict(can=_perm_can, need=perm_required)
+
 # B3 개인정보 동의 — 화면·표는 people_consent.py
 people_consent.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
                                   add_notification=add_notification, log_audit=log_audit,
-                                  base_dir=_BASE_DIR, tenant_id=_tenant_id))
+                                  base_dir=_BASE_DIR, tenant_id=_tenant_id, **_PERM))
 people_ids.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
-                              add_notification=add_notification, log_audit=log_audit))
+                              add_notification=add_notification, log_audit=log_audit, **_PERM))
 # B5 재입사·수습·옛 기록 — 화면·표는 people_tenure.py
 people_tenure.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
-                                 add_notification=add_notification, log_audit=log_audit))
+                                 add_notification=add_notification, log_audit=log_audit, **_PERM))
 org_admin.init_app(app, dict(get_db=get_db, admin_required=admin_required, log_audit=log_audit,
                              DEPT_TYPE_LABEL=DEPT_TYPE_LABEL, DEPT_TYPE_COLOR=DEPT_TYPE_COLOR,
                              DEPT_TYPE_PARENT_ALLOWED=DEPT_TYPE_PARENT_ALLOWED))
 # B7 단체협약·노조 — 화면·표는 labor_agreements.py
 labor_agreements.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
-                                    log_audit=log_audit))
+                                    log_audit=log_audit, **_PERM))
 # B8 온보딩 계획 — 화면·표는 onboarding_plans.py (기본 계획은 회사·건물 설정의 온보딩 자료 그대로)
 onboarding_plans.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
-                                    log_audit=log_audit))
+                                    log_audit=log_audit, **_PERM))
 # B9 안전사고 — 신고는 누구나, 목록·처리는 담당자만 (safety_incidents.py)
 safety_incidents.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
-                                    log_audit=log_audit))
+                                    log_audit=log_audit, **_PERM))
 # B10 근무 달력·교대 — 기본 달력은 공휴일 표 그대로, 사업장 달력·교대 배정은 work_calendars.py
-work_calendars.init_app(app, dict(get_db=get_db, login_required=login_required))
+work_calendars.init_app(app, dict(get_db=get_db, login_required=login_required, **_PERM))
 
 
 # ── Recruit ─────────────────────────────────────────────────

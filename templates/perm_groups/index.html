@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+{% block title %}권한 묶음{% endblock %}
+{% block page_title %}권한 묶음{% endblock %}
+
+{% block content %}
+<div class="pg-grid">
+  <div>
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">묶음 <b>{{ gs|length }}</b></span>
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('perm_groups_admin', csv=1) }}">CSV</a>
+      </div>
+      <div class="card-body">
+        <div class="tbl-x">
+          <table class="table">
+            <thead><tr><th>묶음</th><th>권한</th><th>사람</th></tr></thead>
+            <tbody>
+              {% for g in gs %}
+              <tr class="{% if cur and cur.id == g.id %}pg-on{% endif %}">
+                <td><a href="{{ url_for('perm_groups_admin', id=g.id) }}">{{ g.name }}</a>{% if g.note %}<div class="pg-dim">{{ g.note }}</div>{% endif %}</td>
+                <td>{% for k in g.code_list %}<span class="pg-chip">{{ codes[k] }}</span>{% endfor %}</td>
+                <td>{{ g.n }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3" class="pg-dim">묶음 없음</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="pg-dim pg-foot">관리자는 묶음과 상관없이 전부 가짐 · 묶음 만들기·고치기는 관리자만</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">최근 변경</span></div>
+      <div class="card-body">
+        <div class="tbl-x">
+          <table class="table">
+            <thead><tr><th>때</th><th>묶음</th><th>무엇</th><th>내용</th><th>한 사람</th></tr></thead>
+            <tbody>
+              {% for e in evs %}
+              <tr><td class="pg-mono">{{ (e.at or '')|kst }}</td><td>{{ e.group_name }}</td><td>{{ e.label }}</td><td>{{ e.detail or '' }}</td><td>{{ e.by_name or '-' }}</td></tr>
+              {% else %}
+              <tr><td colspan="5" class="pg-dim">기록 없음</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    {% if cur %}
+    <div class="card">
+      <div class="card-head"><span class="card-title">{{ cur.name }}</span><a class="btn btn-ghost btn-sm" href="{{ url_for('perm_groups_admin') }}">새 묶음</a></div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="edit"><input type="hidden" name="group_id" value="{{ cur.id }}">
+          <label class="pg-lbl">이름</label><input class="input" name="name" value="{{ cur.name }}" maxlength="60" required>
+          <label class="pg-lbl">권한</label>
+          <div class="pg-codes">{% for k, l in codes.items() %}<label><input type="checkbox" name="codes" value="{{ k }}" {% if k in cur.code_list %}checked{% endif %}> {{ l }}</label>{% endfor %}</div>
+          <label class="pg-lbl">메모</label><input class="input" name="note" value="{{ cur.note or '' }}" maxlength="200">
+          <div class="pg-act"><button class="btn btn-primary btn-sm">저장</button></div>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">사람 <b>{{ mem|length }}</b></span></div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="add"><input type="hidden" name="group_id" value="{{ cur.id }}">
+          <label class="pg-lbl">사번 (쉼표·줄바꿈으로 여러 명)</label>
+          <textarea class="input" name="emp_nos" rows="2" placeholder="TC-00001, TC-00002"></textarea>
+          <div class="pg-act"><button class="btn btn-primary btn-sm">넣기</button></div>
+        </form>
+        <div class="tbl-x">
+          <table class="table">
+            <thead><tr><th>사번</th><th>이름</th><th>부서</th><th></th></tr></thead>
+            <tbody>
+              {% for m in mem %}
+              <tr>
+                <td class="pg-mono">{{ m.emp_no or '-' }}</td>
+                <td>{{ m.name }}{% if m.status != 'active' %} <span class="pg-late">재직 아님 · 권한 없음</span>{% endif %}</td>
+                <td>{{ m.dept or '-' }}</td>
+                <td><form method="post" onsubmit="return confirm('{{ m.name }} 님을 뺄까요?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="remove"><input type="hidden" name="group_id" value="{{ cur.id }}"><input type="hidden" name="member_id" value="{{ m.id }}">
+                  <button class="btn btn-ghost btn-sm">빼기</button></form></td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4" class="pg-dim">아직 없음</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <form method="post" class="pg-act" onsubmit="return confirm('묶음을 지우면 들어 있는 사람의 권한도 바로 없어집니다. 지울까요?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="delete"><input type="hidden" name="group_id" value="{{ cur.id }}">
+          <button class="btn btn-ghost btn-sm">묶음 지우기</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-head"><span class="card-title">새 묶음</span></div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="new">
+          <label class="pg-lbl">이름</label><input class="input" name="name" maxlength="60" placeholder="노무 담당" required>
+          <label class="pg-lbl">권한</label>
+          <div class="pg-codes">{% for k, l in codes.items() %}<label><input type="checkbox" name="codes" value="{{ k }}"> {{ l }}</label>{% endfor %}</div>
+          <label class="pg-lbl">메모</label><input class="input" name="note" maxlength="200">
+          <div class="pg-act"><button class="btn btn-primary btn-sm">만들기</button></div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+.pg-grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start;}
+.pg-grid .card{margin-bottom:16px;}
+@media (max-width:1100px){.pg-grid{grid-template-columns:minmax(0,1fr);}}
+.pg-dim{color:var(--tx-3);font-size:12px;}
+.pg-foot{margin-top:8px;}
+.pg-mono{font-family:var(--mono);font-size:12px;white-space:nowrap;}
+.pg-on td{background:var(--bg-2);}
+.pg-chip{display:inline-block;border:1px solid var(--line);border-radius:4px;padding:1px 6px;margin:0 4px 2px 0;font-size:12px;color:var(--tx-2);white-space:nowrap;}
+.pg-late{color:var(--late);font-size:12px;}
+.pg-lbl{display:block;font-size:12px;color:var(--tx-2);margin:10px 0 4px;}
+.pg-codes{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:13px;}
+.pg-codes label{display:flex;gap:6px;align-items:center;}
+.pg-act{margin-top:10px;display:flex;justify-content:flex-end;}
+.pg-grid .input{width:100%;box-sizing:border-box;}
+</style>
+{% endblock %}
