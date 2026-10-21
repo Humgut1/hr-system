@@ -61,6 +61,7 @@
     {'l':'휴가', 'u':url_for('attendance_home', tab='leaves'), 'p':['attendance_home','leave','leave_new','leave_promotion'], 't':'leaves', 's':True, 'i':'fa-umbrella-beach'},
     {'l':'연장근로', 'u':url_for('attendance_home', tab='ot'), 'p':['attendance_home'], 't':'ot', 's':True, 'i':'fa-business-time'},
     {'l':'근무 일정', 'u':url_for('attendance_home', tab='calendar'), 'p':['attendance_home'], 't':'calendar', 's':True, 'i':'fa-calendar'},
+    {'l':'근무 달력·교대', 'u':url_for('work_calendars'), 'p':['work_calendars'], 's':calendars_can(), 'i':'fa-calendar-days'},
     {'l':'근태 승인', 'u':url_for('attendance_home', tab='approvals'), 'p':['attendance_home','attendance'], 't':'approvals', 's':MGR, 'i':'fa-check-double'},
   ]},
   {'key':'pay', 'label':'보상', 'gi':'fa-coins', 'items':[

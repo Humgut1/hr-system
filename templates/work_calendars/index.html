@@ -1,0 +1,282 @@
+{% extends 'base.html' %}
+{% block title %}근무 달력·교대{% endblock %}
+{% block page_title %}근무 달력·교대{% endblock %}
+
+{% block content %}
+<div class="fchips" style="margin-bottom:12px;">
+  <a class="fchip {% if tab == 'cal' %}on{% endif %}" href="{{ url_for('work_calendars', tab='cal') }}">달력 <b>{{ cals|length + 1 }}</b></a>
+  <a class="fchip {% if tab == 'shift' %}on{% endif %}" href="{{ url_for('work_calendars', tab='shift') }}">교대 패턴</a>
+  <a class="fchip {% if tab == 'assign' %}on{% endif %}" href="{{ url_for('work_calendars', tab='assign') }}">배정</a>
+</div>
+
+{% if tab == 'cal' %}
+<div class="wc-grid">
+  <div class="card">
+    <div class="card-head"><span class="card-title">달력</span></div>
+    <div class="card-body">
+      <div class="tbl-x">
+        <table class="table wc-tbl">
+          <thead><tr><th>코드</th><th>이름</th><th>더한 쉬는 날</th><th>일하는 날로</th><th>근무지</th><th>배정 인원</th></tr></thead>
+          <tbody>
+            <tr><td class="wc-mono">BASE</td><td>기본 달력 <a class="wc-dim" href="{{ url_for('admin_holidays') }}">공휴일 고치기</a></td><td class="wc-dim">-</td><td class="wc-dim">-</td><td class="wc-dim">나머지 전부</td><td class="wc-dim">-</td></tr>
+            {% for k in cals %}
+            <tr class="{% if cal and cal.id == k.id %}wc-on{% endif %}">
+              <td class="wc-mono"><a href="{{ url_for('work_calendars', tab='cal', id=k.id, year=year) }}">{{ k.code }}</a></td>
+              <td>{{ k.name }}</td><td>{{ k.n_off }}</td><td>{{ k.n_work }}</td>
+              <td>{{ k.sites|join(', ') or '-' }}</td><td>{{ k.n_people }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="wc-h">근무지별 달력</div>
+      <div class="tbl-x">
+        <table class="table wc-tbl">
+          <thead><tr><th>근무지</th><th>달력</th></tr></thead>
+          <tbody>
+          {% for s in sites %}
+          <tr><td>{{ s.name }} <span class="wc-dim wc-mono">{{ s.code }}</span></td>
+            <td><form method="POST" class="wc-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="site"><input type="hidden" name="tab" value="cal">
+              <input type="hidden" name="site_code" value="{{ s.code }}">
+              <select class="input" name="cal_id">
+                <option value="">기본 달력</option>
+                {% for k in cals %}<option value="{{ k.id }}" {% if site_map.get(s.code) == k.id %}selected{% endif %}>{{ k.name }}</option>{% endfor %}
+              </select>
+              <button type="submit" class="btn btn-ghost btn-sm">저장</button>
+            </form></td></tr>
+          {% else %}
+          <tr><td colspan="2" class="wc-empty">근무지가 없습니다.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="wc-h">새 달력</div>
+      <form method="POST" class="wc-row">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="cal_new"><input type="hidden" name="tab" value="cal">
+        <label class="wc-f"><span>코드</span><input class="input" name="code" maxlength="20" placeholder="PLANT" required></label>
+        <label class="wc-f"><span>이름</span><input class="input" name="name" maxlength="60" placeholder="평택 공장" required></label>
+        <label class="wc-f"><span>메모</span><input class="input" name="note" maxlength="200"></label>
+        <div class="wc-act"><button type="submit" class="btn btn-primary btn-sm">만들기</button></div>
+      </form>
+      <div class="wc-note">사업장 달력 = 기본 달력(공휴일) + 더한 쉬는 날 − 일하는 날로 바꾼 날. 출퇴근·주 52시간·입사일 규칙은 기본 달력을 그대로 씁니다.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    {% if cal %}
+    <div class="card-head"><span class="card-title">{{ cal.name }}</span><span class="wc-sub wc-mono">{{ cal.code }}</span></div>
+    <div class="card-body">
+      <div class="wc-years">
+        <a class="fchip" href="{{ url_for('work_calendars', tab='cal', id=cal.id, year=year-1) }}">{{ year - 1 }}</a>
+        <span class="fchip on">{{ year }}</span>
+        <a class="fchip" href="{{ url_for('work_calendars', tab='cal', id=cal.id, year=year+1) }}">{{ year + 1 }}</a>
+      </div>
+      <div class="wc-line">쉬는 날 {{ n_total }}일 <span class="wc-dim">(기본 {{ n_base }}일)</span></div>
+      <ul class="wc-list">
+        {% for d in days %}
+        <li><span class="wc-mono">{{ d.date }}</span> <span>{{ d.name }}</span>
+          <span class="{% if d.kind == 'off' %}wc-wait{% else %}wc-ok{% endif %}" style="margin-left:auto;">{{ day_kinds[d.kind] }}</span>
+          <form method="POST" class="wc-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="day_del"><input type="hidden" name="tab" value="cal">
+            <input type="hidden" name="cal_id" value="{{ cal.id }}"><input type="hidden" name="day_id" value="{{ d.id }}">
+            <button type="submit" class="btn btn-ghost btn-sm">빼기</button>
+          </form></li>
+        {% else %}
+        <li class="wc-dim">{{ year }}년에 바꾼 날이 없습니다.</li>
+        {% endfor %}
+      </ul>
+      <form method="POST" class="wc-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="day_add"><input type="hidden" name="tab" value="cal">
+        <input type="hidden" name="cal_id" value="{{ cal.id }}">
+        <div class="wc-row">
+          <label class="wc-f"><span>날짜</span><input class="input" type="date" name="date" required></label>
+          <label class="wc-f"><span>종류</span><select class="input" name="kind">{% for k, v in day_kinds.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+        </div>
+        <label class="wc-f"><span>이름</span><input class="input" name="name" maxlength="60" placeholder="창립기념일" required></label>
+        <div class="wc-act"><button type="submit" class="btn btn-primary btn-sm">넣기</button></div>
+      </form>
+      {% if not cal.sites and not cal.n_people %}
+      <form method="POST" class="wc-act" style="margin-top:14px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="cal_del"><input type="hidden" name="tab" value="cal">
+        <input type="hidden" name="cal_id" value="{{ cal.id }}">
+        <button type="submit" class="btn btn-ghost btn-sm" onclick="return confirm('달력을 지울까요?')">달력 지우기</button>
+      </form>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="card-body wc-empty">왼쪽에서 달력을 고르세요.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% elif tab == 'shift' %}
+<div class="wc-grid">
+  <div class="card">
+    <div class="card-head"><span class="card-title">교대 패턴</span></div>
+    <div class="card-body">
+      <div class="tbl-x">
+        <table class="table wc-tbl">
+          <thead><tr><th>코드</th><th>이름</th><th>종류</th><th>근무 시간</th><th>순환</th><th>인원</th><th>상태</th></tr></thead>
+          <tbody>
+          {% for p in pats %}
+          <tr class="{% if pat and pat.id == p.id %}wc-on{% endif %}">
+            <td class="wc-mono"><a href="{{ url_for('work_calendars', tab='shift', id=p.id) }}">{{ p.code }}</a></td>
+            <td>{{ p.name }}</td><td>{{ p.kind_label }}</td><td class="wc-mono">{{ p.shifts_text }}</td>
+            <td class="wc-mono">{{ p.cycle }}</td><td>{{ p.n_people }}</td>
+            <td class="{% if p.active %}wc-ok{% else %}wc-dim{% endif %}">{{ '사용' if p.active else '안 씀' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="wc-empty">패턴이 없습니다.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="wc-h">새 패턴</div>
+      <form method="POST" class="wc-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="pat_new"><input type="hidden" name="tab" value="shift">
+        <div class="wc-row">
+          <label class="wc-f"><span>코드</span><input class="input" name="code" maxlength="20" placeholder="ROT4" required></label>
+          <label class="wc-f"><span>이름</span><input class="input" name="name" maxlength="60" placeholder="4조 2교대" required></label>
+          <label class="wc-f"><span>종류</span><select class="input" name="kind">{% for k, v in kinds.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+        </div>
+        <label class="wc-f"><span>근무 시간 (한 줄에 하나)</span><textarea class="input wc-mono" name="shifts" rows="3" required placeholder="D 09:00-18:00&#10;N 21:00-06:00"></textarea></label>
+        <div class="wc-row">
+          <label class="wc-f"><span>순환 (O = 쉼)</span><input class="input wc-mono" name="cycle" required placeholder="D,D,N,N,O,O"></label>
+          <label class="wc-f"><span>순환 시작일</span><input class="input" type="date" name="anchor" value="{{ today }}" required></label>
+        </div>
+        <label class="wc-check"><input type="checkbox" name="observe_holidays" value="1" checked> 공휴일은 쉼</label>
+        <div class="wc-act"><button type="submit" class="btn btn-primary btn-sm">만들기</button></div>
+      </form>
+      <div class="wc-note">교대 수당은 계산하지 않습니다.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    {% if pat %}
+    <div class="card-head"><span class="card-title">{{ pat.name }}</span><span class="wc-sub wc-mono">{{ pat.code }}</span></div>
+    <div class="card-body">
+      <div class="wc-line">{{ pat.kind_label }} · 순환 {{ pat.cycle_list|length }}일 · 시작 {{ pat.anchor }}{% if pat.observe_holidays %} · 공휴일 쉼{% endif %}</div>
+      <div class="wc-h">앞으로 14일 (기본 달력)</div>
+      <ul class="wc-list">
+        {% for d in prev %}
+        <li><span class="wc-mono">{{ d.date }}</span>
+          {% if d.code == 'O' %}<span class="wc-dim">쉼{% if d.holiday %} · 공휴일{% endif %}</span>
+          {% else %}<span class="wc-mono">{{ d.code }} {{ d.start }}~{{ d.end }}</span>{% if d.night %} <span class="wc-wait">다음 날 끝남</span>{% endif %}{% endif %}</li>
+        {% endfor %}
+      </ul>
+      <form method="POST" class="wc-act" style="margin-top:12px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="pat_toggle"><input type="hidden" name="tab" value="shift">
+        <input type="hidden" name="pattern_id" value="{{ pat.id }}">
+        <button type="submit" class="btn btn-ghost btn-sm">{{ '안 쓰기' if pat.active else '다시 쓰기' }}</button>
+      </form>
+    </div>
+    {% else %}
+    <div class="card-body wc-empty">왼쪽에서 패턴을 고르세요.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% else %}
+<div class="wc-grid">
+  <div class="card">
+    <div class="card-head"><span class="card-title">지금·예정 배정</span>
+      <a class="btn btn-ghost btn-sm" style="margin-left:auto;" href="{{ url_for('work_calendars', tab='assign', q=q, csv=1) }}"><i class="fas fa-download"></i> 사번 CSV</a></div>
+    <div class="card-body">
+      <form class="wc-row" method="GET" style="margin-bottom:12px;">
+        <input type="hidden" name="tab" value="assign">
+        <input class="input" name="q" value="{{ q }}" placeholder="이름·사번·부서" style="max-width:220px;">
+        <button type="submit" class="btn btn-ghost btn-sm">찾기</button>
+      </form>
+      <div class="tbl-x">
+        <table class="table wc-tbl">
+          <thead><tr><th>사번</th><th>이름</th><th>부서</th><th>패턴</th><th>달력</th><th>시작</th><th>끝</th><th></th></tr></thead>
+          <tbody>
+          {% for r in rows %}
+          <tr>
+            <td class="wc-mono"><a href="{{ url_for('work_calendars', tab='assign', emp=r.emp_no, q=q) }}">{{ r.emp_no }}</a></td>
+            <td>{{ r.name }}</td><td class="wc-dim">{{ r.dept or '-' }}</td>
+            <td>{{ r.pname }} <span class="wc-dim">{{ r.kind_label }}</span></td>
+            <td>{{ r.cal_name or '기본' }}</td>
+            <td class="wc-mono {% if r.upcoming %}wc-wait{% endif %}">{{ r.start_date }}</td>
+            <td class="wc-mono">{{ r.end_date or '-' }}</td>
+            <td>{% if not r.end_date %}
+              <form method="POST" class="wc-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="end"><input type="hidden" name="tab" value="assign">
+                <input type="hidden" name="assignment_id" value="{{ r.id }}">
+                <input class="input" type="date" name="end_date" value="{{ today }}" required>
+                <button type="submit" class="btn btn-ghost btn-sm">끝내기</button>
+              </form>{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="wc-empty">배정이 없습니다.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><span class="card-title">배정하기</span></div>
+    <div class="card-body">
+      <form method="POST" class="wc-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="assign"><input type="hidden" name="tab" value="assign">
+        <label class="wc-f"><span>사번 (쉼표·줄바꿈으로 여러 명)</span><textarea class="input wc-mono" name="emp_nos" rows="3" required></textarea></label>
+        <label class="wc-f"><span>패턴</span><select class="input" name="pattern_id" required><option value="">고르기</option>{% for p in pats %}<option value="{{ p.id }}">{{ p.name }} ({{ p.code }})</option>{% endfor %}</select></label>
+        <label class="wc-f"><span>달력</span><select class="input" name="cal_id"><option value="">기본 달력</option>{% for k in cals %}<option value="{{ k.id }}">{{ k.name }}</option>{% endfor %}</select></label>
+        <label class="wc-f"><span>시작일</span><input class="input" type="date" name="start_date" value="{{ today }}" required></label>
+        <div class="wc-act"><button type="submit" class="btn btn-primary btn-sm">배정</button></div>
+        <div class="wc-note">지금 배정은 시작일 전날로 끝나고 이력에 남습니다.</div>
+      </form>
+
+      {% if person %}
+      <div class="wc-h">{{ person.name }} <span class="wc-dim wc-mono">{{ person.emp_no }}</span> 앞으로 14일</div>
+      <ul class="wc-list">
+        {% for d in sched %}
+        <li><span class="wc-mono">{{ d.date }}</span>
+          {% if not d.code %}<span class="wc-dim">배정 없음</span>
+          {% elif d.code == 'O' %}<span class="wc-dim">쉼{% if d.holiday %} · 공휴일{% endif %}</span>
+          {% else %}<span class="wc-mono">{{ d.code }} {{ d.start }}~{{ d.end }}</span>{% if d.night %} <span class="wc-wait">다음 날 끝남</span>{% endif %}{% endif %}</li>
+        {% endfor %}
+      </ul>
+      <div class="wc-h">배정 이력</div>
+      <ul class="wc-list">
+        {% for a in hist %}<li><span class="wc-mono">{{ a.start_date }} ~ {{ a.end_date or '' }}</span> <span>{{ a.pname }}</span> <span class="wc-dim">{{ a.cal_name or '기본 달력' }}</span></li>
+        {% else %}<li class="wc-dim">이력이 없습니다.</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<style>
+  .wc-grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+  .wc-sub{font-size:12px;margin-left:auto;color:var(--tx-3)}
+  .tbl-x{overflow-x:auto}
+  .wc-tbl{font-size:13px;white-space:nowrap}
+  .wc-tbl tr.wc-on td{background:var(--bg-2)}
+  .wc-mono{font-family:var(--mono);font-size:12.5px}
+  .wc-dim{color:var(--tx-3)}
+  .wc-wait{color:var(--wait)}
+  .wc-ok{color:var(--ok)}
+  .wc-empty{text-align:center;color:var(--tx-3);padding:18px}
+  .wc-note{font-size:12px;color:var(--tx-3);line-height:1.6;margin-top:10px;word-break:keep-all}
+  .wc-h{font-size:13px;font-weight:600;margin:16px 0 6px}
+  .wc-line{font-size:13px;margin-bottom:8px}
+  .wc-years{display:flex;gap:6px;margin-bottom:10px}
+  .wc-form{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+  .wc-row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+  .wc-f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--tx-2);min-width:0;flex:1 1 120px}
+  .wc-check{display:flex;align-items:center;gap:6px;font-size:13px}
+  .wc-act{display:flex;gap:8px;flex-wrap:wrap}
+  .wc-inline{display:flex;gap:6px;align-items:center;margin:0}
+  .wc-inline .input{min-width:0;width:auto}
+  .wc-list{list-style:none;margin:0;padding:0;font-size:12.5px}
+  .wc-list li{padding:6px 0;border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  @media (max-width:1100px){.wc-grid{grid-template-columns:minmax(0,1fr)}}
+</style>
+{% endblock %}

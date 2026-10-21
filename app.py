@@ -111,6 +111,7 @@ import org_admin
 import labor_agreements
 import onboarding_plans
 import safety_incidents
+import work_calendars
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -13325,6 +13326,8 @@ onboarding_plans.init_app(app, dict(get_db=get_db, login_required=login_required
 # B9 안전사고 — 신고는 누구나, 목록·처리는 담당자만 (safety_incidents.py)
 safety_incidents.init_app(app, dict(get_db=get_db, login_required=login_required, admin_required=admin_required,
                                     log_audit=log_audit))
+# B10 근무 달력·교대 — 기본 달력은 공휴일 표 그대로, 사업장 달력·교대 배정은 work_calendars.py
+work_calendars.init_app(app, dict(get_db=get_db, login_required=login_required))
 
 
 # ── Recruit ─────────────────────────────────────────────────
