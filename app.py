@@ -114,6 +114,7 @@ import safety_incidents
 import work_calendars
 import perm_groups
 import data_quality
+import people_metrics
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -20081,7 +20082,8 @@ ANALYTICS_LEVELS = {'late': '위험', 'wait': '주의', 'ref': '참고', 'done':
 
 
 def _analytics_issues(sm, org_rows, grade_gender, leave_util,
-                      ot_violations, ot_warnings, outliers, dept_compa_avg):
+                      ot_violations, ot_warnings, outliers, dept_compa_avg,
+                      span=None, mob=None, exr=None):
     """분야별 숫자를 훑어 '확인 필요 항목'을 만든다.
 
     화면은 이 목록만 그린다 — 판단 기준을 한 곳에 모아 두어야
@@ -20104,6 +20106,13 @@ def _analytics_issues(sm, org_rows, grade_gender, leave_util,
         'dept_pay': '부서마다 Compa-Ratio(기본급 ÷ 밴드 중간값) 평균 · 부서 없는 사람 제외',
         'exit12': '최근 12개월(오늘 포함 365일) 퇴사일이 있는 퇴사자 ÷ 평균 인원(지금 재직 %d + 1년 전 재직 %d의 평균)'
                   % (sm.get('total_active', 0), sm.get('active_12m_ago', 0)) + _miss(g.get('hire'), '입사일'),
+        'span': '매니저 = 직속 재직자(매니저 칸이 그 사람)가 1명 이상인 재직자 · 직속 %d명 이상 넓음, %d명 이하 좁음'
+                % (people_metrics.SPAN_WIDE, people_metrics.SPAN_NARROW)
+                + ((' · 매니저 칸이 빈 재직자 %d명은 빠짐' % span['no_manager']) if span and span['no_manager'] else ''),
+        'mobility': '최근 12개월 부서나 직급이 바뀐 사람 ÷ 평균 인원(이직률과 같은 분모) · '
+                    '변경 이력 + 승인된 인사 발령 · 입사 때 처음 채운 값은 안 셈',
+        'exit_reason': '최근 24개월 퇴사자(퇴사일 기준) · 퇴직 신청서의 원인 분류가 있으면 그것, 없으면 퇴사 사유 글 · '
+                       '비자발 = 권고사직·계약 만료·정년(신청서 유형 또는 사유 글)',
     }
 
     def add(key, area, level, title, sub, facts, bars=None, link=None, note=None):
@@ -20203,6 +20212,46 @@ def _analytics_issues(sm, org_rows, grade_gender, leave_util,
         [('12개월 퇴사', '%d명' % ex), ('이직률', '%s%%' % tr),
          ('재직', '%d명' % sm['total_active']), ('12개월 입사', '%d명' % sm['hires_12m'])],
         note='퇴사자가 없으면 퇴직 분석에 쓸 표본도 없습니다.' if ex == 0 else None)
+
+    # ── 관리 폭 ──
+    if span and span['managers']:
+        nw, nn = len(span['wide']), len(span['narrow'])
+        lv = 'wait' if nw else 'ref' if nn else 'done'
+        add('span', 'people', lv,
+            '직속 %d명 이상 매니저 %d명' % (span['wide_at'], nw) if nw
+            else '관리 폭 평균 %s명' % span['avg'],
+            '매니저 %d명 · 평균 %s명 · 가장 많은 %d명' % (span['managers'], span['avg'], span['max']),
+            [('매니저', '%d명' % span['managers']), ('평균 직속', '%s명' % span['avg']),
+             ('가운데 값', '%s명' % span['median']), ('넓음', '%d명' % nw), ('좁음', '%d명' % nn)],
+            bars={'title': '직속 인원이 가장 많은 매니저 10명', 'unit': '명',
+                  'max': max(span['max'], span['wide_at'] + 1), 'ref': span['wide_at'],
+                  'ref_label': '넓음 기준 %d명' % span['wide_at'],
+                  'rows': [('%s · %s' % (r['name'], r['dept']), r['direct']) for r in span['rows'][:10]]},
+            note='직속이 너무 많으면 1:1 면담·평가가 얇아지고, 너무 적으면 관리 단계가 늘어납니다.')
+
+    # ── 내부 이동 ──
+    if mob is not None:
+        add('mobility', 'people', 'ref' if mob['movers'] else 'done',
+            '내부 이동률 %s%%' % mob['rate'],
+            '최근 12개월 %d명 이동 · 부서 %d · 직급 %d' % (mob['movers'], mob['dept'], mob['grade']),
+            [('내부 이동률', '%s%%' % mob['rate']), ('이동한 사람', '%d명' % mob['movers']),
+             ('부서 이동', '%d명' % mob['dept']), ('직급 변경', '%d명' % mob['grade'])],
+            link=('인력 탭 열기', '/analytics?tab=people'),
+            note=None if mob['movers'] else '아직 이동 기록이 없습니다. 직원 수정·인사 발령을 하면 쌓입니다.')
+
+    # ── 퇴사 사유 ──
+    if exr and exr['total']:
+        top = exr['groups'][0]
+        lv = 'wait' if exr['early_pct'] >= 30 else 'ref'
+        add('exit_reason', 'exit', lv,
+            '퇴사 사유 1위 %s %d명' % (top['label'], top['cnt']),
+            '24개월 %d명 · 자발 %d · 비자발 %d · 1년 안 퇴사 %d%%' % (
+                exr['total'], exr['vol'], exr['invol'], exr['early_pct']),
+            [('퇴사', '%d명' % exr['total']), ('자발', '%d명' % exr['vol']), ('비자발', '%d명' % exr['invol']),
+             ('1년 안 퇴사', '%d명' % exr['early']), ('사유 미기재', '%d명' % exr['blank'])],
+            bars={'title': '사유별 퇴사', 'unit': '명', 'max': max(top['cnt'], 1),
+                  'rows': [(g['label'], g['cnt']) for g in exr['groups'][:10]]},
+            link=('퇴직 탭 열기', '/analytics?tab=exit'))
 
     order = {'late': 0, 'wait': 1, 'ref': 2, 'done': 3}
     out.sort(key=lambda i: order[i['level']])
@@ -20564,8 +20613,15 @@ def people_analytics():
         'dq_left': dq_left, 'dq_late': dq_late, 'gaps': dq_gaps,
     }
 
+    # ── 13. B13 새 지표: 관리 폭 · 내부 이동 · 퇴사 사유 ──
+    span = people_metrics.span_of_control(db)
+    mob = people_metrics.mobility(db, today, avg_headcount)
+    exr = people_metrics.exit_reasons(db, today, EXIT_REASON_CATEGORY_LABEL)
+    summary['mobility_rate'] = mob['rate']
+
     issues = _analytics_issues(summary, org_rows, grade_gender, leave_util,
-                               ot_violations, ot_warnings, outliers, dept_compa_avg)
+                               ot_violations, ot_warnings, outliers, dept_compa_avg,
+                               span=span, mob=mob, exr=exr)
 
     return render_template('analytics/index.html',
         active_page='analytics',
@@ -20581,6 +20637,7 @@ def people_analytics():
         ot_violations=ot_violations, ot_warnings=ot_warnings,
         ot_safe_count=ot_safe_count, ot_chart_json=ot_chart_json,
         attrition_data=attrition_data,
+        span=span, mob=mob, exr=exr,
         report_sources=REPORT_SOURCES,
     )
 

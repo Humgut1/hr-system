@@ -340,6 +340,81 @@
     <div class="iss-note">평균 근속 {{ summary.avg_tenure }}년{% if summary.avg_age %} · 평균 연령 {{ summary.avg_age }}세{% endif %}</div>
   </div>
 
+  <div class="ana-sec">
+    <h3>관리 폭</h3>
+    {% if span.managers %}
+    <div class="iss-facts" style="margin-top:0;">
+      <div><span>매니저</span><b>{{ span.managers }}명</b></div>
+      <div><span>평균 직속</span><b>{{ span.avg }}명</b></div>
+      <div><span>가운데 값</span><b>{{ span.median }}명</b></div>
+      <div><span>넓음 ({{ span.wide_at }}명 이상)</span><b {% if span.wide %}style="color:var(--orange);"{% endif %}>{{ span.wide|length }}명</b></div>
+      <div><span>좁음 ({{ span.narrow_at }}명 이하)</span><b>{{ span.narrow|length }}명</b></div>
+    </div>
+    {% set mx_s = (span.buckets|map(attribute=1)|max) or 1 %}
+    {% for lb, c in span.buckets %}
+    <div class="bar-row">
+      <div class="bar-hd"><span>직속 {{ lb }}</span><span>매니저 {{ c }}명</span></div>
+      <div class="bar-bg"><div class="bar-fg" style="width:{{ (c / mx_s * 100)|round(0)|int }}%;"></div></div>
+    </div>
+    {% endfor %}
+    <div class="tbl-x" style="margin-top:14px;">
+    <table class="ana-tbl">
+      <thead><tr><th>매니저</th><th>사번</th><th>조직</th><th class="num">직속</th><th class="num">아래 전체</th><th>구분</th></tr></thead>
+      <tbody>
+        {% for r in span.rows[:15] %}
+        <tr>
+          <td>{{ r.name }}</td><td>{{ r.emp_no or '—' }}</td><td>{{ r.dept }}</td>
+          <td class="num" {% if r.flag == 'wide' %}style="color:var(--orange); font-weight:700;"{% endif %}>{{ r.direct }}</td>
+          <td class="num">{{ r.total }}</td>
+          <td>{% if r.flag == 'wide' %}넓음{% elif r.flag == 'narrow' %}좁음{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <div class="iss-note">
+      직속 인원이 많은 순 15명. 매니저 = 매니저 칸에 이름이 걸린 재직자가 1명 이상인 사람.
+      {% if span.no_manager %}매니저 칸이 빈 재직자 {{ span.no_manager }}명은 세지 않았습니다.{% endif %}
+    </div>
+    {% else %}
+    <div class="iss-note">매니저 칸이 채워진 재직자가 없어 관리 폭을 낼 수 없습니다.</div>
+    {% endif %}
+  </div>
+
+  <div class="ana-sec">
+    <h3>내부 이동 (최근 12개월)</h3>
+    <div class="iss-facts" style="margin-top:0;">
+      <div><span>내부 이동률</span><b>{{ mob.rate }}%</b></div>
+      <div><span>이동한 사람</span><b>{{ mob.movers }}명</b></div>
+      <div><span>부서 이동</span><b>{{ mob.dept }}명</b></div>
+      <div><span>직급 변경</span><b>{{ mob.grade }}명</b></div>
+    </div>
+    {% if mob.recent %}
+    <div class="tbl-x" style="margin-top:14px;">
+    <table class="ana-tbl">
+      <thead><tr><th>날짜</th><th>이름</th><th>사번</th><th>종류</th><th>전</th><th>후</th></tr></thead>
+      <tbody>
+        {% for m in mob.recent %}
+        <tr>
+          <td>{{ m.at }}</td>
+          <td>{{ m.name }}{% if m.left %} <span style="color:var(--tx-3);">(퇴사)</span>{% endif %}</td>
+          <td>{{ m.emp_no or '—' }}</td>
+          <td>{{ '부서 이동' if m.kind == 'dept' else '직급 변경' }}</td>
+          <td>{{ m.old }}</td><td>{{ m.new }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="iss-note">최근 12개월 부서 이동·직급 변경 기록이 없습니다.</div>
+    {% endif %}
+    <div class="iss-note">
+      이동한 사람 ÷ 평균 인원(이직률과 같은 분모). 직원 수정·인사 발령 승인·엑셀 일괄 수정에서 남은 변경 이력과
+      승인된 인사 발령을 합쳐 셉니다.{% if mob.since %} 변경 이력은 {{ mob.since }}부터 쌓였습니다.{% endif %}
+    </div>
+  </div>
+
 </div>{# /ana-panel-people #}
 
 <!-- Pay Equity 탭 -->
@@ -609,6 +684,56 @@
 <div id="ana-panel-exit" class="ana-panel">
 
 {% set ad = attrition_data %}
+
+<div class="ana-sec">
+  <h3>퇴사 사유 (최근 {{ exr.months }}개월)</h3>
+  {% if exr.total %}
+  <div class="iss-facts" style="margin-top:0;">
+    <div><span>퇴사</span><b>{{ exr.total }}명</b></div>
+    <div><span>자발</span><b>{{ exr.vol }}명</b></div>
+    <div><span>비자발</span><b>{{ exr.invol }}명</b></div>
+    <div><span>1년 안 퇴사</span><b {% if exr.early_pct >= 30 %}style="color:var(--orange);"{% endif %}>{{ exr.early }}명 · {{ exr.early_pct }}%</b></div>
+    <div><span>사유 미기재</span><b>{{ exr.blank }}명</b></div>
+  </div>
+  <div class="tbl-x" style="margin-top:14px;">
+  <table class="ana-tbl">
+    <thead><tr><th>사유</th><th class="num">인원</th><th class="num">비율</th><th>구분</th><th class="num">평균 근속</th><th class="num">1년 안</th></tr></thead>
+    <tbody>
+      {% for g in exr.groups %}
+      <tr>
+        <td>{{ g.label }}</td><td class="num">{{ g.cnt }}</td><td class="num">{{ g.pct }}%</td>
+        <td>{{ '비자발' if g.invol else '자발' }}</td>
+        <td class="num">{{ (g.avg_months ~ '개월') if g.avg_months is not none else '—' }}</td>
+        <td class="num">{{ g.early }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <details style="margin-top:10px;">
+    <summary style="cursor:pointer; font-size:13px; color:var(--tx-2);">퇴사자 {{ exr.total }}명 보기</summary>
+    <div class="tbl-x" style="margin-top:8px;">
+    <table class="ana-tbl">
+      <thead><tr><th>퇴사일</th><th>이름</th><th>사번</th><th>조직</th><th>사유</th><th class="num">근속</th></tr></thead>
+      <tbody>
+        {% for p in exr.people %}
+        <tr>
+          <td>{{ p.date }}</td><td>{{ p.name }}</td><td>{{ p.emp_no or '—' }}</td><td>{{ p.dept }}</td>
+          <td>{{ p.reason }}</td><td class="num">{{ (p.months ~ '개월') if p.months is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </details>
+  {% else %}
+  <div class="iss-note">최근 {{ exr.months }}개월 퇴사자가 없습니다.</div>
+  {% endif %}
+  <div class="iss-note">
+    퇴사 처리된 사람(퇴사일 기준) 전부. 퇴직 신청서의 원인 분류가 있으면 그것을, 없으면 퇴사 사유 글을 씁니다.
+    비자발 = 권고사직·계약 만료·정년.
+  </div>
+</div>
 
 {% set known = ad.reason_dist.values()|list|sum %}
 <div class="iss-facts" style="margin-top:0;">
