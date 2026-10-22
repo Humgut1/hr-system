@@ -3,10 +3,12 @@
 > 직원·조직·근태·급여·성과를 한 곳에서. 근로기준법을 기본 동작으로 지킵니다.
 > Flask + SQLite · 비전공자 HR 주니어가 Claude Code 로 단독 개발
 
-![TalentCore 제품 데모](docs/talentcore-demo.gif)
+![TalentCore 소개 영상](docs/talentcore-promo.gif)
 
 **라이브 데모:** https://talentcore.duckdns.org → 랜딩에서 **[데모 보기]**
 가입 없이 관리자 권한으로 모든 화면을 둘러볼 수 있습니다(읽기 전용, 저장·수정 차단). 약 180명 규모의 샘플 회사가 들어 있습니다.
+
+![TalentCore 제품 데모](docs/talentcore-demo.gif)
 
 ---
 
