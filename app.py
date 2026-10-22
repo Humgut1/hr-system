@@ -115,6 +115,7 @@ import work_calendars
 import perm_groups
 import data_quality
 import people_metrics
+import people_succession
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -13353,6 +13354,7 @@ safety_incidents.init_app(app, dict(get_db=get_db, login_required=login_required
 # B10 근무 달력·교대 — 기본 달력은 공휴일 표 그대로, 사업장 달력·교대 배정은 work_calendars.py
 work_calendars.init_app(app, dict(get_db=get_db, login_required=login_required, **_PERM))
 data_quality.init_app(app, dict(get_db=get_db, login_required=login_required, log_audit=log_audit, tenant_id=_tenant_id, **_PERM))
+people_succession.init_app(app, dict(get_db=get_db, login_required=login_required, log_audit=log_audit, **_PERM))
 
 
 # ── Recruit ─────────────────────────────────────────────────
@@ -19452,90 +19454,6 @@ def goal_template_json(tid):
     }
 
 
-# ──────────────────────────────────────────────
-# v0.49 — 후계자 계획
-# ──────────────────────────────────────────────
-@app.route('/performance/succession', methods=['GET', 'POST'])
-@login_required
-def succession():
-    db   = get_db()
-    role = session['user_role']
-    if role not in ('manager', 'admin'):
-        abort(403)
-
-    if request.method == 'POST':
-        action = request.form.get('action')
-
-        if action == 'add':
-            pos_title    = request.form.get('position_title', '').strip()
-            incumbent_id = request.form.get('incumbent_id') or None
-            candidate_id = request.form.get('candidate_id')
-            readiness    = request.form.get('readiness', 'ready_1y')
-            note         = request.form.get('note', '').strip() or None
-
-            if not pos_title or not candidate_id:
-                flash('포지션명과 후보자는 필수입니다.', 'error')
-            else:
-                db.execute(
-                    '''INSERT INTO succession_plans
-                       (position_title, incumbent_id, candidate_id, readiness, note, created_by)
-                       VALUES (?,?,?,?,?,?)''',
-                    (pos_title, incumbent_id, candidate_id, readiness, note, session['user_id'])
-                )
-                db.commit()
-                flash('승계 계획이 추가되었습니다.', 'success')
-
-        elif action == 'delete':
-            sp_id = int(request.form.get('sp_id'))
-            db.execute('DELETE FROM succession_plans WHERE id=?', (sp_id,))
-            db.commit()
-            flash('삭제되었습니다.', 'success')
-
-        return redirect(url_for('succession'))
-
-    # 포지션별 그룹핑
-    plans = db.execute(
-        '''SELECT sp.*,
-                  uc.name candidate_name, uc.role candidate_role,
-                  ui.name incumbent_name,
-                  d.name  dept_name
-           FROM succession_plans sp
-           JOIN users uc ON sp.candidate_id = uc.id
-           LEFT JOIN users ui ON sp.incumbent_id = ui.id
-           LEFT JOIN departments d ON uc.department_id = d.id
-           ORDER BY sp.position_title, sp.readiness''',
-    ).fetchall()
-
-    # 포지션별 그룹화
-    from collections import OrderedDict
-    grouped = OrderedDict()
-    for p in plans:
-        key = p['position_title']
-        if key not in grouped:
-            grouped[key] = []
-        grouped[key].append(p)
-
-    # 후보 선택용 직원 목록
-    employees = db.execute(
-        "SELECT id, name, role FROM users WHERE status='active' AND role NOT IN ('guest') ORDER BY name"
-    ).fetchall()
-
-    READINESS_LABELS = {
-        'ready_now': '즉시 가능',
-        'ready_1y':  '1년 내',
-        'ready_2y':  '2년 내',
-        'long_term': '장기 육성',
-    }
-
-    return render_template(
-        'performance/succession.html',
-        grouped=grouped,
-        employees=employees,
-        readiness_labels=READINESS_LABELS,
-        active_page='succession',
-    )
-
-
 @app.route('/performance/peer')
 @login_required
 def peer_reviews_page():
@@ -20083,7 +20001,7 @@ ANALYTICS_LEVELS = {'late': '위험', 'wait': '주의', 'ref': '참고', 'done':
 
 def _analytics_issues(sm, org_rows, grade_gender, leave_util,
                       ot_violations, ot_warnings, outliers, dept_compa_avg,
-                      span=None, mob=None, exr=None):
+                      span=None, mob=None, exr=None, succ=None):
     """분야별 숫자를 훑어 '확인 필요 항목'을 만든다.
 
     화면은 이 목록만 그린다 — 판단 기준을 한 곳에 모아 두어야
@@ -20113,6 +20031,8 @@ def _analytics_issues(sm, org_rows, grade_gender, leave_util,
                     '변경 이력 + 승인된 인사 발령 · 입사 때 처음 채운 값은 안 셈',
         'exit_reason': '최근 24개월 퇴사자(퇴사일 기준) · 퇴직 신청서의 원인 분류가 있으면 그것, 없으면 퇴사 사유 글 · '
                        '비자발 = 권고사직·계약 만료·정년(신청서 유형 또는 사유 글)',
+        'succession': '승계 계획에 등록한 핵심 포지션 기준 · 후보 = 재직 중인 후보자 · '
+                      '위험 = 후보 없음 또는 현직자 퇴사 예정인데 즉시 가능한 후보 없음 · 주의 = 즉시 가능한 후보 없음',
     }
 
     def add(key, area, level, title, sub, facts, bars=None, link=None, note=None):
@@ -20252,6 +20172,18 @@ def _analytics_issues(sm, org_rows, grade_gender, leave_util,
             bars={'title': '사유별 퇴사', 'unit': '명', 'max': max(top['cnt'], 1),
                   'rows': [(g['label'], g['cnt']) for g in exr['groups'][:10]]},
             link=('퇴직 탭 열기', '/analytics?tab=exit'))
+
+    # ── 승계 계획 ──
+    if succ and succ['total']:
+        lv = 'late' if succ['late'] else 'wait' if succ['wait'] else 'done'
+        add('succession', 'people', lv,
+            '후보 없는 핵심 포지션 %d곳' % succ['none'] if succ['none']
+            else '핵심 포지션 %d곳 · 즉시 가능 %d곳' % (succ['total'], succ['ready']),
+            '핵심 포지션 %d곳 · 위험 %d · 주의 %d' % (succ['total'], succ['late'], succ['wait']),
+            [('핵심 포지션', '%d곳' % succ['total']), ('즉시 가능 후보 있음', '%d곳' % succ['ready']),
+             ('후보 없음', '%d곳' % succ['none']), ('현직자 퇴사 예정', '%d곳' % succ['leaving']),
+             ('포지션당 후보', '%s명' % succ['avg'])],
+            link=('승계 계획 열기', '/performance/succession'))
 
     order = {'late': 0, 'wait': 1, 'ref': 2, 'done': 3}
     out.sort(key=lambda i: order[i['level']])
@@ -20621,7 +20553,9 @@ def people_analytics():
 
     issues = _analytics_issues(summary, org_rows, grade_gender, leave_util,
                                ot_violations, ot_warnings, outliers, dept_compa_avg,
-                               span=span, mob=mob, exr=exr)
+                               span=span, mob=mob, exr=exr,
+                               succ=people_succession.summary(people_succession.board(db, today))
+                               if perf_addons(db).get('succession') else None)
 
     return render_template('analytics/index.html',
         active_page='analytics',
@@ -21307,40 +21241,19 @@ def export_life_events():
 
 
 @app.route('/export/succession')
-@admin_required
+@login_required
 def export_succession():
+    # 승계 화면과 같은 계산(people_succession.board) — 후보 없는 핵심 포지션도 한 줄
+    if not _perm_can('succession'):
+        abort(403)
     db = get_db()
-    rows = db.execute(
-        '''SELECT sp.position_title,
-               inc.name incumbent_name, inc.emp_no incumbent_no, id.name inc_dept,
-               cand.name candidate_name, cand.emp_no candidate_no, cd.name cand_dept,
-               sp.readiness, sp.note,
-               cb.name created_by_name, sp.created_at
-        FROM succession_plans sp
-        LEFT JOIN users inc  ON inc.id  = sp.incumbent_id
-        LEFT JOIN users cand ON cand.id = sp.candidate_id
-        LEFT JOIN departments id ON id.id = inc.department_id
-        LEFT JOIN departments cd ON cd.id = cand.department_id
-        LEFT JOIN users cb ON cb.id = sp.created_by
-        ORDER BY sp.position_title, sp.readiness'''
-    ).fetchall()
-
-    READINESS_KO = {'ready_now':'즉시 가능','1_2_years':'1~2년 후','3_5_years':'3~5년 후','unknown':'미정'}
+    head, out = people_succession.export_rows(people_succession.board(db))
     wb, ws = make_wb("승계계획")
-    headers = ['포지션','현직자','현직자 사번','현직자 부서',
-               '후보자','후보자 사번','후보자 부서',
-               '승계 준비도','메모','등록자','등록일']
-    write_header(ws, headers)
-    for i, r in enumerate(rows, 2):
-        write_row(ws, i, [
-            r['position_title'] or '',
-            r['incumbent_name'] or '', r['incumbent_no'] or '', r['inc_dept'] or '',
-            r['candidate_name'] or '', r['candidate_no'] or '', r['cand_dept'] or '',
-            READINESS_KO.get(r['readiness'], r['readiness'] or ''),
-            r['note'] or '', r['created_by_name'] or '',
-            (r['created_at'] or '')[:10],
-        ])
+    write_header(ws, head)
+    for i, r in enumerate(out, 2):
+        write_row(ws, i, r)
     auto_width(ws); freeze_header(ws)
+    log_audit('download', 'performance', None, '승계 계획 엑셀 %d줄' % len(out))
     fname = urllib.parse.quote("승계계획.xlsx")
     return to_response(wb, fname)
 

@@ -2,214 +2,205 @@
 {% block title %}승계 계획{% endblock %}
 {% block page_title %}승계 계획{% endblock %}
 
-{% block extra_css %}
-<style>
-.readiness-now  { background:var(--green-bg); color:var(--done); }
-.readiness-1y   { background:var(--surface-2); color:var(--tx-1); }
-.readiness-2y   { background:var(--orange-bg); color:var(--wait); }
-.readiness-long { background:var(--surface-2); color:var(--tx-2); }
-.badge-sm {
-  font-size:11px; font-weight:700;
-  padding:2px 10px; border-radius:20px;
-  display:inline-block;
-}
-.pos-card {
-  border:1px solid var(--border);
-  border-radius:var(--r-sm);
-  margin-bottom:12px;
-  overflow:hidden;
-}
-.pos-header {
-  background:var(--primary); color:var(--on-primary);
-  padding:10px 16px;
-  display:flex; align-items:center; gap:10px;
-}
-.candidate-row {
-  display:flex; align-items:center; gap:12px;
-  padding:10px 16px;
-  border-bottom:1px solid var(--line);
-}
-.candidate-row:last-child { border-bottom:none; }
-.candidate-row:hover { background:var(--surface-2); }
-.avatar-sm {
-  width:32px; height:32px; border-radius:50%;
-  background:linear-gradient(135deg,var(--primary),var(--primary));
-  color:var(--on-primary); font-size:12px; font-weight:800;
-  display:flex; align-items:center; justify-content:center;
-  flex-shrink:0;
-}
-</style>
-{% endblock %}
-
 {% block content %}
-
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% for cat, msg in messages %}
-  <div style="background:{% if cat=='error' %}var(--red-bg){% else %}var(--green-bg){% endif %};
-              border:1px solid {% if cat=='error' %}var(--red-bg){% else %}var(--green){% endif %};
-              color:{% if cat=='error' %}var(--red){% else %}var(--green){% endif %};
-              padding:12px 16px; border-radius:8px; margin-bottom:16px;
-              font-weight:600; display:flex; align-items:center; gap:8px;">
-    <i class="fas fa-{% if cat=='error' %}exclamation-circle{% else %}check-circle{% endif %}"></i> {{ msg }}
-  </div>
-  {% endfor %}
-{% endwith %}
-
-<!-- 헤더 -->
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
-  <div>
-    <div style="font-size:16px; font-weight:800;">승계 계획</div>
-    <div style="font-size:12px; color:var(--tx-3); margin-top:2px;">
-      핵심 포지션별 후보자와 준비도를 관리합니다
-    </div>
-  </div>
-  <button class="btn btn-primary" onclick="document.getElementById('add-modal').style.display='flex'">
-    <i class="fas fa-plus"></i> 후계자 추가
-  </button>
+<div class="sc-strip">
+  <div><span>핵심 포지션</span><b>{{ sm.total }}</b></div>
+  <div><span>즉시 후임 있음</span><b>{{ sm.ready }}</b></div>
+  <div><span>후임 없음</span><b class="{% if sm.none %}sc-late{% endif %}">{{ sm.none }}</b></div>
+  <div><span>현직자 퇴사 예정</span><b class="{% if sm.leaving %}sc-wait{% endif %}">{{ sm.leaving }}</b></div>
+  <div><span>포지션당 후보</span><b>{{ sm.avg }}</b></div>
+  {% if full %}<a class="btn btn-ghost btn-sm sc-push" href="{{ url_for('export_succession') }}">엑셀</a>{% endif %}
+  <a class="btn btn-ghost btn-sm {% if not full %}sc-push{% endif %}" href="{{ url_for('succession', csv=1, st=st, dept=dept, q=q) }}">CSV</a>
 </div>
 
-<!-- 포지션별 후계자 목록 -->
-{% if grouped %}
-  {% for position, candidates in grouped.items() %}
-  <div class="pos-card">
-    <div class="pos-header">
-      <i class="fas fa-briefcase"></i>
-      <span style="font-size:14px; font-weight:800;">{{ position }}</span>
-      <span style="font-size:11px; opacity:.7; margin-left:auto;">후보 {{ candidates|length }}명</span>
-    </div>
-    {% for c in candidates %}
-    <div class="candidate-row">
-      <div class="avatar-sm">{{ c.candidate_name[0] }}</div>
-      <div style="flex:1;">
-        <div style="font-size:13px; font-weight:700;">
-          <a href="{{ url_for('talent_card', user_id=c.candidate_id) }}"
-             style="color:var(--tx-1); text-decoration:none;">
-            {{ c.candidate_name }}
-          </a>
-        </div>
-        {% if c.incumbent_name %}
-        <div style="font-size:11px; color:var(--tx-3); margin-top:1px;">
-          현직: {{ c.incumbent_name }}
-        </div>
-        {% endif %}
-        {% if c.note %}
-        <div style="font-size:11px; color:var(--tx-3); margin-top:2px; font-style:italic;">
-          {{ c.note }}
-        </div>
-        {% endif %}
-      </div>
-      <div style="display:flex; align-items:center; gap:10px;">
-        {% if c.readiness == 'ready_now' %}
-          <span class="badge-sm readiness-now">즉시 가능</span>
-        {% elif c.readiness == 'ready_1y' %}
-          <span class="badge-sm readiness-1y">1년 내</span>
-        {% elif c.readiness == 'ready_2y' %}
-          <span class="badge-sm readiness-2y">2년 내</span>
-        {% else %}
-          <span class="badge-sm readiness-long">장기 육성</span>
-        {% endif %}
-        <!-- Talent Card 링크 -->
-        <a href="{{ url_for('talent_card', user_id=c.candidate_id) }}"
-           class="btn btn-ghost btn-sm" title="Talent Card 보기">
-          <i class="fas fa-id-card"></i>
-        </a>
-        <!-- 삭제 -->
-        <form method="POST" style="display:inline;"
-              onsubmit="return confirm('승계 계획을 삭제합니다.')">
-          <input type="hidden" name="action" value="delete">
-          <input type="hidden" name="sp_id" value="{{ c.id }}">
-          <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--red);" title="삭제">
-            <i class="fas fa-trash"></i>
-          </button>
-        </form>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-  {% endfor %}
+<div class="sc-tabs">
+  <a href="{{ url_for('succession', dept=dept, q=q) }}" class="{% if not st %}on{% endif %}">전체 {{ sm.total }}</a>
+  <a href="{{ url_for('succession', st='late', dept=dept, q=q) }}" class="{% if st == 'late' %}on{% endif %}">위험 {{ sm.late }}</a>
+  <a href="{{ url_for('succession', st='wait', dept=dept, q=q) }}" class="{% if st == 'wait' %}on{% endif %}">주의 {{ sm.wait }}</a>
+  <a href="{{ url_for('succession', st='done', dept=dept, q=q) }}" class="{% if st == 'done' %}on{% endif %}">정상 {{ sm.total - sm.late - sm.wait }}</a>
+  <a href="{{ url_for('succession', st='leaving', dept=dept, q=q) }}" class="{% if st == 'leaving' %}on{% endif %}">현직자 퇴사 예정 {{ sm.leaving }}</a>
+</div>
 
-{% else %}
-<div class="card">
-  <div class="card-body" style="text-align:center; padding:60px; color:var(--tx-3);">
-    <i class="fas fa-sitemap" style="font-size:32px; opacity:.3; display:block; margin-bottom:12px;"></i>
-    등록된 승계 계획 없음<br>
-    <span style="font-size:12px; margin-top:6px; display:block;">
-      핵심 포지션에 후보자를 추가해 인재 파이프라인을 구축하세요.
+<form class="sc-filter" method="get">
+  {% if st %}<input type="hidden" name="st" value="{{ st }}">{% endif %}
+  <select name="dept" class="form-control" onchange="this.form.submit()">
+    <option value="">전체 조직</option>
+    {% for d in depts %}<option value="{{ d.id }}" {% if dept == d.id %}selected{% endif %}>{{ d.name }}{% if d.code %} · {{ d.code }}{% endif %}</option>{% endfor %}
+  </select>
+  <input name="q" value="{{ q }}" class="form-control" placeholder="포지션 · 이름 · 사번">
+  <button class="btn btn-ghost btn-sm">찾기</button>
+</form>
+
+<datalist id="sc-people">{% for p in people %}<option value="{{ p.emp_no }}">{{ p.name }} · {{ p.dept or '-' }}</option>{% endfor %}</datalist>
+
+{% for k in rows %}
+<details class="card sc-kp" id="kp-{{ k.id }}" {% if open_id == k.id or (not open_id and loop.length <= 3) %}open{% endif %}>
+  <summary class="card-head">
+    <span class="sc-dot sc-{{ k.status }}"></span>
+    <span class="card-title">{{ k.title }}</span>
+    <span class="sc-dim">{{ k.dept_name or '-' }}{% if k.dept_code %} · {{ k.dept_code }}{% endif %}</span>
+    <span class="sc-dim">{{ k.importance_label }}</span>
+    <span class="sc-why {% if k.status != 'done' %}sc-{{ k.status }}{% endif %}">{{ k.why }}</span>
+    <span class="sc-inc">
+      {% if k.vacant %}현직자 없음{% else %}현직 {{ k.inc_name }} <span class="sc-mono">{{ k.inc_no or '' }}</span>{% if k.inc_leave %} <span class="sc-wait">· 퇴사 예정 {{ k.inc_leave }}</span>{% endif %}{% endif %}
     </span>
-  </div>
-</div>
-{% endif %}
-
-<!-- 추가 모달 -->
-<div id="add-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.4);
-     z-index:1000; align-items:center; justify-content:center; padding:20px;">
-  <div style="background:var(--surface); border-radius:12px; width:100%; max-width:480px;
-              padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.2);">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-      <div style="font-size:16px; font-weight:800;">승계 계획 추가</div>
-      <button onclick="document.getElementById('add-modal').style.display='none'"
-              style="background:none; border:none; font-size:18px; cursor:pointer; color:var(--tx-3);">✕</button>
+  </summary>
+  <div class="card-body">
+    {% if k.cands %}
+    <div class="tbl-x">
+      <table class="table">
+        <thead><tr><th>사번</th><th>후보</th><th>부서 · 직급</th><th>준비도</th><th>메모</th><th></th></tr></thead>
+        <tbody>
+          {% for x in k.cands %}
+          <tr class="{% if x.left %}sc-gone{% endif %}">
+            <td class="sc-mono">{{ x.emp_no or '-' }}</td>
+            <td><a href="/employees/{{ x.candidate_id }}">{{ x.name }}</a>
+              {% if x.left %}<span class="sc-late sc-sm">퇴사 · 세지 않음</span>{% endif %}
+              {% if x.others %}<span class="sc-dim sc-sm">다른 포지션 {{ x.others }}곳에도 후보</span>{% endif %}</td>
+            <td class="sc-dim">{{ x.dept or '-' }} · {{ x.grade or '-' }}</td>
+            <td colspan="2">
+              <form method="post" class="sc-row">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="update_candidate"><input type="hidden" name="sp_id" value="{{ x.id }}">
+                <input type="hidden" name="back" value="{{ request.full_path }}#kp-{{ k.id }}">
+                <select name="readiness" class="form-control">
+                  {% for rk, rl in readiness.items() %}<option value="{{ rk }}" {% if x.readiness == rk %}selected{% endif %}>{{ rl }}</option>{% endfor %}
+                </select>
+                <input name="note" value="{{ x.note or '' }}" class="form-control" placeholder="메모" maxlength="300">
+                <button class="btn btn-ghost btn-sm">저장</button>
+              </form>
+            </td>
+            <td class="sc-act">
+              <form method="post" onsubmit="return confirm('{{ x.name }} 님을 후보에서 뺄까요?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="remove_candidate"><input type="hidden" name="sp_id" value="{{ x.id }}">
+                <input type="hidden" name="back" value="{{ request.full_path }}#kp-{{ k.id }}">
+                <button class="btn btn-ghost btn-sm">빼기</button></form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
-    <form method="POST">
-      <input type="hidden" name="action" value="add">
+    {% else %}
+    <div class="sc-dim sc-empty">후보가 없습니다. 아래에서 사번으로 넣으세요.</div>
+    {% endif %}
 
-      <div class="field" style="margin-bottom:14px;">
-        <label class="form-label">포지션명 <span style="color:var(--red);">*</span></label>
-        <input type="text" name="position_title" class="input" style="margin-top:6px;"
-               placeholder="예) CTO, 영업본부장, 인사팀장 ..." required>
-      </div>
+    <form method="post" class="sc-row sc-add">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="add_candidate"><input type="hidden" name="kp_id" value="{{ k.id }}">
+      <input type="hidden" name="back" value="{{ request.full_path }}#kp-{{ k.id }}">
+      <input name="emp_no" list="sc-people" class="form-control" placeholder="후보 사번" required autocomplete="off">
+      <select name="readiness" class="form-control">
+        {% for rk, rl in readiness.items() %}<option value="{{ rk }}" {% if rk == 'ready_1y' %}selected{% endif %}>{{ rl }}</option>{% endfor %}
+      </select>
+      <input name="note" class="form-control" placeholder="메모(선택)" maxlength="300">
+      <button class="btn btn-ghost btn-sm">후보 넣기</button>
+    </form>
 
-      <div class="field" style="margin-bottom:14px;">
-        <label class="form-label">현직자 (선택)</label>
-        <select name="incumbent_id" class="input" style="margin-top:6px;">
-          <option value="">— 없음 (신규 포지션) —</option>
-          {% for e in employees %}
-          <option value="{{ e.id }}">{{ e.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
+    <details class="sc-edit">
+      <summary class="sc-dim">포지션 고치기</summary>
+      <form method="post" class="sc-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="edit_position"><input type="hidden" name="kp_id" value="{{ k.id }}">
+        <input type="hidden" name="back" value="{{ request.full_path }}#kp-{{ k.id }}">
+        <label>포지션 이름<input name="title" value="{{ k.title }}" class="form-control" required maxlength="80"></label>
+        <label>조직<select name="dept" class="form-control">
+          {% for d in depts %}<option value="{{ d.id }}" {% if k.dept_id == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+        </select></label>
+        <label>현직자 사번<input name="incumbent_no" value="{{ '' if k.vacant else (k.inc_no or '') }}" list="sc-people" class="form-control" placeholder="비우면 공석" autocomplete="off"></label>
+        <label>중요도<select name="importance" class="form-control">
+          {% for ik, il in importance.items() %}<option value="{{ ik }}" {% if k.importance == ik %}selected{% endif %}>{{ il }}</option>{% endfor %}
+        </select></label>
+        <label class="sc-wide">메모<input name="note" value="{{ k.note or '' }}" class="form-control" maxlength="300"></label>
+        <div class="sc-wide sc-row">
+          <button class="btn btn-ghost btn-sm">저장</button>
+        </div>
+      </form>
+      <form method="post" onsubmit="return confirm('이 포지션을 지울까요?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="delete_position"><input type="hidden" name="kp_id" value="{{ k.id }}">
+        <button class="btn btn-ghost btn-sm" {% if k.cands %}disabled title="후보를 먼저 빼야 지울 수 있습니다"{% endif %}>포지션 지우기</button>
+      </form>
+    </details>
+  </div>
+</details>
+{% else %}
+<div class="card"><div class="card-body sc-dim">{% if all_n %}조건에 맞는 포지션이 없습니다.{% else %}아직 핵심 포지션이 없습니다. 아래에서 추가하세요.{% endif %}</div></div>
+{% endfor %}
 
-      <div class="field" style="margin-bottom:14px;">
-        <label class="form-label">후보자 <span style="color:var(--red);">*</span></label>
-        <select name="candidate_id" class="input" style="margin-top:6px;" required>
-          <option value="">— 선택 —</option>
-          {% for e in employees %}
-          <option value="{{ e.id }}">{{ e.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="field" style="margin-bottom:14px;">
-        <label class="form-label">준비도</label>
-        <select name="readiness" class="input" style="margin-top:6px;">
-          {% for val, lbl in readiness_labels.items() %}
-          <option value="{{ val }}">{{ lbl }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="field" style="margin-bottom:20px;">
-        <label class="form-label">메모 (선택)</label>
-        <textarea name="note" class="input" rows="2" style="margin-top:6px; resize:vertical;"
-                  placeholder="후보자에 대한 간략한 평가 또는 육성 계획..."></textarea>
-      </div>
-
-      <div style="display:flex; gap:10px;">
-        <button type="submit" class="btn btn-primary" style="flex:1;">추가</button>
-        <button type="button" class="btn btn-ghost" style="flex:1;"
-                onclick="document.getElementById('add-modal').style.display='none'">취소</button>
-      </div>
+<details class="card sc-new" {% if not all_n %}open{% endif %}>
+  <summary class="card-head"><span class="card-title">핵심 포지션 추가</span></summary>
+  <div class="card-body">
+    <form method="post" class="sc-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="add_position">
+      <label>포지션 이름<input name="title" class="form-control" required maxlength="80" placeholder="예: 재무팀장"></label>
+      <label>조직<select name="dept" class="form-control">
+        <option value="">현직자 부서로</option>
+        {% for d in depts %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
+      </select></label>
+      <label>현직자 사번<input name="incumbent_no" list="sc-people" class="form-control" placeholder="비우면 공석" autocomplete="off"></label>
+      <label>중요도<select name="importance" class="form-control">
+        {% for ik, il in importance.items() %}<option value="{{ ik }}">{{ il }}</option>{% endfor %}
+      </select></label>
+      <label class="sc-wide">메모<input name="note" class="form-control" maxlength="300"></label>
+      <div class="sc-wide"><button class="btn btn-ghost btn-sm">추가</button></div>
     </form>
   </div>
-</div>
+</details>
 
-{% endblock %}
+<details class="card sc-new">
+  <summary class="card-head"><span class="card-title">CSV 로 한꺼번에</span></summary>
+  <div class="card-body">
+    <div class="sc-dim">첫 줄: <span class="sc-mono">{{ csv_head|join(',') }}</span> · 한 줄 = 후보 한 명 · 같은 포지션·조직이 있으면 그 포지션에 더함 · 이미 있는 후보는 준비도·메모를 고침 · 준비도는 {{ readiness.values()|join(' / ') }}(비우면 1년 내) · 한 줄이라도 틀리면 아무것도 저장하지 않음</div>
+    <form method="post" enctype="multipart/form-data" class="sc-row sc-add">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="import">
+      <input type="file" name="file" accept=".csv" class="form-control" required>
+      <button class="btn btn-ghost btn-sm">올리기</button>
+    </form>
+  </div>
+</details>
 
-{% block scripts %}
-<script>
-// 모달 외부 클릭 시 닫기
-document.getElementById('add-modal').addEventListener('click', function(e) {
-  if (e.target === this) this.style.display = 'none';
-});
-</script>
+<div class="sc-dim sc-foot">위험 = 후임 후보 없음, 또는 현직자 퇴사 예정인데 즉시 가능한 후임 없음 · 주의 = 즉시 가능한 후임 없음, 또는 현직자 공석 · 퇴사한 후보는 세지 않음 · 퇴사 예정 = 퇴사일이 미래이거나 퇴직 신청이 진행 중{% if not full %} · 내 조직(맡은 조직과 하위)만 보임{% endif %}</div>
+
+<style>
+.sc-strip{display:flex;flex-wrap:wrap;gap:4px 24px;align-items:baseline;margin-bottom:12px;}
+.sc-strip span{font-size:12px;color:var(--tx-3);margin-right:6px;}
+.sc-strip b{font-size:18px;font-family:var(--mono);}
+.sc-push{margin-left:auto;}
+.sc-tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);margin-bottom:12px;}
+.sc-tabs a{padding:6px 10px;font-size:13px;color:var(--tx-2);white-space:nowrap;border-bottom:2px solid transparent;text-decoration:none;}
+.sc-tabs a.on{color:var(--tx-1);border-bottom-color:currentColor;font-weight:600;}
+.sc-filter{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+.sc-filter .form-control{width:auto;min-width:0;flex:1 1 160px;max-width:260px;}
+.sc-kp,.sc-new{margin-bottom:8px;}
+.sc-kp>summary,.sc-new>summary{cursor:pointer;list-style:none;display:flex;gap:4px 10px;align-items:center;flex-wrap:wrap;}
+.sc-kp>summary::-webkit-details-marker,.sc-new>summary::-webkit-details-marker{display:none;}
+.sc-dot{width:8px;height:8px;border-radius:50%;flex:none;background:currentColor;}
+.sc-dot.sc-late{color:var(--late);} .sc-dot.sc-wait{color:var(--wait);}
+.sc-dot.sc-done{background:transparent;border:1px solid var(--tx-3);}
+.sc-late{color:var(--late);} .sc-wait{color:var(--wait);}
+.sc-why{font-size:13px;color:var(--tx-2);}
+.sc-inc{margin-left:auto;font-size:13px;color:var(--tx-2);}
+.sc-dim{color:var(--tx-3);font-size:12px;}
+.sc-sm{font-size:11px;margin-left:6px;white-space:nowrap;}
+.sc-mono{font-family:var(--mono);font-size:12px;white-space:nowrap;}
+.sc-gone td{opacity:.6;}
+.sc-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+.sc-row .form-control{width:auto;min-width:0;flex:1 1 120px;}
+.sc-row select.form-control{flex:0 1 120px;}
+.sc-add{margin-top:10px;}
+.sc-empty{padding:4px 0;}
+.sc-act{white-space:nowrap;text-align:right;}
+.sc-edit{margin-top:12px;}
+.sc-edit>summary{cursor:pointer;}
+.sc-edit>form{margin-top:8px;}
+.sc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px 12px;}
+.sc-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--tx-2);}
+.sc-wide{grid-column:1/-1;}
+.sc-foot{margin-top:8px;}
+@media (max-width:600px){.sc-inc{margin-left:0;width:100%;}}
+</style>
 {% endblock %}

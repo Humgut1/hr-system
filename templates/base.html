@@ -55,7 +55,7 @@
     {'l':'온보딩 계획', 'u':url_for('obplan_admin'), 'p':['obplans'], 's':perm('onboarding_plans'), 'i':'fa-route'},
     {'l':'안전사고', 'u':url_for('safety_admin'), 'p':['safety'], 's':safety_can(), 'i':'fa-triangle-exclamation'},
     {'l':'데이터 점검', 'u':url_for('data_check'), 'p':['data-check'], 's':perm('data_check'), 'i':'fa-clipboard-check'},
-    {'l':'승계 계획', 'u':url_for('succession'), 'p':['succession'], 's':MGR and 'succession' in PF and addon.succession, 'i':'fa-chess-king'},
+    {'l':'승계 계획', 'u':url_for('succession'), 'p':['succession'], 's':(MGR or perm('succession')) and 'succession' in PF and addon.succession, 'i':'fa-chess-king'},
   ]},
   {'key':'work', 'label':'근태', 'gi':'fa-clock', 'items':[
     {'l':'출퇴근 기록', 'u':url_for('attendance_home'), 'p':['attendance_home'], 't':'home', 's':True, 'i':'fa-clock'},
