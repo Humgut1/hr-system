@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block title %}데이터 점검{% endblock %}
+{% block page_title %}데이터 점검{% endblock %}
+
+{% block content %}
+<div class="dq-strip">
+  <div><span>남은 문제</span><b>{{ total }}</b></div>
+  <div><span>위험</span><b class="{% if by_level.late %}dq-late{% endif %}">{{ by_level.late }}</b></div>
+  <div><span>주의</span><b class="{% if by_level.wait %}dq-wait{% endif %}">{{ by_level.wait }}</b></div>
+  <div><span>참고</span><b>{{ by_level.ref }}</b></div>
+  <a class="btn btn-ghost btn-sm dq-csv" href="{{ url_for('data_check', csv=1) }}">CSV</a>
+</div>
+
+<div class="dq-tabs">
+  <a href="{{ url_for('data_check') }}" class="{% if not area %}on{% endif %}">전체 {{ total }}</a>
+  {% for k, l in areas %}<a href="{{ url_for('data_check', area=k) }}" class="{% if area == k %}on{% endif %}">{{ l }} {{ by_area[k] }}</a>{% endfor %}
+</div>
+
+{% for r in rules %}
+<details class="card dq-rule" id="r-{{ r.key }}" {% if r.rows and (open_rule == r.key or (not open_rule and r.level == 'late')) %}open{% endif %}>
+  <summary class="card-head">
+    <span class="dq-dot dq-{{ r.level }}{% if not r.rows %} dq-ok{% endif %}"></span>
+    <span class="card-title">{{ r.title }}</span>
+    <span class="dq-n {% if r.rows %}dq-{{ r.level }}{% endif %}">{{ r.rows|length if r.rows else '정상' }}</span>
+    {% if r.skipped %}<span class="dq-dim">예외 {{ r.skipped|length }}</span>{% endif %}
+    <span class="dq-lv">{{ r.label }}</span>
+  </summary>
+  <div class="card-body">
+    <div class="dq-how">{{ r.how }}</div>
+    {% if r.rows and r.key in ('no_manager', 'bad_manager') and r.rows|selectattr('suggest_id')|list %}
+    <form method="post" class="dq-bulk" onsubmit="return confirm('추천 조직장으로 {{ r.rows|selectattr('suggest_id')|list|length }}명의 매니저를 채울까요? 변경 이력에 남습니다.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="manager_all"><input type="hidden" name="rule" value="{{ r.key }}">
+      <button class="btn btn-ghost btn-sm">추천대로 전부 채우기 ({{ r.rows|selectattr('suggest_id')|list|length }})</button>
+    </form>
+    {% endif %}
+    {% if r.rows and r.key == 'leaver_login' %}
+    <form method="post" class="dq-bulk" onsubmit="return confirm('퇴사자 {{ r.rows|length }}명을 로그인 명부에서 뺄까요?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="login_all"><input type="hidden" name="rule" value="{{ r.key }}">
+      <button class="btn btn-ghost btn-sm">전부 명부에서 빼기 ({{ r.rows|length }})</button>
+    </form>
+    {% endif %}
+    {% if r.rows %}
+    <div class="tbl-x">
+      <table class="table">
+        <thead><tr><th>사번</th><th>이름</th><th>부서</th><th>내용</th><th></th></tr></thead>
+        <tbody>
+          {% for x in r.rows %}
+          <tr>
+            <td class="dq-mono">{{ x.emp_no or '-' }}</td>
+            <td>{% if x.uid %}<a href="/employees/{{ x.uid }}">{{ x.name }}</a>{% else %}{{ x.name }}{% endif %}</td>
+            <td>{{ x.dept or '-' }}</td>
+            <td class="dq-dim">{{ x.detail }}</td>
+            <td class="dq-act">
+              {% if r.key in ('no_manager', 'bad_manager') and x.suggest_id %}
+              <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="manager"><input type="hidden" name="rule" value="{{ r.key }}"><input type="hidden" name="ref_id" value="{{ x.ref_id }}">
+                <button class="btn btn-ghost btn-sm">{{ x.suggest_name }}(으)로</button></form>
+              {% elif r.key == 'leaver_login' %}
+              <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="login"><input type="hidden" name="rule" value="{{ r.key }}"><input type="hidden" name="ref_id" value="{{ x.ref_id }}">
+                <button class="btn btn-ghost btn-sm">명부에서 빼기</button></form>
+              {% endif %}
+              <a class="btn btn-ghost btn-sm" href="{{ x.fix_url }}">{{ x.fix_label }}</a>
+              <form method="post" class="dq-skip" onsubmit="var v=prompt('예외로 두는 사유'); if(!v) return false; this.reason.value=v; return true;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="skip"><input type="hidden" name="rule" value="{{ r.key }}"><input type="hidden" name="ref_id" value="{{ x.ref_id }}"><input type="hidden" name="reason">
+                <button class="btn btn-ghost btn-sm">예외</button></form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% if r.skipped %}
+    <div class="dq-lbl">예외로 둔 것</div>
+    <div class="tbl-x">
+      <table class="table">
+        <thead><tr><th>사번</th><th>이름</th><th>사유</th><th>둔 사람</th><th></th></tr></thead>
+        <tbody>
+          {% for x in r.skipped %}
+          <tr>
+            <td class="dq-mono">{{ x.emp_no or '-' }}</td>
+            <td>{{ x.name }}</td>
+            <td>{{ x.skip.reason }}</td>
+            <td class="dq-dim">{{ x.skip.by_name or '-' }} · {{ (x.skip.at or '')|kst }}</td>
+            <td class="dq-act"><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="unskip"><input type="hidden" name="rule" value="{{ r.key }}"><input type="hidden" name="ref_id" value="{{ x.ref_id }}">
+              <button class="btn btn-ghost btn-sm">예외 풀기</button></form></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</details>
+{% endfor %}
+<div class="dq-dim dq-foot">재직자 기준(손님 계정 제외) · 날짜는 오늘(한국 시간) 기준 · 예외로 둔 줄은 숫자에서 빠짐 · 인사 분석의 '확인 필요' 탭이 이 숫자를 함께 보여 줌</div>
+
+<style>
+.dq-strip{display:flex;flex-wrap:wrap;gap:4px 24px;align-items:baseline;margin-bottom:12px;}
+.dq-strip span{font-size:12px;color:var(--tx-3);margin-right:6px;}
+.dq-strip b{font-size:18px;font-family:var(--mono);}
+.dq-csv{margin-left:auto;}
+.dq-tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);margin-bottom:12px;}
+.dq-tabs a{padding:6px 10px;font-size:13px;color:var(--tx-2);white-space:nowrap;border-bottom:2px solid transparent;text-decoration:none;}
+.dq-tabs a.on{color:var(--tx-1);border-bottom-color:currentColor;font-weight:600;}
+.dq-rule{margin-bottom:8px;}
+.dq-rule>summary{cursor:pointer;list-style:none;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.dq-rule>summary::-webkit-details-marker{display:none;}
+.dq-dot{width:8px;height:8px;border-radius:50%;flex:none;background:currentColor;}
+.dq-dot.dq-late{color:var(--late);} .dq-dot.dq-wait{color:var(--wait);} .dq-dot.dq-ref{color:var(--tx-3);}
+.dq-dot.dq-ok{background:transparent;border:1px solid var(--tx-3);color:var(--tx-3);}
+.dq-n{font-family:var(--mono);font-size:13px;color:var(--tx-3);}
+.dq-n.dq-late,.dq-late{color:var(--late);} .dq-n.dq-wait,.dq-wait{color:var(--wait);}
+.dq-lv{margin-left:auto;font-size:12px;color:var(--tx-3);}
+.dq-how{font-size:13px;color:var(--tx-2);margin-bottom:8px;}
+.dq-bulk{margin-bottom:8px;}
+.dq-dim{color:var(--tx-3);font-size:12px;}
+.dq-foot{margin-top:8px;}
+.dq-mono{font-family:var(--mono);font-size:12px;white-space:nowrap;}
+.dq-lbl{font-size:12px;color:var(--tx-2);margin:12px 0 4px;}
+.dq-act{white-space:nowrap;text-align:right;}
+.dq-act form{display:inline;}
+</style>
+{% endblock %}

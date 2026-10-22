@@ -19,6 +19,7 @@ CODES = {
     'onboarding_plans': '온보딩 계획',
     'calendars': '근무 달력·교대',
     'consents': '개인정보 동의',
+    'data_check': '데이터 점검',
 }
 
 _DDL = (

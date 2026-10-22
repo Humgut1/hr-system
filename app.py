@@ -113,6 +113,7 @@ import onboarding_plans
 import safety_incidents
 import work_calendars
 import perm_groups
+import data_quality
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -13350,6 +13351,7 @@ safety_incidents.init_app(app, dict(get_db=get_db, login_required=login_required
                                     log_audit=log_audit, **_PERM))
 # B10 근무 달력·교대 — 기본 달력은 공휴일 표 그대로, 사업장 달력·교대 배정은 work_calendars.py
 work_calendars.init_app(app, dict(get_db=get_db, login_required=login_required, **_PERM))
+data_quality.init_app(app, dict(get_db=get_db, login_required=login_required, log_audit=log_audit, tenant_id=_tenant_id, **_PERM))
 
 
 # ── Recruit ─────────────────────────────────────────────────
@@ -20086,11 +20088,29 @@ def _analytics_issues(sm, org_rows, grade_gender, leave_util,
     나중에 회사마다 기준을 바꿀 때 한 자리만 고치면 된다.
     """
     out = []
+    g = sm.get('gaps') or {}
+
+    def _miss(n, what):
+        return (' · %s 없는 재직자 %d명은 빠짐' % (what, n)) if n else ''
+
+    # 숫자마다 '이렇게 셌습니다' 한 줄 — 셈법을 바꾸면 여기도 같이 고친다
+    how = {
+        'leave': '올해 쓴 연차 ÷ 받은 연차 · 부서 있는 재직자' + _miss(g.get('dept'), '부서'),
+        'h52': '최근 8주 · 주(월~일)마다 정규+연장 근무 합계 · 52시간 넘으면 초과, 48시간부터 경고 구간 · 출퇴근 기록 있는 재직자만',
+        'vacancy': '정원 = 정원 대장의 맨 위 조직 합계(하위 정원은 상위에 포함) · 현원 = 재직자 · 결원 = 정원 − 현원'
+                   + ((' · 조직별 막대에서는 부서 없는 재직자 %d명이 빠짐' % g['dept']) if g.get('dept') else ''),
+        'grade_f': '직급별 재직자 중 여성 · 전사 비율은 성별을 적은 재직자 기준' + _miss(g.get('gender'), '성별'),
+        'compa': '기본급 ÷ 직급 급여 밴드 중간값 · 관리자·손님 계정 제외 · 밴드 없으면 빠짐',
+        'dept_pay': '부서마다 Compa-Ratio(기본급 ÷ 밴드 중간값) 평균 · 부서 없는 사람 제외',
+        'exit12': '최근 12개월(오늘 포함 365일) 퇴사일이 있는 퇴사자 ÷ 평균 인원(지금 재직 %d + 1년 전 재직 %d의 평균)'
+                  % (sm.get('total_active', 0), sm.get('active_12m_ago', 0)) + _miss(g.get('hire'), '입사일'),
+    }
 
     def add(key, area, level, title, sub, facts, bars=None, link=None, note=None):
         out.append({'key': key, 'area': area, 'level': level,
                     'label': ANALYTICS_LEVELS[level], 'title': title, 'sub': sub,
-                    'facts': facts, 'bars': bars, 'link': link, 'note': note})
+                    'facts': facts, 'bars': bars, 'link': link, 'note': note,
+                    'how': how.get(key)})
 
     # ── 연차 사용률 ──
     pct, pace = sm['leave_pct'], sm['leave_pace']
@@ -20213,9 +20233,10 @@ def people_analytics():
     # ── 3. Monthly turnover (최근 12개월) ───────────
     monthly_turnover = db.execute(
         "SELECT strftime('%Y-%m', termination_date) AS ym, COUNT(*) AS cnt "
-        "FROM users WHERE termination_date IS NOT NULL "
-        "AND termination_date >= date('now','-12 months') "
-        "GROUP BY ym ORDER BY ym ASC"
+        "FROM users WHERE status='resigned' AND termination_date IS NOT NULL "
+        "AND termination_date > ? AND termination_date <= ? "
+        "GROUP BY ym ORDER BY ym ASC",
+        ((today - timedelta(days=365)).isoformat(), today.isoformat())
     ).fetchall()
 
     # ── 4. Leave utilization by dept (연차 단일 소스 기반 — 하드코딩 15일 제거) ──
@@ -20478,7 +20499,10 @@ def people_analytics():
         grade_gender.append({'grade': r['grade'], 'cnt': r['cnt'], 'f': r['f'] or 0,
                              'f_pct': round((r['f'] or 0) * 100.0 / r['cnt']) if r['cnt'] >= 3 else None})
     _f_all = db.execute("SELECT COUNT(*) FROM users WHERE status='active' AND gender='F'").fetchone()[0]
-    female_pct = round(_f_all * 100.0 / total_active) if total_active else 0
+    # 분모는 성별을 적은 재직자 — 빈칸을 남성으로 세지 않는다
+    _g_all = db.execute("SELECT COUNT(*) FROM users WHERE status='active' "
+                        "AND TRIM(COALESCE(gender,''))!=''").fetchone()[0]
+    female_pct = round(_f_all * 100.0 / _g_all) if _g_all else 0
 
     # ── 10. 근속·연령 분포 ────────────────────────────
     tenure_buckets = [('1년 미만', 0), ('1–3년', 0), ('3–5년', 0), ('5–10년', 0), ('10년 이상', 0)]
@@ -20513,19 +20537,31 @@ def people_analytics():
     leave_pace = round(today.timetuple().tm_yday * 100.0 / 365)
 
     # ── 12. 최근 12개월 입·퇴사 ───────────────────────
+    # 기간 = (오늘-365일, 오늘] · 날짜는 한국 날짜로 넘긴다(SQLite date('now') 는 UTC)
+    _y0, _y1 = (today - timedelta(days=365)).isoformat(), today.isoformat()
     hires_12m = db.execute(
-        "SELECT COUNT(*) FROM users WHERE status='active' AND hire_date >= date('now','-12 months')"
-    ).fetchone()[0]
+        "SELECT COUNT(*) FROM users WHERE role!='guest' AND hire_date > ? AND hire_date <= ?",
+        (_y0, _y1)).fetchone()[0]
     exits_12m = db.execute(
-        "SELECT COUNT(*) FROM users WHERE termination_date IS NOT NULL "
-        "AND termination_date >= date('now','-12 months')").fetchone()[0]
-    turnover_12m = round(exits_12m * 100.0 / total_active, 1) if total_active else 0.0
+        "SELECT COUNT(*) FROM users WHERE status='resigned' AND termination_date > ? "
+        "AND termination_date <= ?", (_y0, _y1)).fetchone()[0]
+    # 1년 전 재직 = 그날까지 입사했고 그날 이후에 퇴사(또는 아직 재직)
+    active_12m_ago = db.execute(
+        "SELECT COUNT(*) FROM users WHERE role!='guest' AND hire_date <= ? "
+        "AND (status='active' OR (status='resigned' AND termination_date > ?))",
+        (_y0, _y0)).fetchone()[0]
+    avg_headcount = (total_active + active_12m_ago) / 2.0
+    turnover_12m = round(exits_12m * 100.0 / avg_headcount, 1) if avg_headcount else 0.0
+    dq_left, dq_late = data_quality.summary(db, today, _tenant_id())
+    dq_gaps = data_quality.gaps(db)
 
     summary = {
         'total_active': total_active, 'hc_target': hc_target_total, 'hc_gap': hc_gap_total,
         'female_pct': female_pct, 'avg_tenure': avg_tenure, 'avg_age': avg_age,
         'hires_12m': hires_12m, 'exits_12m': exits_12m, 'turnover_12m': turnover_12m,
+        'active_12m_ago': active_12m_ago, 'avg_headcount': round(avg_headcount, 1),
         'leave_pct': leave_pct_all, 'leave_pace': leave_pace,
+        'dq_left': dq_left, 'dq_late': dq_late, 'gaps': dq_gaps,
     }
 
     issues = _analytics_issues(summary, org_rows, grade_gender, leave_util,
