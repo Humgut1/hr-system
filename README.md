@@ -8,8 +8,6 @@
 **라이브 데모:** https://talentcore.duckdns.org → 랜딩에서 **[데모 보기]**
 가입 없이 관리자 권한으로 모든 화면을 둘러볼 수 있습니다(읽기 전용, 저장·수정 차단). 약 180명 규모의 샘플 회사가 들어 있습니다.
 
-![TalentCore 제품 데모](docs/talentcore-demo.gif)
-
 ---
 
 ## TalentCore Suite 안에서의 자리
@@ -35,9 +33,9 @@ Core 는 제품군의 **중심 장부**입니다. 사람·조직·계정은 Core
 | ![홈](docs/screenshots/01-dashboard.png) | ![인사 분석](docs/screenshots/06-analytics.png) |
 | **홈**: 출퇴근 · 검색 · 처리할 일 | **인사 분석**: 확인 필요 항목 · 분야별 탭 |
 | ![보상 관리](docs/screenshots/03-compensation.png) | ![성과 관리](docs/screenshots/04-performance.png) |
-| **보상**: 급여 밴드 · Compa-Ratio | **성과**: 명단 · 다면평가 · 캘리브레이션 |
-| ![조직도](docs/screenshots/05-org.png) | ![근태 관리](docs/screenshots/02-attendance.png) |
-| **조직도**: 보고 라인 · 인물 패널 | **근태**: 출퇴근 · 주 52시간 · 휴가 |
+| **보상**: 급여 밴드 · Compa-Ratio | **성과**: 평가 단계 · 등급별 보상 · 팀 진행 |
+| ![조직도](docs/screenshots/05-org.png) | ![근태 승인](docs/screenshots/02-attendance.png) |
+| **조직도**: 보고 라인 · 인물 패널 | **근태**: 휴가 승인 · 1차·2차 검토 |
 
 ---
 
