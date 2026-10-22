@@ -83,7 +83,8 @@
     {'l':'다면평가 배정', 'u':url_for('peer_assignments'), 'p':['peer_assignments'], 's':MGR and 'peer_review' in PF and peer_enabled, 'i':'fa-comments'},
   ]},
   {'key':'analytics', 'label':'분석', 'gi':'fa-chart-pie', 'items':[
-    {'l':'인사 분석', 'u':url_for('people_analytics'), 'p':['analytics'], 's':ADM, 'i':'fa-chart-pie'},
+    {'l':'인사 분석', 'u':url_for('people_analytics'), 'p':['analytics'], 'nt':'report', 's':ADM, 'i':'fa-chart-pie'},
+    {'l':'리포트 마법사', 'u':url_for('people_analytics', tab='report'), 'p':['analytics'], 't':'report', 's':ADM and 'data_wizard' in PF, 'i':'fa-wand-magic-sparkles'},
     {'l':'데이터 내보내기', 'u':url_for('export_hub'), 'p':['export'], 's':ADM, 'i':'fa-file-arrow-down'},
   ]},
 ] %}
@@ -101,7 +102,7 @@
   {'l':'감사 로그', 'u':url_for('admin_audit_logs'), 'p':['audit_logs'], 's':ADM, 'i':'fa-clipboard-list'},
 ] %}
 {% macro is_on(it) -%}
-  {%- if active_page in it.p and (not it.t or active_page != 'attendance_home' or request.args.get('tab', 'home') == it.t) -%}1{%- endif -%}
+  {%- if active_page in it.p and (not it.t or active_page not in ('attendance_home', 'analytics') or request.args.get('tab', 'home' if active_page == 'attendance_home' else '') == it.t) and not (it.nt and request.args.get('tab') == it.nt) -%}1{%- endif -%}
 {%- endmacro %}
 {% set ns = namespace(group='', page='') %}
 {% for g in MENU %}{% for it in g['items'] if it.s %}{% if is_on(it) and not ns.group %}{% set ns.group = g.label %}{% set ns.page = it.l %}{% endif %}{% endfor %}{% endfor %}
