@@ -116,6 +116,7 @@ import perm_groups
 import data_quality
 import people_metrics
 import people_succession
+import reports_v2
 import people_effective
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
@@ -2770,8 +2771,9 @@ REPORT_SOURCES = [
 _REPORT_FIELD_MAP = {f['key']: f for src in REPORT_SOURCES for f in src['fields']}
 
 
-def build_report_query(field_keys, filters, limit=200):
-    """화이트리스트 기반 동적 SQL 생성. (SQL injection 없음 — 모든 식별자는 상수에서만 옴)"""
+def build_report_query(field_keys, filters, limit=200, user_ids=None):
+    """화이트리스트 기반 동적 SQL 생성. (SQL injection 없음 — 모든 식별자는 상수에서만 옴)
+    user_ids 를 주면 재직 여부 대신 그 사람들만, 첫 칸은 u.id (리포트 2판이 값 붙일 때)."""
     import re
 
     # 날짜 포맷 검증
@@ -2782,6 +2784,8 @@ def build_report_query(field_keys, filters, limit=200):
     date_to   = safe_date(filters.get('date_to'))
 
     selected  = [_REPORT_FIELD_MAP[k] for k in field_keys if k in _REPORT_FIELD_MAP]
+    if user_ids is not None and len(selected) != len(field_keys):
+        raise ValueError('unknown report field')
     needs     = set()
     for f in selected:
         needs.update(f['needs'])
@@ -2792,6 +2796,9 @@ def build_report_query(field_keys, filters, limit=200):
     select_parts  = ['u.emp_no AS "사번"']
     col_labels    = ['사번']
     group_non_agg = ['u.id', 'u.emp_no']
+    if user_ids is not None:
+        select_parts.insert(0, 'u.id AS "__id"')
+        col_labels.insert(0, '__id')
 
     for f in selected:
         select_parts.append(f'{f["sql"]} AS "{f["label"]}"')
@@ -2861,8 +2868,12 @@ def build_report_query(field_keys, filters, limit=200):
         )
 
     # WHERE 절
-    where_parts = ["u.status = 'active'"]
     params = []
+    if user_ids is not None:
+        where_parts = ['u.id IN (SELECT value FROM json_each(?))']
+        params.append(json.dumps([int(i) for i in user_ids]))
+    else:
+        where_parts = ["u.status = 'active'"]
     if filters.get('dept_id'):
         where_parts.append('u.department_id = ?')
         params.append(int(filters['dept_id']))
@@ -13460,6 +13471,16 @@ safety_incidents.init_app(app, dict(get_db=get_db, login_required=login_required
 work_calendars.init_app(app, dict(get_db=get_db, login_required=login_required, **_PERM))
 data_quality.init_app(app, dict(get_db=get_db, login_required=login_required, log_audit=log_audit, tenant_id=_tenant_id, **_PERM))
 people_succession.init_app(app, dict(get_db=get_db, login_required=login_required, log_audit=log_audit, **_PERM))
+# 리포트 2판 — 저장·열 때 묻기·묶음·공유·계산 칸·추이·원천 4개·자동 보내기 (reports_v2.py)
+import export_utils as _xu
+reports_v2.init_app(app, dict(
+    get_db=get_db, login_required=login_required, log_audit=log_audit, **_PERM,
+    plan_ok=lambda: 'data_wizard' in PLAN_FEATURES.get(_current_plan(), _ENTERPRISE_FEATURES),
+    extra=REPORT_SOURCES, build_query=build_report_query,
+    make_wb=_xu.make_wb, write_header=_xu.write_header, write_row=_xu.write_row,
+    freeze_header=_xu.freeze_header, auto_width=_xu.auto_width,
+    perm_holders=perm_groups.holders,
+    leave_labels=LEAVE_LABELS, action_labels=ACTION_LABELS, exit_labels=EXIT_REASON_CATEGORY_LABEL))
 
 
 # ── Recruit ─────────────────────────────────────────────────

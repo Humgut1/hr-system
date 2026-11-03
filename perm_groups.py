@@ -21,6 +21,8 @@ CODES = {
     'consents': '개인정보 동의',
     'data_check': '데이터 점검',
     'succession': '승계 계획',
+    'reports': '리포트',
+    'reports_pay': '리포트 급여 칸',
 }
 
 _DDL = (

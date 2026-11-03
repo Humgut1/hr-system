@@ -1,0 +1,402 @@
+{% extends 'base.html' %}
+{% set posted = request.method == 'POST' %}
+{% set title = (rep.name if rep else '새 리포트') %}
+{% block title %}{{ title }} · 리포트{% endblock %}
+{% block page_title %}{{ '리포트 고치기' if rep else '새 리포트' }}{% endblock %}
+
+{% block content %}
+{% set base = [] %}
+{% for g, fs in field_menu.items() %}{% for f in fs %}{% if f.key != 'emp_no' %}{% set _ = base.append(dict(key=f.key, label=f.label, type=f.type, group=f.group)) %}{% endif %}{% endfor %}{% endfor %}
+
+<div class="re-back"><a href="{{ url_for('reports_view', rid=rep.id) if rep else url_for('reports_list') }}">&larr; {{ rep.name if rep else '리포트 목록' }}</a></div>
+
+{% if errs %}
+<div class="card re-errs" role="alert">
+  <b>저장하지 못했습니다.</b>
+  <ul>{% for e in errs %}<li>{{ e }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form method="post" id="re-form" action="{{ url_for('reports_edit', rid=rep.id) if rep else url_for('reports_new') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="definition" id="re-def">
+
+<section class="card re-sec">
+  <h3 class="re-h">데이터</h3>
+  <div class="re-src">
+    {% for k, s in sources.items() %}
+    {% if k == d.source %}<span class="re-src-on">{{ s.label }}</span>
+    {% else %}<a href="{{ url_for('reports_edit', rid=rep.id, source=k) if rep else url_for('reports_new', source=k) }}" class="re-src-go"{% if rep %} data-confirm="데이터를 바꾸면 고른 칸·거르기가 처음으로 돌아갑니다. 바꿀까요?"{% endif %}>{{ s.label }}</a>{% endif %}
+    {% endfor %}
+  </div>
+  {% if sources[d.source].note %}<p class="re-dim">{{ sources[d.source].note }}</p>{% endif %}
+</section>
+
+<section class="card re-sec">
+  <h3 class="re-h">보여 줄 칸 <span class="re-dim">사번은 늘 맨 앞</span></h3>
+  {% for g, fs in field_menu.items() %}
+  <fieldset class="re-cols">
+    <legend>{{ g }}</legend>
+    {% for f in fs %}{% if f.key != 'emp_no' %}
+    <label class="re-chk"><input type="checkbox" class="re-col" value="{{ f.key }}"{% if f.key in d.columns %} checked{% endif %}> {{ f.label }}{% if f.pay %} <span class="re-tag">급여</span>{% endif %}</label>
+    {% endif %}{% endfor %}
+  </fieldset>
+  {% endfor %}
+  {% if not pay_ok %}<p class="re-dim">급여 칸은 급여 권한이 있는 사람에게만 보입니다.</p>{% endif %}
+</section>
+
+<section class="card re-sec">
+  <h3 class="re-h">계산 칸 <span class="re-dim">최대 8개</span></h3>
+  <p class="re-dim re-help">칸 이름을 <code>[ ]</code> 로 감싸 부릅니다. 쓸 수 있는 것: <code>+ - * / ( )</code> · 숫자 · <code>일수([날짜 칸])</code> 그날부터 기준일까지 일수 · <code>년수([날짜 칸])</code> 햇수 · <code>반올림(식, 자리)</code>.
+    예: <code>반올림([기본급] / 12, 0)</code></p>
+  <div id="re-calcs"></div>
+  <button type="button" class="btn btn-ghost btn-sm" id="re-add-calc">+ 계산 칸</button>
+</section>
+
+<section class="card re-sec">
+  <h3 class="re-h">거르기 <span class="re-dim">모두 맞는 줄만</span></h3>
+  <div id="re-filters"></div>
+  <button type="button" class="btn btn-ghost btn-sm" id="re-add-filter">+ 거르기</button>
+</section>
+
+<section class="card re-sec">
+  <h3 class="re-h">열 때 묻기</h3>
+  <div class="re-grid">
+    {% if d.source == 'people' %}
+    <label class="re-chk"><input type="checkbox" id="re-p-on"{% if d.prompts.on %} checked{% endif %}> 기준일 <span class="re-dim">(안 물으면 오늘)</span></label>
+    {% endif %}
+    <label class="re-chk"><input type="checkbox" id="re-p-dept"{% if d.prompts.dept %} checked{% endif %}> 부서</label>
+    <label class="re-chk"><input type="checkbox" id="re-p-period"{% if d.prompts.period %} checked{% endif %}> 기간</label>
+  </div>
+  <div class="re-grid re-mt">
+    <label class="re-fld"><span>기본 부서</span>
+      <select class="select" id="re-df-dept">
+        <option value="">전체</option>
+        {% for x in depts %}<option value="{{ x.id }}"{% if d.defaults.dept == x.id %} selected{% endif %}>{{ x.name }}</option>{% endfor %}
+      </select></label>
+    <label class="re-fld"><span>기본 기간 (최근 N개월)</span>
+      <input type="number" class="input" id="re-df-months" min="1" max="36" value="{{ d.defaults.months }}"></label>
+  </div>
+  <p class="re-dim">기간은 {{ '휴가 시작일' if d.source == 'leave' else ('발령 효력일' if d.source == 'actions' else ('퇴사일' if d.source == 'leavers' else '기간 칸(근태·급여 등)')) }}에 씁니다.</p>
+</section>
+
+<section class="card re-sec">
+  <h3 class="re-h">정렬 · 묶기</h3>
+  <div class="re-grid">
+    <label class="re-fld"><span>정렬</span>
+      <select class="select" id="re-sort-f"></select></label>
+    <label class="re-fld"><span>방향</span>
+      <select class="select" id="re-sort-dir">
+        <option value="asc"{% if d.sort.dir != 'desc' %} selected{% endif %}>작은 것부터</option>
+        <option value="desc"{% if d.sort.dir == 'desc' %} selected{% endif %}>큰 것부터</option>
+      </select></label>
+  </div>
+  <div class="re-grid re-mt">
+    <label class="re-fld"><span>묶을 칸 1</span><select class="select re-by" id="re-by-0"></select></label>
+    <label class="re-fld"><span>묶을 칸 2</span><select class="select re-by" id="re-by-1"></select></label>
+  </div>
+  <div class="re-mt">
+    <div class="re-sub">묶어서 셀 값 <span class="re-dim">합계·평균·최소·최대는 숫자 칸만</span></div>
+    <div id="re-measures"></div>
+    <button type="button" class="btn btn-ghost btn-sm" id="re-add-measure">+ 셀 값</button>
+  </div>
+  <label class="re-chk re-mt"><input type="checkbox" id="re-chart"{% if d.chart == 'bar' %} checked{% endif %}> 묶음표에 막대 함께 보기</label>
+</section>
+
+<section class="card re-sec">
+  <h3 class="re-h">기간 추이</h3>
+  <div class="re-grid">
+    <label class="re-chk"><input type="checkbox" id="re-trend"{% if d.trend.on %} checked{% endif %}> 달마다 첫 번째 셀 값을 보여 줍니다</label>
+    <label class="re-fld"><span>몇 달</span>
+      <input type="number" class="input" id="re-trend-m" min="3" max="24" value="{{ d.trend.months }}"></label>
+  </div>
+  <p class="re-dim">{{ '직원은 달마다 그 달 말일 기준으로 다시 셉니다.' if d.source == 'people' else '날짜 칸의 달로 나눠 셉니다.' }} 묶을 칸 1이 있으면 그 값마다 줄을 나눕니다(위 8개).</p>
+</section>
+
+<section class="card re-sec">
+  <h3 class="re-h">이름 · 나누기 · 자동 보내기</h3>
+  <label class="re-fld re-wide"><span>리포트 이름 *</span>
+    <input type="text" class="input" name="name" maxlength="60" required value="{{ request.form.get('name', '') if posted else (rep.name if rep else '') }}"></label>
+  <label class="re-fld re-wide re-mt"><span>설명</span>
+    <textarea class="textarea" name="description" maxlength="300" rows="2">{{ request.form.get('description', '') if posted else (rep.description or '' if rep else '') }}</textarea></label>
+
+  {% set p_share = request.form.getlist('share') if posted else [] %}
+  {% set sh_all = (request.form.get('shared_all') if posted else (rep.shared_all if rep else 0)) %}
+  <div class="re-sub re-mt2">나누기 <span class="re-dim">리포트 권한이 있는 사람만 고를 수 있습니다</span></div>
+  <label class="re-chk"><input type="checkbox" name="shared_all" value="1"{% if sh_all %} checked{% endif %}> 리포트 권한이 있는 사람 전원</label>
+  <div class="re-people">
+    {% for u in users if u.id != me %}
+    <label class="re-chk"><input type="checkbox" name="share" value="{{ u.id }}"{% if (posted and u.id|string in p_share) or (not posted and u.id in shares) %} checked{% endif %}> {{ u.name }} <span class="re-dim">{{ u.emp_no or '' }}</span></label>
+    {% else %}<span class="re-dim">나눌 수 있는 다른 사람이 없습니다.</span>
+    {% endfor %}
+  </div>
+
+  {% set s_freq = (request.form.get('freq', '') if posted else (sch.freq if sch and sch.active else '')) %}
+  {% set s_dow = ((request.form.get('dow') or 0)|int if posted else (sch.dow if sch else 0)) %}
+  {% set s_dom = ((request.form.get('dom') or 1)|int if posted else (sch.dom if sch else 1)) %}
+  {% set s_rc = (request.form.getlist('recipient') if posted else ((sch.recipients or '').split(',') if sch else [me|string])) %}
+  <div class="re-sub re-mt2">자동 보내기 <span class="re-dim">앱 알림 + 엑셀 링크 · 아침에 그날 기준으로 돌립니다</span></div>
+  <div class="re-grid">
+    <label class="re-fld"><span>언제</span>
+      <select class="select" name="freq" id="re-freq">
+        <option value="">보내지 않음</option>
+        {% for k, v in freq.items() %}<option value="{{ k }}"{% if s_freq == k %} selected{% endif %}>{{ v }}</option>{% endfor %}
+      </select></label>
+    <label class="re-fld re-when-w"><span>요일</span>
+      <select class="select" name="dow">
+        {% for x in dow %}<option value="{{ loop.index0 }}"{% if s_dow == loop.index0 %} selected{% endif %}>{{ x }}요일</option>{% endfor %}
+      </select></label>
+    <label class="re-fld re-when-m"><span>날짜 (1~28일)</span>
+      <input type="number" class="input" name="dom" min="1" max="28" value="{{ s_dom }}"></label>
+  </div>
+  <div class="re-people re-when-any">
+    <span class="re-dim re-people-h">받는 사람</span>
+    {% for u in users %}
+    <label class="re-chk"><input type="checkbox" name="recipient" value="{{ u.id }}"{% if u.id|string in s_rc %} checked{% endif %}> {{ u.name }}{% if u.id == me %} <span class="re-dim">(나)</span>{% endif %}</label>
+    {% endfor %}
+  </div>
+</section>
+
+<div class="re-save">
+  <button type="submit" class="btn btn-primary">저장</button>
+  <a class="btn btn-ghost" href="{{ url_for('reports_view', rid=rep.id) if rep else url_for('reports_list') }}">취소</a>
+</div>
+</form>
+
+<script>
+(function(){
+  var D = {{ d|tojson }};
+  var BASE = {{ base|tojson }};
+  var OPS = {{ ops|tojson }};
+  var OPS_ORDER = {{ ops.keys()|list|tojson }};
+  var AGGS = {{ aggs|tojson }};
+  var AGG_ORDER = {{ aggs.keys()|list|tojson }};
+  var calcs = (D.calcs || []).map(function(c){ return {key: c.key, label: c.label, expr: c.expr, show: D.columns.indexOf(c.key) >= 0}; });
+  var filters = (D.filters || []).slice();
+  var measures = ((D.group || {}).measures || []).slice();
+  var picked = {sort: D.sort.f || '', by: ((D.group || {}).by || []).slice()};
+
+  function el(tag, attrs, kids){
+    var e = document.createElement(tag);
+    for (var k in attrs || {}) { if (k === 'text') e.textContent = attrs[k]; else if (k === 'cls') e.className = attrs[k]; else e.setAttribute(k, attrs[k]); }
+    (kids || []).forEach(function(x){ if (x) e.appendChild(x); });
+    return e;
+  }
+  function allFields(){
+    var out = BASE.slice();
+    calcs.forEach(function(c){ if (c.label) out.push({key: c.key, label: c.label, type: 'n', group: '계산 칸'}); });
+    return out;
+  }
+  function byKey(k){ return allFields().filter(function(f){ return f.key === k; })[0]; }
+  function fillSelect(sel, val, opts){
+    sel.textContent = '';
+    if (opts.blank !== undefined) sel.appendChild(el('option', {value: '', text: opts.blank}));
+    var groups = {};
+    allFields().forEach(function(f){
+      if (opts.numeric && f.type !== 'n') return;
+      var g = groups[f.group];
+      if (!g) { g = groups[f.group] = el('optgroup', {label: f.group}); sel.appendChild(g); }
+      var o = el('option', {value: f.key, text: f.label});
+      if (f.key === val) o.selected = true;
+      g.appendChild(o);
+    });
+    if (val && !byKey(val) && opts.blank !== undefined) sel.value = '';
+  }
+  function nextCalcKey(){
+    var used = calcs.map(function(c){ return c.key; }), i = 1;
+    while (used.indexOf('c' + i) >= 0) i++;
+    return 'c' + i;
+  }
+
+  // ── 계산 칸
+  var calcBox = document.getElementById('re-calcs');
+  function drawCalcs(){
+    calcBox.textContent = '';
+    calcs.forEach(function(c, i){
+      var lab = el('input', {type: 'text', cls: 'input', maxlength: '30', placeholder: '이름', 'aria-label': '계산 칸 이름'});
+      lab.value = c.label;
+      lab.addEventListener('change', function(){ c.label = lab.value.trim(); redrawPickers(); });
+      var expr = el('input', {type: 'text', cls: 'input re-expr', maxlength: '300', placeholder: '[기본급] / 12', 'aria-label': '식'});
+      expr.value = c.expr;
+      expr.addEventListener('input', function(){ c.expr = expr.value; });
+      var ins = el('select', {cls: 'select re-ins', 'aria-label': '칸 이름 넣기'});
+      ins.appendChild(el('option', {value: '', text: '칸 넣기'}));
+      BASE.concat(calcs.slice(0, i).filter(function(x){ return x.label; }).map(function(x){ return {label: x.label}; }))
+        .forEach(function(f){ ins.appendChild(el('option', {value: f.label, text: f.label})); });
+      ins.addEventListener('change', function(){
+        if (!ins.value) return;
+        expr.value = (expr.value ? expr.value.replace(/\s*$/, ' ') : '') + '[' + ins.value + ']';
+        c.expr = expr.value; ins.value = ''; expr.focus();
+      });
+      var show = el('input', {type: 'checkbox'});
+      show.checked = c.show;
+      show.addEventListener('change', function(){ c.show = show.checked; });
+      var del = el('button', {type: 'button', cls: 'btn btn-ghost btn-sm', text: '빼기'});
+      del.addEventListener('click', function(){ calcs.splice(i, 1); drawCalcs(); redrawPickers(); });
+      calcBox.appendChild(el('div', {cls: 're-row re-calc'}, [lab, expr, ins,
+        el('label', {cls: 're-chk'}, [show, document.createTextNode(' 칸으로 보이기')]), del]));
+    });
+    document.getElementById('re-add-calc').disabled = calcs.length >= 8;
+  }
+  document.getElementById('re-add-calc').addEventListener('click', function(){
+    if (calcs.length >= 8) return;
+    calcs.push({key: nextCalcKey(), label: '', expr: '', show: true}); drawCalcs();
+    var ins = calcBox.querySelectorAll('.re-calc input[type=text]');
+    if (ins.length) ins[ins.length - 2].focus();
+  });
+
+  // ── 거르기
+  var fltBox = document.getElementById('re-filters');
+  function drawFilters(){
+    fltBox.textContent = '';
+    filters.forEach(function(f, i){
+      var fs = el('select', {cls: 'select', 'aria-label': '칸'});
+      if (!f.f) f.f = (BASE[0] || {}).key;
+      fillSelect(fs, f.f, {});
+      var op = el('select', {cls: 'select', 'aria-label': '조건'});
+      OPS_ORDER.forEach(function(k){ var o = el('option', {value: k, text: OPS[k]}); if (k === f.op) o.selected = true; op.appendChild(o); });
+      if (!f.op) f.op = op.value;
+      var v = el('input', {cls: 'input', maxlength: '100', 'aria-label': '값'});
+      v.value = f.v || '';
+      function shape(){
+        var fd = byKey(f.f) || {};
+        v.type = fd.type === 'd' ? 'date' : (fd.type === 'n' ? 'number' : 'text');
+        if (fd.type === 'n') v.step = 'any';
+        v.hidden = f.op === 'empty' || f.op === 'filled';
+      }
+      fs.addEventListener('change', function(){ f.f = fs.value; shape(); });
+      op.addEventListener('change', function(){ f.op = op.value; shape(); });
+      v.addEventListener('input', function(){ f.v = v.value; });
+      shape();
+      var del = el('button', {type: 'button', cls: 'btn btn-ghost btn-sm', text: '빼기'});
+      del.addEventListener('click', function(){ filters.splice(i, 1); drawFilters(); });
+      fltBox.appendChild(el('div', {cls: 're-row'}, [fs, op, v, del]));
+    });
+    document.getElementById('re-add-filter').disabled = filters.length >= 12;
+  }
+  document.getElementById('re-add-filter').addEventListener('click', function(){
+    if (filters.length >= 12) return;
+    filters.push({f: '', op: 'eq', v: ''}); drawFilters();
+  });
+
+  // ── 묶어서 셀 값
+  var msBox = document.getElementById('re-measures');
+  function drawMeasures(){
+    msBox.textContent = '';
+    measures.forEach(function(m, i){
+      var ag = el('select', {cls: 'select', 'aria-label': '셈'});
+      AGG_ORDER.forEach(function(k){ var o = el('option', {value: k, text: AGGS[k]}); if (k === m.agg) o.selected = true; ag.appendChild(o); });
+      var fs = el('select', {cls: 'select', 'aria-label': '숫자 칸'});
+      function shape(){
+        if (m.agg === 'count') { fs.hidden = true; m.f = ''; return; }
+        fs.hidden = false;
+        fillSelect(fs, m.f, {numeric: true});
+        if (!fs.options.length) fs.appendChild(el('option', {value: '', text: '숫자 칸 없음'}));
+        m.f = fs.value;
+      }
+      ag.addEventListener('change', function(){ m.agg = ag.value; shape(); });
+      fs.addEventListener('change', function(){ m.f = fs.value; });
+      shape();
+      var del = el('button', {type: 'button', cls: 'btn btn-ghost btn-sm', text: '빼기'});
+      del.addEventListener('click', function(){ measures.splice(i, 1); drawMeasures(); });
+      msBox.appendChild(el('div', {cls: 're-row'}, [ag, fs, del]));
+    });
+    document.getElementById('re-add-measure').disabled = measures.length >= 6;
+  }
+  document.getElementById('re-add-measure').addEventListener('click', function(){
+    if (measures.length >= 6) return;
+    measures.push({agg: measures.length ? 'sum' : 'count', f: ''}); drawMeasures();
+  });
+
+  // ── 정렬·묶을 칸 선택지
+  var sortSel = document.getElementById('re-sort-f');
+  var bySels = [document.getElementById('re-by-0'), document.getElementById('re-by-1')];
+  sortSel.addEventListener('change', function(){ picked.sort = sortSel.value; });
+  bySels.forEach(function(s, i){ s.addEventListener('change', function(){ picked.by[i] = s.value; }); });
+  function redrawPickers(){
+    fillSelect(sortSel, picked.sort, {blank: '사번 순'});
+    picked.sort = sortSel.value;
+    bySels.forEach(function(s, i){ fillSelect(s, picked.by[i] || '', {blank: '묶지 않음'}); picked.by[i] = s.value; });
+    drawFilters(); drawMeasures();
+  }
+
+  drawCalcs(); redrawPickers();
+
+  // ── 자동 보내기: 요일·날짜 칸
+  var freq = document.getElementById('re-freq');
+  function when(){
+    document.querySelector('.re-when-w').hidden = freq.value !== 'weekly';
+    document.querySelector('.re-when-m').hidden = freq.value !== 'monthly';
+    document.querySelector('.re-when-any').hidden = !freq.value;
+  }
+  freq.addEventListener('change', when); when();
+
+  document.querySelectorAll('[data-confirm]').forEach(function(a){
+    a.addEventListener('click', function(e){ if (!confirm(a.dataset.confirm)) e.preventDefault(); });
+  });
+
+  function chk(id){ var x = document.getElementById(id); return !!(x && x.checked); }
+  document.getElementById('re-form').addEventListener('submit', function(){
+    var cols = [];
+    document.querySelectorAll('.re-col').forEach(function(x){ if (x.checked) cols.push(x.value); });
+    calcs.forEach(function(c){ if (c.show && c.label) cols.push(c.key); });
+    var by = picked.by.filter(function(x){ return x; });
+    document.getElementById('re-def').value = JSON.stringify({
+      source: D.source,
+      calcs: calcs.map(function(c){ return {key: c.key, label: c.label, expr: c.expr}; }),
+      columns: cols,
+      filters: filters,
+      prompts: {on: chk('re-p-on'), dept: chk('re-p-dept'), period: chk('re-p-period')},
+      defaults: {months: document.getElementById('re-df-months').value, dept: document.getElementById('re-df-dept').value},
+      sort: {f: picked.sort, dir: document.getElementById('re-sort-dir').value},
+      group: {by: by, measures: by.length ? measures : []},
+      chart: chk('re-chart') ? 'bar' : '',
+      trend: {on: chk('re-trend'), months: document.getElementById('re-trend-m').value}
+    });
+  });
+})();
+</script>
+
+<style>
+.tbl-x{overflow-x:auto;max-width:100%}
+.re-back{margin-bottom:10px;font-size:13px;}
+.re-back a{color:var(--tx-2);text-decoration:none;}
+.re-errs{border-color:var(--danger, #c0392b);margin-bottom:12px;font-size:13px;}
+.re-errs b{color:var(--danger, #c0392b);}
+.re-errs ul{margin:6px 0 0 18px;padding:0;}
+.re-sec{margin-bottom:12px;}
+.re-h{font-size:14px;font-weight:700;margin:0 0 10px;}
+.re-h .re-dim{font-weight:400;margin-left:6px;}
+.re-sub{font-size:13px;font-weight:600;margin-bottom:6px;}
+.re-sub .re-dim{font-weight:400;margin-left:6px;}
+.re-dim{color:var(--tx-3);font-size:12px;}
+.re-help{margin:0 0 8px;line-height:1.7;}
+.re-help code,.re-dim code{font-family:var(--mono);font-size:12px;padding:0 3px;border:1px solid var(--line);border-radius:4px;}
+.re-src{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;}
+.re-src a,.re-src span{padding:5px 12px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-decoration:none;color:var(--tx-2);}
+.re-src .re-src-on{color:var(--tx-1);border-color:var(--tx-1);font-weight:600;}
+.re-cols{border:0;margin:0 0 8px;padding:0;display:flex;flex-wrap:wrap;gap:4px 14px;min-width:0;}
+.re-cols legend{font-size:12px;color:var(--tx-3);padding:0;margin-bottom:4px;width:100%;}
+.re-chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;min-width:0;overflow-wrap:anywhere;}
+.re-tag{font-size:11px;color:var(--tx-3);border:1px solid var(--line);border-radius:4px;padding:0 4px;}
+.re-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px;}
+.re-row .select,.re-row .input{width:auto;min-width:0;flex:0 1 180px;}
+.re-calc .re-expr{flex:1 1 240px;font-family:var(--mono);}
+.re-row .re-ins{flex:0 1 120px;}
+.re-grid{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end;}
+.re-fld{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--tx-2);min-width:0;}
+.re-fld .select,.re-fld .input{min-width:160px;max-width:100%;}
+.re-wide{display:flex;}
+.re-wide .input,.re-wide .textarea{width:100%;}
+.re-mt{margin-top:10px;}
+.re-mt2{margin-top:16px;}
+.re-people{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;max-height:220px;overflow-y:auto;}
+.re-people-h{width:100%;}
+.re-save{position:sticky;bottom:0;display:flex;gap:8px;padding:10px 0;background:var(--bg, var(--surface));border-top:1px solid var(--line);z-index:5;}
+[hidden]{display:none !important;}
+@media (max-width:560px){
+  .re-row .select,.re-row .input{flex:1 1 100%;}
+  .re-fld,.re-fld .select,.re-fld .input{width:100%;}
+}
+</style>
+{% endblock %}

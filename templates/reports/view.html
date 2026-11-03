@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+{% block title %}{{ rep.name }}{% endblock %}
+{% block page_title %}리포트{% endblock %}
+
+{% block content %}
+<a class="rv-back" href="{{ url_for('reports_list') }}">← 리포트 목록</a>
+
+<div class="rv-head">
+  <div>
+    <h2 class="rv-name">{{ rep.name }}</h2>
+    {% if rep.description %}<div class="rv-dim">{{ rep.description }}</div>{% endif %}
+    <div class="rv-dim">{{ source.label }}{% if rep.sched %} · 자동 보내기 {{ rep.sched }}{% endif %}</div>
+  </div>
+  <div class="rv-acts">
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('reports_export', rid=rep.id) ~ ('?' ~ qs if qs else '') }}">엑셀</a>
+    {% if rep.can_edit %}<a class="btn btn-ghost btn-sm" href="{{ url_for('reports_edit', rid=rep.id) }}">고치기</a>{% endif %}
+    <form method="post" action="{{ url_for('reports_copy', rid=rep.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-ghost btn-sm">복사</button></form>
+    {% if rep.can_edit and rep.sched %}
+    <form method="post" action="{{ url_for('reports_send', rid=rep.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-ghost btn-sm">지금 보내기</button></form>
+    {% endif %}
+    {% if rep.can_edit %}
+    <form method="post" action="{{ url_for('reports_delete', rid=rep.id) }}" onsubmit="return confirm('이 리포트를 지울까요?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-ghost btn-sm">지우기</button></form>
+    {% endif %}
+  </div>
+</div>
+
+{% if d.prompts.on or d.prompts.dept or d.prompts.period %}
+<form method="get" class="card rv-ask">
+  {% if d.prompts.on and d.source == 'people' %}
+  <label>기준일<input type="date" name="on" value="{{ res.params.on }}"></label>
+  {% endif %}
+  {% if d.prompts.dept %}
+  <label>부서<select name="dept">
+    <option value="0">전체</option>
+    {% for x in depts %}<option value="{{ x.id }}" {% if res.params.dept == x.id %}selected{% endif %}>{{ x.name }}</option>{% endfor %}
+  </select></label>
+  {% endif %}
+  {% if d.prompts.period and d.source != 'people' %}
+  <label>시작<input type="date" name="from" value="{{ res.params.frm or '' }}"></label>
+  <label>끝<input type="date" name="to" value="{{ res.params.to or '' }}"></label>
+  {% endif %}
+  <button class="btn btn-primary btn-sm">보기</button>
+</form>
+{% endif %}
+
+<div class="rv-sum">
+  {% if d.source == 'people' %}기준 {{ res.params.on }}{% else %}{{ res.params.frm or '처음' }} ~ {{ res.params.to or '오늘' }}{% endif %}
+  · {{ dept_name or '전체 부서' }} · {{ fmt(res.total) }}줄
+</div>
+{% if source.note %}<div class="rv-dim">{{ source.note }}</div>{% endif %}
+{% for n in res.notes %}<div class="rv-note">{{ n }}</div>{% endfor %}
+
+{% if res.group %}
+<div class="card">
+  <h3 class="rv-h">묶어 보기</h3>
+  <div class="tbl-x">
+    <table class="table">
+      <thead><tr>{% for b in res.group.by %}<th>{{ b }}</th>{% endfor %}{% for m in res.group.measures %}<th class="rv-num">{{ m }}</th>{% endfor %}{% if d.chart == 'bar' %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+        {% for g in res.group.rows %}
+        <tr>
+          {% for k in g.key %}<td>{{ k if k not in (None, '') else '(없음)' }}</td>{% endfor %}
+          {% for v in g.vals %}<td class="rv-num">{{ fmt(v) }}</td>{% endfor %}
+          {% if d.chart == 'bar' %}
+          <td class="rv-barc">{% set pk = res.group.peak or 0 %}<span class="rv-bar" style="width:{{ ((g.vals[0] or 0) / pk * 100)|round(1) if pk else 0 }}%"></span></td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% if res.group.total %}
+      <tfoot><tr><td colspan="{{ res.group.by|length }}"><b>합계</b></td>{% for v in res.group.total %}<td class="rv-num"><b>{{ fmt(v) }}</b></td>{% endfor %}{% if d.chart == 'bar' %}<td></td>{% endif %}</tr></tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if res.trend %}
+<div class="card">
+  <h3 class="rv-h">달마다 {{ res.trend.measure }}{% if res.trend.by %} · {{ res.trend.by }}별{% endif %}</h3>
+  <div class="rv-trend">{{ res.trend.svg|safe }}</div>
+  <div class="tbl-x">
+    <table class="table">
+      <thead><tr><th></th>{% for m in res.trend.labels %}<th class="rv-num">{{ m }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for ln in res.trend.lines %}
+        <tr><td>{{ ln.name }}</td>{% for v in ln.vals %}<td class="rv-num">{{ fmt(v) }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+      {% if res.trend.total and res.trend.lines|length > 1 %}
+      <tfoot><tr><td><b>합계</b></td>{% for v in res.trend.total %}<td class="rv-num"><b>{{ fmt(v) }}</b></td>{% endfor %}</tr></tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3 class="rv-h">줄</h3>
+  {% if view_rows %}
+  <div class="tbl-x">
+    <table class="table">
+      <thead><tr>{% for k, label in res.columns %}<th>{{ label }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for r in view_rows %}
+        <tr>{% for k, label in res.columns %}<td>{{ fmt(r.get(k)) }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if res.total > max_rows %}<div class="rv-dim rv-pad">앞의 {{ max_rows }}줄만 보입니다. 엑셀에는 {{ fmt(res.total) }}줄 전부 들어 있습니다.</div>{% endif %}
+  {% else %}
+  <div class="rv-empty">조건에 맞는 줄이 없습니다.</div>
+  {% endif %}
+</div>
+
+{% if runs %}
+<div class="card">
+  <h3 class="rv-h">보낸 기록</h3>
+  <div class="tbl-x">
+    <table class="table">
+      <thead><tr><th>날짜</th><th>방식</th><th class="rv-num">줄</th><th class="rv-num">받은 사람</th><th class="rv-num">건너뜀</th><th></th></tr></thead>
+      <tbody>
+        {% for r in runs %}
+        <tr>
+          <td class="rv-mono">{{ r.ran_on }}</td>
+          <td>{{ {'schedule': '자동', 'manual': '지금 보내기', 'test': '시험'}.get(r.kind, r.kind) }}</td>
+          <td class="rv-num">{{ fmt(r.rows) }}</td>
+          <td class="rv-num">{{ r.n_to }}</td>
+          <td class="rv-num">{{ r.n_skip }}</td>
+          <td><a href="{{ url_for('reports_run_file', run_id=r.id) }}">엑셀</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<style>
+.tbl-x{overflow-x:auto;max-width:100%}
+.rv-back{display:inline-block;margin-bottom:10px;color:var(--tx-2);font-size:13px;text-decoration:none}
+.rv-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.rv-name{margin:0 0 4px;font-size:20px}
+.rv-dim{color:var(--tx-3);font-size:13px}
+.rv-acts{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start}
+.rv-acts form{margin:0}
+.rv-ask{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;padding:12px 14px;margin-bottom:10px}
+.rv-ask label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--tx-2)}
+.rv-ask input,.rv-ask select{min-width:140px}
+.rv-sum{font-size:14px;font-weight:600;margin:6px 0 4px}
+.rv-note{font-size:13px;color:var(--tx-2);margin:4px 0}
+.rv-h{margin:0 0 10px;font-size:15px}
+.rv-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rv-mono{font-family:var(--mono);font-size:12px}
+.rv-barc{min-width:120px}
+.rv-bar{display:block;height:10px;border-radius:2px;background:var(--tx-3);opacity:.55}
+.rv-trend{color:var(--tx-2);margin-bottom:10px}
+.rv-trend .rp-svg{width:100%;height:auto;display:block}
+.rv-trend .rp-axis{stroke:var(--line)}
+.rv-trend .rp-tick{font-size:10px;fill:var(--tx-3)}
+.rv-empty{padding:24px;text-align:center;color:var(--tx-3)}
+.rv-pad{padding-top:8px}
+.card + .card{margin-top:14px}
+@media (max-width:560px){.rv-ask input,.rv-ask select{min-width:0;width:100%}.rv-ask label{flex:1 1 100%}}
+</style>
+{% endblock %}

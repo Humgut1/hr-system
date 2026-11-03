@@ -84,7 +84,7 @@
   ]},
   {'key':'analytics', 'label':'분석', 'gi':'fa-chart-pie', 'items':[
     {'l':'인사 분석', 'u':url_for('people_analytics'), 'p':['analytics'], 'nt':'report', 's':ADM, 'i':'fa-chart-pie'},
-    {'l':'리포트 마법사', 'u':url_for('people_analytics', tab='report'), 'p':['analytics'], 't':'report', 's':ADM and 'data_wizard' in PF, 'i':'fa-wand-magic-sparkles'},
+    {'l':'리포트', 'u':url_for('reports_list'), 'p':['reports'], 's':reports_can(), 'i':'fa-table-list'},
     {'l':'데이터 내보내기', 'u':url_for('export_hub'), 'p':['export'], 's':ADM, 'i':'fa-file-arrow-down'},
   ]},
 ] %}
