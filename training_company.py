@@ -187,6 +187,7 @@ def seed_training_company(db_path: str):
     # 조직 코드·상태 칸 — 파일을 새로 만들었으니 이 프로세스의 '이미 했음' 표시를 지우고 다시
     org_admin.forget(db)
     org_admin.ensure_schema(db)
+    __import__('people_effective').forget(db)
     db.close()
 
 

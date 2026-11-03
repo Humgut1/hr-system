@@ -116,6 +116,7 @@ import perm_groups
 import data_quality
 import people_metrics
 import people_succession
+import people_effective
 init_master_db()        # master.db
 migrate_subscriptions() # grace_until 등 신규 컬럼 추가
 seed_default_superadmin() # SaaS 운영자 기본 계정 시드
@@ -506,6 +507,8 @@ def apply_scheduled_once():
             db.commit()
             if got:
                 _apply_salary_adjustment(db, adj)
+        people_effective.sync_all(db)   # 효력일 기록: 발령 넣기 + 어디선가 바로 고친 값 오늘 날짜로
+        db.commit()
     except Exception as e:   # 반영 실패로 화면을 막지 않는다
         app.logger.error('scheduled apply failed: %s', e)
 
@@ -572,6 +575,45 @@ def _history_after(db, uid, before, source, reason=None, password=False):
     people_history.record_diff(db, uid, before, source, aid, aname, reason=reason)
     if password:
         people_history.record_change(db, uid, 'password', None, None, source, aid, aname)
+
+
+def _effective_plan(db, uid, raw_date, new):
+    """직원 수정의 효력일(E1). (효력일, 바뀐 칸 {칸: 새 값}, 오류)."""
+    today = date.today().isoformat()
+    eff = (raw_date or '').strip()[:10] or today
+    try:
+        date.fromisoformat(eff)
+    except ValueError:
+        return today, {}, '효력일 형식이 올바르지 않습니다.'
+    people_effective.ensure_schema(db)
+    people_effective.sync_actions(db)
+    people_effective.sync_current(db, uid)
+    cur = people_effective.current_values(db, uid)
+    changes = {f: (v or None) for f, v in new.items() if (v or '') != (cur.get(f) or '')}
+    if eff < today:
+        for f in changes:
+            last = people_effective.last_date(db, uid, f)
+            if last and eff < last:
+                return eff, changes, '%s 항목은 이미 %s 효력으로 바뀐 기록이 있습니다. 효력일을 %s 이후로 고르세요.' % (
+                    people_effective.LABEL[f], last, last)
+    if eff > today and changes:
+        types = [people_effective.PA_TYPE[f] for f in changes]
+        if db.execute("SELECT 1 FROM personnel_actions WHERE user_id=? AND status='approved' AND applied_at IS NULL "
+                      "AND action_type IN (%s)" % ','.join('?' * len(types)), (uid, *types)).fetchone():
+            return eff, changes, '같은 항목에 이미 예약된 발령이 있습니다. 인사 발령 목록에서 먼저 확인하세요.'
+    return eff, changes, None
+
+
+def _effective_rows(db, uid):
+    """직원 상세 '효력일 기준' 목록. 읽기 전에 발령·오늘 값을 맞춘다."""
+    try:
+        people_effective.ensure_schema(db)
+        if people_effective.sync_actions(db) + people_effective.sync_current(db, uid):
+            db.commit()
+        return people_effective.timeline(db, uid)
+    except Exception as e:
+        app.logger.error('effective rows failed: %s', e)
+        return []
 
 
 def _profile_save(db, uid, fields, ecs, source):
@@ -2383,6 +2425,7 @@ def employee_detail(emp_id):
                            pub=_profile_public(db), full_view=can_see_sensitive,
                            tz_label=people_profile.TZ_LABEL,
                            history=__import__('people_history').timeline(db, emp_id) if can_see_sensitive else [],
+                           eff_rows=_effective_rows(db, emp_id) if can_see_sensitive else [],
                            emp=emp, payslips=payslips, leaves=leaves,
                            goals=goals, cycle=cycle,
                            annual_leave=annual_leave, used_leave=used_leave,
@@ -4990,8 +5033,14 @@ def employee_edit(emp_id):
         new_pw           = request.form.get('password', '').strip()
 
         pf, pecs, perr = people_profile.parse_form(request.form, True)
+        eff, eff_changes, eff_err = _effective_plan(db, emp_id, request.form.get('effective_date'), {
+            'department_id': dept_id, 'position_id': pos_id, 'manager_id': manager_id,
+            'employment_type': employment_type})
+        eff_future = eff > date.today().isoformat()
         if perr:
             error = perr
+        elif eff_err:
+            error = eff_err
         elif not name or not email:
             error = '이름과 이메일은 필수입니다.'
         elif new_pw and validate_password(new_pw):
@@ -5000,6 +5049,13 @@ def employee_edit(emp_id):
             error = '이미 사용 중인 이메일입니다.'
         else:
             before = _history_before(db, emp_id)
+            if eff_future and eff_changes:
+                # 미래 효력일: 고친 칸은 지금 안 바꾸고 그날 반영되는 예약 발령으로
+                cur = people_effective.current_values(db, emp_id)
+                dept_id = cur['department_id'] if 'department_id' in eff_changes else dept_id
+                pos_id = cur['position_id'] if 'position_id' in eff_changes else pos_id
+                manager_id = cur['manager_id'] if 'manager_id' in eff_changes else manager_id
+                employment_type = cur['employment_type'] if 'employment_type' in eff_changes else employment_type
             if new_pw:
                 db.execute(
                     'UPDATE users SET name=?, email=?, password_hash=?, role=?, '
@@ -5024,7 +5080,16 @@ def employee_edit(emp_id):
                        (request.form.get('job_profile_id', type=int), emp_id))
             _profile_save(db, emp_id, pf, pecs, 'edit')
             _history_after(db, emp_id, before, 'edit', password=bool(new_pw))
+            if eff_future and eff_changes:
+                people_effective.schedule_edit(db, emp_id, eff_changes, eff, session.get('user_id'))
+            else:
+                for f, v in eff_changes.items():
+                    people_effective.add(db, emp_id, f, v, eff, 'edit', actor_id=session.get('user_id'),
+                                         actor_name=session.get('user_name'))
             db.commit()
+            if eff_future and eff_changes:
+                flash('%s 변경은 %s 부터 반영됩니다. 그때까지는 지금 값이 유지됩니다.' % (
+                    '·'.join(people_effective.LABEL[f] for f in eff_changes), eff), 'info')
             # ── master.db 이메일 변경 동기화 ─────────────────────
             tid = session.get('tenant_id', 1)
             old_email = emp['email']
@@ -5039,6 +5104,7 @@ def employee_edit(emp_id):
                            managers=managers, error=error, emp=emp,
                            ecs=people_profile.emergency_list(db, emp_id),
                            timezones=people_profile.TIMEZONES,
+                           today_iso=date.today().isoformat(),
                            active_page='employees')
 
 ACTION_LABELS = {

@@ -1,5 +1,25 @@
 <!-- ══════════════════ 변경 이력 탭 (B1) ══════════════════ -->
 <div class="tab-panel" id="tab-history">
+  {% if eff_rows %}
+  <div class="section-card ef-card">
+    <div class="hx-head">
+      <h3 class="hx-title">효력일 기준 <span class="hx-count">{{ eff_rows|length }}건</span></h3>
+      <span class="ef-note">언제부터 효력인지 순서 · 같은 날이면 나중 기록이 적용</span>
+    </div>
+    <ol class="hx-list">
+      {% for r in eff_rows %}
+      <li class="hx-row{% if r.upcoming %} ef-up{% endif %}">
+        <div class="hx-when">{{ r.date }}{% if r.upcoming %} <span class="ef-tag">예정</span>{% endif %}</div>
+        <div class="hx-what">
+          <span class="hx-field">{{ r.label }}</span>
+          <span class="hx-new">{{ r.value }}</span>
+        </div>
+        <div class="hx-who">{{ r.source }}{% if r.actor %} · {{ r.actor }}{% endif %}{% if r.reason %} · {{ r.reason }}{% endif %}</div>
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% endif %}
   <div class="section-card">
     <div class="hx-head">
       <h3 class="hx-title">변경 이력 <span class="hx-count">{{ history|length }}건</span></h3>
@@ -54,6 +74,10 @@
   .hx-arrow{color:var(--text-muted);margin:0 4px}
   .hx-new{font-weight:600;color:var(--text)}
   .hx-who{color:var(--text-muted);font-size:12px;overflow-wrap:anywhere}
+  .ef-card{margin-bottom:16px}
+  .ef-note{color:var(--text-muted);font-size:12px}
+  .ef-tag{display:inline-block;margin-left:4px;padding:0 6px;border:1px solid var(--warning, #b7791f);color:var(--warning, #b7791f);border-radius:4px;font-size:11px}
+  .ef-up .hx-new{color:var(--text-muted)}
   .hx-empty{padding:28px 0;text-align:center;color:var(--text-muted);font-size:13px;margin:0}
   @media (max-width:560px){
     .hx-row{grid-template-columns:1fr}
