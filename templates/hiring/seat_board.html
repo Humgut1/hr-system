@@ -8,6 +8,10 @@
 .sb-head .n { font-size:13px; color:var(--tx-3); white-space:nowrap; }
 .sb-head .n b { font-size:18px; font-weight:750; color:var(--tx-1); margin-left:4px; }
 .sb-head .n.late b { color:var(--late); }
+.sb-onband { padding:0 20px 14px; font-size:12px; color:var(--tx-3); }
+.sb-onband a { color:var(--tx-1); text-decoration:underline; }
+.sb-on { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--tx-3); }
+.sb-on .input { width:150px; font-size:12px; }
 .sb-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:14px 0; }
 .sb-f { height:28px; padding:0 12px; display:inline-flex; align-items:center; border-radius:20px;
   border:1px solid var(--line); background:var(--surface); color:var(--tx-2);
@@ -68,12 +72,15 @@
     <span class="n{% if total.late %} late{% endif %}">{{ late_days }}일 넘게 빔<b>{{ total.late }}</b></span>
     {% if total.over %}<span class="n">정원 초과<b>{{ total.over }}</b></span>{% endif %}
   </div>
+  {% if on %}
+  <div class="sb-onband">{{ on }} 기준 · 그날 재직한 사람을 그날 부서에 · 정원은 {{ on[:4] }}년 · 채용 진행·퇴사 예정은 지금 화면에서만 보입니다 · <a href="{{ url_for('seat_board', view=view, dept=dept_f) }}">오늘로</a></div>
+  {% endif %}
 </div>
 
 <form class="sb-bar" method="get">
-  <a class="sb-f{% if view == 'all' %} on{% endif %}" href="{{ url_for('seat_board', dept=dept_f) }}">전체</a>
-  <a class="sb-f{% if view == 'empty' %} on{% endif %}" href="{{ url_for('seat_board', view='empty', dept=dept_f) }}">빈 포지션</a>
-  <a class="sb-f{% if view == 'late' %} on{% endif %}" href="{{ url_for('seat_board', view='late', dept=dept_f) }}">{{ late_days }}일 넘음</a>
+  <a class="sb-f{% if view == 'all' %} on{% endif %}" href="{{ url_for('seat_board', dept=dept_f, on=on) }}">전체</a>
+  <a class="sb-f{% if view == 'empty' %} on{% endif %}" href="{{ url_for('seat_board', view='empty', dept=dept_f, on=on) }}">빈 포지션</a>
+  <a class="sb-f{% if view == 'late' %} on{% endif %}" href="{{ url_for('seat_board', view='late', dept=dept_f, on=on) }}">{{ late_days }}일 넘음</a>
   <input type="hidden" name="view" value="{{ view }}">
   <select name="dept" class="select" onchange="this.form.submit()" aria-label="조직">
     <option value="">조직 전체</option>
@@ -81,6 +88,8 @@
     <option value="{{ o.id }}" {% if dept_f == o.id %}selected{% endif %}>{{ '  ' * o.depth }}{{ o.name }}</option>
     {% endfor %}
   </select>
+  <label class="sb-on"><span>기준일</span>
+    <input type="date" class="input" name="on" value="{{ on or today_iso }}" max="{{ today_iso }}" onchange="this.form.submit()"></label>
   <div class="sb-legend">
     <span><i></i>재직</span><span><i class="e"></i>빈 포지션</span><span><i class="l"></i>{{ late_days }}일 넘게 빔</span>
   </div>

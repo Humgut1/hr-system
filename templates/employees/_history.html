@@ -6,9 +6,14 @@
       <h3 class="hx-title">효력일 기준 <span class="hx-count">{{ eff_rows|length }}건</span></h3>
       <span class="ef-note">언제부터 효력인지 순서 · 같은 날이면 나중 기록이 적용</span>
     </div>
-    <ol class="hx-list">
+    <div class="ef-asof">
+      <label class="ef-asof-pick"><span>그날 기준</span>
+        <input type="date" class="input" id="ef-asof-date" value="{{ today_iso }}"></label>
+      <dl class="ef-asof-vals" id="ef-asof-vals"></dl>
+    </div>
+    <ol class="hx-list" id="ef-list">
       {% for r in eff_rows %}
-      <li class="hx-row{% if r.upcoming %} ef-up{% endif %}">
+      <li class="hx-row{% if r.upcoming %} ef-up{% endif %}" data-date="{{ r.date }}" data-field="{{ r.field }}" data-label="{{ r.label }}" data-value="{{ r.value }}">
         <div class="hx-when">{{ r.date }}{% if r.upcoming %} <span class="ef-tag">예정</span>{% endif %}</div>
         <div class="hx-what">
           <span class="hx-field">{{ r.label }}</span>
@@ -78,6 +83,14 @@
   .ef-note{color:var(--text-muted);font-size:12px}
   .ef-tag{display:inline-block;margin-left:4px;padding:0 6px;border:1px solid var(--warning, #b7791f);color:var(--warning, #b7791f);border-radius:4px;font-size:11px}
   .ef-up .hx-new{color:var(--text-muted)}
+  .ef-asof{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-start;padding:10px 12px;margin-bottom:10px;border:1px solid var(--border);border-radius:8px}
+  .ef-asof-pick{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted)}
+  .ef-asof-pick .input{width:150px;font-size:12px}
+  .ef-asof-vals{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0;font-size:13px;min-width:0}
+  .ef-asof-vals div{display:flex;gap:6px;min-width:0}
+  .ef-asof-vals dt{color:var(--text-muted);font-weight:400}
+  .ef-asof-vals dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+  .ef-asof-vals .ef-none{color:var(--text-muted);font-weight:400}
   .hx-empty{padding:28px 0;text-align:center;color:var(--text-muted);font-size:13px;margin:0}
   @media (max-width:560px){
     .hx-row{grid-template-columns:1fr}
@@ -89,7 +102,7 @@
   var box = document.getElementById('tab-history');
   if (!box) return;
   var chips = box.querySelectorAll('.hx-chip');
-  var rows = box.querySelectorAll('.hx-row');
+  var rows = box.querySelectorAll('.hx-row[data-k]');
   var empty = box.querySelector('.hx-list ~ .hx-empty');
   chips.forEach(function(c){
     c.addEventListener('click', function(){
@@ -103,5 +116,29 @@
       if (empty) empty.hidden = shown > 0;
     });
   });
+  // E2: 그날 기준 값 — 효력일 목록(효력일 역순)에서 항목마다 그날 이전 첫 줄
+  var pick = document.getElementById('ef-asof-date'), vals = document.getElementById('ef-asof-vals');
+  if (!pick || !vals) return;
+  var effRows = box.querySelectorAll('#ef-list .hx-row');
+  var order = ['department_id', 'position_id', 'manager_id', 'employment_type', 'salary'];
+  function draw(){
+    var on = pick.value, got = {}, label = {};
+    effRows.forEach(function(r){
+      var f = r.dataset.field;
+      label[f] = r.dataset.label;
+      if (on && r.dataset.date <= on && !(f in got)) got[f] = r.dataset.value;
+    });
+    vals.textContent = '';
+    order.forEach(function(f){
+      if (!(f in label)) return;
+      var d = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');
+      dt.textContent = label[f];
+      if (f in got) dd.textContent = got[f]; else { dd.textContent = '기록 전'; dd.className = 'ef-none'; }
+      d.appendChild(dt); d.appendChild(dd); vals.appendChild(d);
+    });
+  }
+  pick.addEventListener('input', draw);
+  pick.addEventListener('change', draw);
+  draw();
 })();
 </script>

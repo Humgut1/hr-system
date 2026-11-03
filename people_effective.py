@@ -309,3 +309,46 @@ def schedule_edit(c, uid, changes, eff_date, actor_id, reason=None):
     return n
 
 
+
+
+def parse_on(raw):
+    """주소의 ?on= → 'YYYY-MM-DD'. 비었거나 틀리거나 오늘이면 None(= 지금 값 그대로)."""
+    t = _norm(raw)
+    try:
+        d = date.fromisoformat(t).isoformat()
+    except ValueError:
+        return None
+    return None if d == today() else d
+
+
+def employed_on(c, on):
+    """그날 재직한 사람 id. 입사일 ≤ 그날 ≤ 퇴사일(없으면 재직 중인 사람만)."""
+    rows = c.execute(
+        "SELECT id FROM users WHERE COALESCE(hire_date,'') <= ? AND ("
+        " (COALESCE(termination_date,'')='' AND status='active') OR COALESCE(termination_date,'') >= ?)",
+        (on, on)).fetchall()
+    return {r[0] for r in rows}
+
+
+def overlay(c, on, rows):
+    """직원 줄(dict 가능한 것)에 그날 기준 부서·직급·매니저·고용형태를 덮는다.
+    바뀐 칸은 _diff 에 {field: 지금 읽는 글}. 이름 칸(dept_name·pos_name)도 다시 붙인다."""
+    rows = [dict(r) for r in rows]
+    vals = as_of(c, on, {r['id'] for r in rows})
+    names = {}
+    for f, t in _REF.items():
+        names[f] = {str(i): n for i, n in c.execute('SELECT id, name FROM %s' % t)}
+    for r in rows:
+        r['_diff'] = {}
+        got = vals.get(r['id'], {})
+        for f in USER_FIELDS:
+            if f not in got:
+                continue
+            v = got[f]
+            if _norm(v) != _norm(r.get(f)):
+                r['_diff'][f] = label_of(c, f, r.get(f)) or '없음'
+            r[f] = int(v) if f in _REF and _norm(v).isdigit() else (v or None)
+        r['dept_name'] = names['department_id'].get(_norm(r.get('department_id')))
+        r['pos_name'] = names['position_id'].get(_norm(r.get('position_id')))
+        r['manager_name'] = names['manager_id'].get(_norm(r.get('manager_id')))
+    return rows

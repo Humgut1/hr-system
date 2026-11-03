@@ -3,6 +3,13 @@
 {% block page_title %}직원 관리{% endblock %}
 
 {% block content %}
+<style>
+.ef-on{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tx-3);}
+.ef-band{padding:10px 16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--tx-2);display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;}
+.ef-band a{color:var(--tx-1);font-weight:700;margin-left:auto;}
+.ef-now{display:block;font-size:11px;font-weight:400;color:var(--warning);}
+.ef-diff{font-weight:700;}
+</style>
 
 <!-- 직원 상태 탭 (재직 / 입사 예정 / 퇴직) — v1.2.7 -->
 <div id="empStatusTabs" data-tour-page="emp-status-tabs" style="display:flex; gap:4px; border-bottom:2px solid var(--border); margin-bottom:18px;">
@@ -43,7 +50,7 @@
                  style="padding-left:34px;" placeholder="이름 / 이메일 / 사번 검색">
         </div>
         <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> 검색</button>
-        {% if q or dept_id or jf_id or pos_id or emp_type or perf_grade %}
+        {% if q or dept_id or jf_id or pos_id or emp_type or perf_grade or on %}
         <a href="{{ url_for('employees') }}" class="btn btn-ghost">초기화</a>
         {% endif %}
         {% if session.user_role == 'admin' %}
@@ -112,6 +119,10 @@
           <option value="{{ g }}" {% if perf_grade == g %}selected{% endif %}>{{ g }}등급</option>
           {% endfor %}
         </select>
+        <label class="ef-on" title="그날 기준으로 보기">
+          <span>기준일</span>
+          <input type="date" name="on" id="ef-on" class="input" value="{{ on or '' }}" style="width:150px; font-size:12px;">
+        </label>
       </div>
     </form>
   </div>
@@ -119,9 +130,17 @@
 
 <div class="card">
   <div class="card-head">
-    <span class="card-title">재직 직원</span>
+    <span class="card-title">{% if on %}{{ on }} 기준 재직{% else %}재직 직원{% endif %}</span>
     <span style="font-size:13px; color:var(--tx-3);">{{ employees|length }}명</span>
   </div>
+  {% if on %}
+  <div class="ef-band">
+    <span>그날 재직한 사람 · 부서·직급·고용형태는 그날 효력 기준</span>
+    <span>지금과 다른 사람 {{ on_diff }}명</span>
+    <span>성과등급·직군은 지금 값</span>
+    <a href="{{ url_for('employees', q=q or None, dept=dept_id or None, jf=jf_id or None, pos=pos_id or None, emp_type=emp_type or None, grade=perf_grade or None) }}">오늘로</a>
+  </div>
+  {% endif %}
   <div class="tbl-wrap">
     <table>
       <thead>
@@ -138,6 +157,7 @@
       </thead>
       <tbody>
         {% for emp in employees %}
+        {% set df = emp._diff if on else {} %}
         <tr class="emp-row" style="cursor:pointer;" data-href="{{ url_for('employee_detail', emp_id=emp.id) }}">
           <td>
             <div class="u-cell">
@@ -148,8 +168,8 @@
             </div>
           </td>
           <td style="color:var(--tx-3);">{{ emp.email }}</td>
-          <td>{{ emp.dept_name or '—' }}</td>
-          <td>{{ emp.pos_name or '—' }}</td>
+          <td{% if 'department_id' in df %} class="ef-diff"{% endif %}>{{ emp.dept_name or '—' }}{% if 'department_id' in df %}<span class="ef-now">지금 {{ df.department_id }}</span>{% endif %}</td>
+          <td{% if 'position_id' in df %} class="ef-diff"{% endif %}>{{ emp.pos_name or '—' }}{% if 'position_id' in df %}<span class="ef-now">지금 {{ df.position_id }}</span>{% endif %}</td>
           <td>
             {% set et = emp.employment_type %}
             {% if et == 'full_time' %}<span class="badge badge-active">정규직</span>
@@ -157,6 +177,7 @@
             {% elif et == 'contract' %}<span class="badge badge-pending">계약직</span>
             {% elif et == 'intern' %}<span class="badge badge-info">인턴</span>
             {% else %}<span class="badge badge-inactive">—</span>{% endif %}
+            {% if 'employment_type' in df %}<span class="ef-now">지금 {{ df.employment_type }}</span>{% endif %}
           </td>
           <td>
             {% if emp.perf_grade %}
@@ -200,6 +221,8 @@
 
 {% block scripts %}
 <script>
+var efOn = document.getElementById('ef-on');
+if (efOn) efOn.addEventListener('change', function() { if (!efOn.value || /^\d{4}-\d{2}-\d{2}$/.test(efOn.value)) efOn.form.submit(); });
 document.querySelectorAll('.emp-row').forEach(function(row) {
   row.addEventListener('click', function(e) {
     if (e.target.closest('a, button')) return;

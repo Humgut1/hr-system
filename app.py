@@ -2177,25 +2177,45 @@ def employees():
         'LEFT JOIN (SELECT user_id, final_grade FROM calibration_results '
         '           WHERE id IN (SELECT MAX(id) FROM calibration_results GROUP BY user_id)) cr '
         '           ON u.id = cr.user_id '
-        'WHERE u.status = ?'
+        'WHERE 1=1'
     )
-    params = [status]
+    params = []
+    # E2: ?on=날짜 → 그날 재직한 사람을 그날 기준 부서·직급·고용형태로 (재직/퇴직 탭과 무관)
+    on = people_effective.parse_on(request.args.get('on'))
+    on_ids = None
+    if on:
+        try:
+            people_effective.ensure_schema(db)
+            on_ids = people_effective.employed_on(db, on)
+        except Exception:
+            app.logger.exception('as-of list')
+            on = None
+    if not on:
+        sql += ' AND u.status = ?'; params.append(status)
     if q:
         sql    += ' AND (u.name LIKE ? OR u.email LIKE ? OR u.emp_no LIKE ?)'
         params += [f'%{q}%', f'%{q}%', f'%{q}%']
-    if dept_id:
+    if dept_id and not on:
         sql += ' AND u.department_id = ?'; params.append(dept_id)
     if jf_id:
         sql += ' AND u.job_family_id = ?'; params.append(jf_id)
-    if pos_id:
+    if pos_id and not on:
         sql += ' AND u.position_id = ?'; params.append(pos_id)
-    if emp_type:
+    if emp_type and not on:
         sql += ' AND u.employment_type = ?'; params.append(emp_type)
     if perf_grade:
         sql += ' AND cr.final_grade = ?'; params.append(perf_grade)
     sql += ' ORDER BY u.name'
 
     emp_list = db.execute(sql, params).fetchall()
+    on_diff = 0
+    if on:
+        emp_list = people_effective.overlay(db, on, [r for r in emp_list if r['id'] in on_ids])
+        emp_list = [r for r in emp_list
+                    if (not dept_id or str(r['department_id']) == dept_id)
+                    and (not pos_id or str(r['position_id']) == pos_id)
+                    and (not emp_type or r['employment_type'] == emp_type)]
+        on_diff = sum(1 for r in emp_list if r['_diff'])
 
     # 상단 탭 카운트 (v1.2.7 — 입사 예정자를 직원 관리로 통합)
     try:
@@ -2212,6 +2232,7 @@ def employees():
                            emp_type=emp_type, perf_grade=perf_grade,
                            status=status, hires_waiting=hires_waiting,
                            resigned_count=resigned_count,
+                           on=on, on_diff=on_diff, today_iso=date.today().isoformat(),
                            active_page='employees')
 
 @app.route('/employees/<int:emp_id>')
@@ -2426,6 +2447,7 @@ def employee_detail(emp_id):
                            tz_label=people_profile.TZ_LABEL,
                            history=__import__('people_history').timeline(db, emp_id) if can_see_sensitive else [],
                            eff_rows=_effective_rows(db, emp_id) if can_see_sensitive else [],
+                           today_iso=date.today().isoformat(),
                            emp=emp, payslips=payslips, leaves=leaves,
                            goals=goals, cycle=cycle,
                            annual_leave=annual_leave, used_leave=used_leave,
@@ -14575,9 +14597,11 @@ SEAT_TAG = {
 }
 
 
-def seat_board_data(db, today=None):
+def seat_board_data(db, today=None, on=None):
+    """on(YYYY-MM-DD) 이면 그날 기준: 그날 재직한 사람을 그날 부서에 앉히고, 정원은 그해 정원.
+    채용 진행(카드·요청서)·퇴사 예정은 지난 상태 기록이 없으므로 그날 보기에서는 빼고 남는 칸만 센다."""
     from datetime import date as _d
-    today = today or _d.today()
+    today = _d.fromisoformat(on) if on else (today or _d.today())
     fy = today.year
 
     def _day(v):
@@ -14597,20 +14621,32 @@ def seat_board_data(db, today=None):
         'SELECT department_id, target_count FROM department_headcount WHERE fiscal_year=?', (fy,)).fetchall()}
 
     leaving = {}
-    for r in db.execute(
+    for r in ([] if on else db.execute(
             "SELECT user_id, COALESCE(final_termination_date, requested_termination_date) AS d "
             "FROM termination_requests WHERE status IN ('submitted','under_review','approved','in_progress')"
-            ).fetchall():
+            ).fetchall()):
         if _day(r['d']) and _day(r['d']) >= today:
             leaving[r['user_id']] = r['d']
 
     seats = {d['id']: [] for d in deps}
     seats[None] = []
-    people = db.execute(
-        "SELECT u.id, u.name, u.department_id, u.termination_date, u.hire_date, "
-        "p.name AS pos_name, COALESCE(p.level, 0) AS lv FROM users u "
-        "LEFT JOIN positions p ON u.position_id=p.id WHERE u.status='active' "
-        "ORDER BY lv DESC, u.name").fetchall()
+    if on:
+        ids = people_effective.employed_on(db, on)
+        rows = db.execute(
+            "SELECT u.id, u.name, u.department_id, u.position_id, u.manager_id, u.employment_type, "
+            "u.termination_date, u.hire_date FROM users u").fetchall()
+        lv_of = {r[0]: r[1] or 0 for r in db.execute('SELECT id, level FROM positions')}
+        people = people_effective.overlay(db, on, [r for r in rows if r['id'] in ids])
+        for u in people:
+            u['lv'] = lv_of.get(u['position_id'], 0)
+            u['termination_date'] = None
+        people.sort(key=lambda u: (-u['lv'], u['name'] or ''))
+    else:
+        people = db.execute(
+            "SELECT u.id, u.name, u.department_id, u.termination_date, u.hire_date, "
+            "p.name AS pos_name, COALESCE(p.level, 0) AS lv FROM users u "
+            "LEFT JOIN positions p ON u.position_id=p.id WHERE u.status='active' "
+            "ORDER BY lv DESC, u.name").fetchall()
     for u in people:
         did = u['department_id'] if u['department_id'] in by_id else None
         out = leaving.get(u['id'])
@@ -14638,7 +14674,7 @@ def seat_board_data(db, today=None):
         seat.update(kw)
         seats[did if did in by_id else None].append(seat)
 
-    for o in db.execute(
+    for o in ([] if on else db.execute(
             "SELECT o.id, o.code, o.title, o.department_id, o.status, o.hire_type, o.requisition_id, "
             "o.created_at, o.backfill_user_id, p.name AS pos_name, bu.name AS backfill_name, "
             "bu.termination_date AS bf_out, "
@@ -14646,7 +14682,7 @@ def seat_board_data(db, today=None):
             "FROM job_openings o LEFT JOIN positions p ON o.position_id=p.id "
             "LEFT JOIN users bu ON o.backfill_user_id=bu.id "
             "LEFT JOIN incoming_hires ih ON ih.opening_id=o.id AND ih.status='waiting' "
-            "WHERE o.status IN ('approved','open') ORDER BY o.created_at, o.seq").fetchall():
+            "WHERE o.status IN ('approved','open') ORDER BY o.created_at, o.seq").fetchall()):
         since = _day(o['created_at'])
         if o['hire_type'] == 'backfill' and _day(o['bf_out']) and _day(o['bf_out']) < (since or today):
             since = _day(o['bf_out'])
@@ -14655,14 +14691,14 @@ def seat_board_data(db, today=None):
                sub=o['pos_name'] or '', req_id=o['requisition_id'], backfill=o['backfill_name'],
                reserved=o['reserved_name'], start=o['reserved_start'])
 
-    for r in db.execute(
+    for r in ([] if on else db.execute(
             "SELECT r.id, r.title, r.department_id, r.headcount, r.hire_type, r.created_at, r.backfill_user_id, "
             "bu.name AS backfill_name, bu.termination_date AS bf_out, "
             "(SELECT SUM(headcount) FROM requisition_lines l WHERE l.requisition_id=r.id) AS line_hc "
             "FROM job_requisitions r LEFT JOIN users bu ON r.backfill_user_id=bu.id "
             "WHERE r.status IN ('pending_dept','pending_hr') "
             "AND NOT EXISTS (SELECT 1 FROM job_openings o WHERE o.requisition_id=r.id) "
-            "ORDER BY r.created_at").fetchall():
+            "ORDER BY r.created_at").fetchall()):
         since = _day(r['created_at'])
         if r['hire_type'] == 'backfill' and _day(r['bf_out']) and _day(r['bf_out']) < (since or today):
             since = _day(r['bf_out'])
@@ -14739,7 +14775,8 @@ def seat_board():
     if role not in ('admin', 'manager', 'recruiter'):
         abort(403)
     db = get_db()
-    data = seat_board_data(db)
+    on = people_effective.parse_on(request.args.get('on'))
+    data = seat_board_data(db, on=on)
     nodes, kids = data['nodes'], data['kids']
 
     def _subtree(root):
@@ -14779,7 +14816,8 @@ def seat_board():
     return render_template('hiring/seat_board.html',
         nodes=shown, total=total, base=base, view=view, dept_f=dept_f, dept_opts=dept_opts,
         dept_type_label=DEPT_TYPE_LABEL, late_days=SEAT_LATE_DAYS,
-        can_request=True, active_page='seats')
+        on=on, today_iso=date.today().isoformat(),
+        can_request=not on, active_page='seats')
 
 
 # ── 자리 대장 ────────────────────────────────────────────────────────
