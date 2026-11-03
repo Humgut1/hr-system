@@ -461,37 +461,53 @@ def audit_exports():
 
 
 # ── 미래발령 자동 적용 (서버 기동 후 첫 요청 시 1회 실행) ──────────
-_scheduled_check_done = False
+_scheduled_swept = {}   # DB 파일 → 마지막으로 확인한 날짜
+
 
 @app.before_request
 def apply_scheduled_once():
-    global _scheduled_check_done
-    if _scheduled_check_done:
+    """발령일·발효일이 온 예약을 반영한다. 회사(DB)마다 하루 한 번 — 서버를 다시 켜지 않아도."""
+    if request.endpoint in (None, 'static'):
         return
-    _scheduled_check_done = True
     try:
-        today = date.today().isoformat()
         db = get_db()
+        k = db.execute('PRAGMA database_list').fetchone()[2]
+        today = date.today().isoformat()
+        if _scheduled_swept.get(k) == today:
+            return
+        _scheduled_swept[k] = today
         pending = db.execute(
             "SELECT * FROM personnel_actions WHERE status='approved' AND applied_at IS NULL AND effective_date <= ?",
             (today,)
         ).fetchall()
         for pa in pending:
-            _do_apply_action(db, pa)
-            db.execute(
-                "UPDATE personnel_actions SET applied_at=CURRENT_TIMESTAMP WHERE id=?",
+            # 워커 둘이 같이 돌아도 한 번만: 먼저 표시한 쪽만 반영
+            got = db.execute(
+                "UPDATE personnel_actions SET applied_at=CURRENT_TIMESTAMP WHERE id=? AND applied_at IS NULL",
                 (pa['id'],)
-            )
+            ).rowcount
+            if not got:
+                continue
+            _do_apply_action(db, pa)
+            db.commit()
             add_notification(
                 pa['user_id'], 'info', 'action',
                 '인사발령 자동 반영',
                 f'발령일({pa["effective_date"]})이 도래하여 인사발령이 자동 반영되었습니다.',
                 url_for('employee_detail', emp_id=pa['user_id'])
             )
-        if pending:
+        due = db.execute(
+            "SELECT * FROM salary_adjustments WHERE status='scheduled' AND effective_date <= ?", (today,)
+        ).fetchall()
+        for adj in due:
+            got = db.execute(
+                "UPDATE salary_adjustments SET status='applied' WHERE id=? AND status='scheduled'", (adj['id'],)
+            ).rowcount
             db.commit()
-    except Exception:
-        pass
+            if got:
+                _apply_salary_adjustment(db, adj)
+    except Exception as e:   # 반영 실패로 화면을 막지 않는다
+        app.logger.error('scheduled apply failed: %s', e)
 
 
 def _do_apply_action(db, pa):
