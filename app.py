@@ -3890,9 +3890,10 @@ def hires_list():
     counts = {row['status']: row['c'] for row in db.execute(
         'SELECT status, COUNT(*) c FROM incoming_hires GROUP BY status').fetchall()}
 
-    # 웹훅 토큰 (admin만 노출)
+    # 웹훅 토큰 (admin만 노출, 체험·연습 세션에는 안 보임 — 누구나 들어오는 세션이라)
     api_token = None
-    if session.get('user_role') == 'admin':
+    if (session.get('user_role') == 'admin' and not session.get('demo_mode')
+            and not session.get('training_mode')):
         api_token = get_or_create_api_token(session.get('tenant_id', 1))
 
     upcoming = workplace.upcoming_start_days(db, today) if status_filter == 'waiting' else []
